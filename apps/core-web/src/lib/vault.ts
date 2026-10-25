@@ -8,17 +8,42 @@ export interface AssignedNode {
   tier: AutonomyTier;
   hostname?: string;
   os_arch?: string;
+  os_info?: string;
+  status?: "ONLINE" | "OFFLINE";
   online?: boolean;
   last_seen_unix?: number;
+  network?: {
+    public_ipv4?: string | null;
+    private_ipv4?: string;
+  };
+  active_pty_sessions?: Array<{
+    session_id: string;
+    cwd: string;
+    running_cmd?: string | null;
+  }>;
+}
+
+export interface ServiceHealthCheckSpec {
+  type: "HTTP" | "TCP" | "EXEC";
+  target: string;
+  interval_sec: number;
+  status?: "HEALTHY" | "UNHEALTHY";
+  last_checked?: string;
+  last_error?: string;
 }
 
 export interface RegisteredService {
   service_id: string;
   name: string;
   node_id: string;
-  protocol: "http" | "tcp";
+  runtime?: "docker" | "systemd" | "pm2" | "binary";
+  unit_or_container?: string;
+  bind_address?: string;
+  protocol: "http" | "tcp" | "exec";
   port: number;
   path?: string;
+  enable_preview_tunnel?: boolean;
+  health_check?: ServiceHealthCheckSpec;
   healthy?: boolean;
   registered_at: string;
 }
@@ -271,20 +296,91 @@ export function writeBrainDoc(
   projectId: string,
   doc: "Architecture.md" | "Memory.md",
   content: string,
-  mode: "overwrite" | "append" = "overwrite"
+  mode: "overwrite" | "overwrite_full" | "append" | "replace_section" = "overwrite",
+  sectionHeader?: string
 ): string {
   ensureProjectVault(projectId);
   const filePath = path.join(getProjectDir(projectId), doc);
+  const existing = fs.existsSync(filePath)
+    ? fs.readFileSync(filePath, "utf8")
+    : "";
+
   if (mode === "append") {
-    const existing = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
     const next = existing.endsWith("\n")
       ? `${existing}${content}\n`
       : `${existing}\n${content}\n`;
     fs.writeFileSync(filePath, next, "utf8");
     return next;
   }
+
+  if (mode === "replace_section" && sectionHeader && sectionHeader.trim()) {
+    const lines = existing.split("\n");
+    const targetHeader = sectionHeader.trim().replace(/^#+\s*/, "").toLowerCase();
+    let startIdx = -1;
+    let startLevel = 2;
+
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^(#{1,6})\s+(.*)$/);
+      if (m) {
+        const headingText = m[2].trim().toLowerCase();
+        if (
+          headingText === targetHeader ||
+          lines[i].trim().toLowerCase() === sectionHeader.trim().toLowerCase()
+        ) {
+          startIdx = i;
+          startLevel = m[1].length;
+          break;
+        }
+      }
+    }
+
+    if (startIdx !== -1) {
+      let endIdx = lines.length;
+      for (let j = startIdx + 1; j < lines.length; j++) {
+        const m = lines[j].match(/^(#{1,6})\s+/);
+        if (m && m[1].length <= startLevel) {
+          endIdx = j;
+          break;
+        }
+      }
+      const headerLine = content.trim().startsWith("#")
+        ? content.trim()
+        : `${lines[startIdx]}\n\n${content.trim()}`;
+      const updatedLines = [
+        ...lines.slice(0, startIdx),
+        headerLine,
+        "",
+        ...lines.slice(endIdx),
+      ];
+      const next = updatedLines.join("\n");
+      fs.writeFileSync(filePath, next, "utf8");
+      return next;
+    } else {
+      // Section not found yet: append as a new section
+      const prefixHeader = sectionHeader.trim().startsWith("#")
+        ? sectionHeader.trim()
+        : `## ${sectionHeader.trim()}`;
+      const next = `${existing.trimEnd()}\n\n${prefixHeader}\n\n${content.trim()}\n`;
+      fs.writeFileSync(filePath, next, "utf8");
+      return next;
+    }
+  }
+
   fs.writeFileSync(filePath, content, "utf8");
   return content;
+}
+
+export function generateRandomSecret(
+  projectId: string,
+  key: string,
+  length = 32
+): string[] {
+  const safeLen = Math.max(8, Math.min(128, Number(length) || 32));
+  const randomVal = crypto
+    .randomBytes(Math.ceil(safeLen * 0.75))
+    .toString("base64url")
+    .slice(0, safeLen);
+  return setSecret(projectId, key, randomVal);
 }
 
 export function listSecretKeys(projectId: string): string[] {

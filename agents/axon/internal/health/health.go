@@ -1,10 +1,12 @@
 package health
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
@@ -47,8 +49,8 @@ func (c *Collector) SetTargets(targets []tunnelv1.ServiceHealthTarget) {
 	}
 }
 
-// Collect builds a NodeHeartbeat snapshot including CPU, RAM, Disk, and local service statuses.
-func (c *Collector) Collect(activePtySessions []string) tunnelv1.NodeHeartbeat {
+// Collect builds a NodeHeartbeat snapshot including CPU, RAM, Disk, OS info, IPv4, PTY sessions, and local service statuses.
+func (c *Collector) Collect(activePtySessions []string, sessionDetails ...[]tunnelv1.PtySessionMeta) tunnelv1.NodeHeartbeat {
 	hostname, err := os.Hostname()
 	if err != nil || hostname == "" {
 		hostname = "axon-node"
@@ -87,10 +89,17 @@ func (c *Collector) Collect(activePtySessions []string) tunnelv1.NodeHeartbeat {
 		statuses = append(statuses, c.probeService(target))
 	}
 
+	var details []tunnelv1.PtySessionMeta
+	if len(sessionDetails) > 0 {
+		details = sessionDetails[0]
+	}
+
 	return tunnelv1.NodeHeartbeat{
 		NodeID:            c.NodeID,
 		Hostname:          hostname,
 		OSArch:            fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
+		OSInfo:            detectOSInfo(),
+		PrivateIPv4:       detectPrivateIPv4(),
 		Tier:              c.Tier,
 		CPUPercent:        cpuPct,
 		RAMPercent:        ramPct,
@@ -102,6 +111,7 @@ func (c *Collector) Collect(activePtySessions []string) tunnelv1.NodeHeartbeat {
 		TimestampUnix:     time.Now().Unix(),
 		Services:          statuses,
 		ActivePtySessions: activePtySessions,
+		PtySessionDetails: details,
 	}
 }
 
@@ -113,12 +123,31 @@ func (c *Collector) probeService(target tunnelv1.ServiceHealthTarget) tunnelv1.S
 		Port:      target.Port,
 	}
 
-	if strings.EqualFold(target.Protocol, "http") {
-		path := target.Path
-		if !strings.HasPrefix(path, "/") {
-			path = "/" + path
+	if strings.EqualFold(target.Protocol, "exec") && strings.TrimSpace(target.Target) != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "/bin/sh", "-c", target.Target)
+		err := cmd.Run()
+		status.LatencyMs = time.Since(start).Milliseconds()
+		if err != nil {
+			status.Healthy = false
+			status.LastError = err.Error()
+			return status
 		}
-		url := fmt.Sprintf("http://127.0.0.1:%d%s", target.Port, path)
+		status.Healthy = true
+		status.StatusCode = 0
+		return status
+	}
+
+	if strings.EqualFold(target.Protocol, "http") {
+		url := strings.TrimSpace(target.Target)
+		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+			path := target.Path
+			if !strings.HasPrefix(path, "/") {
+				path = "/" + path
+			}
+			url = fmt.Sprintf("http://127.0.0.1:%d%s", target.Port, path)
+		}
 		resp, err := c.httpCli.Get(url)
 		status.LatencyMs = time.Since(start).Milliseconds()
 		if err != nil {
@@ -132,8 +161,11 @@ func (c *Collector) probeService(target tunnelv1.ServiceHealthTarget) tunnelv1.S
 		return status
 	}
 
-	// Default TCP probe on 127.0.0.1:<port>
-	addr := fmt.Sprintf("127.0.0.1:%d", target.Port)
+	// Default TCP probe on target or 127.0.0.1:<port>
+	addr := strings.TrimSpace(target.Target)
+	if addr == "" || !strings.Contains(addr, ":") {
+		addr = fmt.Sprintf("127.0.0.1:%d", target.Port)
+	}
 	conn, err := net.DialTimeout("tcp", addr, 1500*time.Millisecond)
 	status.LatencyMs = time.Since(start).Milliseconds()
 	if err != nil {
@@ -144,4 +176,31 @@ func (c *Collector) probeService(target tunnelv1.ServiceHealthTarget) tunnelv1.S
 	_ = conn.Close()
 	status.Healthy = true
 	return status
+}
+
+func detectOSInfo() string {
+	if raw, err := os.ReadFile("/etc/os-release"); err == nil {
+		for _, line := range strings.Split(string(raw), "\n") {
+			if strings.HasPrefix(line, "PRETTY_NAME=") {
+				pretty := strings.Trim(strings.TrimPrefix(line, "PRETTY_NAME="), `"'`)
+				return fmt.Sprintf("%s (%s %s)", pretty, runtime.GOOS, runtime.GOARCH)
+			}
+		}
+	}
+	return fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
+}
+
+func detectPrivateIPv4() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "127.0.0.1"
+	}
+	for _, a := range addrs {
+		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if v4 := ipnet.IP.To4(); v4 != nil {
+				return v4.String()
+			}
+		}
+	}
+	return "127.0.0.1"
 }

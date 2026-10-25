@@ -53,6 +53,7 @@ type FsRequest struct {
 	Path      string       `json:"path"`
 	Content   []byte       `json:"content,omitempty"`
 	Diff      string       `json:"diff,omitempty"`
+	FileMode  string       `json:"file_mode,omitempty"`
 }
 
 type FsEntry struct {
@@ -82,6 +83,7 @@ type PtyExecRequest struct {
 	Secrets       map[string]string `json:"secrets,omitempty"`
 	Cols          uint16            `json:"cols,omitempty"`
 	Rows          uint16            `json:"rows,omitempty"`
+	SendSignal    string            `json:"send_signal,omitempty"`
 }
 
 type PtyExecResponse struct {
@@ -97,6 +99,12 @@ type PtyExecResponse struct {
 	GuardrailReason    string `json:"guardrail_reason,omitempty"`
 }
 
+type PtySessionMeta struct {
+	SessionID  string `json:"session_id"`
+	Cwd        string `json:"cwd"`
+	RunningCmd string `json:"running_cmd,omitempty"`
+}
+
 // PtyLiveFrame is sent over interactive PTY mirroring streams for xterm.js
 type PtyLiveFrame struct {
 	SessionID string `json:"session_id"`
@@ -107,11 +115,13 @@ type PtyLiveFrame struct {
 }
 
 type ServiceHealthTarget struct {
-	ServiceID string `json:"service_id"`
-	Name      string `json:"name"`
-	Protocol  string `json:"protocol"` // "tcp" or "http"
-	Port      uint32 `json:"port"`
-	Path      string `json:"path,omitempty"`
+	ServiceID   string `json:"service_id"`
+	Name        string `json:"name"`
+	Protocol    string `json:"protocol"` // "tcp", "http", "exec"
+	Port        uint32 `json:"port"`
+	Path        string `json:"path,omitempty"`
+	Target      string `json:"target,omitempty"`
+	IntervalSec uint32 `json:"interval_sec,omitempty"`
 }
 
 type ServiceHealthStatus struct {
@@ -128,6 +138,9 @@ type NodeHeartbeat struct {
 	NodeID            string                `json:"node_id"`
 	Hostname          string                `json:"hostname"`
 	OSArch            string                `json:"os_arch"`
+	OSInfo            string                `json:"os_info,omitempty"`
+	PrivateIPv4       string                `json:"private_ipv4,omitempty"`
+	PublicIPv4        string                `json:"public_ipv4,omitempty"`
 	Tier              AutonomyTier          `json:"tier"`
 	CPUPercent        float64               `json:"cpu_percent"`
 	RAMPercent        float64               `json:"ram_percent"`
@@ -139,6 +152,7 @@ type NodeHeartbeat struct {
 	TimestampUnix     int64                 `json:"timestamp_unix"`
 	Services          []ServiceHealthStatus `json:"services"`
 	ActivePtySessions []string              `json:"active_pty_sessions"`
+	PtySessionDetails []PtySessionMeta      `json:"pty_session_details,omitempty"`
 }
 
 type CSRBootstrapRequest struct {

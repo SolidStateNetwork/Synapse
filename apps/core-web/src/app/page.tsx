@@ -53,17 +53,40 @@ interface AssignedNode {
   tier: AutonomyTier;
   hostname?: string;
   os_arch?: string;
+  os_info?: string;
+  status?: "ONLINE" | "OFFLINE";
   online?: boolean;
   last_seen_unix?: number;
+  network?: {
+    public_ipv4?: string | null;
+    private_ipv4?: string;
+  };
+  active_pty_sessions?: Array<{
+    session_id: string;
+    cwd: string;
+    running_cmd?: string | null;
+  }>;
 }
 
 interface RegisteredService {
   service_id: string;
   name: string;
   node_id: string;
-  protocol: "http" | "tcp";
+  runtime?: "docker" | "systemd" | "pm2" | "binary";
+  unit_or_container?: string;
+  bind_address?: string;
+  protocol: "http" | "tcp" | "exec";
   port: number;
   path?: string;
+  enable_preview_tunnel?: boolean;
+  health_check?: {
+    type: "HTTP" | "TCP" | "EXEC";
+    target: string;
+    interval_sec: number;
+    status?: "HEALTHY" | "UNHEALTHY";
+    last_checked?: string;
+    last_error?: string;
+  };
   healthy?: boolean;
   registered_at: string;
 }
@@ -986,41 +1009,108 @@ export default function SynapseCalmStudio() {
             </div>
           </div>
 
-          {/* TIER_3_SUPERVISED Approval Banner (Only visible when needed) */}
+          {/* TIER_3_SUPERVISED Approval Gate with Command / Diff Preview */}
           {pendingApprovals.length > 0 && (
-            <div className="border-b border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+            <div className="border-b border-amber-500/30 bg-amber-500/10 p-3 space-y-2.5 max-h-64 overflow-y-auto">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-300">
                 <AlertTriangle className="h-4 w-4" />
                 <span>Approval Required (TIER_3_SUPERVISED)</span>
               </div>
-              {pendingApprovals.map((appr) => (
-                <div
-                  key={appr.approval_id}
-                  className="rounded-lg border border-amber-500/30 bg-black/60 p-2.5 text-xs space-y-2"
-                >
-                  <div className="font-mono text-amber-200">
-                    {appr.tool_name} on {appr.node_id}
+              {pendingApprovals.map((appr) => {
+                const cmdPreview = appr.arguments?.command
+                  ? `$ ${String(appr.arguments.command)}`
+                  : null;
+                const fsPreview = appr.arguments?.path
+                  ? `${String(appr.arguments.operation || "fs")} ${String(
+                      appr.arguments.path
+                    )}\n${String(
+                      appr.arguments.content_or_patch ||
+                        appr.arguments.diff ||
+                        appr.arguments.content ||
+                        ""
+                    ).slice(0, 320)}`
+                  : null;
+
+                return (
+                  <div
+                    key={appr.approval_id}
+                    className="rounded-xl border border-amber-500/30 bg-black/75 p-3 text-xs space-y-2"
+                  >
+                    <div className="flex items-center justify-between font-mono text-[11px] text-amber-200">
+                      <span>
+                        {appr.tool_name} · {appr.node_id}
+                      </span>
+                      <span className="text-amber-400/70">
+                        {appr.approval_id}
+                      </span>
+                    </div>
+                    {(cmdPreview || fsPreview) && (
+                      <pre className="max-h-28 overflow-x-auto rounded-lg border border-white/[0.08] bg-[#060609] p-2 font-mono text-[11px] text-emerald-300">
+                        {cmdPreview || fsPreview}
+                      </pre>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() =>
+                          handleResolveApproval(appr.approval_id, "approve")
+                        }
+                        className="flex-1 rounded-lg bg-emerald-600 py-1.5 font-medium text-white hover:bg-emerald-500"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleResolveApproval(appr.approval_id, "reject")
+                        }
+                        className="flex-1 rounded-lg bg-rose-600 py-1.5 font-medium text-white hover:bg-rose-500"
+                      >
+                        Reject
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
+                );
+              })}
+            </div>
+          )}
+
+          {/* Real-Time Health Monitoring & Auto-Healing Trigger (Section 4) */}
+          {(activeProject?.registered_services || []).some(
+            (s) => s.healthy === false || s.health_check?.status === "UNHEALTHY"
+          ) && (
+            <div className="border-b border-rose-500/30 bg-rose-500/10 p-3 space-y-2">
+              {(activeProject?.registered_services || [])
+                .filter(
+                  (s) =>
+                    s.healthy === false ||
+                    s.health_check?.status === "UNHEALTHY"
+                )
+                .map((svc) => (
+                  <div
+                    key={svc.service_id}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-rose-500/30 bg-black/70 px-3 py-2 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-semibold text-rose-300 truncate">
+                        UNHEALTHY: {svc.name} (:{svc.port})
+                      </div>
+                      <div className="font-mono text-[10px] text-rose-200/70 truncate">
+                        {svc.health_check?.last_error ||
+                          `Connection refused on ${svc.node_id}:${svc.port}`}
+                      </div>
+                    </div>
                     <button
                       onClick={() =>
-                        handleResolveApproval(appr.approval_id, "approve")
+                        handleQuickAction(
+                          `diagnose and auto-heal service ${svc.port}`
+                        )
                       }
-                      className="flex-1 rounded-md bg-emerald-600 py-1 font-medium text-white"
+                      disabled={chatBusy}
+                      className="shrink-0 rounded-lg bg-rose-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-rose-500"
                     >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleResolveApproval(appr.approval_id, "reject")
-                      }
-                      className="flex-1 rounded-md bg-rose-600 py-1 font-medium text-white"
-                    >
-                      Reject
+                      Ask AI to Diagnose &amp; Fix
                     </button>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           )}
 
@@ -1504,10 +1594,59 @@ export default function SynapseCalmStudio() {
             )}
 
             {/* ───────────────────────────────────────────────────────────────
-                STAGE 3: LIVE APP PREVIEW (Clean Browser Frame)
+                STAGE 3: LIVE APP PREVIEW (Clean Browser Frame + Service Switcher)
             ─────────────────────────────────────────────────────────────── */}
             {mainStageView === "preview" && (
-              <div className="flex h-full flex-col p-6">
+              <div className="flex h-full flex-col p-6 gap-4">
+                {(activeProject?.registered_services || []).length > 0 && (
+                  <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-2">
+                    {(activeProject?.registered_services || []).map((svc) => {
+                      const isHealthy =
+                        svc.healthy !== false &&
+                        svc.health_check?.status !== "UNHEALTHY";
+                      return (
+                        <div
+                          key={svc.service_id}
+                          className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs transition ${
+                            previewPort === svc.port
+                              ? "border-emerald-500/40 bg-emerald-500/10 text-white"
+                              : "border-white/[0.08] bg-[#0b0b11] text-zinc-300"
+                          }`}
+                        >
+                          <button
+                            onClick={() => setPreviewPort(svc.port)}
+                            className="flex items-center gap-2"
+                          >
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                isHealthy
+                                  ? "bg-emerald-400"
+                                  : "bg-rose-500 animate-pulse"
+                              }`}
+                            />
+                            <span className="font-medium">{svc.name}</span>
+                            <span className="font-mono text-[11px] text-zinc-400">
+                              :{svc.port}
+                            </span>
+                          </button>
+                          {!isHealthy && (
+                            <button
+                              onClick={() =>
+                                handleQuickAction(
+                                  `diagnose and auto-heal service ${svc.port}`
+                                )
+                              }
+                              className="ml-1 rounded-md bg-rose-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-rose-500"
+                            >
+                              Ask AI to Diagnose &amp; Fix
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-hidden rounded-2xl border border-white/[0.09] bg-[#0b0b11] shadow-2xl">
                   <div className="flex items-center justify-between border-b border-white/[0.07] bg-[#0e0e15] px-4 py-2.5 text-xs">
                     <div className="flex items-center gap-2">
@@ -1623,17 +1762,53 @@ export default function SynapseCalmStudio() {
                             </span>
                           </div>
                           {gn.last_heartbeat && (
-                            <div className="grid grid-cols-3 gap-2 rounded-lg bg-black/40 p-2.5 font-mono text-xs text-zinc-300">
-                              <div>
-                                CPU {gn.last_heartbeat.cpu_percent.toFixed(1)}%
+                            <>
+                              <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-zinc-400">
+                                <span>
+                                  {gn.last_heartbeat.os_info ||
+                                    gn.last_heartbeat.os_arch}
+                                </span>
+                                <span>
+                                  IP:{" "}
+                                  {gn.last_heartbeat.private_ipv4 ||
+                                    "127.0.0.1"}
+                                </span>
                               </div>
-                              <div>
-                                RAM {gn.last_heartbeat.ram_percent.toFixed(1)}%
+                              <div className="grid grid-cols-3 gap-2 rounded-lg bg-black/40 p-2.5 font-mono text-xs text-zinc-300">
+                                <div>
+                                  CPU{" "}
+                                  {gn.last_heartbeat.cpu_percent.toFixed(1)}%
+                                </div>
+                                <div>
+                                  RAM{" "}
+                                  {gn.last_heartbeat.ram_percent.toFixed(1)}%
+                                </div>
+                                <div>
+                                  DSK{" "}
+                                  {gn.last_heartbeat.disk_percent.toFixed(1)}%
+                                </div>
                               </div>
-                              <div>
-                                DSK {gn.last_heartbeat.disk_percent.toFixed(1)}%
-                              </div>
-                            </div>
+                              {(gn.last_heartbeat.pty_session_details || [])
+                                .length > 0 && (
+                                <div className="space-y-1 rounded-lg border border-white/[0.05] bg-black/30 p-2 font-mono text-[11px]">
+                                  {gn.last_heartbeat.pty_session_details?.map(
+                                    (ps) => (
+                                      <div
+                                        key={ps.session_id}
+                                        className="flex items-center justify-between text-zinc-400"
+                                      >
+                                        <span className="text-emerald-300">
+                                          PTY {ps.session_id}
+                                        </span>
+                                        <span className="truncate max-w-[180px]">
+                                          {ps.running_cmd || ps.cwd}
+                                        </span>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              )}
+                            </>
                           )}
                           <button
                             onClick={() =>

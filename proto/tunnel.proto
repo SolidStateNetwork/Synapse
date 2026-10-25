@@ -34,6 +34,7 @@ message FsRequest {
   string path = 5;
   bytes content = 6;
   string diff = 7;
+  string file_mode = 8; // e.g. "0644" or "0755"
 }
 
 message FsEntry {
@@ -63,6 +64,7 @@ message PtyExecRequest {
   map<string, string> secrets = 7;
   uint32 cols = 8;
   uint32 rows = 9;
+  string send_signal = 10; // NONE, SIGINT, SIGTERM, SIGKILL
 }
 
 message PtyExecResponse {
@@ -78,12 +80,20 @@ message PtyExecResponse {
   string guardrail_reason = 10;
 }
 
+message PtySessionMeta {
+  string session_id = 1;
+  string cwd = 2;
+  string running_cmd = 3;
+}
+
 message ServiceHealthTarget {
   string service_id = 1;
   string name = 2;
-  string protocol = 3; // tcp, http
+  string protocol = 3; // tcp, http, exec
   uint32 port = 4;
   string path = 5;
+  string target = 6;
+  uint32 interval_sec = 7;
 }
 
 message ServiceHealthStatus {
@@ -111,4 +121,8 @@ message NodeHeartbeat {
   int64 timestamp_unix = 12;
   repeated ServiceHealthStatus services = 13;
   repeated string active_pty_sessions = 14;
+  string os_info = 15;
+  string private_ipv4 = 16;
+  string public_ipv4 = 17;
+  repeated PtySessionMeta pty_session_details = 18;
 }

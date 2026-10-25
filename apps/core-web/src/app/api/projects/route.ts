@@ -27,16 +27,66 @@ export async function GET(req: NextRequest) {
   const state = ensureProjectVault(projectId);
   const liveNodes = await fetchGatewayNodes();
 
-  // Merge live gateway node status & telemetry into project state view
+  // Merge live gateway node status, telemetry & service health into project state view
+  let stateChanged = false;
   for (const assigned of state.assigned_nodes) {
     const match = liveNodes.find((n) => n.node_id === assigned.node_id);
     assigned.online = Boolean(match?.online);
+    assigned.status = assigned.online ? "ONLINE" : "OFFLINE";
     if (match?.last_heartbeat) {
-      state.telemetry[assigned.node_id] = match.last_heartbeat;
-      assigned.hostname = match.last_heartbeat.hostname;
-      assigned.os_arch = match.last_heartbeat.os_arch;
-      assigned.last_seen_unix = match.last_heartbeat.timestamp_unix;
+      const hb = match.last_heartbeat;
+      state.telemetry[assigned.node_id] = hb;
+      assigned.hostname = hb.hostname;
+      assigned.os_arch = hb.os_arch;
+      assigned.os_info = hb.os_info || hb.os_arch;
+      assigned.last_seen_unix = hb.timestamp_unix;
+      assigned.network = {
+        public_ipv4: hb.public_ipv4 || null,
+        private_ipv4: hb.private_ipv4 || "127.0.0.1",
+      };
+      assigned.active_pty_sessions =
+        hb.pty_session_details ||
+        (hb.active_pty_sessions || []).map((sid) => ({
+          session_id: sid,
+          cwd: `/opt/axon/workspaces/${projectId}`,
+          running_cmd: null,
+        }));
+
+      // Synchronize registered service health statuses from node heartbeat
+      if (Array.isArray(hb.services)) {
+        for (const svc of state.registered_services) {
+          if (svc.node_id !== assigned.node_id) continue;
+          const liveSvc = hb.services.find(
+            (ls) =>
+              ls.service_id === svc.service_id || ls.port === svc.port
+          );
+          if (liveSvc) {
+            if (svc.healthy !== liveSvc.healthy) {
+              stateChanged = true;
+            }
+            svc.healthy = liveSvc.healthy;
+            svc.health_check = {
+              type:
+                svc.health_check?.type ||
+                ((svc.protocol?.toUpperCase() || "HTTP") as
+                  | "HTTP"
+                  | "TCP"
+                  | "EXEC"),
+              target:
+                svc.health_check?.target ||
+                `http://127.0.0.1:${svc.port}${svc.path || "/"}`,
+              interval_sec: svc.health_check?.interval_sec || 15,
+              status: liveSvc.healthy ? "HEALTHY" : "UNHEALTHY",
+              last_checked: new Date(hb.timestamp_unix * 1000).toISOString(),
+              last_error: liveSvc.last_error,
+            };
+          }
+        }
+      }
     }
+  }
+  if (stateChanged) {
+    saveProjectState(state);
   }
 
   return NextResponse.json({

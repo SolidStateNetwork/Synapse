@@ -133,15 +133,16 @@ func main() {
 			return
 		}
 		var payload struct {
-			NodeID        string               `json:"node_id"`
-			RequestID     string               `json:"request_id"`
-			ProjectID     string               `json:"project_id"`
-			Tier          tunnelv1.AutonomyTier `json:"tier"`
-			Operation     tunnelv1.FsOperation  `json:"operation"`
-			Path          string               `json:"path"`
-			Content       string               `json:"content"`        // raw UTF-8 string or base64 if is_base64=true
-			IsBase64      bool                 `json:"is_base64"`
-			Diff          string               `json:"diff"`
+			NodeID    string                `json:"node_id"`
+			RequestID string                `json:"request_id"`
+			ProjectID string                `json:"project_id"`
+			Tier      tunnelv1.AutonomyTier `json:"tier"`
+			Operation tunnelv1.FsOperation  `json:"operation"`
+			Path      string                `json:"path"`
+			Content   string                `json:"content"` // raw UTF-8 string or base64 if is_base64=true
+			IsBase64  bool                  `json:"is_base64"`
+			Diff      string                `json:"diff"`
+			FileMode  string                `json:"file_mode"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": err.Error()})
@@ -163,6 +164,7 @@ func main() {
 			Path:      payload.Path,
 			Content:   contentBytes,
 			Diff:      payload.Diff,
+			FileMode:  payload.FileMode,
 		}
 
 		resp, err := nodeHub.ExecFs(payload.NodeID, fsReq)
@@ -201,6 +203,7 @@ func main() {
 			Secrets       map[string]string     `json:"secrets"`
 			Cols          uint16                `json:"cols"`
 			Rows          uint16                `json:"rows"`
+			SendSignal    string                `json:"send_signal"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
@@ -217,6 +220,7 @@ func main() {
 			Secrets:       payload.Secrets,
 			Cols:          payload.Cols,
 			Rows:          payload.Rows,
+			SendSignal:    payload.SendSignal,
 		})
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]any{

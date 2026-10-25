@@ -1,19 +1,20 @@
 ---
 id: native-systemd
-name: Native Systemd Daemon Management
-description: Manages services as hardened native Linux systemd units with cgroup resource limits, sandboxing, and journald logging.
-category: deployment
+name: Native-Systemd
+description: Prohibits containerization; enforces native Linux installation, dedicated service users, hardened systemd unit files (ProtectSystem=strict), and host-level Nginx/Caddy.
+category: Infrastructure
 ---
 
-# CARTRIDGE: NATIVE SYSTEMD DAEMON ARCHITECTURE
+# Rule Cartridge: Native-Systemd
 
-## Core Mandates
-1. **Dedicated Systemd Units:** Every long-running background service MUST be managed via a dedicated `.service` unit file (either `/etc/systemd/system/<app>.service` in `TIER_1_UNLEASHED` or `--user` systemd units in `TIER_2_WORKSPACE_JAIL`).
-2. **Never Leave Orphan Processes:** Do not rely on `nohup`, `screen`, or backgrounded `&` shell jobs for production services. Always register, enable, and verify units via `systemctl`.
-3. **Unit Hardening Directives:** Every generated `.service` unit MUST include:
-   - `Restart=on-failure` and `RestartSec=5s`
+When this cartridge is active, you MUST strictly adhere to the following rules:
+
+1. **No Containerization:** Do NOT use Docker, Podman, or `docker-compose.yml`. Install all runtimes and services natively on the remote node OS.
+2. **Dedicated Unprivileged Service Users:** Create a dedicated Linux system user (`useradd --system --no-create-home --shell /usr/sbin/nologin <service-user>`) for each daemon.
+3. **Hardened Systemd Units:** Every long-running service MUST be managed via a `/etc/systemd/system/<service>.service` unit file containing explicit systemd security hardening directives:
+   - `ProtectSystem=strict`
+   - `ProtectHome=true`
    - `NoNewPrivileges=true`
-   - `ProtectSystem=strict` and `PrivateTmp=true` (with explicit `ReadWritePaths=` for the workspace)
-   - `EnvironmentFile=` pointing to a `0600` secret file rather than inline secrets in unit definitions.
-4. **Observability:** Verify service startup using `systemctl is-active <service>` and inspect logs with `journalctl -u <service> -n 50 --no-pager`.
-5. **Self-Protection:** Never modify, stop, mask, or restart `axon.service`.
+   - `PrivateTmp=true`
+   - `Restart=on-failure`
+4. **Host-Level Reverse Proxy:** Configure Nginx or Caddy directly on the host OS to proxy incoming traffic to local loopback ports (`127.0.0.1:<port>`).

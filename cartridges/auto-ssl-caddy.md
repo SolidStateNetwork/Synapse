@@ -1,24 +1,20 @@
 ---
 id: auto-ssl-caddy
-name: Automated HTTPS Ingress with Caddy
-description: Configures Caddy as an automatic TLS reverse proxy with Let's Encrypt/ZeroSSL, security headers, and zero-downtime reloads.
-category: ingress
+name: Auto-SSL-Caddy
+description: Requires every publicly exposed web service to be automatically placed behind a Caddy reverse proxy with automated Let's Encrypt TLS provisioning.
+category: Networking
 ---
 
-# CARTRIDGE: AUTO-SSL CADDY INGRESS
+# Rule Cartridge: Auto-SSL-Caddy
 
-## Core Mandates
-1. **Automated TLS Termination:** Use Caddy (`Caddyfile`) as the unified edge reverse proxy for all public-facing HTTP/HTTPS services.
-2. **Upstream Isolation:** Caddy proxies traffic exclusively to local loopback upstreams (`reverse_proxy 127.0.0.1:<port>`).
-3. **Mandatory Security Headers:** Every site block in `Caddyfile` MUST include hardened response headers:
+When this cartridge is active, you MUST strictly adhere to the following rules:
+
+1. **Loopback Application Binding:** Bind all web application servers (Next.js, Node.js, Go, Python) strictly to `127.0.0.1:<port>` on the target Muscle Node.
+2. **Automated Caddy Reverse Proxy:** Every publicly exposed HTTP service MUST be routed through a Caddy reverse proxy (`Caddyfile`) with automatic Let's Encrypt HTTPS certificates and HTTP-to-HTTPS redirection:
    ```caddyfile
-   header {
-       Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-       X-Content-Type-Options "nosniff"
-       X-Frame-Options "SAMEORIGIN"
-       Referrer-Policy "strict-origin-when-cross-origin"
-       -Server
+   app.example.com {
+       encode zstd gzip
+       reverse_proxy 127.0.0.1:3000
    }
    ```
-4. **Zero-Downtime Validation:** Always run `caddy validate --config Caddyfile` before executing `caddy reload --config Caddyfile`.
-5. **Brain Vault Registration:** Whenever an upstream port or domain is configured in Caddy, immediately invoke `core_register_service` and document the ingress topology in `Architecture.md`.
+3. **Live-Preview Registration:** Always register the upstream `127.0.0.1:<port>` via `core_register_service` with `enable_preview_tunnel: true` so the service can be inspected via the Core WebUI tunnel even before DNS propagation completes.

@@ -294,7 +294,7 @@ func (a *Agent) telemetryLoop(ctx context.Context, session *yamux.Session) {
 
 	// Send immediate heartbeat on connect, then every 5 seconds
 	sendBeat := func() error {
-		hb := a.HealthCol.Collect(a.PtyMgr.ActiveSessionIDs())
+		hb := a.HealthCol.Collect(a.PtyMgr.ActiveSessionIDs(), a.PtyMgr.ActiveSessionMeta())
 		return tunnelv1.WriteFrame(stream, hb)
 	}
 	_ = sendBeat()

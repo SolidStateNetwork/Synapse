@@ -10,6 +10,7 @@ import {
   appendAuditLog,
   deleteSecret,
   ensureProjectVault,
+  generateRandomSecret,
   getDecryptedSecrets,
   listSecretKeys,
   readBrainDoc,
@@ -17,6 +18,7 @@ import {
   setSecret,
   writeBrainDoc,
   type ProjectState,
+  type RegisteredService,
 } from "./vault";
 import { listCartridges } from "./cartridges";
 
@@ -51,21 +53,29 @@ export const SYNAPSE_TOOL_SCHEMAS = [
     function: {
       name: "core_update_brain_doc",
       description:
-        "Update Architecture.md (living Mermaid system topology & remote file layout) or Memory.md (chronological engineering journal) inside the Project Brain Vault.",
+        "Updates project documentation (Architecture.md or Memory.md) in the Core Vault. Must be called after every structural change on a node.",
       parameters: {
         type: "object",
         properties: {
           document: {
             type: "string",
             enum: ["Architecture.md", "Memory.md"],
+            description: "Target document in the Core project vault.",
           },
           mode: {
             type: "string",
-            enum: ["overwrite", "append"],
+            enum: ["replace_section", "append", "overwrite_full", "overwrite"],
+            description: "Type of update operation.",
+          },
+          section_header: {
+            type: "string",
+            description:
+              "Exact Markdown heading (required only when mode is replace_section).",
           },
           content: {
             type: "string",
-            description: "Markdown content to write or append.",
+            description:
+              "New Markdown content (including updated Mermaid graphs or remote file paths).",
           },
         },
         required: ["document", "mode", "content"],
@@ -77,18 +87,56 @@ export const SYNAPSE_TOOL_SCHEMAS = [
     function: {
       name: "core_register_service",
       description:
-        "Register a remote node application port in State.json for 5-second health checks and Live-Preview Reverse Proxy tunneling (/preview/<project_id>/<node_id>/<port>).",
+        "Registers, updates, or removes a service running on a Connector in State.json and activates real-time health monitoring and Live-Preview tunneling.",
       parameters: {
         type: "object",
         properties: {
-          service_id: { type: "string" },
+          action: {
+            type: "string",
+            enum: ["upsert", "remove"],
+            default: "upsert",
+          },
+          service_id: {
+            type: "string",
+            description: "Unique slug, e.g. svc-api-backend",
+          },
+          node_id: {
+            type: "string",
+            description: "ID of the Connector where the service runs.",
+          },
           name: { type: "string" },
-          node_id: { type: "string" },
-          protocol: { type: "string", enum: ["http", "tcp"] },
-          port: { type: "number" },
-          path: { type: "string" },
+          runtime: {
+            type: "string",
+            enum: ["docker", "systemd", "pm2", "binary"],
+          },
+          unit_or_container: {
+            type: "string",
+            description: "Name of the Docker container or systemd unit.",
+          },
+          bind_address: {
+            type: "string",
+            description: "IP address, e.g. 127.0.0.1, 0.0.0.0, or VLAN IP.",
+          },
+          port: { type: "integer" },
+          enable_preview_tunnel: {
+            type: "boolean",
+            description:
+              "When true, exposes the port through the Connector tunnel for the Live-Preview iframe in the Core WebUI.",
+          },
+          health_check: {
+            type: "object",
+            properties: {
+              type: { type: "string", enum: ["HTTP", "TCP", "EXEC"] },
+              target: {
+                type: "string",
+                description: "URL, IP:Port, or shell command on the node.",
+              },
+              interval_sec: { type: "integer", default: 15 },
+            },
+            required: ["type", "target"],
+          },
         },
-        required: ["service_id", "name", "node_id", "protocol", "port"],
+        required: ["service_id", "node_id"],
       },
     },
   },
@@ -97,15 +145,29 @@ export const SYNAPSE_TOOL_SCHEMAS = [
     function: {
       name: "core_manage_secret",
       description:
-        "Manage AES-256-GCM encrypted secrets in Secrets.enc. Secret values are injected into remote PTY sessions and automatically scrubbed ([REDACTED_SECRET:KEY]) from LLM output.",
+        "Generates or stores a secret inside the encrypted Core Vault (Secrets.enc) without exposing plaintext in logs or LLM context.",
       parameters: {
         type: "object",
         properties: {
-          action: { type: "string", enum: ["set", "delete", "list"] },
-          key: { type: "string" },
-          value: { type: "string" },
+          action: {
+            type: "string",
+            enum: ["generate_random", "set_value", "set", "delete", "list"],
+          },
+          key: {
+            type: "string",
+            description: "Env-compliant name, e.g. DB_ROOT_PASSWORD",
+          },
+          value: {
+            type: "string",
+            description: "Required only when action is set_value.",
+          },
+          length: {
+            type: "integer",
+            default: 32,
+            description: "Character length when action is generate_random.",
+          },
         },
-        required: ["action"],
+        required: ["action", "key"],
       },
     },
   },
@@ -114,16 +176,44 @@ export const SYNAPSE_TOOL_SCHEMAS = [
     function: {
       name: "node_pty_exec",
       description:
-        "Execute a shell command inside a persistent stateful Linux PTY session on an assigned Axon Muscle Node using deterministic sentinel framing.",
+        "Executes a shell command in a persistent PTY session on an assigned Connector. Working directory and environment variables persist across calls.",
       parameters: {
         type: "object",
         properties: {
-          node_id: { type: "string" },
-          session_id: { type: "string" },
-          command: { type: "string" },
-          wait_timeout_ms: { type: "number" },
+          node_id: {
+            type: "string",
+            description: "Target Connector ID from State.json.",
+          },
+          session_id: {
+            type: "string",
+            description:
+              "Name of the PTY session (created automatically if it does not exist), e.g. 'default' or 'db-setup'.",
+          },
+          command: {
+            type: "string",
+            description: "Bash command to execute.",
+          },
+          inject_secret_keys: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "List of secret keys from the Core Vault to inject as environment variables into the shell before execution.",
+          },
+          wait_timeout_ms: {
+            type: "integer",
+            default: 30000,
+            description:
+              "Max wait time for completion. For background daemons/dev servers, returns partial output after timeout while process keeps running.",
+          },
+          send_signal: {
+            type: "string",
+            enum: ["NONE", "SIGINT", "SIGTERM", "SIGKILL"],
+            default: "NONE",
+            description:
+              "Optional signal sent to the foreground process of the session (e.g. SIGINT for Ctrl+C).",
+          },
         },
-        required: ["node_id", "command"],
+        required: ["node_id", "session_id", "command"],
       },
     },
   },
@@ -132,7 +222,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
     function: {
       name: "node_fs_operation",
       description:
-        "Perform an atomic filesystem operation (read_file, write_file, apply_unified_diff, list_dir, stat, delete) on an assigned Axon Muscle Node.",
+        "Direct, atomic filesystem operations on a Connector over the mTLS stream (faster and safer than echo/cat over the shell).",
       parameters: {
         type: "object",
         properties: {
@@ -148,9 +238,20 @@ export const SYNAPSE_TOOL_SCHEMAS = [
               "delete",
             ],
           },
-          path: { type: "string" },
-          content: { type: "string" },
-          diff: { type: "string" },
+          path: {
+            type: "string",
+            description: "Path on the target Connector.",
+          },
+          content_or_patch: {
+            type: "string",
+            description:
+              "Full file content (for write_file) or Unified-Diff patch (for apply_unified_diff).",
+          },
+          file_mode: {
+            type: "string",
+            default: "0644",
+            description: "Octal file permissions, e.g. 0755 for scripts.",
+          },
         },
         required: ["node_id", "operation", "path"],
       },
@@ -197,6 +298,41 @@ function isWriteOrExecTool(
   return false;
 }
 
+export async function pushNodeHealthTargets(
+  state: ProjectState,
+  nodeId: string
+): Promise<void> {
+  if (!nodeId) return;
+  const nodeTargets = state.registered_services
+    .filter((s) => s.node_id === nodeId)
+    .map((s) => ({
+      service_id: s.service_id,
+      name: s.name,
+      protocol: (
+        s.health_check?.type ||
+        s.protocol ||
+        "http"
+      ).toLowerCase(),
+      port: s.port,
+      path: s.path || "/",
+      target:
+        s.health_check?.target ||
+        (s.protocol === "http"
+          ? `http://127.0.0.1:${s.port}${s.path || "/"}`
+          : `127.0.0.1:${s.port}`),
+      interval_sec: s.health_check?.interval_sec || 15,
+    }));
+  try {
+    await fetch(`${CORE_GATEWAY_URL}/api/v1/nodes/health-targets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ node_id: nodeId, targets: nodeTargets }),
+    });
+  } catch {
+    // Non-fatal if node is offline
+  }
+}
+
 /**
  * Policy Interceptor & Tool Dispatcher:
  * - Enforces Planning-Only Mode when zero Connector Nodes are assigned.
@@ -216,35 +352,119 @@ export async function interceptAndExecuteTool(
   if (toolName === "core_update_brain_doc") {
     const doc =
       args.document === "Memory.md" ? "Memory.md" : "Architecture.md";
-    const mode = args.mode === "append" ? "append" : "overwrite";
+    const rawMode = String(args.mode || "overwrite_full");
+    const mode =
+      rawMode === "append"
+        ? "append"
+        : rawMode === "replace_section"
+        ? "replace_section"
+        : "overwrite_full";
+    const sectionHeader = args.section_header
+      ? String(args.section_header)
+      : undefined;
     const content = String(args.content || "");
-    const updated = writeBrainDoc(projectId, doc, content, mode);
+    const updated = writeBrainDoc(
+      projectId,
+      doc,
+      content,
+      mode,
+      sectionHeader
+    );
     appendAuditLog(projectId, {
       timestamp: new Date().toISOString(),
       actor: "ai_orchestrator",
       tool_name: toolName,
       status: "executed",
-      summary: `Updated ${doc} (${mode}, ${content.length} chars)`,
+      summary: `Updated ${doc} (${mode}${
+        sectionHeader ? ` [${sectionHeader}]` : ""
+      }, ${content.length} chars)`,
       args,
     });
     return {
       tool_name: toolName,
       status: "executed",
-      output: { document: doc, mode, length: updated.length },
+      output: {
+        document: doc,
+        mode,
+        section_header: sectionHeader,
+        length: updated.length,
+      },
     };
   }
 
   if (toolName === "core_register_service") {
-    const svc = {
-      service_id: String(args.service_id || `svc-${Date.now()}`),
-      name: String(args.name || "App Service"),
-      node_id: String(args.node_id || state.assigned_nodes[0]?.node_id || ""),
-      protocol: (args.protocol === "tcp" ? "tcp" : "http") as "http" | "tcp",
-      port: Number(args.port || 3000),
-      path: String(args.path || "/"),
+    const action = String(args.action || "upsert");
+    const serviceId = String(args.service_id || `svc-${Date.now()}`);
+    const nodeId = String(
+      args.node_id || state.assigned_nodes[0]?.node_id || ""
+    );
+
+    if (action === "remove") {
+      state.registered_services = state.registered_services.filter(
+        (s) => s.service_id !== serviceId
+      );
+      saveProjectState(state);
+      await pushNodeHealthTargets(state, nodeId);
+      appendAuditLog(projectId, {
+        timestamp: new Date().toISOString(),
+        actor: "ai_orchestrator",
+        tool_name: toolName,
+        node_id: nodeId,
+        status: "executed",
+        summary: `Removed service ${serviceId} from ${nodeId}`,
+        args,
+      });
+      return {
+        tool_name: toolName,
+        status: "executed",
+        output: { removed: serviceId, node_id: nodeId },
+      };
+    }
+
+    const hcRaw = (args.health_check || {}) as Record<string, unknown>;
+    const port = Number(args.port || 3000);
+    const pathStr = String(args.path || "/");
+    const hcType = (
+      String(hcRaw.type || args.protocol || "HTTP").toUpperCase() === "TCP"
+        ? "TCP"
+        : String(hcRaw.type || "").toUpperCase() === "EXEC"
+        ? "EXEC"
+        : "HTTP"
+    ) as "HTTP" | "TCP" | "EXEC";
+    const hcTarget = String(
+      hcRaw.target ||
+        (hcType === "HTTP"
+          ? `http://127.0.0.1:${port}${pathStr}`
+          : `127.0.0.1:${port}`)
+    );
+
+    const svc: RegisteredService = {
+      service_id: serviceId,
+      name: String(args.name || serviceId),
+      node_id: nodeId,
+      runtime: (args.runtime as RegisteredService["runtime"]) || "binary",
+      unit_or_container: args.unit_or_container
+        ? String(args.unit_or_container)
+        : undefined,
+      bind_address: String(args.bind_address || "127.0.0.1"),
+      protocol: hcType.toLowerCase() as "http" | "tcp" | "exec",
+      port,
+      path: pathStr,
+      enable_preview_tunnel:
+        args.enable_preview_tunnel !== undefined
+          ? Boolean(args.enable_preview_tunnel)
+          : true,
+      health_check: {
+        type: hcType,
+        target: hcTarget,
+        interval_sec: Number(hcRaw.interval_sec || 15),
+        status: "HEALTHY",
+        last_checked: new Date().toISOString(),
+      },
       healthy: true,
       registered_at: new Date().toISOString(),
     };
+
     state.registered_services = [
       ...state.registered_services.filter(
         (s) => s.service_id !== svc.service_id
@@ -252,28 +472,7 @@ export async function interceptAndExecuteTool(
       svc,
     ];
     saveProjectState(state);
-
-    // Push updated health targets to Core Gateway -> Axon node
-    if (svc.node_id) {
-      const nodeTargets = state.registered_services
-        .filter((s) => s.node_id === svc.node_id)
-        .map((s) => ({
-          service_id: s.service_id,
-          name: s.name,
-          protocol: s.protocol,
-          port: s.port,
-          path: s.path || "/",
-        }));
-      try {
-        await fetch(`${CORE_GATEWAY_URL}/api/v1/nodes/health-targets`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ node_id: svc.node_id, targets: nodeTargets }),
-        });
-      } catch {
-        // Non-fatal if node is offline
-      }
-    }
+    await pushNodeHealthTargets(state, svc.node_id);
 
     appendAuditLog(projectId, {
       timestamp: new Date().toISOString(),
@@ -281,7 +480,7 @@ export async function interceptAndExecuteTool(
       tool_name: toolName,
       node_id: svc.node_id,
       status: "executed",
-      summary: `Registered service ${svc.name} (${svc.protocol}://127.0.0.1:${svc.port}) on ${svc.node_id}`,
+      summary: `Registered service ${svc.name} (${svc.bind_address}:${svc.port}, ${svc.health_check?.type}) on ${svc.node_id}`,
       args,
     });
 
@@ -297,28 +496,41 @@ export async function interceptAndExecuteTool(
 
   if (toolName === "core_manage_secret") {
     const action = String(args.action || "list");
-    const key = String(args.key || "");
+    const key = String(args.key || "").trim().toUpperCase();
     const value = String(args.value || "");
+    const length = Number(args.length || 32);
     let keys: string[] = [];
-    if (action === "set" && key) {
+
+    if (action === "generate_random" && key) {
+      keys = generateRandomSecret(projectId, key, length);
+    } else if ((action === "set_value" || action === "set") && key) {
       keys = setSecret(projectId, key, value);
     } else if (action === "delete" && key) {
       keys = deleteSecret(projectId, key);
     } else {
       keys = listSecretKeys(projectId);
     }
+
     appendAuditLog(projectId, {
       timestamp: new Date().toISOString(),
       actor: "ai_orchestrator",
       tool_name: toolName,
       status: "executed",
-      summary: `Secret vault action '${action}' on key '${key.toUpperCase() || "*"}'`,
-      args: { action, key: key.toUpperCase() },
+      summary: `Secret vault action '${action}' on key '${key || "*"}'`,
+      args: { action, key, length: action === "generate_random" ? length : undefined },
     });
     return {
       tool_name: toolName,
       status: "executed",
-      output: { action, keys },
+      output: {
+        action,
+        key,
+        secret_keys_available: keys,
+        note:
+          action === "generate_random"
+            ? `Generated ${length}-char secret '${key}' in Secrets.enc (never exposed in plaintext).`
+            : undefined,
+      },
     };
   }
 
@@ -388,7 +600,22 @@ export async function interceptAndExecuteTool(
   // 4. Dispatch Remote Node Tool via Core Gateway mTLS Yamux Tunnel
   if (toolName === "node_pty_exec") {
     const cmdId = `cmd-${crypto.randomBytes(4).toString("hex")}`;
-    const secrets = getDecryptedSecrets(projectId);
+    const allSecrets = getDecryptedSecrets(projectId);
+    let injectedSecrets: Record<string, string> = allSecrets;
+
+    if (
+      Array.isArray(args.inject_secret_keys) &&
+      args.inject_secret_keys.length > 0
+    ) {
+      injectedSecrets = {};
+      for (const rawKey of args.inject_secret_keys) {
+        const k = String(rawKey).trim().toUpperCase();
+        if (allSecrets[k] !== undefined) {
+          injectedSecrets[k] = allSecrets[k];
+        }
+      }
+    }
+
     const payload = {
       node_id: targetNodeId,
       cmd_id: cmdId,
@@ -396,8 +623,9 @@ export async function interceptAndExecuteTool(
       project_id: projectId,
       tier,
       command: String(args.command || ""),
-      wait_timeout_ms: Number(args.wait_timeout_ms || 15000),
-      secrets,
+      wait_timeout_ms: Number(args.wait_timeout_ms || 30000),
+      secrets: injectedSecrets,
+      send_signal: String(args.send_signal || "NONE"),
     };
 
     try {
@@ -419,6 +647,7 @@ export async function interceptAndExecuteTool(
         args: {
           command: args.command,
           session_id: payload.session_id,
+          send_signal: payload.send_signal,
           exit_code: data.exit_code,
           cwd: data.cwd,
           truncated: data.truncated,
@@ -442,15 +671,28 @@ export async function interceptAndExecuteTool(
 
   if (toolName === "node_fs_operation") {
     const reqId = `fs-${crypto.randomBytes(4).toString("hex")}`;
+    const operation = String(args.operation || "read_file") as FsOperation;
+    const contentOrPatch =
+      args.content_or_patch !== undefined
+        ? String(args.content_or_patch)
+        : undefined;
+
     const payload = {
       node_id: targetNodeId,
       request_id: reqId,
       project_id: projectId,
       tier,
-      operation: String(args.operation || "read_file") as FsOperation,
+      operation,
       path: String(args.path || "."),
-      content: String(args.content || ""),
-      diff: String(args.diff || ""),
+      content:
+        operation === "write_file"
+          ? contentOrPatch ?? String(args.content || "")
+          : String(args.content || ""),
+      diff:
+        operation === "apply_unified_diff"
+          ? contentOrPatch ?? String(args.diff || "")
+          : String(args.diff || ""),
+      file_mode: String(args.file_mode || "0644"),
     };
 
     try {
@@ -466,12 +708,13 @@ export async function interceptAndExecuteTool(
         tool_name: toolName,
         node_id: targetNodeId,
         status: data.success ? "executed" : "error",
-        summary: `FS [${targetNodeId}] ${payload.operation} ${payload.path} -> ${
+        summary: `FS [${targetNodeId}] ${payload.operation} ${payload.path} (${payload.file_mode}) -> ${
           data.success ? "OK" : data.error
         }`,
         args: {
           operation: payload.operation,
           path: payload.path,
+          file_mode: payload.file_mode,
           success: data.success,
         },
       });
@@ -497,6 +740,9 @@ export async function interceptAndExecuteTool(
   };
 }
 
+/**
+ * 5-Layer Modular Master-System-Prompt Assembler (Section 6 of Architecture Spec)
+ */
 export function buildSystemPrompt(projectId: string): string {
   const state = ensureProjectVault(projectId);
   const archDoc = readBrainDoc(projectId, "Architecture.md");
@@ -507,32 +753,116 @@ export function buildSystemPrompt(projectId: string): string {
     state.active_cartridges.includes(c.id)
   );
 
+  // Build structured State.json representation matching Section 4 Example 1
+  const assignedNodesMap: Record<string, unknown> = {};
+  for (const n of state.assigned_nodes) {
+    const hb = state.telemetry?.[n.node_id];
+    assignedNodesMap[n.node_id] = {
+      hostname: hb?.hostname || n.hostname || n.node_id,
+      status: n.online !== false ? "ONLINE" : "OFFLINE",
+      autonomy_tier: n.tier,
+      network: {
+        public_ipv4: hb?.public_ipv4 || n.network?.public_ipv4 || null,
+        private_ipv4:
+          hb?.private_ipv4 || n.network?.private_ipv4 || "127.0.0.1",
+      },
+      os_info: hb?.os_info || n.os_info || hb?.os_arch || "Linux x86_64",
+      telemetry: hb
+        ? {
+            cpu_load_1m: Number((hb.cpu_percent / 100).toFixed(2)),
+            ram_used_mb: Math.round(hb.ram_used_bytes / (1024 * 1024)),
+            ram_total_mb: Math.round(hb.ram_total_bytes / (1024 * 1024)),
+            disk_free_gb: Number(
+              (
+                (hb.disk_total_bytes - hb.disk_used_bytes) /
+                (1024 * 1024 * 1024)
+              ).toFixed(1)
+            ),
+            last_heartbeat: new Date(hb.timestamp_unix * 1000).toISOString(),
+          }
+        : undefined,
+      active_pty_sessions:
+        hb?.pty_session_details ||
+        n.active_pty_sessions ||
+        (hb?.active_pty_sessions || []).map((sid) => ({
+          session_id: sid,
+          cwd: `/opt/axon/workspaces/${state.project_id}`,
+          running_cmd: null,
+        })),
+    };
+  }
+
+  const injectedStateJson = JSON.stringify(
+    {
+      project_id: state.project_id,
+      project_name: state.name,
+      updated_at: state.updated_at,
+      active_cartridges: state.active_cartridges,
+      assigned_nodes: assignedNodesMap,
+      registered_services: state.registered_services,
+      secret_keys_available: secretKeys,
+    },
+    null,
+    2
+  );
+
   const cartridgeBlock = activeCartridges
-    .map((c) => `### Rule Cartridge: ${c.name} (${c.id})\n${c.content}`)
+    .map(
+      (c) =>
+        `### Cartridge: ${c.name} (ID: ${c.id})\n${c.content.replace(
+          /^---[\s\S]*?---\s*/,
+          ""
+        )}`
+    )
     .join("\n\n");
 
-  return `You are the **Synapse Core AI Orchestrator ("The Brain")** managing project "${state.name}" (${state.project_id}).
-ARCHITECTURAL LAW: The Core Control Plane NEVER compiles or executes user code locally. All remote file and shell operations happen strictly on assigned Axon Muscle Nodes over mTLS + Yamux.
+  return `<!-- ===================================================================== -->
+<!-- LAYER 1: IMMUTABLE CORE IDENTITY & BRAIN-MUSCLE PARADIGM              -->
+<!-- ===================================================================== -->
+You are the Principal Autonomous DevOps & Software Engineering Engine operating on a "Brain & Muscle" architecture.
 
-## Current Project State
-- Mode: ${
-    state.planning_only
-      ? "LOCKED IN PLANNING-ONLY MODE (No Axon Connector Nodes assigned)"
-      : "ACTIVE EXECUTION MODE"
-  }
-- Assigned Nodes: ${JSON.stringify(state.assigned_nodes)}
-- Registered Services: ${JSON.stringify(state.registered_services)}
-- Available Secret Keys (auto-injected & scrubbed in PTY): ${JSON.stringify(
-    secretKeys
-  )}
+CRITICAL ARCHITECTURAL LAWS:
+1. NO LOCAL EXECUTION ON CORE: You reside in the stateless "Brain" (Control Plane). You DO NOT have a local shell or local code workspace on the Core. All application code, builds, databases, and configurations MUST be created and executed directly on the assigned Remote Connectors ("Muscles") using \`node_*\` tools.
+2. ZERO-CONNECTOR LOCK: Inspect \`<assigned_infrastructure>\` below. If \`assigned_nodes\` is empty, you are in PLANNING-ONLY MODE. You may only use \`core_update_brain_doc\` to design architectures and must instruct the user to assign at least one Connector in the UI before implementation.
+3. STATE SYNCHRONIZATION DUTY: Because application code lives exclusively on remote servers, the Core relies entirely on your discipline to stay informed:
+   - Whenever you create/move directories or change system topology on a node, you MUST update \`Architecture.md\` via \`core_update_brain_doc\`.
+   - Whenever you expose a port, start a daemon/container, or configure a database, you MUST register it via \`core_register_service\` so the Core UI can monitor health and open Live-Preview tunnels.
+   - Whenever you solve a non-trivial bug or server quirk, record the lesson in \`Memory.md\`.
+4. SELF-PRESERVATION: Never stop \`axon\` / \`muscle-agent\`, never flush firewall rules without preserving the outbound connection to the Core Hub, and never expose raw database ports to \`0.0.0.0\` without firewall restrictions.
 
-## Active Rule Cartridges
-${cartridgeBlock || "None selected."}
+<!-- ===================================================================== -->
+<!-- LAYER 2: DYNAMICALLY INJECTED INFRASTRUCTURE & AUTONOMY TIERS         -->
+<!-- ===================================================================== -->
+<assigned_infrastructure>
+${injectedStateJson}
+</assigned_infrastructure>
 
-## Living System Topology (Architecture.md)
+AUTONOMY TIER BEHAVIOR PER NODE:
+- For nodes in \`TIER_1_UNLEASHED\`: Execute full-stack provisioning autonomously. Verify system state (\`systemctl status\`, \`docker ps\`, \`ss -tulpn\`) after changes.
+- For nodes in \`TIER_2_WORKSPACE_JAIL\`: All file paths MUST reside within \`/opt/axon/workspaces/${state.project_id}/\`. Do not attempt host-level package installations (\`apt\`); use local runtimes or rootless containers.
+- For nodes in \`TIER_3_SUPERVISED\`: Your write and execution tool calls will pause for human approval in the UI. Group related shell commands logically and explain the exact impact before invoking the tool.
+
+<!-- ===================================================================== -->
+<!-- LAYER 3: PLUGGABLE RULE CARTRIDGES (USER-SELECTED IN PROJECT UI)      -->
+<!-- ===================================================================== -->
+<active_rule_cartridges>
+${cartridgeBlock || "No active rule cartridges selected."}
+</active_rule_cartridges>
+
+<!-- ===================================================================== -->
+<!-- LAYER 4: PROJECT BRAIN CONTEXT (ARCHITECTURE & LONG-TERM MEMORY)      -->
+<!-- ===================================================================== -->
+<project_architecture>
 ${archDoc}
+</project_architecture>
 
-## Engineering Journal (Memory.md)
+<project_memory>
 ${memDoc}
+</project_memory>
+
+<!-- ===================================================================== -->
+<!-- LAYER 5: EXECUTION PROTOCOL                                           -->
+<!-- ===================================================================== -->
+When developing web applications on any node, always bind dev servers to \`127.0.0.1:<port>\` (or container port mapped to \`127.0.0.1:<port>\`) and call \`core_register_service\` with \`enable_preview_tunnel: true\` so the user can immediately view the live application inside the Core WebUI preview iframe.
 `;
 }

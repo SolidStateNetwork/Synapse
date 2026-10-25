@@ -32,6 +32,7 @@ type Session struct {
 	mu          sync.Mutex
 	execMu      sync.Mutex
 	knownSecret map[string]string
+	runningCmd  string
 
 	subMu       sync.Mutex
 	subscribers map[chan []byte]struct{}
@@ -67,6 +68,26 @@ func (m *Manager) ActiveSessionIDs() []string {
 	for id, sess := range m.sessions {
 		if !sess.isClosed() {
 			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// ActiveSessionMeta returns rich metadata (session_id, cwd, running_cmd) for all active PTY sessions.
+func (m *Manager) ActiveSessionMeta() []tunnelv1.PtySessionMeta {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]tunnelv1.PtySessionMeta, 0, len(m.sessions))
+	for id, sess := range m.sessions {
+		if !sess.isClosed() {
+			sess.mu.Lock()
+			rc := sess.runningCmd
+			sess.mu.Unlock()
+			out = append(out, tunnelv1.PtySessionMeta{
+				SessionID:  id,
+				Cwd:        sess.ResolveCWD(),
+				RunningCmd: rc,
+			})
 		}
 	}
 	return out
@@ -152,6 +173,22 @@ func (s *Session) isClosed() bool {
 	return s.closed
 }
 
+var liveSentinelFilter = regexp.MustCompile(`(?m)\r?\n?__SYNAPSE_EOF_[^:\r\n]+:-?\d+__\r?\n?`)
+
+func (s *Session) broadcastLive(chunk []byte) {
+	if len(chunk) == 0 {
+		return
+	}
+	s.subMu.Lock()
+	for sub := range s.subscribers {
+		select {
+		case sub <- chunk:
+		default:
+		}
+	}
+	s.subMu.Unlock()
+}
+
 func (s *Session) readLoop() {
 	buf := make([]byte, 4096)
 	for {
@@ -167,10 +204,13 @@ func (s *Session) readLoop() {
 				default:
 				}
 			}
-			for sub := range s.subscribers {
-				select {
-				case sub <- chunk:
-				default:
+			cleanForLive := liveSentinelFilter.ReplaceAll(chunk, nil)
+			if len(cleanForLive) > 0 {
+				for sub := range s.subscribers {
+					select {
+					case sub <- cleanForLive:
+					default:
+					}
 				}
 			}
 			s.subMu.Unlock()
@@ -285,8 +325,42 @@ func (m *Manager) Execute(req tunnelv1.PtyExecRequest) tunnelv1.PtyExecResponse 
 		_ = sess.Resize(req.Cols, req.Rows)
 	}
 
+	// Optional Signal Injection (SIGINT / SIGTERM / SIGKILL) before or instead of command execution
+	sigUpper := strings.ToUpper(strings.TrimSpace(req.SendSignal))
+	if sigUpper == "SIGINT" {
+		_, _ = sess.Ptmx.Write([]byte{0x03}) // Ctrl+C to foreground process group
+		sess.broadcastLive([]byte("^C\r\n"))
+		if strings.TrimSpace(req.Command) == "" {
+			return tunnelv1.PtyExecResponse{
+				CmdID:     cmdID,
+				SessionID: sess.ID,
+				Output:    "Sent SIGINT (Ctrl+C) to foreground process.",
+				ExitCode:  0,
+				Cwd:       sess.ResolveCWD(),
+			}
+		}
+	} else if sigUpper == "SIGTERM" || sigUpper == "SIGKILL" {
+		_, _ = sess.Ptmx.Write([]byte{0x03})
+		if strings.TrimSpace(req.Command) == "" {
+			return tunnelv1.PtyExecResponse{
+				CmdID:     cmdID,
+				SessionID: sess.ID,
+				Output:    fmt.Sprintf("Sent %s to foreground process.", sigUpper),
+				ExitCode:  0,
+				Cwd:       sess.ResolveCWD(),
+			}
+		}
+	}
+
 	sess.execMu.Lock()
 	defer sess.execMu.Unlock()
+
+	sess.mu.Lock()
+	sess.runningCmd = req.Command
+	sess.mu.Unlock()
+
+	// Mirror the command line into attached xterm.js live streams
+	sess.broadcastLive([]byte(fmt.Sprintf("\r\n\x1b[32m[synapse-ai]$\x1b[0m %s\r\n", req.Command)))
 
 	// Merge any newly injected secrets into session secret registry for continuous redaction
 	sess.mu.Lock()
@@ -374,6 +448,12 @@ loop:
 			timedOut = true
 			break loop
 		}
+	}
+
+	if !timedOut {
+		sess.mu.Lock()
+		sess.runningCmd = ""
+		sess.mu.Unlock()
 	}
 
 	rawOutput := rawBuf.String()

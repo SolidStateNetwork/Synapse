@@ -29,6 +29,7 @@ export interface FsRequest {
   path: string;
   content?: string; // base64 encoded when sent over JSON API
   diff?: string;
+  file_mode?: string;
 }
 
 export interface FsEntry {
@@ -58,6 +59,7 @@ export interface PtyExecRequest {
   secrets?: Record<string, string>;
   cols?: number;
   rows?: number;
+  send_signal?: "NONE" | "SIGINT" | "SIGTERM" | "SIGKILL";
 }
 
 export interface PtyExecResponse {
@@ -71,6 +73,12 @@ export interface PtyExecResponse {
   full_log_path?: string;
   blocked_by_guardrail: boolean;
   guardrail_reason?: string;
+}
+
+export interface PtySessionMeta {
+  session_id: string;
+  cwd: string;
+  running_cmd?: string | null;
 }
 
 export interface ServiceHealthStatus {
@@ -87,6 +95,9 @@ export interface NodeHeartbeat {
   node_id: string;
   hostname: string;
   os_arch: string;
+  os_info?: string;
+  private_ipv4?: string;
+  public_ipv4?: string;
   tier: AutonomyTier;
   cpu_percent: number;
   ram_percent: number;
@@ -98,4 +109,5 @@ export interface NodeHeartbeat {
   timestamp_unix: number;
   services: ServiceHealthStatus[];
   active_pty_sessions: string[];
+  pty_session_details?: PtySessionMeta[];
 }

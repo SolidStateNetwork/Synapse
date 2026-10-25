@@ -93,7 +93,8 @@ func (e *Engine) Execute(req tunnelv1.FsRequest) tunnelv1.FsResponse {
 		}
 
 	case tunnelv1.FsOpWriteFile:
-		if err := atomicWriteFile(resolved, req.Content, 0o644); err != nil {
+		perm := parseOctalFileMode(req.FileMode, 0o644)
+		if err := atomicWriteFile(resolved, req.Content, perm, strings.TrimSpace(req.FileMode) != ""); err != nil {
 			return failResp(req.RequestID, err)
 		}
 		return tunnelv1.FsResponse{
@@ -102,7 +103,7 @@ func (e *Engine) Execute(req tunnelv1.FsRequest) tunnelv1.FsResponse {
 		}
 
 	case tunnelv1.FsOpApplyUnifiedDiff:
-		updated, err := applyUnifiedDiffToFile(resolved, req.Diff)
+		updated, err := applyUnifiedDiffToFile(resolved, req.Diff, req.FileMode)
 		if err != nil {
 			return failResp(req.RequestID, err)
 		}
@@ -188,15 +189,28 @@ func failResp(reqID string, err error) tunnelv1.FsResponse {
 	}
 }
 
-func atomicWriteFile(targetPath string, content []byte, defaultPerm os.FileMode) error {
+func parseOctalFileMode(modeStr string, fallback os.FileMode) os.FileMode {
+	cleaned := strings.TrimSpace(modeStr)
+	if cleaned == "" {
+		return fallback
+	}
+	if val, err := strconv.ParseUint(cleaned, 8, 32); err == nil && val > 0 {
+		return os.FileMode(val)
+	}
+	return fallback
+}
+
+func atomicWriteFile(targetPath string, content []byte, defaultPerm os.FileMode, forcePerm bool) error {
 	parent := filepath.Dir(targetPath)
 	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return fmt.Errorf("mkdir parent %s: %w", parent, err)
 	}
 
 	perm := defaultPerm
-	if info, err := os.Stat(targetPath); err == nil {
-		perm = info.Mode().Perm()
+	if !forcePerm {
+		if info, err := os.Stat(targetPath); err == nil {
+			perm = info.Mode().Perm()
+		}
 	}
 
 	tmpFile, err := os.CreateTemp(parent, ".axon-atomic-*")
@@ -230,7 +244,7 @@ func atomicWriteFile(targetPath string, content []byte, defaultPerm os.FileMode)
 
 var hunkHeaderRegex = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
 
-func applyUnifiedDiffToFile(targetPath string, diffText string) ([]byte, error) {
+func applyUnifiedDiffToFile(targetPath string, diffText string, fileMode string) ([]byte, error) {
 	origBytes, err := os.ReadFile(targetPath)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("read target file for diff: %w", err)
@@ -241,7 +255,8 @@ func applyUnifiedDiffToFile(targetPath string, diffText string) ([]byte, error) 
 		return nil, err
 	}
 	outBytes := []byte(patched)
-	if err := atomicWriteFile(targetPath, outBytes, 0o644); err != nil {
+	perm := parseOctalFileMode(fileMode, 0o644)
+	if err := atomicWriteFile(targetPath, outBytes, perm, strings.TrimSpace(fileMode) != ""); err != nil {
 		return nil, err
 	}
 	return outBytes, nil
