@@ -26,6 +26,8 @@ import {
   XCircle,
 } from "lucide-react";
 import type { AutonomyTier, NodeHeartbeat } from "@proto/tunnel";
+import MermaidTopologyView from "@/components/MermaidTopologyView";
+import RemoteWorkspaceExplorer from "@/components/RemoteWorkspaceExplorer";
 
 const XTermTerminal = dynamic(() => import("@/components/XTermTerminal"), {
   ssr: false,
@@ -123,7 +125,13 @@ export default function SynapseDashboard() {
   const [gatewayUrl, setGatewayUrl] = useState("http://127.0.0.1:8081");
 
   const [activeTab, setActiveTab] = useState<
-    "orchestrator" | "vault" | "terminal" | "preview" | "nodes" | "audit"
+    | "orchestrator"
+    | "vault"
+    | "explorer"
+    | "terminal"
+    | "preview"
+    | "nodes"
+    | "audit"
   >("orchestrator");
 
   // AI Orchestrator chat state
@@ -495,6 +503,11 @@ export default function SynapseDashboard() {
                 id: "vault",
                 label: "Project Brain Vault",
                 icon: FolderGit2,
+              },
+              {
+                id: "explorer",
+                label: "Remote Workspace FS",
+                icon: FileCode2,
               },
               {
                 id: "terminal",
@@ -1059,6 +1072,9 @@ export default function SynapseDashboard() {
                 </div>
               </div>
 
+              {/* Visual Mermaid Topology Graph */}
+              <MermaidTopologyView markdown={architectureMd} />
+
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {/* Secrets.enc (AES-256-GCM) */}
                 <div className="rounded-xl border border-slate-800 bg-[#0c0e17] p-4">
@@ -1132,6 +1148,29 @@ export default function SynapseDashboard() {
                   </pre>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB 2.5: REMOTE WORKSPACE ATOMIC FILESYSTEM EXPLORER */}
+          {activeTab === "explorer" && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold text-white">
+                    Remote Node Workspace Explorer (`STREAM_TYPE_RPC_FS`)
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Inspect, atomically write, or patch files with Unified Diffs
+                    directly on the remote Axon Muscle Node (`/opt/axon/workspaces/
+                    {activeProject?.project_id}`).
+                  </p>
+                </div>
+              </div>
+              <RemoteWorkspaceExplorer
+                projectId={activeProject?.project_id || "synapse-cloud-demo"}
+                nodeId={primaryNode}
+                onAuditRefresh={() => loadDashboard(activeProject?.project_id)}
+              />
             </div>
           )}
 
