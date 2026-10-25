@@ -53,6 +53,7 @@ import {
   Zap,
 } from "lucide-react";
 import RichMarkdownDocument from "@/components/RichMarkdownDocument";
+import InteractiveControlCenterCanvas from "@/components/InteractiveControlCenterCanvas";
 
 const XTermTerminal = dynamic(() => import("@/components/XTermTerminal"), {
   ssr: false,
@@ -1463,485 +1464,48 @@ export default function SynapseNetBirdControlCenter() {
                 VIEW 1: NETBIRD CONTROL CENTER (Interactive Topological Map)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "control-center" && (
-              <div
-                onClick={() => setFocusedCanvasNode(null)}
-                className="nb-canvas-grid relative flex h-full min-h-[600px] w-full flex-col justify-between overflow-auto p-6"
-              >
-                {/* Top-Left Live / Autonomy Mode Overlay Pill */}
-                <div className="z-10 flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-2 rounded-lg border border-nb-gray-800 bg-nb-gray-940/95 px-3 py-1.5 text-xs shadow-lg backdrop-blur">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-slow-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-green-400" />
-                    </span>
-                    <span className="font-medium text-white">Live Overlay</span>
-                    <span className="text-nb-gray-500">|</span>
-                    <span className="text-nb-gray-300 font-mono text-[11px]">
-                      mTLS 1.3 + Yamux Stream Multiplexing
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleQuickAction("deploy microservice 4050");
-                      }}
-                      className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-930 px-3 py-1.5 text-xs text-nb-gray-200 hover:border-netbird hover:text-white transition"
-                    >
-                      <Zap className="h-3.5 w-3.5 text-netbird" />
-                      <span>Deploy Demo Service (:4050)</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 3-COLUMN HIERARCHICAL NETBIRD CONTROL CENTER GRAPH */}
-                <div className="relative my-auto mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-8 lg:grid-cols-3 py-6">
-                  {/* Animated Dashed SVG Connector Overlay (Desktop) */}
-                  <svg
-                    className="pointer-events-none absolute inset-0 hidden h-full w-full lg:block"
-                    viewBox="0 0 1000 460"
-                    preserveAspectRatio="none"
-                  >
-                    {/* Left Peer -> Center Policy Pills */}
-                    <path
-                      d="M 310 230 C 370 230, 370 110, 425 110"
-                      fill="none"
-                      stroke="#f68330"
-                      strokeWidth="1.8"
-                      strokeDasharray="6 6"
-                      className="cc-animated-edge"
-                    />
-                    <path
-                      d="M 310 230 C 370 230, 370 190, 425 190"
-                      fill="none"
-                      stroke="#31c48d"
-                      strokeWidth="1.8"
-                      strokeDasharray="6 6"
-                      className="cc-animated-edge"
-                    />
-                    <path
-                      d="M 310 230 C 370 230, 370 270, 425 270"
-                      fill="none"
-                      stroke="#31c48d"
-                      strokeWidth="1.8"
-                      strokeDasharray="6 6"
-                      className="cc-animated-edge"
-                    />
-                    <path
-                      d="M 310 230 C 370 230, 370 350, 425 350"
-                      fill="none"
-                      stroke="#38bdf8"
-                      strokeWidth="1.8"
-                      strokeDasharray="6 6"
-                      className="cc-animated-edge"
-                    />
-
-                    {/* Center Policy Pills -> Right Resource Frames */}
-                    <path
-                      d="M 575 110 C 635 110, 635 110, 690 110"
-                      fill="none"
-                      stroke="#f68330"
-                      strokeWidth="1.8"
-                      strokeDasharray="6 6"
-                      className="cc-animated-edge"
-                    />
-                    <path
-                      d="M 575 190 C 635 190, 635 230, 690 230"
-                      fill="none"
-                      stroke="#31c48d"
-                      strokeWidth="1.8"
-                      strokeDasharray="6 6"
-                      className="cc-animated-edge"
-                    />
-                    <path
-                      d="M 575 270 C 635 270, 635 230, 690 230"
-                      fill="none"
-                      stroke="#31c48d"
-                      strokeWidth="1.8"
-                      strokeDasharray="6 6"
-                      className="cc-animated-edge"
-                    />
-                    <path
-                      d="M 575 350 C 635 350, 635 360, 690 360"
-                      fill="none"
-                      stroke="#38bdf8"
-                      strokeWidth="1.8"
-                      strokeDasharray="6 6"
-                      className="cc-animated-edge"
-                    />
-                  </svg>
-
-                  {/* COLUMN 1: NETBIRD `SelectPeerNode` (Muscle Peers) */}
-                  <div className="z-10 flex flex-col gap-4">
-                    <div className="text-[11px] font-medium uppercase tracking-wider text-nb-gray-400 px-1">
-                      Muscle Peers ({gatewayNodes.length})
-                    </div>
-
-                    {gatewayNodes.length > 0 ? (
-                      gatewayNodes.map((gn) => {
-                        const isSelected = primaryNode === gn.node_id;
-                        const hb = gn.last_heartbeat;
-                        return (
-                          <div
-                            key={gn.node_id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedNodeId(gn.node_id);
-                              setFocusedCanvasNode(`peer-${gn.node_id}`);
-                            }}
-                            className={`relative cursor-pointer rounded-lg border bg-nb-gray-930 p-4 transition-all hover:bg-nb-gray-910 ${
-                              isSelected ||
-                              focusedCanvasNode === `peer-${gn.node_id}`
-                                ? "border-netbird ring-2 ring-netbird/30 shadow-xl"
-                                : "border-nb-gray-800"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-nb-gray-800 bg-nb-gray-940 text-netbird">
-                                  <Server className="h-5 w-5" />
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="h-2 w-2 rounded-full bg-green-400" />
-                                    <span className="font-mono text-sm font-semibold text-white">
-                                      {gn.node_id}
-                                    </span>
-                                  </div>
-                                  <div className="mt-0.5 font-mono text-[11px] text-nb-gray-400">
-                                    {hb?.private_ipv4 || "127.0.0.1"} ·{" "}
-                                    {hb?.os_info || hb?.os_arch || "linux/amd64"}
-                                  </div>
-                                </div>
-                              </div>
-                              <ChevronsUpDown className="h-4 w-4 text-nb-gray-400" />
-                            </div>
-
-                            {hb && (
-                              <div className="mt-3 grid grid-cols-3 gap-2 rounded-md border border-nb-gray-800/70 bg-nb-gray-950/80 p-2 font-mono text-[11px] text-nb-gray-300">
-                                <div>
-                                  <span className="text-nb-gray-500">CPU </span>
-                                  <span className="text-white">
-                                    {hb.cpu_percent.toFixed(1)}%
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-nb-gray-500">RAM </span>
-                                  <span className="text-white">
-                                    {hb.ram_percent.toFixed(1)}%
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-nb-gray-500">DSK </span>
-                                  <span className="text-white">
-                                    {hb.disk_percent.toFixed(1)}%
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="mt-2.5 flex items-center justify-between text-[11px]">
-                              <span className="rounded border border-netbird-500/40 bg-netbird-950 px-2 py-0.5 font-mono text-[10px] text-netbird">
-                                {gn.tier}
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setTerminalDrawerOpen(true);
-                                }}
-                                className="text-nb-gray-300 hover:text-white underline"
-                              >
-                                Open PTY Shell →
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="rounded-lg border border-dashed border-nb-gray-800 bg-nb-gray-940/90 p-5 text-center space-y-3">
-                        <MonitorSmartphone className="mx-auto h-7 w-7 text-netbird" />
-                        <div className="text-xs font-medium text-white">
-                          No Muscle Peers Connected
-                        </div>
-                        <p className="text-[11px] text-nb-gray-400">
-                          Enroll any Linux server via one-liner setup token.
-                        </p>
-                        <button
-                          onClick={() => {
-                            setAddPeerModalOpen(true);
-                            handleGenerateJoinToken();
-                          }}
-                          className="rounded-md bg-netbird px-3.5 py-1.5 text-xs font-medium text-white hover:bg-netbird-500"
-                        >
-                          + Add First Peer
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* COLUMN 2: NETBIRD `AgentPolicyNode` PILLS (Policies, Guardrails & Cartridges) */}
-                  <div className="z-10 flex flex-col items-center gap-3.5">
-                    <div className="text-[11px] font-medium uppercase tracking-wider text-nb-gray-400">
-                      Access Policies &amp; Rule Cartridges
-                    </div>
-
-                    {/* Autonomy Tier Policy Pill */}
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveNav("access-control");
-                      }}
-                      className="group/node flex w-full max-w-[250px] cursor-pointer items-center justify-between rounded-full border border-netbird-500/60 bg-nb-gray-940 px-3.5 py-2.5 shadow-md transition-all hover:border-netbird hover:bg-nb-gray-930"
-                    >
-                      <div className="flex items-center gap-2.5 truncate">
-                        <span className="h-2 w-2 shrink-0 rounded-full bg-netbird" />
-                        <span className="truncate font-mono text-[12px] text-nb-gray-100">
-                          {activeProject?.assigned_nodes?.[0]?.tier ||
-                            joinTier}
-                        </span>
-                      </div>
-                      <Shield className="h-3.5 w-3.5 shrink-0 text-netbird" />
-                    </div>
-
-                    {/* Active Cartridge Pills (`AgentPolicyNode` 1:1 styling) */}
-                    {cartridges.map((c) => {
-                      const enabled =
-                        activeProject?.active_cartridges?.includes(c.id);
-                      return (
-                        <div
-                          key={c.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleCartridge(c.id);
-                          }}
-                          title="Click to toggle Rule Cartridge"
-                          className={`group/node flex w-full max-w-[250px] cursor-pointer items-center justify-between rounded-full border border-nb-gray-800 bg-nb-gray-940 px-3.5 py-2.5 transition-all hover:border-nb-gray-700 hover:bg-nb-gray-930 ${
-                            !enabled ? "opacity-55" : ""
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 truncate">
-                            <span
-                              className={`h-2 w-2 shrink-0 rounded-full ${
-                                enabled ? "bg-green-400" : "bg-nb-gray-500"
-                              }`}
-                            />
-                            <span className="truncate text-[0.8rem] text-nb-gray-200">
-                              {c.name}
-                            </span>
-                          </div>
-                          <span className="font-mono text-[10px] text-nb-gray-400">
-                            {enabled ? "ON" : "OFF"}
-                          </span>
-                        </div>
-                      );
-                    })}
-
-                    {/* Deterministic Guardrail Pill */}
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveNav("access-control");
-                      }}
-                      className="flex w-full max-w-[250px] cursor-pointer items-center justify-between rounded-full border border-sky-500/40 bg-nb-gray-940 px-3.5 py-2.5 transition-all hover:bg-nb-gray-930"
-                    >
-                      <div className="flex items-center gap-2.5 truncate">
-                        <span className="h-2 w-2 shrink-0 rounded-full bg-sky-400" />
-                        <span className="truncate text-[0.8rem] text-nb-gray-200">
-                          Self-Lockout &amp; Redaction Guard
-                        </span>
-                      </div>
-                      <ShieldCheck className="h-3.5 w-3.5 text-sky-400" />
-                    </div>
-                  </div>
-
-                  {/* COLUMN 3: NETBIRD RESOURCE FRAMES (AI Orchestrator, Brain Vault & Services) */}
-                  <div className="z-10 flex flex-col gap-4">
-                    <div className="text-[11px] font-medium uppercase tracking-wider text-nb-gray-400 px-1">
-                      Brain Control Plane &amp; Resources
-                    </div>
-
-                    {/* Frame 1: AI Orchestrator Provider */}
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAiEndpointModalOpen(true);
-                      }}
-                      className="cursor-pointer rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-4 transition-all hover:border-netbird/60 hover:bg-nb-gray-930"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
-                            <Bot className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <div className="text-xs font-semibold text-white">
-                              AI Provider ({modelName})
-                            </div>
-                            <div className="font-mono text-[10px] text-nb-gray-400 truncate max-w-[200px]">
-                              {baseUrl}
-                            </div>
-                          </div>
-                        </div>
-                        <span className="rounded border border-green-500/50 bg-green-950 px-2 py-0.5 font-mono text-[10px] text-green-400">
-                          ACTIVE
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Frame 2: Project Brain Vault Frame (`Architecture.md`, `Memory.md`, `Secrets.enc`) */}
-                    <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-3.5 space-y-2">
-                      <div className="flex items-center justify-between px-1">
-                        <span className="text-xs font-semibold text-nb-gray-100 flex items-center gap-2">
-                          <FolderGit2 className="h-3.5 w-3.5 text-green-400" />
-                          Project Brain Vault
-                        </span>
-                        <span className="font-mono text-[10px] text-nb-gray-400">
-                          AES-256-GCM
-                        </span>
-                      </div>
-
-                      <div className="space-y-1">
-                        <button
-                          onClick={() => {
-                            setBrainDocTab("Architecture.md");
-                            setActiveNav("brain-vault");
-                          }}
-                          className="flex w-full items-center justify-between rounded-lg border border-nb-gray-800/70 bg-nb-gray-930/70 px-3 py-2 text-xs text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white"
-                        >
-                          <span className="flex items-center gap-2">
-                            <FileText className="h-3.5 w-3.5 text-netbird" />
-                            Architecture.md (Mermaid Specs)
-                          </span>
-                          <ChevronRight className="h-3.5 w-3.5 text-nb-gray-400" />
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setBrainDocTab("Memory.md");
-                            setActiveNav("brain-vault");
-                          }}
-                          className="flex w-full items-center justify-between rounded-lg border border-nb-gray-800/70 bg-nb-gray-930/70 px-3 py-2 text-xs text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white"
-                        >
-                          <span className="flex items-center gap-2">
-                            <BookOpen className="h-3.5 w-3.5 text-sky-400" />
-                            Memory.md (Journal)
-                          </span>
-                          <ChevronRight className="h-3.5 w-3.5 text-nb-gray-400" />
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setSettingsTab("secrets-vault");
-                            setActiveNav("settings");
-                          }}
-                          className="flex w-full items-center justify-between rounded-lg border border-nb-gray-800/70 bg-nb-gray-930/70 px-3 py-2 text-xs text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white"
-                        >
-                          <span className="flex items-center gap-2">
-                            <KeyRound className="h-3.5 w-3.5 text-yellow-400" />
-                            Secrets.enc ({secretKeys.length} keys)
-                          </span>
-                          <ChevronRight className="h-3.5 w-3.5 text-nb-gray-400" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Frame 3: Registered Services & Reverse Proxy */}
-                    <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-3.5 space-y-2">
-                      <div className="flex items-center justify-between px-1">
-                        <span className="text-xs font-semibold text-nb-gray-100 flex items-center gap-2">
-                          <Globe className="h-3.5 w-3.5 text-sky-400" />
-                          Reverse Proxy Tunnels (
-                          {(activeProject?.registered_services || []).length})
-                        </span>
-                        <button
-                          onClick={() => setActiveNav("reverse-proxy")}
-                          className="text-[11px] text-netbird hover:underline"
-                        >
-                          Open Proxy →
-                        </button>
-                      </div>
-
-                      {(activeProject?.registered_services || []).length > 0 ? (
-                        <div className="space-y-1.5">
-                          {(activeProject?.registered_services || []).map(
-                            (svc) => {
-                              const healthy =
-                                svc.healthy !== false &&
-                                svc.health_check?.status !== "UNHEALTHY";
-                              return (
-                                <div
-                                  key={svc.service_id}
-                                  onClick={() => {
-                                    setPreviewPort(svc.port);
-                                    setActiveNav("reverse-proxy");
-                                  }}
-                                  className="flex cursor-pointer items-center justify-between rounded-lg border border-nb-gray-800/80 bg-nb-gray-930 px-3 py-2 text-xs hover:bg-nb-gray-900"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span
-                                      className={`h-2 w-2 rounded-full ${
-                                        healthy
-                                          ? "bg-green-400"
-                                          : "bg-red-500 animate-pulse"
-                                      }`}
-                                    />
-                                    <span className="font-medium text-white">
-                                      {svc.name}
-                                    </span>
-                                  </div>
-                                  <span className="font-mono text-[11px] text-nb-gray-300">
-                                    127.0.0.1:{svc.port}
-                                  </span>
-                                </div>
-                              );
-                            }
-                          )}
-                        </div>
-                      ) : (
-                        <div className="rounded-lg border border-nb-gray-800/60 bg-nb-gray-930/50 px-3 py-2 text-[11px] text-nb-gray-400">
-                          No loopback services registered yet.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bottom Floating Control Center Toolbar (NetBird style) */}
-                <div className="z-10 mx-auto flex flex-wrap items-center gap-2 rounded-xl border border-nb-gray-800 bg-nb-gray-940/95 px-3 py-2 shadow-2xl backdrop-blur">
-                  <button
-                    onClick={() => {
-                      setAddPeerModalOpen(true);
-                      if (!issuedToken) handleGenerateJoinToken();
-                    }}
-                    className="flex items-center gap-1.5 rounded-lg bg-netbird px-3 py-1.5 text-xs font-medium text-white hover:bg-netbird-500"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Add Peer</span>
-                  </button>
-                  <button
-                    onClick={() => setActiveNav("access-control")}
-                    className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 text-xs text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white"
-                  >
-                    <Shield className="h-3.5 w-3.5 text-green-400" />
-                    <span>Rule Cartridges</span>
-                  </button>
-                  <button
-                    onClick={() => setActiveNav("workspace")}
-                    className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 text-xs text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white"
-                  >
-                    <Code2 className="h-3.5 w-3.5 text-sky-400" />
-                    <span>Remote Files</span>
-                  </button>
-                  <button
-                    onClick={() => setTerminalDrawerOpen((v) => !v)}
-                    className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 text-xs text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white"
-                  >
-                    <TerminalIcon className="h-3.5 w-3.5 text-netbird" />
-                    <span>Live PTY</span>
-                  </button>
-                </div>
-              </div>
+              <InteractiveControlCenterCanvas
+                gatewayNodes={gatewayNodes}
+                primaryNode={primaryNode}
+                cartridges={cartridges}
+                activeCartridges={activeProject?.active_cartridges || []}
+                joinTier={
+                  activeProject?.assigned_nodes?.[0]?.tier || joinTier
+                }
+                modelName={modelName}
+                baseUrl={baseUrl}
+                secretKeysCount={secretKeys.length}
+                registeredServices={activeProject?.registered_services || []}
+                flowView={flowView}
+                onSelectNode={(nodeId) => setSelectedNodeId(nodeId)}
+                onToggleCartridge={(id) => handleToggleCartridge(id)}
+                onOpenAddPeer={() => {
+                  setAddPeerModalOpen(true);
+                  if (!issuedToken) handleGenerateJoinToken();
+                }}
+                onOpenPty={() => setTerminalDrawerOpen(true)}
+                onOpenAiSettings={() => setAiEndpointModalOpen(true)}
+                onOpenBrainDoc={(doc) => {
+                  setBrainDocTab(doc);
+                  setActiveNav("brain-vault");
+                }}
+                onOpenSecretsVault={() => {
+                  setSettingsTab("secrets-vault");
+                  setActiveNav("settings");
+                }}
+                onOpenReverseProxy={(port) => {
+                  if (port) setPreviewPort(port);
+                  setActiveNav("reverse-proxy");
+                }}
+                onOpenAccessControl={() => setActiveNav("access-control")}
+                onOpenRemoteFiles={() => setActiveNav("workspace")}
+                onDeployDemoService={() =>
+                  handleQuickAction("deploy microservice 4050")
+                }
+                onHealService={(port) =>
+                  handleQuickAction(`heal service ${port}`)
+                }
+              />
             )}
 
             {/* ═══════════════════════════════════════════════════════════════
