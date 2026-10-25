@@ -5,20 +5,21 @@ import dynamic from "next/dynamic";
 import {
   Activity,
   AlertTriangle,
-  Bot,
+  BookOpen,
   Check,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
+  Code2,
   Cpu,
+  Edit3,
+  Eye,
   ExternalLink,
   FileCode2,
   FileText,
   Folder,
-  FolderGit2,
   GitCompare,
   Globe,
-  HardDrive,
   KeyRound,
   Layers,
   Lock,
@@ -36,10 +37,9 @@ import {
   Terminal as TerminalIcon,
   Trash2,
   X,
-  XCircle,
 } from "lucide-react";
 import type { AutonomyTier, FsEntry, NodeHeartbeat } from "@proto/tunnel";
-import MermaidTopologyView from "@/components/MermaidTopologyView";
+import RichMarkdownDocument from "@/components/RichMarkdownDocument";
 
 const XTermTerminal = dynamic(() => import("@/components/XTermTerminal"), {
   ssr: false,
@@ -164,7 +164,7 @@ const PROVIDER_PRESETS: Record<
   },
 };
 
-export default function SynapseWorkbench() {
+export default function SynapseCalmStudio() {
   const [projects, setProjects] = useState<ProjectState[]>([]);
   const [activeProject, setActiveProject] = useState<ProjectState | null>(null);
   const [architectureMd, setArchitectureMd] = useState("");
@@ -175,15 +175,20 @@ export default function SynapseWorkbench() {
   const [gatewayNodes, setGatewayNodes] = useState<GatewayNode[]>([]);
   const [gatewayUrl, setGatewayUrl] = useState("http://127.0.0.1:8081");
 
-  // 2026 IDE Layout States
-  const [leftSidebarView, setLeftSidebarView] = useState<
-    "explorer" | "vault" | "nodes" | "cartridges"
-  >("explorer");
-  const [centerView, setCenterView] = useState<
-    "code" | "architecture" | "memory" | "preview" | "secrets"
-  >("code");
-  const [bottomDockView, setBottomDockView] = useState<"pty" | "audit">("pty");
-  const [bottomDockOpen, setBottomDockOpen] = useState(true);
+  // Focused 2026 Studio Navigation (Only ONE focused main view at a time!)
+  const [mainStageView, setMainStageView] = useState<
+    "brain" | "workspace" | "preview" | "infrastructure"
+  >("brain");
+  const [brainSubTab, setBrainSubTab] = useState<
+    "architecture" | "memory" | "cartridges"
+  >("architecture");
+  const [selectedCartridgeId, setSelectedCartridgeId] =
+    useState<string>("docker-first");
+  const [isEditingMarkdown, setIsEditingMarkdown] = useState(false);
+
+  // Collapsible Bottom Terminal Drawer (Closed by default so user is never overwhelmed!)
+  const [terminalDrawerOpen, setTerminalDrawerOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<"pty" | "audit">("pty");
   const [aiEndpointModalOpen, setAiEndpointModalOpen] = useState(false);
 
   // Remote File Explorer & Editor State
@@ -196,7 +201,7 @@ export default function SynapseWorkbench() {
   const [diffPatchText, setDiffPatchText] = useState<string>("");
   const [showDiffDrawer, setShowDiffDrawer] = useState(false);
   const [newFileName, setNewFileName] = useState("");
-  const [editorStatus, setEditorStatus] = useState<string>("Ready");
+  const [statusToast, setStatusToast] = useState<string>("");
 
   // AI Provider & Custom Base URL Configuration
   const [provider, setProvider] = useState("openai-compatible");
@@ -218,7 +223,7 @@ export default function SynapseWorkbench() {
     {
       role: "assistant",
       content:
-        "Synapse Core Ready. Click the **API Endpoint badge** in the top bar to set any custom `Base URL` (OpenRouter, vLLM, Ollama, LiteLLM, or OpenAI), or run `$ <cmd>` / `deploy microservice 4050` directly.",
+        "Welcome to **Synapse Studio**. Your project documents (`Architecture.md`, `Memory.md`, and `Rule Cartridges`) are rendered cleanly on the right.\n\nClick the **API Endpoint pill** in the top-right to configure any custom `Base URL`, or run an autonomous workflow below.",
     },
   ]);
 
@@ -228,7 +233,6 @@ export default function SynapseWorkbench() {
     "TIER_2_WORKSPACE_JAIL"
   );
   const [issuedToken, setIssuedToken] = useState<string | null>(null);
-  const [manualNodeId, setManualNodeId] = useState("");
   const [newSecretKey, setNewSecretKey] = useState("");
   const [newSecretVal, setNewSecretVal] = useState("");
   const [previewPort, setPreviewPort] = useState<number>(3000);
@@ -292,7 +296,6 @@ export default function SynapseWorkbench() {
     gatewayNodes[0]?.node_id ||
     "";
 
-  // Load Remote Directory Tree
   const fetchRemoteDir = useCallback(
     async (dirPath: string) => {
       if (!activeProject || !primaryNode || activeProject.planning_only) return;
@@ -328,7 +331,6 @@ export default function SynapseWorkbench() {
   const openRemoteFile = useCallback(
     async (filePath: string) => {
       if (!activeProject || !primaryNode) return;
-      setEditorStatus(`Reading ${filePath}...`);
       try {
         const res = await fetch("/api/orchestrator", {
           method: "POST",
@@ -350,13 +352,9 @@ export default function SynapseWorkbench() {
         if (tr?.output?.success) {
           setActiveFilePath(filePath);
           setEditorContent(tr.output.content || "");
-          setCenterView("code");
-          setEditorStatus(`Loaded ${filePath}`);
-        } else {
-          setEditorStatus(tr?.output?.error || "Read failed");
         }
       } catch {
-        setEditorStatus("Error reading file");
+        // ignore
       }
     },
     [activeProject, primaryNode]
@@ -371,7 +369,6 @@ export default function SynapseWorkbench() {
 
   async function handleSaveRemoteFile() {
     if (!activeProject || !primaryNode || !activeFilePath) return;
-    setEditorStatus(`Saving ${activeFilePath}...`);
     const res = await fetch("/api/orchestrator", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -390,13 +387,10 @@ export default function SynapseWorkbench() {
     });
     const data = await res.json();
     const tr = data.tool_results?.[0];
-    if (tr?.status === "paused_tier3") {
-      setEditorStatus(`Paused by TIER_3_SUPERVISED (${tr.approval_id})`);
-    } else if (tr?.output?.success) {
-      setEditorStatus(`Saved ${activeFilePath} atomically`);
+    if (tr?.output?.success) {
+      setStatusToast(`Saved ${activeFilePath}`);
+      setTimeout(() => setStatusToast(""), 3000);
       fetchRemoteDir(remoteDir);
-    } else {
-      setEditorStatus(tr?.output?.error || "Write error");
     }
     loadWorkspace(activeProject.project_id);
   }
@@ -404,7 +398,6 @@ export default function SynapseWorkbench() {
   async function handleApplyDiff() {
     if (!activeProject || !primaryNode || !activeFilePath || !diffPatchText)
       return;
-    setEditorStatus("Applying Unified Diff...");
     const res = await fetch("/api/orchestrator", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -427,9 +420,8 @@ export default function SynapseWorkbench() {
       setEditorContent(tr.output.content || editorContent);
       setDiffPatchText("");
       setShowDiffDrawer(false);
-      setEditorStatus(`Patched ${activeFilePath}`);
-    } else {
-      setEditorStatus(tr?.output?.error || "Diff failed");
+      setStatusToast(`Applied Unified Diff to ${activeFilePath}`);
+      setTimeout(() => setStatusToast(""), 3000);
     }
     loadWorkspace(activeProject.project_id);
   }
@@ -455,7 +447,6 @@ export default function SynapseWorkbench() {
     loadWorkspace(activeProject.project_id);
   }
 
-  // Save Custom Base URL & Provider Settings
   async function handleSaveAiEndpoint(e: React.FormEvent) {
     e.preventDefault();
     if (!activeProject) return;
@@ -474,10 +465,11 @@ export default function SynapseWorkbench() {
     });
     setApiKeyInput("");
     setAiEndpointModalOpen(false);
+    setStatusToast(`Saved API Endpoint: ${baseUrl}`);
+    setTimeout(() => setStatusToast(""), 3000);
     await loadWorkspace(activeProject.project_id, true);
   }
 
-  // Discover Models from Custom Base URL (/v1/models)
   async function handleSyncModels() {
     if (!activeProject) return;
     setSyncingModels(true);
@@ -600,7 +592,9 @@ export default function SynapseWorkbench() {
         content,
       }),
     });
-    setEditorStatus(`Saved ${doc} to Brain Vault`);
+    setIsEditingMarkdown(false);
+    setStatusToast(`Saved ${doc}`);
+    setTimeout(() => setStatusToast(""), 3000);
     await loadWorkspace(activeProject.project_id);
   }
 
@@ -631,7 +625,6 @@ export default function SynapseWorkbench() {
         tier,
       }),
     });
-    setManualNodeId("");
     setSelectedNodeId(nodeId.trim());
     await loadWorkspace(activeProject.project_id);
   }
@@ -719,811 +712,183 @@ export default function SynapseWorkbench() {
     (primaryNode && activeProject?.telemetry?.[primaryNode]) ||
     gatewayNodes.find((n) => n.node_id === primaryNode)?.last_heartbeat;
 
+  const currentCartridge =
+    cartridges.find((c) => c.id === selectedCartridgeId) || cartridges[0];
+
   return (
-    <div className="flex h-screen w-screen flex-col bg-[#060609] text-zinc-200 overflow-hidden select-none">
+    <div className="flex h-screen w-screen flex-col bg-[#07070a] text-zinc-100 overflow-hidden">
       {/* ═══════════════════════════════════════════════════════════════════════
-          TOP COMMAND BAR (38px — Linear / Cursor / Zed 2026 Style)
+          CLEAN 2026 TOP NAVIGATION BAR (Airy, Minimal, Focused)
       ═══════════════════════════════════════════════════════════════════════ */}
-      <header className="flex h-10 shrink-0 items-center justify-between border-b border-white/[0.07] bg-[#09090d] px-3 text-xs">
-        {/* Left: Brand + Project Selector + Mode Pill */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex items-center gap-1.5 font-mono font-semibold tracking-tight text-white">
-            <span className="flex h-5 w-5 items-center justify-center rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-400">
-              <Cpu className="h-3.5 w-3.5" />
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.07] bg-[#0a0a0f]/90 px-5 backdrop-blur-md">
+        {/* Left: Brand & Project Selector */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shadow-sm">
+              <Cpu className="h-4 w-4" />
+            </div>
+            <span className="font-semibold tracking-tight text-white text-sm">
+              Synapse
             </span>
-            <span>SYNAPSE</span>
-            <span className="text-[10px] text-zinc-500 font-normal">/</span>
           </div>
 
-          <select
-            value={activeProject?.project_id || ""}
-            onChange={(e) => loadWorkspace(e.target.value, true)}
-            className="rounded border border-white/[0.08] bg-zinc-900/90 px-2 py-1 font-mono text-[11px] text-zinc-200 focus:border-emerald-500/60 focus:outline-none"
-          >
-            {projects.map((p) => (
-              <option key={p.project_id} value={p.project_id}>
-                {p.project_id}
-              </option>
-            ))}
-          </select>
+          <span className="text-zinc-700">/</span>
 
-          <button
-            onClick={() => setNewProjectModal(true)}
-            className="rounded border border-white/[0.07] bg-white/[0.02] p-1 text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200"
-            title="Create New Project Brain Vault"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <select
+              value={activeProject?.project_id || ""}
+              onChange={(e) => loadWorkspace(e.target.value, true)}
+              className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-white/[0.15] focus:border-emerald-500 focus:outline-none"
+            >
+              {projects.map((p) => (
+                <option
+                  key={p.project_id}
+                  value={p.project_id}
+                  className="bg-zinc-900"
+                >
+                  {p.name}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={() => setNewProjectModal(true)}
+              className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-1.5 text-zinc-400 hover:bg-white/[0.06] hover:text-white"
+              title="New Project Vault"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
 
           {activeProject?.planning_only ? (
-            <span className="flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] text-amber-300">
+            <span className="hidden sm:flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-300">
               <Lock className="h-3 w-3" />
-              PLANNING-ONLY
+              Planning-Only
             </span>
           ) : (
-            <span className="flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-300">
-              <ShieldCheck className="h-3 w-3" />
-              MUSCLE ACTIVE ({primaryNode})
+            <span className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {primaryNode}
             </span>
           )}
         </div>
 
-        {/* Center: Workbench Editor Mode Switcher */}
-        <div className="hidden md:flex items-center gap-1 rounded-md border border-white/[0.06] bg-[#060609] p-0.5">
+        {/* Center: 4 Clean Primary Stage Pills */}
+        <nav className="flex items-center gap-1 rounded-xl border border-white/[0.07] bg-white/[0.02] p-1">
           {[
-            { id: "code", label: activeFilePath || "Code", icon: FileCode2 },
-            { id: "architecture", label: "Architecture.md", icon: Network },
-            { id: "memory", label: "Memory.md", icon: FileText },
             {
-              id: "secrets",
-              label: `Secrets (${secretKeys.length})`,
-              icon: KeyRound,
+              id: "brain",
+              label: "Brain & Architecture",
+              icon: BookOpen,
+            },
+            {
+              id: "workspace",
+              label: "Remote Code",
+              icon: Code2,
             },
             {
               id: "preview",
-              label: `Live Preview :${previewPort}`,
+              label: "Live App Preview",
               icon: Globe,
             },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isAct = centerView === tab.id;
+            {
+              id: "infrastructure",
+              label: `Nodes & Vault (${gatewayNodes.length})`,
+              icon: Server,
+            },
+          ].map((item) => {
+            const Icon = item.icon;
+            const active = mainStageView === item.id;
             return (
               <button
-                key={tab.id}
-                onClick={() => setCenterView(tab.id as typeof centerView)}
-                className={`flex items-center gap-1.5 rounded px-2.5 py-1 font-mono text-[11px] transition ${
-                  isAct
-                    ? "bg-white/[0.08] text-white shadow-sm"
-                    : "text-zinc-500 hover:text-zinc-300"
+                key={item.id}
+                onClick={() =>
+                  setMainStageView(item.id as typeof mainStageView)
+                }
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-medium transition ${
+                  active
+                    ? "bg-white/[0.1] text-white shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200"
                 }`}
               >
-                <Icon className="h-3 w-3 text-emerald-400" />
-                <span className="max-w-[140px] truncate">{tab.label}</span>
+                <Icon
+                  className={`h-3.5 w-3.5 ${
+                    active ? "text-emerald-400" : "text-zinc-500"
+                  }`}
+                />
+                <span>{item.label}</span>
               </button>
             );
           })}
-        </div>
+        </nav>
 
-        {/* Right: Custom API Base URL Trigger + Terminal Toggle */}
-        <div className="flex items-center gap-2">
+        {/* Right: Custom Base URL Pill */}
+        <div className="flex items-center gap-2.5">
+          {statusToast && (
+            <span className="hidden lg:inline-block rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-mono text-[11px] text-emerald-300">
+              {statusToast}
+            </span>
+          )}
+
           <button
             onClick={() => setAiEndpointModalOpen(true)}
-            className="flex items-center gap-2 rounded border border-white/[0.09] bg-white/[0.03] px-2.5 py-1 font-mono text-[11px] text-zinc-300 hover:border-emerald-500/40 hover:bg-white/[0.06]"
-            title="Configure Custom LLM API Base URL, Provider & Model"
+            className="flex items-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.03] px-3 py-1.5 text-xs text-zinc-200 transition hover:border-emerald-500/40 hover:bg-white/[0.06]"
           >
             <Settings2 className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="text-emerald-300">{modelName}</span>
-            <span className="hidden sm:inline text-zinc-500">•</span>
-            <span className="hidden sm:inline max-w-[170px] truncate text-zinc-400">
+            <span className="font-medium text-white">{modelName}</span>
+            <span className="hidden md:inline text-zinc-500">·</span>
+            <span className="hidden md:inline font-mono text-[11px] text-zinc-400 max-w-[160px] truncate">
               {baseUrl.replace(/^https?:\/\//, "")}
             </span>
-            <ChevronDown className="h-3 w-3 text-zinc-500" />
-          </button>
-
-          <button
-            onClick={() => setBottomDockOpen((v) => !v)}
-            className={`rounded border p-1.5 transition ${
-              bottomDockOpen
-                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                : "border-white/[0.07] bg-white/[0.02] text-zinc-400"
-            }`}
-            title="Toggle Persistent PTY & Audit Dock"
-          >
-            <TerminalIcon className="h-3.5 w-3.5" />
+            <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />
           </button>
         </div>
       </header>
 
       {/* ═══════════════════════════════════════════════════════════════════════
-          MAIN 4-PANE IDE BODY (Activity Bar | Left Sidebar | Center | Right AI)
+          CALM 2-COLUMN STUDIO WORKSPACE (Left: AI Copilot | Right: Focused Stage)
       ═══════════════════════════════════════════════════════════════════════ */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* 1. Ultra-Slim Activity Bar (44px) */}
-        <aside className="flex w-11 shrink-0 flex-col items-center justify-between border-r border-white/[0.07] bg-[#08080c] py-2.5">
-          <div className="flex flex-col items-center gap-2">
-            {[
-              {
-                id: "explorer",
-                title: "Remote Workspace Explorer (STREAM_TYPE_RPC_FS)",
-                icon: Folder,
-              },
-              {
-                id: "vault",
-                title: "Project Brain Vault Artifacts",
-                icon: FolderGit2,
-              },
-              {
-                id: "nodes",
-                title: "Axon Muscle Nodes & mTLS Enrollment",
-                icon: Server,
-              },
-              {
-                id: "cartridges",
-                title: "Pluggable Rule Cartridges (/cartridges/*.md)",
-                icon: Layers,
-              },
-            ].map((item) => {
-              const Icon = item.icon;
-              const active = leftSidebarView === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() =>
-                    setLeftSidebarView(item.id as typeof leftSidebarView)
-                  }
-                  title={item.title}
-                  className={`relative flex h-8 w-8 items-center justify-center rounded-md transition ${
-                    active
-                      ? "bg-white/[0.08] text-emerald-400"
-                      : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300"
-                  }`}
-                >
-                  {active && (
-                    <span className="absolute left-0 h-4 w-0.5 rounded-r bg-emerald-400" />
-                  )}
-                  <Icon className="h-4 w-4" />
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex flex-col items-center gap-2">
-            <button
-              onClick={() => setAiEndpointModalOpen(true)}
-              title="API Base URL & Provider Settings"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200"
-            >
-              <Settings2 className="h-4 w-4" />
-            </button>
-          </div>
-        </aside>
-
-        {/* 2. Left Context Sidebar (250px) */}
-        <aside className="flex w-64 shrink-0 flex-col border-r border-white/[0.07] bg-[#08080c] text-xs overflow-hidden">
-          {/* VIEW A: REMOTE WORKSPACE FILE TREE */}
-          {leftSidebarView === "explorer" && (
-            <div className="flex flex-1 flex-col overflow-hidden">
-              <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2">
-                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                  Workspace ({remoteDir})
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => fetchRemoteDir(".")}
-                    className="rounded px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 hover:bg-white/[0.06] hover:text-white"
-                  >
-                    root
-                  </button>
-                  <button
-                    onClick={() => fetchRemoteDir(remoteDir)}
-                    className="rounded p-1 text-zinc-400 hover:bg-white/[0.06] hover:text-white"
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Quick New File Input */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!newFileName.trim()) return;
-                  setActiveFilePath(newFileName.trim());
-                  setEditorContent(
-                    `// ${newFileName.trim()} — Synapse Workspace\n`
-                  );
-                  setCenterView("code");
-                  setNewFileName("");
-                }}
-                className="flex items-center border-b border-white/[0.06] px-2 py-1.5 gap-1"
-              >
-                <input
-                  type="text"
-                  value={newFileName}
-                  onChange={(e) => setNewFileName(e.target.value)}
-                  placeholder="New file (e.g. app.ts)..."
-                  className="w-full rounded bg-zinc-900/90 px-2 py-1 font-mono text-[11px] text-zinc-200 border border-white/[0.06] focus:border-emerald-500/50 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="rounded bg-white/[0.06] p-1 text-zinc-300 hover:bg-emerald-500/20 hover:text-emerald-300"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              </form>
-
-              <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
-                {activeProject?.planning_only ? (
-                  <div className="p-3 text-[11px] text-amber-300/80 font-mono">
-                    Project is in Planning-Only Mode. Assign an Axon node to
-                    browse remote files.
-                  </div>
-                ) : remoteEntries.length === 0 ? (
-                  <div className="p-3 text-[11px] text-zinc-500 font-mono">
-                    Empty workspace directory.
-                  </div>
-                ) : (
-                  remoteEntries.map((entry) => {
-                    const isSelected = activeFilePath.endsWith(entry.name);
-                    return (
-                      <div
-                        key={entry.path}
-                        className={`group flex items-center justify-between rounded px-2 py-1 font-mono text-[11px] transition ${
-                          isSelected
-                            ? "bg-emerald-500/15 text-emerald-300"
-                            : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200"
-                        }`}
-                      >
-                        <button
-                          onClick={() =>
-                            entry.is_dir
-                              ? fetchRemoteDir(entry.path)
-                              : openRemoteFile(entry.path)
-                          }
-                          className="flex flex-1 items-center gap-1.5 truncate text-left"
-                        >
-                          {entry.is_dir ? (
-                            <Folder className="h-3.5 w-3.5 shrink-0 text-amber-400/90" />
-                          ) : (
-                            <FileCode2 className="h-3.5 w-3.5 shrink-0 text-cyan-400/90" />
-                          )}
-                          <span className="truncate">{entry.name}</span>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteRemoteFile(entry.path)}
-                          className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* VIEW B: PROJECT BRAIN VAULT ARTIFACTS */}
-          {leftSidebarView === "vault" && (
-            <div className="flex flex-1 flex-col p-2 space-y-1">
-              <div className="px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                Brain Vault (/var/lib/synapse)
-              </div>
-              {[
-                {
-                  id: "architecture",
-                  name: "Architecture.md",
-                  desc: "Mermaid Topology & Layout",
-                },
-                {
-                  id: "memory",
-                  name: "Memory.md",
-                  desc: "Engineering Journal",
-                },
-                {
-                  id: "secrets",
-                  name: "Secrets.enc",
-                  desc: `AES-256-GCM (${secretKeys.length} keys)`,
-                },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setCenterView(item.id as typeof centerView)}
-                  className={`flex flex-col rounded-md px-2.5 py-2 text-left transition ${
-                    centerView === item.id
-                      ? "bg-white/[0.08] text-white"
-                      : "text-zinc-400 hover:bg-white/[0.04]"
-                  }`}
-                >
-                  <span className="font-mono text-[11px] text-emerald-300">
-                    {item.name}
-                  </span>
-                  <span className="text-[10px] text-zinc-500">{item.desc}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* VIEW C: AXON MUSCLE NODES & PKI */}
-          {leftSidebarView === "nodes" && (
-            <div className="flex flex-1 flex-col overflow-y-auto p-2.5 space-y-3">
-              <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                Axon Nodes ({gatewayNodes.length} online)
-              </div>
-
-              {gatewayNodes.map((gn) => {
-                const isAssigned = activeProject?.assigned_nodes.some(
-                  (a) => a.node_id === gn.node_id
-                );
-                return (
-                  <div
-                    key={gn.node_id}
-                    className="rounded border border-white/[0.07] bg-white/[0.02] p-2.5 space-y-2"
-                  >
-                    <div className="flex items-center justify-between font-mono text-[11px]">
-                      <span className="text-emerald-300 font-semibold">
-                        {gn.node_id}
-                      </span>
-                      <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] text-cyan-300">
-                        {gn.tier.replace("TIER_", "T")}
-                      </span>
-                    </div>
-                    {gn.last_heartbeat && (
-                      <div className="grid grid-cols-3 gap-1 font-mono text-[10px] text-zinc-400">
-                        <span>
-                          CPU {gn.last_heartbeat.cpu_percent.toFixed(0)}%
-                        </span>
-                        <span>
-                          RAM {gn.last_heartbeat.ram_percent.toFixed(0)}%
-                        </span>
-                        <span>
-                          DSK {gn.last_heartbeat.disk_percent.toFixed(0)}%
-                        </span>
-                      </div>
-                    )}
-                    <button
-                      onClick={() =>
-                        isAssigned
-                          ? handleUnassignNode(gn.node_id)
-                          : handleAssignNode(gn.node_id, gn.tier)
-                      }
-                      className={`w-full rounded py-1 font-mono text-[10px] ${
-                        isAssigned
-                          ? "border border-rose-500/30 bg-rose-500/10 text-rose-300"
-                          : "bg-emerald-600 text-white"
-                      }`}
-                    >
-                      {isAssigned ? "Unassign Node" : "Assign to Project"}
-                    </button>
-                  </div>
-                );
-              })}
-
-              <div className="border-t border-white/[0.07] pt-3 space-y-2">
-                <span className="font-mono text-[10px] uppercase text-zinc-400">
-                  Enroll New Muscle Node
-                </span>
-                <select
-                  value={joinTier}
-                  onChange={(e) => setJoinTier(e.target.value as AutonomyTier)}
-                  className="w-full rounded border border-white/[0.08] bg-zinc-900 px-2 py-1 font-mono text-[10px] text-zinc-200"
-                >
-                  <option value="TIER_1_UNLEASHED">TIER_1_UNLEASHED</option>
-                  <option value="TIER_2_WORKSPACE_JAIL">
-                    TIER_2_WORKSPACE_JAIL
-                  </option>
-                  <option value="TIER_3_SUPERVISED">TIER_3_SUPERVISED</option>
-                </select>
-                <button
-                  onClick={handleGenerateJoinToken}
-                  className="w-full rounded bg-emerald-600 py-1.5 font-mono text-[11px] font-medium text-white hover:bg-emerald-500"
-                >
-                  Generate CSR Token
-                </button>
-                {issuedToken && (
-                  <pre className="overflow-x-auto rounded border border-emerald-500/30 bg-black p-2 font-mono text-[10px] text-emerald-400">
-                    {`curl -fsSL ${gatewayUrl}/install.sh | sh -s -- ${issuedToken} ${joinTier}`}
-                  </pre>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* VIEW D: PLUGGABLE RULE CARTRIDGES */}
-          {leftSidebarView === "cartridges" && (
-            <div className="flex flex-1 flex-col overflow-y-auto p-2.5 space-y-2">
-              <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                Rule Cartridges (/cartridges)
-              </div>
-              {cartridges.map((c) => {
-                const active =
-                  activeProject?.active_cartridges.includes(c.id) ?? false;
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => handleToggleCartridge(c.id)}
-                    className={`w-full rounded border p-2 text-left transition ${
-                      active
-                        ? "border-emerald-500/40 bg-emerald-500/10 text-zinc-100"
-                        : "border-white/[0.06] bg-white/[0.01] text-zinc-500 hover:border-white/[0.15]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between font-mono text-[11px]">
-                      <span className={active ? "text-emerald-300" : ""}>
-                        {c.id}.md
-                      </span>
-                      <span className="text-[9px]">
-                        {active ? "ON" : "OFF"}
-                      </span>
-                    </div>
-                    <p className="mt-1 line-clamp-2 text-[10px] opacity-80">
-                      {c.description}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </aside>
-
-        {/* 3. Center Workbench Area (Editor / Topology / Preview + Dockable Bottom PTY) */}
-        <main className="flex flex-1 flex-col min-w-0 bg-[#060609] overflow-hidden">
-          {/* Upper Editor / Canvas Pane */}
-          <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-            {/* CODE & UNIFIED DIFF EDITOR */}
-            {centerView === "code" && (
-              <div className="flex flex-1 flex-col min-h-0">
-                <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#08080c] px-3 py-1.5 text-xs">
-                  <div className="flex items-center gap-2 font-mono text-[11px]">
-                    <span className="text-zinc-500">
-                      {primaryNode || "local"}:/opt/axon/workspaces/
-                      {activeProject?.project_id}/
-                    </span>
-                    <span className="text-emerald-300 font-medium">
-                      {activeFilePath}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setShowDiffDrawer((v) => !v)}
-                      className={`flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] ${
-                        showDiffDrawer
-                          ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
-                          : "border-white/[0.08] bg-white/[0.02] text-zinc-400 hover:text-white"
-                      }`}
-                    >
-                      <GitCompare className="h-3 w-3" />
-                      Unified Diff
-                    </button>
-                    <button
-                      onClick={handleSaveRemoteFile}
-                      className="flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-0.5 font-mono text-[11px] font-medium text-white hover:bg-emerald-500"
-                    >
-                      <Save className="h-3 w-3" />
-                      Save (Atomic)
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-1 min-h-0 overflow-hidden">
-                  <textarea
-                    value={editorContent}
-                    onChange={(e) => setEditorContent(e.target.value)}
-                    spellCheck={false}
-                    placeholder="// Select a file from the left Explorer or run 'deploy microservice 4050'..."
-                    className="flex-1 resize-none bg-[#060609] p-4 font-mono text-[12px] leading-relaxed text-zinc-200 focus:outline-none"
-                  />
-
-                  {showDiffDrawer && (
-                    <div className="flex w-80 flex-col border-l border-white/[0.07] bg-[#08080c] p-3 space-y-2">
-                      <div className="flex items-center justify-between font-mono text-[11px] text-amber-300">
-                        <span>Apply Unified Diff</span>
-                        <button
-                          onClick={handleApplyDiff}
-                          className="rounded bg-amber-600 px-2 py-0.5 text-[10px] text-white"
-                        >
-                          Apply Patch
-                        </button>
-                      </div>
-                      <textarea
-                        value={diffPatchText}
-                        onChange={(e) => setDiffPatchText(e.target.value)}
-                        spellCheck={false}
-                        placeholder={`@@ -1,3 +1,3 @@\n-const port = 3000;\n+const port = 4050;`}
-                        className="flex-1 resize-none rounded border border-white/[0.07] bg-black p-2 font-mono text-[11px] text-amber-200 focus:outline-none"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ARCHITECTURE.MD + VISUAL MERMAID TOPOLOGY */}
-            {centerView === "architecture" && (
-              <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-                <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#08080c] px-3 py-1.5">
-                  <span className="font-mono text-[11px] text-emerald-300">
-                    Vault://Architecture.md — Living System Topology
-                  </span>
-                  <button
-                    onClick={() => handleSaveBrainDoc("Architecture.md")}
-                    className="flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-0.5 font-mono text-[11px] text-white hover:bg-emerald-500"
-                  >
-                    <Save className="h-3 w-3" />
-                    Save Architecture.md
-                  </button>
-                </div>
-                <div className="grid flex-1 grid-cols-1 lg:grid-cols-2 min-h-0 overflow-hidden">
-                  <textarea
-                    value={architectureMd}
-                    onChange={(e) => setArchitectureMd(e.target.value)}
-                    spellCheck={false}
-                    className="resize-none border-r border-white/[0.06] bg-[#060609] p-4 font-mono text-[12px] leading-relaxed text-zinc-200 focus:outline-none"
-                  />
-                  <div className="overflow-y-auto p-4 bg-[#07070b]">
-                    <MermaidTopologyView markdown={architectureMd} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* MEMORY.MD ENGINEERING JOURNAL */}
-            {centerView === "memory" && (
-              <div className="flex flex-1 flex-col min-h-0">
-                <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#08080c] px-3 py-1.5">
-                  <span className="font-mono text-[11px] text-cyan-300">
-                    Vault://Memory.md — Chronological Engineering Journal
-                  </span>
-                  <button
-                    onClick={() => handleSaveBrainDoc("Memory.md")}
-                    className="flex items-center gap-1 rounded bg-cyan-600 px-2.5 py-0.5 font-mono text-[11px] text-white hover:bg-cyan-500"
-                  >
-                    <Save className="h-3 w-3" />
-                    Save Memory.md
-                  </button>
-                </div>
-                <textarea
-                  value={memoryMd}
-                  onChange={(e) => setMemoryMd(e.target.value)}
-                  spellCheck={false}
-                  className="flex-1 resize-none bg-[#060609] p-4 font-mono text-[12px] leading-relaxed text-zinc-200 focus:outline-none"
-                />
-              </div>
-            )}
-
-            {/* SECRETS.ENC VAULT MANAGER */}
-            {centerView === "secrets" && (
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                <div className="max-w-2xl space-y-4">
-                  <div>
-                    <h2 className="font-mono text-sm font-semibold text-white">
-                      AES-256-GCM Encrypted Secrets Vault (`Secrets.enc`)
-                    </h2>
-                    <p className="text-xs text-zinc-400 mt-0.5">
-                      Injected automatically into remote PTY sessions and
-                      scrubbed as{" "}
-                      <code className="text-amber-300">
-                        [REDACTED_SECRET:KEY]
-                      </code>{" "}
-                      before reaching the LLM context window.
-                    </p>
-                  </div>
-
-                  <form onSubmit={handleAddSecret} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newSecretKey}
-                      onChange={(e) => setNewSecretKey(e.target.value)}
-                      placeholder="KEY_NAME (e.g. DATABASE_URL)"
-                      className="flex-1 rounded border border-white/[0.08] bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-200"
-                    />
-                    <input
-                      type="password"
-                      value={newSecretVal}
-                      onChange={(e) => setNewSecretVal(e.target.value)}
-                      placeholder="Secret value..."
-                      className="flex-1 rounded border border-white/[0.08] bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-200"
-                    />
-                    <button
-                      type="submit"
-                      className="rounded bg-emerald-600 px-4 py-1.5 font-mono text-xs font-medium text-white hover:bg-emerald-500"
-                    >
-                      Encrypt
-                    </button>
-                  </form>
-
-                  <div className="divide-y divide-white/[0.06] rounded border border-white/[0.07] bg-[#08080c]">
-                    {secretKeys.length === 0 ? (
-                      <div className="p-4 font-mono text-xs text-zinc-500">
-                        Zero encrypted keys in Secrets.enc
-                      </div>
-                    ) : (
-                      secretKeys.map((k) => (
-                        <div
-                          key={k}
-                          className="flex items-center justify-between px-3.5 py-2 font-mono text-xs"
-                        >
-                          <span className="text-amber-300">{k}</span>
-                          <span className="text-[10px] text-zinc-500">
-                            AES-256-GCM • REDACTED IN PTY
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* LIVE-PREVIEW REVERSE PROXY IFRAME */}
-            {centerView === "preview" && (
-              <div className="flex flex-1 flex-col min-h-0">
-                <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#08080c] px-3 py-1.5 font-mono text-[11px]">
-                  <div className="flex items-center gap-2">
-                    <span className="text-emerald-400">TUNNEL</span>
-                    <span className="text-zinc-400">
-                      {gatewayUrl}/preview/{activeProject?.project_id}/
-                      {primaryNode || "node"}/
-                    </span>
-                    <input
-                      type="number"
-                      value={previewPort}
-                      onChange={(e) =>
-                        setPreviewPort(Number(e.target.value) || 3000)
-                      }
-                      className="w-16 rounded border border-white/[0.1] bg-zinc-900 px-1.5 py-0.5 text-zinc-200"
-                    />
-                  </div>
-                  <a
-                    href={`${gatewayUrl}/preview/${activeProject?.project_id}/${primaryNode}/${previewPort}/`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 text-zinc-400 hover:text-white"
-                  >
-                    <span>Open External</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
-                <iframe
-                  title="Live Preview"
-                  src={`${gatewayUrl}/preview/${activeProject?.project_id}/${
-                    primaryNode || "unassigned"
-                  }/${previewPort}/`}
-                  className="flex-1 w-full bg-white"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Lower Dockable Panel: Persistent Stateful PTY (`xterm.js`) & Immutable `Audit.jsonl` */}
-          {bottomDockOpen && (
-            <div className="flex h-56 shrink-0 flex-col border-t border-white/[0.08] bg-[#060609]">
-              <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#09090d] px-3 py-1">
-                <div className="flex items-center gap-3 font-mono text-[11px]">
-                  <button
-                    onClick={() => setBottomDockView("pty")}
-                    className={`flex items-center gap-1.5 py-0.5 border-b-2 transition ${
-                      bottomDockView === "pty"
-                        ? "border-emerald-400 text-white"
-                        : "border-transparent text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    <TerminalIcon className="h-3 w-3 text-emerald-400" />
-                    <span>TERMINAL (PTY)</span>
-                  </button>
-                  <button
-                    onClick={() => setBottomDockView("audit")}
-                    className={`flex items-center gap-1.5 py-0.5 border-b-2 transition ${
-                      bottomDockView === "audit"
-                        ? "border-emerald-400 text-white"
-                        : "border-transparent text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    <ShieldAlert className="h-3 w-3 text-cyan-400" />
-                    <span>AUDIT.JSONL ({auditLogs.length})</span>
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => setBottomDockOpen(false)}
-                  className="text-zinc-500 hover:text-zinc-300"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
-              <div className="flex-1 min-h-0 overflow-hidden">
-                {bottomDockView === "pty" ? (
-                  primaryNode ? (
-                    <XTermTerminal
-                      gatewayUrl={gatewayUrl}
-                      projectId={
-                        activeProject?.project_id || "synapse-cloud-demo"
-                      }
-                      nodeId={primaryNode}
-                      sessionId={`default-${
-                        activeProject?.project_id || "synapse-cloud-demo"
-                      }`}
-                    />
-                  ) : (
-                    <div className="p-3 font-mono text-xs text-zinc-500">
-                      No Axon Muscle Node connected.
-                    </div>
-                  )
-                ) : (
-                  <div className="h-full overflow-y-auto divide-y divide-white/[0.04] p-2 font-mono text-[11px]">
-                    {auditLogs.map((log, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between py-1 px-2 hover:bg-white/[0.02]"
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <span className="text-zinc-600">
-                            {log.timestamp.slice(11, 19)}
-                          </span>
-                          <span className="text-emerald-400">
-                            {log.tool_name}
-                          </span>
-                          <span className="truncate text-zinc-400">
-                            {log.summary}
-                          </span>
-                        </div>
-                        <span
-                          className={`ml-2 shrink-0 rounded px-1.5 py-0.5 text-[9px] uppercase ${
-                            log.status === "executed"
-                              ? "bg-emerald-500/15 text-emerald-300"
-                              : "bg-amber-500/15 text-amber-300"
-                          }`}
-                        >
-                          {log.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </main>
-
-        {/* 4. Right AI Copilot & Autonomous Orchestrator Dock (370px) */}
-        <aside className="flex w-[370px] shrink-0 flex-col border-l border-white/[0.07] bg-[#08080c] overflow-hidden">
-          <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2">
-            <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-white">
-              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-              <span>AI ORCHESTRATOR</span>
+        {/* LEFT COLUMN: Clean AI Orchestrator & Conversation Stream (400px) */}
+        <aside className="flex w-[400px] shrink-0 flex-col border-r border-white/[0.07] bg-[#09090e] overflow-hidden">
+          <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-emerald-400" />
+              <span className="text-xs font-semibold tracking-wide text-zinc-200">
+                AI Orchestrator
+              </span>
             </div>
             <button
               onClick={() => handleQuickAction("deploy microservice 4050")}
               disabled={chatBusy}
-              className="flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-300 hover:bg-emerald-500/20"
+              className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
             >
-              <Play className="h-2.5 w-2.5" />
+              <Play className="h-3 w-3" />
               Auto-Deploy :4050
             </button>
           </div>
 
-          {/* TIER_3_SUPERVISED Inline Approvals */}
+          {/* TIER_3_SUPERVISED Approval Banner (Only visible when needed) */}
           {pendingApprovals.length > 0 && (
-            <div className="border-b border-amber-500/30 bg-amber-500/10 p-2.5 space-y-2">
-              <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-amber-300">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                <span>TIER_3_SUPERVISED APPROVAL</span>
+            <div className="border-b border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-300">
+                <AlertTriangle className="h-4 w-4" />
+                <span>Approval Required (TIER_3_SUPERVISED)</span>
               </div>
               {pendingApprovals.map((appr) => (
                 <div
                   key={appr.approval_id}
-                  className="rounded border border-amber-500/30 bg-black/60 p-2 font-mono text-[10px] space-y-1.5"
+                  className="rounded-lg border border-amber-500/30 bg-black/60 p-2.5 text-xs space-y-2"
                 >
-                  <div className="text-amber-200">
-                    {appr.tool_name} @ {appr.node_id}
+                  <div className="font-mono text-amber-200">
+                    {appr.tool_name} on {appr.node_id}
                   </div>
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-2">
                     <button
                       onClick={() =>
                         handleResolveApproval(appr.approval_id, "approve")
                       }
-                      className="flex-1 rounded bg-emerald-600 py-1 text-white"
+                      className="flex-1 rounded-md bg-emerald-600 py-1 font-medium text-white"
                     >
                       Approve
                     </button>
@@ -1531,7 +896,7 @@ export default function SynapseWorkbench() {
                       onClick={() =>
                         handleResolveApproval(appr.approval_id, "reject")
                       }
-                      className="flex-1 rounded bg-rose-600 py-1 text-white"
+                      className="flex-1 rounded-md bg-rose-600 py-1 font-medium text-white"
                     >
                       Reject
                     </button>
@@ -1541,34 +906,36 @@ export default function SynapseWorkbench() {
             </div>
           )}
 
-          {/* Chat Message Stream */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {/* Conversation Messages with Formatted Markdown */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {chatHistory.map((item, idx) => (
               <div
                 key={idx}
-                className={`rounded-lg border p-2.5 text-xs ${
+                className={`rounded-2xl p-4 ${
                   item.role === "user"
-                    ? "border-emerald-500/25 bg-emerald-500/[0.06] text-zinc-100 ml-4"
-                    : "border-white/[0.06] bg-white/[0.02] text-zinc-300"
+                    ? "ml-6 border border-emerald-500/25 bg-emerald-500/[0.08] text-white"
+                    : "border border-white/[0.06] bg-white/[0.02] text-zinc-200"
                 }`}
               >
-                <div className="mb-1 flex items-center justify-between font-mono text-[10px] text-zinc-500">
-                  <span>{item.role === "user" ? "YOU" : "SYNAPSE BRAIN"}</span>
-                </div>
-                <div className="whitespace-pre-wrap leading-relaxed text-[12px]">
-                  {item.content}
+                <div className="mb-1.5 text-[11px] font-medium text-zinc-500">
+                  {item.role === "user" ? "You" : "Synapse Brain"}
                 </div>
 
-                {/* Compact Collapsible Execution Pills */}
+                <RichMarkdownDocument
+                  markdown={item.content}
+                  variant="chat"
+                />
+
+                {/* Clean Collapsible Tool Execution Pills */}
                 {item.toolResults && item.toolResults.length > 0 && (
-                  <div className="mt-2 space-y-1">
+                  <div className="mt-3 space-y-1.5 pt-2 border-t border-white/[0.06]">
                     {item.toolResults.map((tr, tIdx) => {
                       const pillKey = `${idx}-${tIdx}`;
                       const isExp = expandedTools[pillKey];
                       return (
                         <div
                           key={tIdx}
-                          className="rounded border border-white/[0.07] bg-[#050508] font-mono text-[10px]"
+                          className="rounded-lg border border-white/[0.07] bg-[#060609] text-xs overflow-hidden"
                         >
                           <button
                             onClick={() =>
@@ -1577,28 +944,28 @@ export default function SynapseWorkbench() {
                                 [pillKey]: !p[pillKey],
                               }))
                             }
-                            className="flex w-full items-center justify-between px-2 py-1 text-left"
+                            className="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-white/[0.02]"
                           >
-                            <span className="flex items-center gap-1.5 text-emerald-400">
+                            <span className="flex items-center gap-1.5 font-mono text-[11px] text-emerald-300">
                               {isExp ? (
-                                <ChevronDown className="h-3 w-3" />
+                                <ChevronDown className="h-3.5 w-3.5" />
                               ) : (
-                                <ChevronRight className="h-3 w-3" />
+                                <ChevronRight className="h-3.5 w-3.5" />
                               )}
                               <span>{tr.tool_name}</span>
                             </span>
                             <span
-                              className={`uppercase ${
+                              className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase ${
                                 tr.status === "executed"
-                                  ? "text-emerald-400"
-                                  : "text-rose-400"
+                                  ? "bg-emerald-500/15 text-emerald-300"
+                                  : "bg-rose-500/15 text-rose-300"
                               }`}
                             >
                               {tr.status}
                             </span>
                           </button>
                           {isExp && (
-                            <pre className="border-t border-white/[0.06] p-2 overflow-x-auto text-zinc-400 max-h-40">
+                            <pre className="border-t border-white/[0.06] p-3 overflow-x-auto font-mono text-[11px] text-zinc-400 max-h-44">
                               {JSON.stringify(tr.output, null, 2)}
                             </pre>
                           )}
@@ -1611,94 +978,717 @@ export default function SynapseWorkbench() {
             ))}
           </div>
 
-          {/* Quick Command Chips */}
-          <div className="flex items-center gap-1 overflow-x-auto border-t border-white/[0.05] px-2.5 py-1.5">
-            {[
-              { label: "$ uname -a", cmd: "$ uname -a && pwd" },
-              { label: "ls workspace", cmd: "list files" },
-              {
-                label: "Test Guardrail",
-                cmd: "$ sudo systemctl stop axon.service",
-              },
-            ].map((chip) => (
-              <button
-                key={chip.label}
-                onClick={() => handleQuickAction(chip.cmd)}
-                className="shrink-0 rounded border border-white/[0.07] bg-white/[0.02] px-2 py-0.5 font-mono text-[10px] text-zinc-400 hover:border-emerald-500/30 hover:text-zinc-200"
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
+          {/* Subtle Quick Actions & Input Box */}
+          <div className="border-t border-white/[0.07] bg-[#0a0a0f] p-3 space-y-2.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto">
+              {[
+                { label: "$ uname -a", cmd: "$ uname -a && pwd" },
+                { label: "List files", cmd: "list files" },
+                {
+                  label: "Test Guardrail",
+                  cmd: "$ sudo systemctl stop axon.service",
+                },
+              ].map((chip) => (
+                <button
+                  key={chip.label}
+                  onClick={() => handleQuickAction(chip.cmd)}
+                  className="shrink-0 rounded-lg border border-white/[0.07] bg-white/[0.02] px-2.5 py-1 text-[11px] text-zinc-400 hover:border-emerald-500/30 hover:text-zinc-200"
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
 
-          {/* Prompt Composer */}
-          <form
-            onSubmit={handleSendMessage}
-            className="border-t border-white/[0.07] bg-[#09090d] p-2.5"
-          >
-            <div className="flex items-center gap-1.5 rounded-md border border-white/[0.09] bg-[#050508] px-2.5 py-1.5 focus-within:border-emerald-500/50">
+            <form
+              onSubmit={handleSendMessage}
+              className="flex items-center gap-2 rounded-xl border border-white/[0.1] bg-[#060609] px-3 py-2 focus-within:border-emerald-500/50"
+            >
               <input
                 type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask AI or run '$ <cmd>'..."
-                className="flex-1 bg-transparent font-mono text-xs text-zinc-100 focus:outline-none"
+                placeholder="Ask Synapse or run '$ <command>'..."
+                className="flex-1 bg-transparent text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
               />
               <button
                 type="submit"
                 disabled={chatBusy}
-                className="rounded bg-emerald-600 p-1.5 text-white hover:bg-emerald-500 disabled:opacity-40"
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-40"
               >
-                <Send className="h-3 w-3" />
+                <Send className="h-3.5 w-3.5" />
               </button>
-            </div>
-          </form>
+            </form>
+          </div>
         </aside>
+
+        {/* RIGHT COLUMN: Spacious Main Stage + Collapsible Bottom Drawer */}
+        <main className="flex flex-1 flex-col min-w-0 bg-[#07070a] overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
+            {/* ───────────────────────────────────────────────────────────────
+                STAGE 1: BRAIN & ARCHITECTURE (Formatted Markdown & Timeline!)
+            ─────────────────────────────────────────────────────────────── */}
+            {mainStageView === "brain" && (
+              <div className="mx-auto max-w-4xl px-8 py-8 space-y-6">
+                {/* Document Sub-Navigation Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.07] pb-4">
+                  <div className="flex items-center gap-2">
+                    {[
+                      {
+                        id: "architecture",
+                        label: "System Architecture",
+                        icon: Network,
+                      },
+                      {
+                        id: "memory",
+                        label: "Engineering Journal",
+                        icon: FileText,
+                      },
+                      {
+                        id: "cartridges",
+                        label: `Rule Cartridges (${
+                          activeProject?.active_cartridges.length || 0
+                        } Active)`,
+                        icon: Layers,
+                      },
+                    ].map((sub) => {
+                      const Icon = sub.icon;
+                      const active = brainSubTab === sub.id;
+                      return (
+                        <button
+                          key={sub.id}
+                          onClick={() => {
+                            setBrainSubTab(sub.id as typeof brainSubTab);
+                            setIsEditingMarkdown(false);
+                          }}
+                          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium transition ${
+                            active
+                              ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                              : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200"
+                          }`}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                          <span>{sub.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Clean Preview vs Edit Source Toggle */}
+                  {brainSubTab !== "cartridges" && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setIsEditingMarkdown((v) => !v)}
+                        className="flex items-center gap-1.5 rounded-xl border border-white/[0.09] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/[0.07]"
+                      >
+                        {isEditingMarkdown ? (
+                          <>
+                            <Eye className="h-3.5 w-3.5 text-emerald-400" />
+                            <span>Rendered View</span>
+                          </>
+                        ) : (
+                          <>
+                            <Edit3 className="h-3.5 w-3.5 text-zinc-400" />
+                            <span>Edit Markdown</span>
+                          </>
+                        )}
+                      </button>
+
+                      {isEditingMarkdown && (
+                        <button
+                          onClick={() =>
+                            handleSaveBrainDoc(
+                              brainSubTab === "architecture"
+                                ? "Architecture.md"
+                                : "Memory.md"
+                            )
+                          }
+                          className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-500"
+                        >
+                          <Save className="h-3.5 w-3.5" />
+                          <span>Save Changes</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* SUB-TAB 1A: ARCHITECTURE.MD (Rich Rendered View vs Source) */}
+                {brainSubTab === "architecture" &&
+                  (isEditingMarkdown ? (
+                    <textarea
+                      value={architectureMd}
+                      onChange={(e) => setArchitectureMd(e.target.value)}
+                      rows={20}
+                      spellCheck={false}
+                      className="w-full rounded-2xl border border-white/[0.1] bg-[#0b0b10] p-5 font-mono text-xs leading-relaxed text-zinc-200 focus:border-emerald-500 focus:outline-none"
+                    />
+                  ) : (
+                    <div className="rounded-2xl border border-white/[0.07] bg-[#0b0b11] p-7 shadow-xl">
+                      <RichMarkdownDocument
+                        markdown={architectureMd}
+                        variant="architecture"
+                      />
+                    </div>
+                  ))}
+
+                {/* SUB-TAB 1B: MEMORY.MD (Chronological Timeline Cards vs Source) */}
+                {brainSubTab === "memory" &&
+                  (isEditingMarkdown ? (
+                    <textarea
+                      value={memoryMd}
+                      onChange={(e) => setMemoryMd(e.target.value)}
+                      rows={20}
+                      spellCheck={false}
+                      className="w-full rounded-2xl border border-white/[0.1] bg-[#0b0b10] p-5 font-mono text-xs leading-relaxed text-zinc-200 focus:border-emerald-500 focus:outline-none"
+                    />
+                  ) : (
+                    <div className="rounded-2xl border border-white/[0.07] bg-[#0b0b11] p-7 shadow-xl">
+                      <RichMarkdownDocument
+                        markdown={memoryMd}
+                        variant="memory"
+                      />
+                    </div>
+                  ))}
+
+                {/* SUB-TAB 1C: PLUGGABLE RULE CARTRIDGES (Formatted Reader + Toggle) */}
+                {brainSubTab === "cartridges" && (
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <div className="space-y-2.5">
+                      {cartridges.map((c) => {
+                        const enabled =
+                          activeProject?.active_cartridges.includes(c.id) ??
+                          false;
+                        const selected = currentCartridge?.id === c.id;
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => setSelectedCartridgeId(c.id)}
+                            className={`cursor-pointer rounded-2xl border p-4 transition ${
+                              selected
+                                ? "border-emerald-500/40 bg-white/[0.04]"
+                                : "border-white/[0.07] bg-[#0b0b11] hover:border-white/[0.15]"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-xs text-white">
+                                {c.name}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleCartridge(c.id);
+                                }}
+                                className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] font-medium transition ${
+                                  enabled
+                                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                                    : "bg-white/[0.05] text-zinc-400"
+                                }`}
+                              >
+                                {enabled ? "Active" : "Disabled"}
+                              </button>
+                            </div>
+                            <p className="mt-1.5 text-xs text-zinc-400 leading-relaxed">
+                              {c.description}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="lg:col-span-2 rounded-2xl border border-white/[0.07] bg-[#0b0b11] p-7 shadow-xl">
+                      {currentCartridge && (
+                        <RichMarkdownDocument
+                          markdown={currentCartridge.content}
+                          variant="cartridge"
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ───────────────────────────────────────────────────────────────
+                STAGE 2: REMOTE WORKSPACE CODE & ATOMIC FS
+            ─────────────────────────────────────────────────────────────── */}
+            {mainStageView === "workspace" && (
+              <div className="flex h-full min-h-[600px]">
+                {/* File Tree Column */}
+                <div className="w-64 shrink-0 border-r border-white/[0.07] bg-[#09090e] p-4 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-zinc-300">
+                      Files ({remoteDir})
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => fetchRemoteDir(".")}
+                        className="rounded px-2 py-0.5 text-[11px] text-zinc-400 hover:bg-white/[0.06] hover:text-white"
+                      >
+                        Root
+                      </button>
+                      <button
+                        onClick={() => fetchRemoteDir(remoteDir)}
+                        className="rounded p-1 text-zinc-400 hover:bg-white/[0.06] hover:text-white"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!newFileName.trim()) return;
+                      setActiveFilePath(newFileName.trim());
+                      setEditorContent(
+                        `// ${newFileName.trim()} — Synapse Workspace\n`
+                      );
+                      setNewFileName("");
+                    }}
+                    className="flex gap-1.5"
+                  >
+                    <input
+                      type="text"
+                      value={newFileName}
+                      onChange={(e) => setNewFileName(e.target.value)}
+                      placeholder="New file path..."
+                      className="flex-1 rounded-lg border border-white/[0.08] bg-zinc-900 px-2.5 py-1.5 font-mono text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-lg bg-emerald-600 px-2.5 text-white hover:bg-emerald-500"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </form>
+
+                  <div className="flex-1 space-y-1 overflow-y-auto">
+                    {remoteEntries.map((entry) => (
+                      <div
+                        key={entry.path}
+                        className="group flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs hover:bg-white/[0.04]"
+                      >
+                        <button
+                          onClick={() =>
+                            entry.is_dir
+                              ? fetchRemoteDir(entry.path)
+                              : openRemoteFile(entry.path)
+                          }
+                          className="flex flex-1 items-center gap-2 truncate text-left font-mono text-zinc-300 hover:text-emerald-300"
+                        >
+                          {entry.is_dir ? (
+                            <Folder className="h-4 w-4 shrink-0 text-amber-400" />
+                          ) : (
+                            <FileCode2 className="h-4 w-4 shrink-0 text-cyan-400" />
+                          )}
+                          <span className="truncate">{entry.name}</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRemoteFile(entry.path)}
+                          className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Code Editor Area */}
+                <div className="flex flex-1 flex-col bg-[#07070a]">
+                  <div className="flex items-center justify-between border-b border-white/[0.07] bg-[#0a0a0f] px-5 py-2.5">
+                    <span className="font-mono text-xs text-emerald-300">
+                      {activeFilePath}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowDiffDrawer((v) => !v)}
+                        className="flex items-center gap-1.5 rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-1 text-xs text-zinc-300 hover:bg-white/[0.07]"
+                      >
+                        <GitCompare className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Unified Diff</span>
+                      </button>
+                      <button
+                        onClick={handleSaveRemoteFile}
+                        className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1 text-xs font-medium text-white hover:bg-emerald-500"
+                      >
+                        <Save className="h-3.5 w-3.5" />
+                        <span>Save File</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-1 min-h-0">
+                    <textarea
+                      value={editorContent}
+                      onChange={(e) => setEditorContent(e.target.value)}
+                      spellCheck={false}
+                      className="flex-1 resize-none bg-[#07070a] p-6 font-mono text-xs leading-relaxed text-zinc-200 focus:outline-none"
+                    />
+                    {showDiffDrawer && (
+                      <div className="w-80 border-l border-white/[0.07] bg-[#09090e] p-4 flex flex-col gap-3">
+                        <div className="flex items-center justify-between text-xs font-medium text-amber-300">
+                          <span>Apply Unified Diff</span>
+                          <button
+                            onClick={handleApplyDiff}
+                            className="rounded-lg bg-amber-600 px-2.5 py-1 text-white"
+                          >
+                            Apply Patch
+                          </button>
+                        </div>
+                        <textarea
+                          value={diffPatchText}
+                          onChange={(e) => setDiffPatchText(e.target.value)}
+                          spellCheck={false}
+                          placeholder={`@@ -1,3 +1,3 @@\n-const port = 3000;\n+const port = 4050;`}
+                          className="flex-1 resize-none rounded-xl border border-white/[0.08] bg-black p-3 font-mono text-xs text-amber-200 focus:outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ───────────────────────────────────────────────────────────────
+                STAGE 3: LIVE APP PREVIEW (Clean Browser Frame)
+            ─────────────────────────────────────────────────────────────── */}
+            {mainStageView === "preview" && (
+              <div className="flex h-full flex-col p-6">
+                <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-hidden rounded-2xl border border-white/[0.09] bg-[#0b0b11] shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-white/[0.07] bg-[#0e0e15] px-4 py-2.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-rose-500/60" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-amber-500/60" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/60" />
+                      <span className="ml-2 font-mono text-zinc-400">
+                        {gatewayUrl}/preview/{activeProject?.project_id}/
+                        {primaryNode || "node"}/
+                      </span>
+                      <input
+                        type="number"
+                        value={previewPort}
+                        onChange={(e) =>
+                          setPreviewPort(Number(e.target.value) || 3000)
+                        }
+                        className="w-20 rounded-md border border-white/[0.1] bg-zinc-900 px-2 py-0.5 font-mono text-xs text-emerald-300"
+                      />
+                    </div>
+                    <a
+                      href={`${gatewayUrl}/preview/${activeProject?.project_id}/${primaryNode}/${previewPort}/`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 text-zinc-400 hover:text-white"
+                    >
+                      <span>Open in New Tab</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
+                  <iframe
+                    title="Synapse Live Preview"
+                    src={`${gatewayUrl}/preview/${activeProject?.project_id}/${
+                      primaryNode || "unassigned"
+                    }/${previewPort}/`}
+                    className="flex-1 w-full bg-white min-h-[520px]"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ───────────────────────────────────────────────────────────────
+                STAGE 4: NODES, TELEMETRY & SECRETS VAULT
+            ─────────────────────────────────────────────────────────────── */}
+            {mainStageView === "infrastructure" && (
+              <div className="mx-auto max-w-4xl px-8 py-8 space-y-8">
+                {/* Connected Axon Nodes */}
+                <div className="rounded-2xl border border-white/[0.08] bg-[#0b0b11] p-6 space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-base font-semibold text-white">
+                        Axon Muscle Nodes (mTLS 1.3 + Yamux)
+                      </h2>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Enroll external Linux servers with a one-liner or manage
+                        autonomy tiers.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={joinTier}
+                        onChange={(e) =>
+                          setJoinTier(e.target.value as AutonomyTier)
+                        }
+                        className="rounded-xl border border-white/[0.09] bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200"
+                      >
+                        <option value="TIER_1_UNLEASHED">
+                          TIER_1_UNLEASHED
+                        </option>
+                        <option value="TIER_2_WORKSPACE_JAIL">
+                          TIER_2_WORKSPACE_JAIL
+                        </option>
+                        <option value="TIER_3_SUPERVISED">
+                          TIER_3_SUPERVISED
+                        </option>
+                      </select>
+                      <button
+                        onClick={handleGenerateJoinToken}
+                        className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500"
+                      >
+                        Generate Join Command
+                      </button>
+                    </div>
+                  </div>
+
+                  {issuedToken && (
+                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.07] p-4 space-y-2">
+                      <div className="text-xs font-medium text-emerald-300">
+                        Run on your Linux server to enroll via CSR:
+                      </div>
+                      <pre className="overflow-x-auto rounded-lg bg-black/80 p-3 font-mono text-xs text-emerald-400">
+                        {`curl -fsSL ${gatewayUrl}/install.sh | sh -s -- ${issuedToken} ${joinTier}`}
+                      </pre>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {gatewayNodes.map((gn) => {
+                      const isAssigned = activeProject?.assigned_nodes.some(
+                        (a) => a.node_id === gn.node_id
+                      );
+                      return (
+                        <div
+                          key={gn.node_id}
+                          className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-sm font-semibold text-white flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                              {gn.node_id}
+                            </span>
+                            <span className="rounded-full bg-white/[0.06] px-2.5 py-0.5 font-mono text-[10px] text-cyan-300">
+                              {gn.tier}
+                            </span>
+                          </div>
+                          {gn.last_heartbeat && (
+                            <div className="grid grid-cols-3 gap-2 rounded-lg bg-black/40 p-2.5 font-mono text-xs text-zinc-300">
+                              <div>
+                                CPU {gn.last_heartbeat.cpu_percent.toFixed(1)}%
+                              </div>
+                              <div>
+                                RAM {gn.last_heartbeat.ram_percent.toFixed(1)}%
+                              </div>
+                              <div>
+                                DSK {gn.last_heartbeat.disk_percent.toFixed(1)}%
+                              </div>
+                            </div>
+                          )}
+                          <button
+                            onClick={() =>
+                              isAssigned
+                                ? handleUnassignNode(gn.node_id)
+                                : handleAssignNode(gn.node_id, gn.tier)
+                            }
+                            className={`w-full rounded-lg py-1.5 text-xs font-medium ${
+                              isAssigned
+                                ? "border border-rose-500/30 bg-rose-500/10 text-rose-300"
+                                : "bg-emerald-600 text-white"
+                            }`}
+                          >
+                            {isAssigned
+                              ? "Unassign from Project"
+                              : "Assign to Project"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Encrypted Secrets Vault */}
+                <div className="rounded-2xl border border-white/[0.08] bg-[#0b0b11] p-6 space-y-4">
+                  <div>
+                    <h2 className="text-base font-semibold text-white flex items-center gap-2">
+                      <KeyRound className="h-4 w-4 text-amber-400" />
+                      Encrypted Secrets Vault (`Secrets.enc`)
+                    </h2>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      AES-256-GCM encrypted keys. Automatically injected into
+                      PTY sessions and redacted as{" "}
+                      <code className="text-amber-300">
+                        [REDACTED_SECRET:KEY]
+                      </code>
+                      .
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleAddSecret} className="flex gap-2.5">
+                    <input
+                      type="text"
+                      value={newSecretKey}
+                      onChange={(e) => setNewSecretKey(e.target.value)}
+                      placeholder="SECRET_NAME (e.g. STRIPE_SECRET_KEY)"
+                      className="flex-1 rounded-xl border border-white/[0.09] bg-zinc-900 px-3.5 py-2 font-mono text-xs text-zinc-200"
+                    />
+                    <input
+                      type="password"
+                      value={newSecretVal}
+                      onChange={(e) => setNewSecretVal(e.target.value)}
+                      placeholder="Secret value..."
+                      className="flex-1 rounded-xl border border-white/[0.09] bg-zinc-900 px-3.5 py-2 font-mono text-xs text-zinc-200"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-medium text-white hover:bg-amber-500"
+                    >
+                      Encrypt &amp; Save
+                    </button>
+                  </form>
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {secretKeys.map((k) => (
+                      <div
+                        key={k}
+                        className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5 font-mono text-xs"
+                      >
+                        <span className="text-amber-300">{k}</span>
+                        <span className="text-[10px] text-zinc-500">
+                          AES-256-GCM
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ═══════════════════════════════════════════════════════════════════
+              COLLAPSIBLE BOTTOM TERMINAL & AUDIT BAR (Sleek Drawer)
+          ═══════════════════════════════════════════════════════════════════ */}
+          <div className="shrink-0 border-t border-white/[0.07] bg-[#0a0a0f]">
+            <div className="flex h-9 items-center justify-between px-4 text-xs">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => {
+                    setDrawerTab("pty");
+                    setTerminalDrawerOpen((v) =>
+                      drawerTab === "pty" ? !v : true
+                    );
+                  }}
+                  className={`flex items-center gap-1.5 font-mono text-[11px] transition ${
+                    terminalDrawerOpen && drawerTab === "pty"
+                      ? "text-emerald-400 font-semibold"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  <TerminalIcon className="h-3.5 w-3.5" />
+                  <span>Live PTY Terminal ({primaryNode || "offline"})</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setDrawerTab("audit");
+                    setTerminalDrawerOpen((v) =>
+                      drawerTab === "audit" ? !v : true
+                    );
+                  }}
+                  className={`flex items-center gap-1.5 font-mono text-[11px] transition ${
+                    terminalDrawerOpen && drawerTab === "audit"
+                      ? "text-cyan-400 font-semibold"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  <span>Audit Log ({auditLogs.length})</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-4 font-mono text-[11px] text-zinc-500">
+                {activeHeartbeat && (
+                  <span className="flex items-center gap-1.5">
+                    <Activity className="h-3 w-3 text-emerald-400" />
+                    CPU {activeHeartbeat.cpu_percent.toFixed(1)}% · RAM{" "}
+                    {activeHeartbeat.ram_percent.toFixed(1)}%
+                  </span>
+                )}
+                <button
+                  onClick={() => setTerminalDrawerOpen((v) => !v)}
+                  className="flex items-center gap-1 text-zinc-400 hover:text-white"
+                >
+                  <span>{terminalDrawerOpen ? "Hide" : "Expand"}</span>
+                  {terminalDrawerOpen ? (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {terminalDrawerOpen && (
+              <div className="h-60 border-t border-white/[0.06] bg-[#060609]">
+                {drawerTab === "pty" ? (
+                  primaryNode ? (
+                    <XTermTerminal
+                      gatewayUrl={gatewayUrl}
+                      projectId={
+                        activeProject?.project_id || "synapse-cloud-demo"
+                      }
+                      nodeId={primaryNode}
+                      sessionId={`default-${
+                        activeProject?.project_id || "synapse-cloud-demo"
+                      }`}
+                    />
+                  ) : (
+                    <div className="p-4 font-mono text-xs text-zinc-500">
+                      No Axon Muscle Node connected.
+                    </div>
+                  )
+                ) : (
+                  <div className="h-full overflow-y-auto divide-y divide-white/[0.04] p-3 font-mono text-xs">
+                    {auditLogs.map((log, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between py-1.5 px-2"
+                      >
+                        <div className="flex items-center gap-3 truncate">
+                          <span className="text-zinc-500">
+                            {log.timestamp.slice(11, 19)}
+                          </span>
+                          <span className="text-emerald-400">
+                            {log.tool_name}
+                          </span>
+                          <span className="truncate text-zinc-300">
+                            {log.summary}
+                          </span>
+                        </div>
+                        <span className="ml-2 rounded-full bg-white/[0.05] px-2 py-0.5 text-[10px] uppercase text-zinc-300">
+                          {log.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </main>
       </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════════
-          BOTTOM IDE STATUS BAR (22px)
-      ═══════════════════════════════════════════════════════════════════════ */}
-      <footer className="flex h-6 shrink-0 items-center justify-between border-t border-white/[0.07] bg-[#09090d] px-3 font-mono text-[10px] text-zinc-500">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5 text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            mTLS+Yamux: {gatewayNodes.length} Node(s)
-          </span>
-          {activeHeartbeat && (
-            <span>
-              CPU {activeHeartbeat.cpu_percent.toFixed(1)}% • RAM{" "}
-              {activeHeartbeat.ram_percent.toFixed(1)}%
-            </span>
-          )}
-          <span className="text-zinc-400">{editorStatus}</span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setAiEndpointModalOpen(true)}
-            className="hover:text-emerald-300"
-          >
-            Endpoint: {baseUrl} ({modelName})
-          </button>
-          <span>Cartridges: {activeProject?.active_cartridges.length || 0}</span>
-        </div>
-      </footer>
 
       {/* ═══════════════════════════════════════════════════════════════════════
           MODAL: CUSTOM API BASE URL & MODEL CONFIGURATION
       ═══════════════════════════════════════════════════════════════════════ */}
       {aiEndpointModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-xl border border-white/[0.1] bg-[#0b0b10] p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
+          <div className="w-full max-w-lg rounded-2xl border border-white/[0.1] bg-[#0c0c12] p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-white/[0.07] pb-3.5">
               <div>
-                <h3 className="font-mono text-sm font-semibold text-white">
-                  AI Provider &amp; Custom Base URL Configuration
+                <h3 className="text-base font-semibold text-white">
+                  Custom API Base URL &amp; Model Settings
                 </h3>
-                <p className="text-[11px] text-zinc-400">
-                  Connect any OpenAI-compatible API (OpenRouter, vLLM, LiteLLM,
-                  Ollama, DeepSeek) or Anthropic proxy.
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Connect OpenRouter, vLLM, LiteLLM, Ollama, DeepSeek, or any
+                  OpenAI/Anthropic compatible endpoint.
                 </p>
               </div>
               <button
@@ -1709,10 +1699,10 @@ export default function SynapseWorkbench() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveAiEndpoint} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveAiEndpoint} className="space-y-4 text-xs">
               <div>
-                <label className="block font-mono text-[11px] text-zinc-400 mb-1">
-                  Provider Protocol Preset
+                <label className="block text-zinc-300 font-medium mb-1.5">
+                  Provider Preset
                 </label>
                 <select
                   value={provider}
@@ -1725,7 +1715,7 @@ export default function SynapseWorkbench() {
                       setModelName(preset.defaultModel);
                     }
                   }}
-                  className="w-full rounded border border-white/[0.1] bg-zinc-900 px-3 py-2 font-mono text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  className="w-full rounded-xl border border-white/[0.1] bg-zinc-900 px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
                 >
                   {Object.entries(PROVIDER_PRESETS).map(([k, v]) => (
                     <option key={k} value={k}>
@@ -1736,55 +1726,55 @@ export default function SynapseWorkbench() {
               </div>
 
               <div>
-                <label className="block font-mono text-[11px] text-zinc-400 mb-1">
-                  Custom API Base URL
+                <label className="block text-zinc-300 font-medium mb-1.5">
+                  API Base URL
                 </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
-                    placeholder="https://api.openai.com/v1 or http://10.0.0.5:11434/v1"
-                    className="flex-1 rounded border border-white/[0.1] bg-zinc-900 px-3 py-2 font-mono text-xs text-emerald-300 focus:border-emerald-500 focus:outline-none"
+                    placeholder="https://openrouter.ai/api/v1 or http://10.0.0.5:11434/v1"
+                    className="flex-1 rounded-xl border border-white/[0.1] bg-zinc-900 px-3.5 py-2.5 font-mono text-xs text-emerald-300 focus:border-emerald-500 focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={handleSyncModels}
                     disabled={syncingModels}
-                    className="flex items-center gap-1.5 rounded border border-white/[0.1] bg-white/[0.04] px-3 py-2 font-mono text-[11px] text-zinc-200 hover:bg-white/[0.08]"
+                    className="flex items-center gap-1.5 rounded-xl border border-white/[0.1] bg-white/[0.04] px-3.5 py-2.5 text-xs font-medium text-zinc-200 hover:bg-white/[0.08]"
                   >
                     <RefreshCw
                       className={`h-3.5 w-3.5 ${
                         syncingModels ? "animate-spin" : ""
                       }`}
                     />
-                    Fetch /models
+                    Fetch Models
                   </button>
                 </div>
                 {modelSyncStatus && (
-                  <p className="mt-1 font-mono text-[10px] text-cyan-300">
+                  <p className="mt-1.5 font-mono text-[11px] text-cyan-300">
                     {modelSyncStatus}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block font-mono text-[11px] text-zinc-400 mb-1">
-                  Model Identifier
+                <label className="block text-zinc-300 font-medium mb-1.5">
+                  Model Name
                 </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={modelName}
                     onChange={(e) => setModelName(e.target.value)}
-                    placeholder="e.g. gpt-4o, claude-3-5-sonnet, deepseek-chat"
-                    className="flex-1 rounded border border-white/[0.1] bg-zinc-900 px-3 py-2 font-mono text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    placeholder="e.g. gpt-4o, anthropic/claude-3.5-sonnet"
+                    className="flex-1 rounded-xl border border-white/[0.1] bg-zinc-900 px-3.5 py-2.5 font-mono text-xs text-white focus:border-emerald-500 focus:outline-none"
                   />
                   {discoveredModels.length > 0 && (
                     <select
                       value={modelName}
                       onChange={(e) => setModelName(e.target.value)}
-                      className="max-w-[180px] rounded border border-white/[0.1] bg-zinc-900 px-2 py-2 font-mono text-xs text-emerald-300"
+                      className="max-w-[190px] rounded-xl border border-white/[0.1] bg-zinc-900 px-2.5 py-2.5 font-mono text-xs text-emerald-300"
                     >
                       {discoveredModels.map((m) => (
                         <option key={m} value={m}>
@@ -1796,50 +1786,38 @@ export default function SynapseWorkbench() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-1">
-                  <label className="block font-mono text-[11px] text-zinc-400 mb-1">
-                    Vault Secret Name
-                  </label>
-                  <input
-                    type="text"
-                    value={apiKeySecretName}
-                    onChange={(e) => setApiKeySecretName(e.target.value)}
-                    className="w-full rounded border border-white/[0.1] bg-zinc-900 px-2.5 py-2 font-mono text-xs text-amber-300"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block font-mono text-[11px] text-zinc-400 mb-1">
-                    API Key (Encrypted in Vault Secrets.enc)
-                  </label>
-                  <input
-                    type="password"
-                    value={apiKeyInput}
-                    onChange={(e) => setApiKeyInput(e.target.value)}
-                    placeholder={
-                      secretKeys.includes(apiKeySecretName)
-                        ? "•••••••• (Stored in Secrets.enc — leave blank to keep)"
-                        : "sk-..."
-                    }
-                    className="w-full rounded border border-white/[0.1] bg-zinc-900 px-3 py-2 font-mono text-xs text-white"
-                  />
-                </div>
+              <div>
+                <label className="block text-zinc-300 font-medium mb-1.5">
+                  API Key (Encrypted in Vault `Secrets.enc` as{" "}
+                  <code>{apiKeySecretName}</code>)
+                </label>
+                <input
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder={
+                    secretKeys.includes(apiKeySecretName)
+                      ? "•••••••• (Saved in Secrets.enc — leave blank to keep)"
+                      : "sk-..."
+                  }
+                  className="w-full rounded-xl border border-white/[0.1] bg-zinc-900 px-3.5 py-2.5 font-mono text-xs text-white focus:border-emerald-500 focus:outline-none"
+                />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.07]">
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-white/[0.07]">
                 <button
                   type="button"
                   onClick={() => setAiEndpointModalOpen(false)}
-                  className="rounded border border-white/[0.08] px-3 py-1.5 font-mono text-xs text-zinc-400 hover:text-white"
+                  className="rounded-xl border border-white/[0.08] px-4 py-2 text-xs text-zinc-400 hover:text-white"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center gap-1.5 rounded bg-emerald-600 px-4 py-1.5 font-mono text-xs font-medium text-white hover:bg-emerald-500"
+                  className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-medium text-white hover:bg-emerald-500"
                 >
                   <Check className="h-3.5 w-3.5" />
-                  Save Endpoint to Vault
+                  Save Endpoint
                 </button>
               </div>
             </form>
@@ -1847,7 +1825,7 @@ export default function SynapseWorkbench() {
         </div>
       )}
 
-      {/* MODAL: CREATE NEW PROJECT BRAIN VAULT */}
+      {/* MODAL: CREATE NEW PROJECT VAULT */}
       {newProjectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
           <form
@@ -1870,10 +1848,10 @@ export default function SynapseWorkbench() {
                 await loadWorkspace(data.project.project_id, true);
               }
             }}
-            className="w-full max-w-sm rounded-xl border border-white/[0.1] bg-[#0b0b10] p-4 space-y-3"
+            className="w-full max-w-sm rounded-2xl border border-white/[0.1] bg-[#0c0c12] p-5 space-y-4"
           >
-            <div className="flex items-center justify-between font-mono text-xs font-semibold text-white">
-              <span>Initialize New Project Brain Vault</span>
+            <div className="flex items-center justify-between text-sm font-semibold text-white">
+              <span>Create New Project Vault</span>
               <button
                 type="button"
                 onClick={() => setNewProjectModal(false)}
@@ -1886,15 +1864,15 @@ export default function SynapseWorkbench() {
               type="text"
               value={newProjName}
               onChange={(e) => setNewProjName(e.target.value)}
-              placeholder="project-id (e.g. edge-api-v2)"
-              className="w-full rounded border border-white/[0.1] bg-zinc-900 px-3 py-2 font-mono text-xs text-white"
+              placeholder="Project name (e.g. payment-gateway)"
+              className="w-full rounded-xl border border-white/[0.1] bg-zinc-900 px-3.5 py-2 text-xs text-white"
             />
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end">
               <button
                 type="submit"
-                className="rounded bg-emerald-600 px-3 py-1.5 font-mono text-xs text-white"
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white"
               >
-                Create Vault
+                Create Project
               </button>
             </div>
           </form>

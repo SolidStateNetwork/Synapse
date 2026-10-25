@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Network, Server } from "lucide-react";
+import { ArrowRight, Cpu, Globe, Layers, Server } from "lucide-react";
 
 interface MermaidTopologyViewProps {
   markdown: string;
@@ -18,9 +18,9 @@ interface ParsedEdge {
 export default function MermaidTopologyView({
   markdown,
 }: MermaidTopologyViewProps) {
-  const { mermaidBlock, edges, remoteLayoutLines } = useMemo(() => {
+  const { edges } = useMemo(() => {
     const match = markdown.match(/```mermaid\s*([\s\S]*?)```/);
-    const block = match ? match[1].trim() : "";
+    const block = match ? match[1].trim() : markdown.trim();
 
     const parsedEdges: ParsedEdge[] = [];
     for (const rawLine of block.split("\n")) {
@@ -34,88 +34,115 @@ export default function MermaidTopologyView({
       ) {
         continue;
       }
-      // Match patterns like: A["Label"] ===|"Edge"| B["Label"] or A --> B
       const edgeMatch = line.match(
         /^([A-Za-z0-9_-]+)(?:\["?([^"\]]+)"?\])?\s*(?:===|-->|-\.->|<-->)\s*(?:\|"([^"]+)"\|)?\s*([A-Za-z0-9_-]+)(?:\["?([^"\]]+)"?\])?/
       );
       if (edgeMatch) {
         parsedEdges.push({
           fromId: edgeMatch[1],
-          fromLabel: (edgeMatch[2] || edgeMatch[1]).replace(/\\n/g, " — "),
-          edgeLabel: edgeMatch[3] || "mTLS / RPC",
+          fromLabel: (edgeMatch[2] || edgeMatch[1]).replace(/\\n/g, " · "),
+          edgeLabel: edgeMatch[3] || "mTLS + Yamux Stream",
           toId: edgeMatch[4],
-          toLabel: (edgeMatch[5] || edgeMatch[4]).replace(/\\n/g, " — "),
+          toLabel: (edgeMatch[5] || edgeMatch[4]).replace(/\\n/g, " · "),
         });
       }
     }
 
-    const layoutLines = markdown
-      .split("\n")
-      .filter((l) => l.trim().startsWith("- `"));
-
-    return {
-      mermaidBlock: block,
-      edges: parsedEdges,
-      remoteLayoutLines: layoutLines,
-    };
+    return { edges: parsedEdges };
   }, [markdown]);
 
+  if (edges.length === 0) {
+    return null;
+  }
+
   return (
-    <div className="rounded-xl border border-slate-800 bg-[#07090e] p-4 space-y-4">
-      <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
-        <span className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
-          <Network className="h-4 w-4" />
-          Live Topology Graph (Parsed from Architecture.md)
-        </span>
-        <span className="text-[11px] font-mono text-slate-400">
-          {edges.length} Link(s)
+    <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.03] to-transparent p-6 shadow-lg">
+      <div className="mb-5 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+            <Layers className="h-4 w-4" />
+          </span>
+          <div>
+            <h3 className="text-sm font-semibold text-white">
+              Live System Topology Graph
+            </h3>
+            <p className="text-xs text-zinc-400">
+              Interactive architecture visualization rendered from{" "}
+              <code className="text-emerald-300">Architecture.md</code>
+            </p>
+          </div>
+        </div>
+        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 font-mono text-[11px] text-emerald-300">
+          {edges.length} Active Topology Link(s)
         </span>
       </div>
 
-      {edges.length > 0 ? (
-        <div className="space-y-2.5">
-          {edges.map((edge, idx) => (
+      <div className="space-y-4">
+        {edges.map((edge, idx) => {
+          const isCore =
+            edge.fromId.toLowerCase().includes("core") ||
+            edge.fromLabel.toLowerCase().includes("brain");
+          const isApp =
+            edge.toId.toLowerCase().includes("app") ||
+            edge.toLabel.includes("127.0.0.1");
+
+          return (
             <div
               key={idx}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800/90 bg-slate-900/50 p-3 text-xs"
+              className="grid grid-cols-1 md:grid-cols-11 items-center gap-3 rounded-xl border border-white/[0.07] bg-[#08080d]/90 p-4"
             >
-              <div className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 font-mono text-emerald-300">
-                <Server className="h-3.5 w-3.5 shrink-0" />
-                <span>{edge.fromLabel}</span>
+              {/* Source Node Card */}
+              <div className="md:col-span-4 flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-3.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300">
+                  {isCore ? (
+                    <Cpu className="h-4 w-4" />
+                  ) : (
+                    <Server className="h-4 w-4" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-emerald-400">
+                    {edge.fromId}
+                  </div>
+                  <div className="truncate text-xs font-medium text-white">
+                    {edge.fromLabel}
+                  </div>
+                </div>
               </div>
 
-              <div className="flex flex-col items-center px-2 text-[10px] font-mono text-cyan-300">
-                <span>{edge.edgeLabel}</span>
-                <span className="text-slate-500">════════════▶</span>
+              {/* Animated Connection Bridge */}
+              <div className="md:col-span-3 flex flex-col items-center justify-center px-2 py-1">
+                <span className="mb-1 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-0.5 font-mono text-[10px] text-cyan-300">
+                  {edge.edgeLabel}
+                </span>
+                <div className="flex w-full items-center gap-1 text-zinc-600">
+                  <div className="h-[1px] flex-1 bg-gradient-to-r from-emerald-500/40 via-cyan-500/50 to-cyan-400/40" />
+                  <ArrowRight className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 font-mono text-cyan-200">
-                <Server className="h-3.5 w-3.5 shrink-0" />
-                <span>{edge.toLabel}</span>
+              {/* Target Node Card */}
+              <div className="md:col-span-4 flex items-center gap-3 rounded-xl border border-cyan-500/25 bg-cyan-500/[0.06] p-3.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-300">
+                  {isApp ? (
+                    <Globe className="h-4 w-4" />
+                  ) : (
+                    <Server className="h-4 w-4" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-cyan-300">
+                    {edge.toId}
+                  </div>
+                  <div className="truncate text-xs font-medium text-white">
+                    {edge.toLabel}
+                  </div>
+                </div>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <pre className="overflow-x-auto rounded bg-slate-900/60 p-3 font-mono text-xs text-slate-300">
-          {mermaidBlock || "No ```mermaid block found in Architecture.md"}
-        </pre>
-      )}
-
-      {remoteLayoutLines.length > 0 && (
-        <div className="border-t border-slate-800/80 pt-3">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-            Documented Remote File Layout
-          </div>
-          <div className="space-y-1 font-mono text-xs text-slate-300">
-            {remoteLayoutLines.map((line, i) => (
-              <div key={i} className="rounded bg-slate-900/40 px-2.5 py-1">
-                {line.replace(/^- /, "")}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 }
