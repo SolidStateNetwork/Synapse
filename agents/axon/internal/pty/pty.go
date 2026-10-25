@@ -1,0 +1,444 @@
+package pty
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/SolidStateNetwork/Synapse/agents/axon/internal/guard"
+	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
+	creackpty "github.com/creack/pty"
+)
+
+const DefaultCommandTimeoutMs = 30000
+
+// Session represents a persistent stateful Linux shell backed by creack/pty.
+type Session struct {
+	ID            string
+	ProjectID     string
+	Cmd           *exec.Cmd
+	Ptmx          *os.File
+	ShellPID      int
+	WorkspaceRoot string
+
+	mu          sync.Mutex
+	execMu      sync.Mutex
+	knownSecret map[string]string
+
+	subMu       sync.Mutex
+	subscribers map[chan []byte]struct{}
+	captureCh   chan []byte
+	closed      bool
+}
+
+// Manager maintains persistent PTY sessions across AI tool invocations and live xterm.js streams.
+type Manager struct {
+	mu            sync.RWMutex
+	sessions      map[string]*Session
+	workspaceRoot string
+	guardCfg      guard.GuardrailConfig
+}
+
+// NewManager creates a persistent PTY session manager.
+func NewManager(workspaceRoot string, guardCfg guard.GuardrailConfig) *Manager {
+	if strings.TrimSpace(workspaceRoot) == "" {
+		workspaceRoot = "/opt/axon/workspaces"
+	}
+	return &Manager{
+		sessions:      make(map[string]*Session),
+		workspaceRoot: workspaceRoot,
+		guardCfg:      guardCfg,
+	}
+}
+
+// ActiveSessionIDs returns the IDs of all active PTY sessions.
+func (m *Manager) ActiveSessionIDs() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]string, 0, len(m.sessions))
+	for id, sess := range m.sessions {
+		if !sess.isClosed() {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// GetOrCreateSession returns an existing persistent bash PTY session or starts a new one.
+func (m *Manager) GetOrCreateSession(sessionID string, projectID string, tier tunnelv1.AutonomyTier) (*Session, error) {
+	if strings.TrimSpace(sessionID) == "" {
+		sessionID = "default-" + strings.TrimSpace(projectID)
+	}
+	if sessionID == "default-" {
+		sessionID = "default"
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if existing, ok := m.sessions[sessionID]; ok && !existing.isClosed() {
+		return existing, nil
+	}
+
+	safeProj := filepath.Base(strings.TrimSpace(projectID))
+	if safeProj == "" || safeProj == "." || safeProj == "/" {
+		safeProj = "default"
+	}
+	initialDir := filepath.Join(m.workspaceRoot, safeProj)
+	if err := os.MkdirAll(initialDir, 0o755); err != nil {
+		initialDir = os.TempDir()
+	}
+
+	shellBin := "/bin/bash"
+	if _, err := os.Stat(shellBin); err != nil {
+		shellBin = "/bin/sh"
+	}
+
+	var cmd *exec.Cmd
+	if strings.HasSuffix(shellBin, "bash") {
+		cmd = exec.Command(shellBin, "--norc", "--noprofile")
+	} else {
+		cmd = exec.Command(shellBin)
+	}
+	cmd.Dir = initialDir
+	cmd.Env = append(os.Environ(),
+		"TERM=xterm-256color",
+		"PS1=",
+		"PROMPT_COMMAND=",
+		fmt.Sprintf("SYNAPSE_PROJECT_ID=%s", safeProj),
+		fmt.Sprintf("SYNAPSE_AUTONOMY_TIER=%s", string(tier)),
+	)
+
+	ptmx, err := creackpty.StartWithSize(cmd, &creackpty.Winsize{
+		Rows: 36,
+		Cols: 120,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("start persistent pty: %w", err)
+	}
+
+	sess := &Session{
+		ID:            sessionID,
+		ProjectID:     safeProj,
+		Cmd:           cmd,
+		Ptmx:          ptmx,
+		ShellPID:      cmd.Process.Pid,
+		WorkspaceRoot: initialDir,
+		knownSecret:   make(map[string]string),
+		subscribers:   make(map[chan []byte]struct{}),
+	}
+
+	go sess.readLoop()
+
+	// Disable terminal echo and prompt noise for clean command framing while keeping interactive usability
+	_, _ = ptmx.Write([]byte("stty -echo 2>/dev/null; export PS1=''; unset PROMPT_COMMAND\n"))
+	time.Sleep(40 * time.Millisecond)
+
+	m.sessions[sessionID] = sess
+	return sess, nil
+}
+
+func (s *Session) isClosed() bool {
+	s.subMu.Lock()
+	defer s.subMu.Unlock()
+	return s.closed
+}
+
+func (s *Session) readLoop() {
+	buf := make([]byte, 4096)
+	for {
+		n, err := s.Ptmx.Read(buf)
+		if n > 0 {
+			chunk := make([]byte, n)
+			copy(chunk, buf[:n])
+
+			s.subMu.Lock()
+			if s.captureCh != nil {
+				select {
+				case s.captureCh <- chunk:
+				default:
+				}
+			}
+			for sub := range s.subscribers {
+				select {
+				case sub <- chunk:
+				default:
+				}
+			}
+			s.subMu.Unlock()
+		}
+		if err != nil {
+			s.subMu.Lock()
+			s.closed = true
+			for sub := range s.subscribers {
+				close(sub)
+				delete(s.subscribers, sub)
+			}
+			s.subMu.Unlock()
+			return
+		}
+	}
+}
+
+// SubscribeLive attaches a byte channel that mirrors real-time PTY output for xterm.js.
+func (s *Session) SubscribeLive() (chan []byte, func()) {
+	ch := make(chan []byte, 128)
+	s.subMu.Lock()
+	if s.closed {
+		close(ch)
+		s.subMu.Unlock()
+		return ch, func() {}
+	}
+	s.subscribers[ch] = struct{}{}
+	s.subMu.Unlock()
+
+	unsubscribe := func() {
+		s.subMu.Lock()
+		if _, ok := s.subscribers[ch]; ok {
+			delete(s.subscribers, ch)
+			close(ch)
+		}
+		s.subMu.Unlock()
+	}
+	return ch, unsubscribe
+}
+
+// WriteInteractive writes raw bytes from xterm.js directly into the PTY master.
+func (s *Session) WriteInteractive(data []byte) error {
+	_, err := s.Ptmx.Write(data)
+	return err
+}
+
+// Resize updates the PTY window dimensions.
+func (s *Session) Resize(cols, rows uint16) error {
+	if cols == 0 || rows == 0 {
+		return nil
+	}
+	return creackpty.Setsize(s.Ptmx, &creackpty.Winsize{
+		Cols: cols,
+		Rows: rows,
+	})
+}
+
+// ResolveCWD reads /proc/<shell_pid>/cwd on Linux to determine the persistent shell's current directory.
+func (s *Session) ResolveCWD() string {
+	procCwd := fmt.Sprintf("/proc/%d/cwd", s.ShellPID)
+	if target, err := os.Readlink(procCwd); err == nil && target != "" {
+		return target
+	}
+	return s.WorkspaceRoot
+}
+
+// Execute runs a command inside the persistent PTY using deterministic Sentinel Framing:
+// `command; echo -e "\n__SYNAPSE_EOF_<cmd_id>:$?__"`
+func (m *Manager) Execute(req tunnelv1.PtyExecRequest) tunnelv1.PtyExecResponse {
+	cmdID := strings.TrimSpace(req.CmdID)
+	if cmdID == "" {
+		cmdID = fmt.Sprintf("cmd-%d", time.Now().UnixNano())
+	}
+
+	// 1. Deterministic Self-Lockout Guardrail Check
+	if allowed, reason := guard.ValidateCommand(m.guardCfg, req.Command); !allowed {
+		return tunnelv1.PtyExecResponse{
+			CmdID:              cmdID,
+			SessionID:          req.SessionID,
+			Output:             reason,
+			ExitCode:           126,
+			BlockedByGuardrail: true,
+			GuardrailReason:    reason,
+		}
+	}
+
+	// 2. Enforce TIER_2_WORKSPACE_JAIL command checks against escaping the workspace
+	if req.Tier == tunnelv1.Tier2WorkspaceJail {
+		if blocked, reason := checkTier2CommandJail(req.Command, m.workspaceRoot, req.ProjectID); blocked {
+			return tunnelv1.PtyExecResponse{
+				CmdID:              cmdID,
+				SessionID:          req.SessionID,
+				Output:             reason,
+				ExitCode:           126,
+				BlockedByGuardrail: true,
+				GuardrailReason:    reason,
+			}
+		}
+	}
+
+	sess, err := m.GetOrCreateSession(req.SessionID, req.ProjectID, req.Tier)
+	if err != nil {
+		return tunnelv1.PtyExecResponse{
+			CmdID:     cmdID,
+			SessionID: req.SessionID,
+			Output:    fmt.Sprintf("failed to initialize persistent PTY session: %v", err),
+			ExitCode:  1,
+		}
+	}
+
+	if req.Cols > 0 && req.Rows > 0 {
+		_ = sess.Resize(req.Cols, req.Rows)
+	}
+
+	sess.execMu.Lock()
+	defer sess.execMu.Unlock()
+
+	// Merge any newly injected secrets into session secret registry for continuous redaction
+	sess.mu.Lock()
+	for k, v := range req.Secrets {
+		if strings.TrimSpace(k) != "" && v != "" {
+			sess.knownSecret[k] = v
+		}
+	}
+	activeSecrets := make(map[string]string, len(sess.knownSecret))
+	for k, v := range sess.knownSecret {
+		activeSecrets[k] = v
+	}
+	sess.mu.Unlock()
+
+	capture := make(chan []byte, 512)
+	sess.subMu.Lock()
+	sess.captureCh = capture
+	sess.subMu.Unlock()
+	defer func() {
+		sess.subMu.Lock()
+		sess.captureCh = nil
+		sess.subMu.Unlock()
+	}()
+
+	// Export any provided secrets silently in the persistent shell before running the command
+	var envExports strings.Builder
+	for k, v := range req.Secrets {
+		if isValidEnvKey(k) {
+			escapedVal := strings.ReplaceAll(v, `'`, `'\''`)
+			envExports.WriteString(fmt.Sprintf("export %s='%s'; ", k, escapedVal))
+		}
+	}
+
+	// If Tier 2 Workspace Jail, ensure CWD starts inside the jail if it ever drifted
+	if req.Tier == tunnelv1.Tier2WorkspaceJail {
+		cwd := sess.ResolveCWD()
+		if !strings.HasPrefix(cwd, sess.WorkspaceRoot) {
+			envExports.WriteString(fmt.Sprintf("cd %q; ", sess.WorkspaceRoot))
+		}
+	}
+
+	// Deterministic Sentinel Framing as required by the Synapse specification:
+	// command; echo -e "\n__SYNAPSE_EOF_<cmd_id>:$?__"
+	sentinelPrefix := fmt.Sprintf("__SYNAPSE_EOF_%s:", cmdID)
+	sentinelRegex := regexp.MustCompile(`(?m)\r?\n?__SYNAPSE_EOF_` + regexp.QuoteMeta(cmdID) + `:(-?\d+)__\r?\n?`)
+
+	framedCommand := fmt.Sprintf("%s%s\necho -e \"\\n__SYNAPSE_EOF_%s:$?__\"\n", envExports.String(), req.Command, cmdID)
+	if _, err := sess.Ptmx.Write([]byte(framedCommand)); err != nil {
+		return tunnelv1.PtyExecResponse{
+			CmdID:     cmdID,
+			SessionID: sess.ID,
+			Output:    fmt.Sprintf("failed writing command to PTY: %v", err),
+			ExitCode:  1,
+			Cwd:       sess.ResolveCWD(),
+		}
+	}
+
+	timeoutMs := req.WaitTimeoutMs
+	if timeoutMs == 0 {
+		timeoutMs = DefaultCommandTimeoutMs
+	}
+	timer := time.NewTimer(time.Duration(timeoutMs) * time.Millisecond)
+	defer timer.Stop()
+
+	var rawBuf bytes.Buffer
+	exitCode := 0
+	timedOut := false
+
+loop:
+	for {
+		select {
+		case chunk := <-capture:
+			rawBuf.Write(chunk)
+			current := rawBuf.String()
+			if strings.Contains(current, sentinelPrefix) {
+				if match := sentinelRegex.FindStringSubmatch(current); match != nil {
+					parsedCode, convErr := strconv.Atoi(match[1])
+					if convErr == nil {
+						exitCode = parsedCode
+					}
+					break loop
+				}
+			}
+		case <-timer.C:
+			timedOut = true
+			break loop
+		}
+	}
+
+	rawOutput := rawBuf.String()
+	// Strip the sentinel marker from the output
+	rawOutput = sentinelRegex.ReplaceAllString(rawOutput, "")
+	// Also strip any echoed command prefix if stty echo was re-enabled by a subcommand
+	rawOutput = strings.TrimPrefix(rawOutput, framedCommand)
+
+	cwd := sess.ResolveCWD()
+	// Enforce Tier 2 post-command CWD check
+	if req.Tier == tunnelv1.Tier2WorkspaceJail && !strings.HasPrefix(cwd, sess.WorkspaceRoot) {
+		_, _ = sess.Ptmx.Write([]byte(fmt.Sprintf("cd %q\n", sess.WorkspaceRoot)))
+		cwd = sess.WorkspaceRoot
+	}
+
+	cleaned, truncated, fullLogPath := guard.SanitizeAndTruncate(m.guardCfg, cmdID, rawOutput, activeSecrets)
+
+	return tunnelv1.PtyExecResponse{
+		CmdID:       cmdID,
+		SessionID:   sess.ID,
+		Output:      cleaned,
+		ExitCode:    exitCode,
+		Cwd:         cwd,
+		TimedOut:    timedOut,
+		Truncated:   truncated,
+		FullLogPath: fullLogPath,
+	}
+}
+
+// CloseAll terminates all active PTY sessions cleanly.
+func (m *Manager) CloseAll() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, s := range m.sessions {
+		_ = s.Ptmx.Close()
+		if s.Cmd != nil && s.Cmd.Process != nil {
+			_ = s.Cmd.Process.Signal(syscall.SIGTERM)
+		}
+	}
+}
+
+var envKeyRegex = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func isValidEnvKey(k string) bool {
+	return envKeyRegex.MatchString(k)
+}
+
+func checkTier2CommandJail(cmd string, workspaceRoot string, projectID string) (bool, string) {
+	lower := strings.ToLower(cmd)
+	forbidden := []string{
+		"sudo ",
+		"su -",
+		"chroot ",
+		"mount ",
+		"umount ",
+		"systemctl ",
+		"ufw ",
+		"iptables ",
+		"useradd ",
+		"usermod ",
+	}
+	for _, tok := range forbidden {
+		if strings.Contains(lower, tok) {
+			return true, fmt.Sprintf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): host administration command %q is prohibited inside workspace jail", strings.TrimSpace(tok))
+		}
+	}
+	return false, ""
+}
