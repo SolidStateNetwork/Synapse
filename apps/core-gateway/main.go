@@ -325,6 +325,106 @@ func main() {
 	// 8. Authenticated TCP/HTTP Live-Preview Reverse Proxy: /preview/<project_id>/<node_id>/<port>
 	mux.HandleFunc("/preview/", proxy.NewLivePreviewHandler(nodeHub))
 
+	// 9. Zero-Dependency Axon Static Binary Download (/dl/axon-linux-amd64)
+	mux.HandleFunc("/dl/axon-linux-amd64", func(w http.ResponseWriter, r *http.Request) {
+		candidates := []string{
+			os.Getenv("SYNAPSE_AXON_BINARY_PATH"),
+			"/usr/local/bin/axon-linux-amd64",
+			"./bin/axon",
+			"../../bin/axon",
+		}
+		for _, candidate := range candidates {
+			if candidate == "" {
+				continue
+			}
+			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+				w.Header().Set("Content-Type", "application/octet-stream")
+				w.Header().Set("Content-Disposition", "attachment; filename=\"axon\"")
+				http.ServeFile(w, r, candidate)
+				return
+			}
+		}
+		http.Error(w, "axon static binary not found on gateway; build ./bin/axon first", http.StatusNotFound)
+	})
+
+	// 10. One-Liner Axon Node Enrollment & Systemd Installer Script (/install.sh)
+	mux.HandleFunc("/install.sh", func(w http.ResponseWriter, r *http.Request) {
+		scheme := "http"
+		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+			scheme = "https"
+		}
+		host := r.Host
+		if host == "" {
+			host = "127.0.0.1:8081"
+		}
+		coreBaseURL := fmt.Sprintf("%s://%s", scheme, host)
+
+		w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
+		script := fmt.Sprintf(`#!/usr/bin/env sh
+set -eu
+
+TOKEN="${1:-}"
+TIER="${2:-TIER_2_WORKSPACE_JAIL}"
+NODE_ID="${3:-}"
+CORE_URL="%s"
+
+if [ -z "$TOKEN" ]; then
+  echo "Usage: curl -fsSL $CORE_URL/install.sh | sudo sh -s -- <join_token> [tier] [node_id]"
+  exit 1
+fi
+
+INSTALL_DIR="/usr/local/bin"
+CONFIG_DIR="/etc/axon"
+WORKSPACE_DIR="/opt/axon/workspaces"
+
+if [ "$(id -u)" -ne 0 ]; then
+  INSTALL_DIR="${HOME}/.local/bin"
+  CONFIG_DIR="${HOME}/.config/axon"
+  WORKSPACE_DIR="${HOME}/.local/share/axon/workspaces"
+fi
+
+mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$WORKSPACE_DIR"
+
+echo "[synapse] Downloading static Axon Muscle binary from $CORE_URL/dl/axon-linux-amd64 ..."
+curl -fsSL "$CORE_URL/dl/axon-linux-amd64" -o "$INSTALL_DIR/axon"
+chmod +x "$INSTALL_DIR/axon"
+
+echo "[synapse] Bootstrapping mTLS identity with Core Gateway ($TIER)..."
+if [ -n "$NODE_ID" ]; then
+  "$INSTALL_DIR/axon" join --core "$CORE_URL" --tier "$TIER" --node-id "$NODE_ID" --config-dir "$CONFIG_DIR" --workspace-root "$WORKSPACE_DIR" "$TOKEN"
+else
+  "$INSTALL_DIR/axon" join --core "$CORE_URL" --tier "$TIER" --config-dir "$CONFIG_DIR" --workspace-root "$WORKSPACE_DIR" "$TOKEN"
+fi
+
+if [ "$(id -u)" -eq 0 ] && command -v systemctl >/dev/null 2>&1; then
+  cat >/etc/systemd/system/axon.service <<EOF
+[Unit]
+Description=Synapse Axon Muscle Node Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=$INSTALL_DIR/axon run --config-dir $CONFIG_DIR
+Restart=always
+RestartSec=3s
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  systemctl daemon-reload
+  systemctl enable --now axon.service
+  echo "[synapse] axon.service enabled and started via systemd."
+else
+  echo "[synapse] Starting axon daemon in background (non-root mode)..."
+  nohup "$INSTALL_DIR/axon" run --config-dir "$CONFIG_DIR" >/tmp/axon-agent.log 2>&1 &
+  echo "[synapse] Axon started (PID $!, logs at /tmp/axon-agent.log)."
+fi
+`, coreBaseURL)
+		_, _ = w.Write([]byte(script))
+	})
+
 	log.Printf("[core-gateway] HTTP Control & Live-Preview Reverse Proxy listening on %s (VaultRoot=%s)", httpAddr, vaultRoot)
 	if err := http.ListenAndServe(httpAddr, corsMiddleware(mux)); err != nil {
 		log.Fatalf("[core-gateway] HTTP server error: %v", err)

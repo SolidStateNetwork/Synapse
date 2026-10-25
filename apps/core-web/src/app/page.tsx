@@ -1263,11 +1263,17 @@ export default function SynapseDashboard() {
                 </div>
 
                 {issuedToken && (
-                  <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3.5 text-xs space-y-2">
+                  <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3.5 text-xs space-y-2.5">
                     <div className="font-semibold text-emerald-300">
-                      Run on your remote Linux server:
+                      Option A — Zero-Dependency One-Liner (Downloads binary + systemd):
                     </div>
                     <pre className="overflow-x-auto rounded bg-[#07090e] p-2.5 font-mono text-[11px] text-emerald-400">
+                      {`curl -fsSL ${gatewayUrl}/install.sh | sh -s -- ${issuedToken} ${joinTier}`}
+                    </pre>
+                    <div className="font-semibold text-cyan-300">
+                      Option B — Direct CLI Enrollment:
+                    </div>
+                    <pre className="overflow-x-auto rounded bg-[#07090e] p-2.5 font-mono text-[11px] text-cyan-400">
                       {`axon join --core ${gatewayUrl} --tier ${joinTier} --run ${issuedToken}`}
                     </pre>
                   </div>
