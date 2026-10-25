@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 
 	"github.com/SolidStateNetwork/Synapse/agents/axon/internal/health"
@@ -16,6 +17,11 @@ import (
 )
 
 const defaultConfigDir = "/etc/axon"
+
+var (
+	version = "v0.1.0"
+	commit  = "HEAD"
+)
 
 func main() {
 	if len(os.Args) < 2 {
@@ -32,7 +38,7 @@ func main() {
 	case "status":
 		runStatus(os.Args[2:])
 	case "version", "--version", "-v":
-		fmt.Println("axon v0.2.0 (Synapse Muscle Single-Binary Agent)")
+		fmt.Printf("axon %s (%s) [%s/%s] — Synapse Muscle Single-Binary Agent\n", version, commit, runtime.GOOS, runtime.GOARCH)
 	default:
 		printUsage()
 		os.Exit(1)
@@ -111,7 +117,7 @@ func runStatus(args []string) {
 	snap := col.Collect(nil)
 
 	report := map[string]any{
-		"agent":         "axon v0.2.0",
+		"agent":         fmt.Sprintf("axon %s (%s)", version, commit),
 		"pid":           os.Getpid(),
 		"core_gateway":  coreEndpoint,
 		"telemetry":     snap,
