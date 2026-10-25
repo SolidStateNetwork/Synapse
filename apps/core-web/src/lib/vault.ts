@@ -32,6 +32,14 @@ export interface PendingApproval {
   status: "pending" | "approved" | "rejected";
 }
 
+export interface AIProviderSettings {
+  provider: string; // "openai-compatible" | "openrouter" | "ollama" | "anthropic" | "synapse-autonomous"
+  base_url: string;
+  model: string;
+  api_key_secret_name?: string;
+  custom_headers?: Record<string, string>;
+}
+
 export interface ProjectState {
   project_id: string;
   name: string;
@@ -43,6 +51,7 @@ export interface ProjectState {
   active_pty_sessions: string[];
   telemetry: Record<string, NodeHeartbeat>;
   pending_approvals: PendingApproval[];
+  ai_settings?: AIProviderSettings;
   created_at: string;
   updated_at: string;
 }
@@ -201,6 +210,12 @@ flowchart LR
     active_pty_sessions: [],
     telemetry: {},
     pending_approvals: [],
+    ai_settings: {
+      provider: "openai-compatible",
+      base_url: "https://api.openai.com/v1",
+      model: "gpt-4o",
+      api_key_secret_name: "LLM_API_KEY",
+    },
     created_at: now,
     updated_at: now,
   };

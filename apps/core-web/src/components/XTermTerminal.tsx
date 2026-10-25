@@ -35,17 +35,18 @@ export default function XTermTerminal({
 
       const term = new Terminal({
         cursorBlink: true,
-        fontSize: 13,
+        fontSize: 12,
+        lineHeight: 1.25,
         fontFamily:
-          "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+          '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
         theme: {
-          background: "#07090e",
-          foreground: "#e2e8f0",
+          background: "#060609",
+          foreground: "#d4d4d8",
           cursor: "#10b981",
-          selectionBackground: "#1e293b",
+          selectionBackground: "#27272a",
         },
-        rows: 22,
-        cols: 100,
+        rows: 11,
+        cols: 110,
       });
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
@@ -54,10 +55,7 @@ export default function XTermTerminal({
       termInstance = term;
 
       term.writeln(
-        `\x1b[1;32m● Synapse Live PTY Stream\x1b[0m — Node: \x1b[36m${nodeId}\x1b[0m | Session: \x1b[33m${sessionId}\x1b[0m`
-      );
-      term.writeln(
-        `\x1b[90m Persistent bash session via hashicorp/yamux STREAM_TYPE_PTY (Sentinel Framed)\x1b[0m\r\n`
+        `\x1b[1;32m●\x1b[0m \x1b[90mpty://${nodeId}/${sessionId} — creack/pty + Sentinel Framing (__SYNAPSE_EOF__)\x1b[0m`
       );
 
       const streamUrl = `${gatewayUrl}/api/v1/pty/stream?node_id=${encodeURIComponent(
@@ -107,23 +105,23 @@ export default function XTermTerminal({
   }, [gatewayUrl, projectId, nodeId, sessionId]);
 
   return (
-    <div className="flex flex-col rounded-xl border border-slate-800 bg-[#07090e] overflow-hidden">
-      <div className="flex items-center justify-between border-b border-slate-800/80 bg-slate-900/60 px-4 py-2 text-xs">
-        <div className="flex items-center gap-2">
+    <div className="flex h-full flex-col bg-[#060609] overflow-hidden">
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-1 text-[11px] text-zinc-500">
+        <div className="flex items-center gap-2 font-mono">
           <span
-            className={`h-2 w-2 rounded-full ${
-              connected ? "bg-emerald-400 animate-pulse" : "bg-amber-400"
+            className={`h-1.5 w-1.5 rounded-full ${
+              connected ? "bg-emerald-400" : "bg-amber-400"
             }`}
           />
-          <span className="font-mono text-slate-300">
-            pty://{nodeId}/{sessionId}
+          <span className="text-zinc-300">
+            {nodeId} : {sessionId}
           </span>
         </div>
-        <span className="text-slate-400">
-          creack/pty + Sentinel Framing (__SYNAPSE_EOF__)
+        <span className="font-mono text-[10px] text-zinc-500">
+          STREAM_TYPE_PTY • /proc/pid/cwd
         </span>
       </div>
-      <div ref={containerRef} className="p-3 min-h-[340px]" />
+      <div ref={containerRef} className="flex-1 px-2 py-1 overflow-hidden" />
     </div>
   );
 }

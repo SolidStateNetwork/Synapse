@@ -5,7 +5,7 @@ import {
   SYNAPSE_TOOL_SCHEMAS,
   type ToolDispatchResult,
 } from "@/lib/orchestrator";
-import { ensureProjectVault } from "@/lib/vault";
+import { ensureProjectVault, getDecryptedSecrets } from "@/lib/vault";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -127,6 +127,7 @@ async function runOpenAICompatibleAgentLoop(
  */
 async function runAnthropicAgentLoop(
   projectId: string,
+  baseUrl: string,
   model: string,
   apiKey: string,
   systemPrompt: string,
@@ -145,9 +146,15 @@ async function runAnthropicAgentLoop(
 
   const allToolResults: ToolDispatchResult[] = [];
   let finalReply = "";
+  const cleanBase = (baseUrl || "https://api.anthropic.com").replace(/\/$/, "");
+  const messagesEndpoint = cleanBase.endsWith("/v1/messages")
+    ? cleanBase
+    : cleanBase.endsWith("/v1")
+    ? `${cleanBase}/messages`
+    : `${cleanBase}/v1/messages`;
 
   for (let step = 0; step < MAX_AGENT_ITERATIONS; step++) {
-    const anthRes = await fetch("https://api.anthropic.com/v1/messages", {
+    const anthRes = await fetch(messagesEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -410,12 +417,86 @@ function formatHaltedWorkflowReply(
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const projectId = String(body.project_id || "synapse-cloud-demo");
-  const provider = String(body.provider || "synapse-autonomous");
-  const model = String(body.model || "gpt-4o");
-  const apiKey = String(body.api_key || process.env.OPENAI_API_KEY || "");
-  const ollamaUrl = String(
-    body.ollama_url || process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434"
+  const state = ensureProjectVault(projectId);
+  const vaultSecrets = getDecryptedSecrets(projectId);
+
+  const action = String(body.action || "");
+  const provider = String(
+    body.provider || state.ai_settings?.provider || "synapse-autonomous"
   );
+  const rawBaseUrl = String(
+    body.base_url ||
+      state.ai_settings?.base_url ||
+      (provider === "ollama"
+        ? process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434/v1"
+        : provider === "openrouter"
+        ? "https://openrouter.ai/api/v1"
+        : provider === "anthropic"
+        ? "https://api.anthropic.com/v1"
+        : "https://api.openai.com/v1")
+  ).trim();
+
+  const model = String(
+    body.model || state.ai_settings?.model || "gpt-4o"
+  ).trim();
+  const secretKeyName =
+    state.ai_settings?.api_key_secret_name || "LLM_API_KEY";
+  const apiKey = String(
+    body.api_key ||
+      vaultSecrets[secretKeyName] ||
+      process.env.OPENAI_API_KEY ||
+      process.env.ANTHROPIC_API_KEY ||
+      ""
+  ).trim();
+
+  // Model Discovery Action: GET <base_url>/models
+  if (action === "list_models") {
+    const cleanBase = rawBaseUrl.replace(/\/$/, "");
+    const modelsUrl = cleanBase.endsWith("/models")
+      ? cleanBase
+      : cleanBase.endsWith("/v1")
+      ? `${cleanBase}/models`
+      : `${cleanBase}/v1/models`;
+
+    try {
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+      };
+      if (apiKey) {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
+      const res = await fetch(modelsUrl, { headers });
+      if (!res.ok) {
+        return NextResponse.json(
+          {
+            models: [],
+            error: `Endpoint ${modelsUrl} returned HTTP ${res.status}`,
+          },
+          { status: 200 }
+        );
+      }
+      const data = await res.json();
+      const rawList = Array.isArray(data.data)
+        ? data.data
+        : Array.isArray(data.models)
+        ? data.models
+        : [];
+      const modelIds = rawList
+        .map((m: { id?: string; name?: string }) => m.id || m.name || "")
+        .filter(Boolean);
+      return NextResponse.json({
+        models: modelIds,
+        endpoint: modelsUrl,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({
+        models: [],
+        error: `Failed to reach ${modelsUrl}: ${msg}`,
+      });
+    }
+  }
+
   const directTool = body.direct_tool as
     | { name: string; arguments: Record<string, unknown> }
     | undefined;
@@ -438,17 +519,26 @@ export async function POST(req: NextRequest) {
   const lastUserMsg =
     messages.filter((m) => m.role === "user").pop()?.content || "";
 
-  // 2. Multi-Turn OpenAI / Ollama Tool-Calling Loop
-  if ((provider === "openai" && apiKey) || provider === "ollama") {
+  // 2. Multi-Turn OpenAI-Compatible / Custom Base URL / OpenRouter / vLLM / Ollama Loop
+  if (
+    provider === "openai-compatible" ||
+    provider === "openai" ||
+    provider === "openrouter" ||
+    provider === "vllm" ||
+    provider === "ollama"
+  ) {
     try {
-      const endpoint =
-        provider === "ollama"
-          ? `${ollamaUrl.replace(/\/$/, "")}/v1/chat/completions`
-          : "https://api.openai.com/v1/chat/completions";
+      const cleanBase = rawBaseUrl.replace(/\/$/, "");
+      const endpoint = cleanBase.endsWith("/chat/completions")
+        ? cleanBase
+        : cleanBase.endsWith("/v1")
+        ? `${cleanBase}/chat/completions`
+        : `${cleanBase}/v1/chat/completions`;
+
       const loopResult = await runOpenAICompatibleAgentLoop(
         projectId,
         endpoint,
-        provider === "ollama" ? model || "llama3.1" : model,
+        model || "gpt-4o",
         apiKey,
         systemPrompt,
         messages
@@ -457,21 +547,22 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           reply: loopResult.reply,
           tool_results: loopResult.toolResults,
+          active_endpoint: endpoint,
         });
       }
     } catch {
-      // Fall back to deterministic autonomous workflow engine
+      // Fall back to deterministic autonomous workflow engine if custom endpoint is unreachable
     }
   }
 
-  // 3. Multi-Turn Anthropic Claude Tool-Calling Loop
-  if (provider === "anthropic" && (apiKey || process.env.ANTHROPIC_API_KEY)) {
+  // 3. Multi-Turn Anthropic Claude Tool-Calling Loop (supports custom Anthropic base_url proxies)
+  if (provider === "anthropic" && apiKey) {
     try {
-      const key = apiKey || process.env.ANTHROPIC_API_KEY || "";
       const loopResult = await runAnthropicAgentLoop(
         projectId,
+        rawBaseUrl,
         model,
-        key,
+        apiKey,
         systemPrompt,
         messages
       );

@@ -178,6 +178,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ secret_keys: keys });
   }
 
+  if (action === "save_ai_settings") {
+    const provider = String(body.provider || "openai-compatible");
+    const baseUrl = String(body.base_url || "https://api.openai.com/v1").trim();
+    const model = String(body.model || "gpt-4o").trim();
+    const secretName = String(body.api_key_secret_name || "LLM_API_KEY")
+      .trim()
+      .toUpperCase();
+
+    state.ai_settings = {
+      provider,
+      base_url: baseUrl,
+      model,
+      api_key_secret_name: secretName,
+    };
+
+    if (body.api_key && String(body.api_key).trim() !== "") {
+      setSecret(projectId, secretName, String(body.api_key).trim());
+    }
+
+    const saved = saveProjectState(state);
+    appendAuditLog(projectId, {
+      timestamp: new Date().toISOString(),
+      actor: "user",
+      tool_name: "configure_ai_endpoint",
+      status: "executed",
+      summary: `Configured AI Endpoint: provider=${provider}, base_url=${baseUrl}, model=${model}`,
+    });
+    return NextResponse.json({
+      project: saved,
+      secret_keys: listSecretKeys(projectId),
+    });
+  }
+
   if (action === "resolve_approval") {
     const approvalId = String(body.approval_id || "");
     const decision = body.decision === "approve" ? "approved" : "rejected";

@@ -6,28 +6,40 @@ import {
   Activity,
   AlertTriangle,
   Bot,
+  Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Cpu,
-  Database,
+  ExternalLink,
   FileCode2,
+  FileText,
+  Folder,
   FolderGit2,
+  GitCompare,
   Globe,
   HardDrive,
   KeyRound,
+  Layers,
   Lock,
+  Network,
   Play,
   Plus,
   RefreshCw,
+  Save,
   Send,
   Server,
+  Settings2,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
   Terminal as TerminalIcon,
+  Trash2,
+  X,
   XCircle,
 } from "lucide-react";
-import type { AutonomyTier, NodeHeartbeat } from "@proto/tunnel";
+import type { AutonomyTier, FsEntry, NodeHeartbeat } from "@proto/tunnel";
 import MermaidTopologyView from "@/components/MermaidTopologyView";
-import RemoteWorkspaceExplorer from "@/components/RemoteWorkspaceExplorer";
 
 const XTermTerminal = dynamic(() => import("@/components/XTermTerminal"), {
   ssr: false,
@@ -62,6 +74,13 @@ interface PendingApproval {
   status: "pending" | "approved" | "rejected";
 }
 
+interface AIProviderSettings {
+  provider: string;
+  base_url: string;
+  model: string;
+  api_key_secret_name?: string;
+}
+
 interface ProjectState {
   project_id: string;
   name: string;
@@ -73,6 +92,7 @@ interface ProjectState {
   active_pty_sessions: string[];
   telemetry: Record<string, NodeHeartbeat>;
   pending_approvals: PendingApproval[];
+  ai_settings?: AIProviderSettings;
 }
 
 interface CartridgeMeta {
@@ -113,7 +133,38 @@ interface ChatItem {
   }>;
 }
 
-export default function SynapseDashboard() {
+const PROVIDER_PRESETS: Record<
+  string,
+  { label: string; defaultUrl: string; defaultModel: string }
+> = {
+  "openai-compatible": {
+    label: "Custom OpenAI-Compatible API",
+    defaultUrl: "https://api.openai.com/v1",
+    defaultModel: "gpt-4o",
+  },
+  openrouter: {
+    label: "OpenRouter.ai",
+    defaultUrl: "https://openrouter.ai/api/v1",
+    defaultModel: "anthropic/claude-3.5-sonnet",
+  },
+  ollama: {
+    label: "Ollama / Local vLLM",
+    defaultUrl: "http://127.0.0.1:11434/v1",
+    defaultModel: "llama3.1",
+  },
+  anthropic: {
+    label: "Anthropic Messages API",
+    defaultUrl: "https://api.anthropic.com/v1",
+    defaultModel: "claude-3-5-sonnet-latest",
+  },
+  "synapse-autonomous": {
+    label: "Synapse Deterministic Engine",
+    defaultUrl: "builtin://synapse-core",
+    defaultModel: "synapse-v1-deterministic",
+  },
+};
+
+export default function SynapseWorkbench() {
   const [projects, setProjects] = useState<ProjectState[]>([]);
   const [activeProject, setActiveProject] = useState<ProjectState | null>(null);
   const [architectureMd, setArchitectureMd] = useState("");
@@ -124,31 +175,55 @@ export default function SynapseDashboard() {
   const [gatewayNodes, setGatewayNodes] = useState<GatewayNode[]>([]);
   const [gatewayUrl, setGatewayUrl] = useState("http://127.0.0.1:8081");
 
-  const [activeTab, setActiveTab] = useState<
-    | "orchestrator"
-    | "vault"
-    | "explorer"
-    | "terminal"
-    | "preview"
-    | "nodes"
-    | "audit"
-  >("orchestrator");
+  // 2026 IDE Layout States
+  const [leftSidebarView, setLeftSidebarView] = useState<
+    "explorer" | "vault" | "nodes" | "cartridges"
+  >("explorer");
+  const [centerView, setCenterView] = useState<
+    "code" | "architecture" | "memory" | "preview" | "secrets"
+  >("code");
+  const [bottomDockView, setBottomDockView] = useState<"pty" | "audit">("pty");
+  const [bottomDockOpen, setBottomDockOpen] = useState(true);
+  const [aiEndpointModalOpen, setAiEndpointModalOpen] = useState(false);
 
-  // AI Orchestrator chat state
-  const [provider, setProvider] = useState("synapse-autonomous");
+  // Remote File Explorer & Editor State
+  const [remoteDir, setRemoteDir] = useState(".");
+  const [remoteEntries, setRemoteEntries] = useState<FsEntry[]>([]);
+  const [activeFilePath, setActiveFilePath] = useState<string>(
+    "service/server.js"
+  );
+  const [editorContent, setEditorContent] = useState<string>("");
+  const [diffPatchText, setDiffPatchText] = useState<string>("");
+  const [showDiffDrawer, setShowDiffDrawer] = useState(false);
+  const [newFileName, setNewFileName] = useState("");
+  const [editorStatus, setEditorStatus] = useState<string>("Ready");
+
+  // AI Provider & Custom Base URL Configuration
+  const [provider, setProvider] = useState("openai-compatible");
+  const [baseUrl, setBaseUrl] = useState("https://api.openai.com/v1");
   const [modelName, setModelName] = useState("gpt-4o");
-  const [apiKey, setApiKey] = useState("");
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [apiKeySecretName, setApiKeySecretName] = useState("LLM_API_KEY");
+  const [discoveredModels, setDiscoveredModels] = useState<string[]>([]);
+  const [syncingModels, setSyncingModels] = useState(false);
+  const [modelSyncStatus, setModelSyncStatus] = useState("");
+
+  // Copilot Chat State
   const [chatInput, setChatInput] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
+  const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>(
+    {}
+  );
   const [chatHistory, setChatHistory] = useState<ChatItem[]>([
     {
       role: "assistant",
       content:
-        "Welcome to **Synapse Control Plane (The Brain)**. Select or assign an **Axon Muscle Node** to unlock remote PTY & Atomic FS tools, or operate in **Planning-Only Mode** to architect your system and manage encrypted secrets.",
+        "Synapse Core Ready. Click the **API Endpoint badge** in the top bar to set any custom `Base URL` (OpenRouter, vLLM, Ollama, LiteLLM, or OpenAI), or run `$ <cmd>` / `deploy microservice 4050` directly.",
     },
   ]);
 
-  // Enrollment & Secret forms
+  // Node Enrollment & Secrets
+  const [selectedNodeId, setSelectedNodeId] = useState("");
   const [joinTier, setJoinTier] = useState<AutonomyTier>(
     "TIER_2_WORKSPACE_JAIL"
   );
@@ -156,53 +231,285 @@ export default function SynapseDashboard() {
   const [manualNodeId, setManualNodeId] = useState("");
   const [newSecretKey, setNewSecretKey] = useState("");
   const [newSecretVal, setNewSecretVal] = useState("");
+  const [previewPort, setPreviewPort] = useState<number>(3000);
+  const [newProjectModal, setNewProjectModal] = useState(false);
   const [newProjName, setNewProjName] = useState("");
 
-  // Live Preview selection
-  const [previewPort, setPreviewPort] = useState<number>(3000);
-  const [selectedNodeId, setSelectedNodeId] = useState<string>("");
+  const loadWorkspace = useCallback(
+    async (projectId?: string, syncAiSettings = false) => {
+      const pid = projectId || activeProject?.project_id || "synapse-cloud-demo";
+      try {
+        const res = await fetch(
+          `/api/projects?project_id=${encodeURIComponent(pid)}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        setProjects(data.projects || []);
+        setActiveProject(data.active_project);
+        setArchitectureMd(data.architecture_md || "");
+        setMemoryMd(data.memory_md || "");
+        setSecretKeys(data.secret_keys || []);
+        setAuditLogs(data.audit_logs || []);
+        setCartridges(data.cartridges || []);
+        setGatewayNodes(data.gateway_nodes || []);
+        if (data.gateway_url) setGatewayUrl(data.gateway_url);
 
-  const loadDashboard = useCallback(async (projectId?: string) => {
-    const pid = projectId || "synapse-cloud-demo";
-    try {
-      const res = await fetch(
-        `/api/projects?project_id=${encodeURIComponent(pid)}`,
-        { cache: "no-store" }
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      setProjects(data.projects || []);
-      setActiveProject(data.active_project);
-      setArchitectureMd(data.architecture_md || "");
-      setMemoryMd(data.memory_md || "");
-      setSecretKeys(data.secret_keys || []);
-      setAuditLogs(data.audit_logs || []);
-      setCartridges(data.cartridges || []);
-      setGatewayNodes(data.gateway_nodes || []);
-      if (data.gateway_url) setGatewayUrl(data.gateway_url);
+        if (syncAiSettings && data.active_project?.ai_settings) {
+          const ai = data.active_project.ai_settings as AIProviderSettings;
+          setProvider(ai.provider || "openai-compatible");
+          setBaseUrl(ai.base_url || "https://api.openai.com/v1");
+          setModelName(ai.model || "gpt-4o");
+          setApiKeySecretName(ai.api_key_secret_name || "LLM_API_KEY");
+        }
 
-      const firstNode =
-        data.active_project?.assigned_nodes?.[0]?.node_id ||
-        data.gateway_nodes?.[0]?.node_id ||
-        "";
-      setSelectedNodeId((prev) => prev || firstNode);
-    } catch {
-      // ignore transient network errors
-    }
+        const firstNode =
+          data.active_project?.assigned_nodes?.[0]?.node_id ||
+          data.gateway_nodes?.[0]?.node_id ||
+          "";
+        setSelectedNodeId((prev) => prev || firstNode);
+      } catch {
+        // ignore transient network error
+      }
+    },
+    [activeProject?.project_id]
+  );
+
+  useEffect(() => {
+    loadWorkspace("synapse-cloud-demo", true);
   }, []);
 
   useEffect(() => {
-    loadDashboard();
-    const interval = setInterval(() => {
-      loadDashboard(activeProject?.project_id);
+    const timer = setInterval(() => {
+      loadWorkspace(activeProject?.project_id, false);
     }, 5000);
-    return () => clearInterval(interval);
-  }, [loadDashboard, activeProject?.project_id]);
+    return () => clearInterval(timer);
+  }, [loadWorkspace, activeProject?.project_id]);
+
+  const primaryNode =
+    selectedNodeId ||
+    activeProject?.assigned_nodes?.[0]?.node_id ||
+    gatewayNodes[0]?.node_id ||
+    "";
+
+  // Load Remote Directory Tree
+  const fetchRemoteDir = useCallback(
+    async (dirPath: string) => {
+      if (!activeProject || !primaryNode || activeProject.planning_only) return;
+      try {
+        const res = await fetch("/api/orchestrator", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            project_id: activeProject.project_id,
+            direct_tool: {
+              name: "node_fs_operation",
+              arguments: {
+                node_id: primaryNode,
+                operation: "list_dir",
+                path: dirPath,
+              },
+            },
+          }),
+        });
+        const data = await res.json();
+        const tr = data.tool_results?.[0];
+        if (tr?.output?.entries) {
+          setRemoteEntries(tr.output.entries);
+          setRemoteDir(dirPath);
+        }
+      } catch {
+        // ignore
+      }
+    },
+    [activeProject, primaryNode]
+  );
+
+  const openRemoteFile = useCallback(
+    async (filePath: string) => {
+      if (!activeProject || !primaryNode) return;
+      setEditorStatus(`Reading ${filePath}...`);
+      try {
+        const res = await fetch("/api/orchestrator", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            project_id: activeProject.project_id,
+            direct_tool: {
+              name: "node_fs_operation",
+              arguments: {
+                node_id: primaryNode,
+                operation: "read_file",
+                path: filePath,
+              },
+            },
+          }),
+        });
+        const data = await res.json();
+        const tr = data.tool_results?.[0];
+        if (tr?.output?.success) {
+          setActiveFilePath(filePath);
+          setEditorContent(tr.output.content || "");
+          setCenterView("code");
+          setEditorStatus(`Loaded ${filePath}`);
+        } else {
+          setEditorStatus(tr?.output?.error || "Read failed");
+        }
+      } catch {
+        setEditorStatus("Error reading file");
+      }
+    },
+    [activeProject, primaryNode]
+  );
+
+  useEffect(() => {
+    if (primaryNode && activeProject && !activeProject.planning_only) {
+      fetchRemoteDir(".");
+      openRemoteFile("service/server.js");
+    }
+  }, [primaryNode, activeProject?.project_id, activeProject?.planning_only]);
+
+  async function handleSaveRemoteFile() {
+    if (!activeProject || !primaryNode || !activeFilePath) return;
+    setEditorStatus(`Saving ${activeFilePath}...`);
+    const res = await fetch("/api/orchestrator", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_id: activeProject.project_id,
+        direct_tool: {
+          name: "node_fs_operation",
+          arguments: {
+            node_id: primaryNode,
+            operation: "write_file",
+            path: activeFilePath,
+            content: editorContent,
+          },
+        },
+      }),
+    });
+    const data = await res.json();
+    const tr = data.tool_results?.[0];
+    if (tr?.status === "paused_tier3") {
+      setEditorStatus(`Paused by TIER_3_SUPERVISED (${tr.approval_id})`);
+    } else if (tr?.output?.success) {
+      setEditorStatus(`Saved ${activeFilePath} atomically`);
+      fetchRemoteDir(remoteDir);
+    } else {
+      setEditorStatus(tr?.output?.error || "Write error");
+    }
+    loadWorkspace(activeProject.project_id);
+  }
+
+  async function handleApplyDiff() {
+    if (!activeProject || !primaryNode || !activeFilePath || !diffPatchText)
+      return;
+    setEditorStatus("Applying Unified Diff...");
+    const res = await fetch("/api/orchestrator", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_id: activeProject.project_id,
+        direct_tool: {
+          name: "node_fs_operation",
+          arguments: {
+            node_id: primaryNode,
+            operation: "apply_unified_diff",
+            path: activeFilePath,
+            diff: diffPatchText,
+          },
+        },
+      }),
+    });
+    const data = await res.json();
+    const tr = data.tool_results?.[0];
+    if (tr?.output?.success) {
+      setEditorContent(tr.output.content || editorContent);
+      setDiffPatchText("");
+      setShowDiffDrawer(false);
+      setEditorStatus(`Patched ${activeFilePath}`);
+    } else {
+      setEditorStatus(tr?.output?.error || "Diff failed");
+    }
+    loadWorkspace(activeProject.project_id);
+  }
+
+  async function handleDeleteRemoteFile(targetPath: string) {
+    if (!activeProject || !primaryNode) return;
+    await fetch("/api/orchestrator", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_id: activeProject.project_id,
+        direct_tool: {
+          name: "node_fs_operation",
+          arguments: {
+            node_id: primaryNode,
+            operation: "delete",
+            path: targetPath,
+          },
+        },
+      }),
+    });
+    fetchRemoteDir(remoteDir);
+    loadWorkspace(activeProject.project_id);
+  }
+
+  // Save Custom Base URL & Provider Settings
+  async function handleSaveAiEndpoint(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activeProject) return;
+    await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "save_ai_settings",
+        project_id: activeProject.project_id,
+        provider,
+        base_url: baseUrl,
+        model: modelName,
+        api_key_secret_name: apiKeySecretName,
+        api_key: apiKeyInput,
+      }),
+    });
+    setApiKeyInput("");
+    setAiEndpointModalOpen(false);
+    await loadWorkspace(activeProject.project_id, true);
+  }
+
+  // Discover Models from Custom Base URL (/v1/models)
+  async function handleSyncModels() {
+    if (!activeProject) return;
+    setSyncingModels(true);
+    setModelSyncStatus("Querying /models...");
+    try {
+      const res = await fetch("/api/orchestrator", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "list_models",
+          project_id: activeProject.project_id,
+          provider,
+          base_url: baseUrl,
+          api_key: apiKeyInput,
+        }),
+      });
+      const data = await res.json();
+      if (Array.isArray(data.models) && data.models.length > 0) {
+        setDiscoveredModels(data.models);
+        setModelName(data.models[0]);
+        setModelSyncStatus(`Loaded ${data.models.length} models`);
+      } else {
+        setModelSyncStatus(data.error || "No models returned by endpoint");
+      }
+    } finally {
+      setSyncingModels(false);
+    }
+  }
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();
     if (!chatInput.trim() || !activeProject) return;
-
     const userMsg: ChatItem = { role: "user", content: chatInput };
     const nextHistory = [...chatHistory, userMsg];
     setChatHistory(nextHistory);
@@ -216,8 +523,9 @@ export default function SynapseDashboard() {
         body: JSON.stringify({
           project_id: activeProject.project_id,
           provider,
+          base_url: baseUrl,
           model: modelName,
-          api_key: apiKey,
+          api_key: apiKeyInput,
           messages: nextHistory.map((m) => ({
             role: m.role,
             content: m.content,
@@ -233,17 +541,20 @@ export default function SynapseDashboard() {
           toolResults: data.tool_results,
         },
       ]);
-      await loadDashboard(activeProject.project_id);
+      await loadWorkspace(activeProject.project_id);
+      if (primaryNode) fetchRemoteDir(remoteDir);
     } finally {
       setChatBusy(false);
     }
   }
 
-  async function handleQuickTool(
-    toolName: string,
-    args: Record<string, unknown>
-  ) {
+  async function handleQuickAction(promptText: string) {
     if (!activeProject) return;
+    const nextHistory: ChatItem[] = [
+      ...chatHistory,
+      { role: "user", content: promptText },
+    ];
+    setChatHistory(nextHistory);
     setChatBusy(true);
     try {
       const res = await fetch("/api/orchestrator", {
@@ -251,7 +562,13 @@ export default function SynapseDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           project_id: activeProject.project_id,
-          direct_tool: { name: toolName, arguments: args },
+          provider: "synapse-autonomous",
+          base_url: baseUrl,
+          model: modelName,
+          messages: nextHistory.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
         }),
       });
       const data = await res.json();
@@ -259,14 +576,32 @@ export default function SynapseDashboard() {
         ...prev,
         {
           role: "assistant",
-          content: data.reply,
+          content: data.reply || "Executed.",
           toolResults: data.tool_results,
         },
       ]);
-      await loadDashboard(activeProject.project_id);
+      await loadWorkspace(activeProject.project_id);
+      if (primaryNode) fetchRemoteDir(remoteDir);
     } finally {
       setChatBusy(false);
     }
+  }
+
+  async function handleSaveBrainDoc(doc: "Architecture.md" | "Memory.md") {
+    if (!activeProject) return;
+    const content = doc === "Architecture.md" ? architectureMd : memoryMd;
+    await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "save_doc",
+        project_id: activeProject.project_id,
+        document: doc,
+        content,
+      }),
+    });
+    setEditorStatus(`Saved ${doc} to Brain Vault`);
+    await loadWorkspace(activeProject.project_id);
   }
 
   async function handleGenerateJoinToken() {
@@ -281,9 +616,7 @@ export default function SynapseDashboard() {
       }),
     });
     const data = await res.json();
-    if (data.token) {
-      setIssuedToken(data.token);
-    }
+    if (data.token) setIssuedToken(data.token);
   }
 
   async function handleAssignNode(nodeId: string, tier: AutonomyTier) {
@@ -300,7 +633,7 @@ export default function SynapseDashboard() {
     });
     setManualNodeId("");
     setSelectedNodeId(nodeId.trim());
-    await loadDashboard(activeProject.project_id);
+    await loadWorkspace(activeProject.project_id);
   }
 
   async function handleUnassignNode(nodeId: string) {
@@ -314,7 +647,7 @@ export default function SynapseDashboard() {
         node_id: nodeId,
       }),
     });
-    await loadDashboard(activeProject.project_id);
+    await loadWorkspace(activeProject.project_id);
   }
 
   async function handleToggleCartridge(cartridgeId: string) {
@@ -328,25 +661,7 @@ export default function SynapseDashboard() {
         cartridge_id: cartridgeId,
       }),
     });
-    await loadDashboard(activeProject.project_id);
-  }
-
-  async function handleSaveBrainDoc(
-    document: "Architecture.md" | "Memory.md",
-    content: string
-  ) {
-    if (!activeProject) return;
-    await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "save_doc",
-        project_id: activeProject.project_id,
-        document,
-        content,
-      }),
-    });
-    await loadDashboard(activeProject.project_id);
+    await loadWorkspace(activeProject.project_id);
   }
 
   async function handleAddSecret(e: React.FormEvent) {
@@ -364,7 +679,7 @@ export default function SynapseDashboard() {
     });
     setNewSecretKey("");
     setNewSecretVal("");
-    await loadDashboard(activeProject.project_id);
+    await loadWorkspace(activeProject.project_id);
   }
 
   async function handleResolveApproval(
@@ -393,1141 +708,1198 @@ export default function SynapseDashboard() {
         },
       ]);
     }
-    await loadDashboard(activeProject.project_id);
-  }
-
-  async function handleCreateProject(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newProjName.trim()) return;
-    const res = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "create_project",
-        new_project_id: newProjName,
-        name: newProjName,
-      }),
-    });
-    const data = await res.json();
-    setNewProjName("");
-    if (data.project?.project_id) {
-      await loadDashboard(data.project.project_id);
-    }
+    await loadWorkspace(activeProject.project_id);
   }
 
   const pendingApprovals = (activeProject?.pending_approvals || []).filter(
     (a) => a.status === "pending"
   );
 
-  const primaryNode =
-    selectedNodeId ||
-    activeProject?.assigned_nodes?.[0]?.node_id ||
-    gatewayNodes[0]?.node_id ||
-    "";
+  const activeHeartbeat =
+    (primaryNode && activeProject?.telemetry?.[primaryNode]) ||
+    gatewayNodes.find((n) => n.node_id === primaryNode)?.last_heartbeat;
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#090a0f] text-slate-100">
-      {/* Top Control Plane Header */}
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 bg-[#0c0e17]/90 px-6 py-3.5 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-            <Cpu className="h-5 w-5" />
+    <div className="flex h-screen w-screen flex-col bg-[#060609] text-zinc-200 overflow-hidden select-none">
+      {/* ═══════════════════════════════════════════════════════════════════════
+          TOP COMMAND BAR (38px — Linear / Cursor / Zed 2026 Style)
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <header className="flex h-10 shrink-0 items-center justify-between border-b border-white/[0.07] bg-[#09090d] px-3 text-xs">
+        {/* Left: Brand + Project Selector + Mode Pill */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5 font-mono font-semibold tracking-tight text-white">
+            <span className="flex h-5 w-5 items-center justify-center rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-400">
+              <Cpu className="h-3.5 w-3.5" />
+            </span>
+            <span>SYNAPSE</span>
+            <span className="text-[10px] text-zinc-500 font-normal">/</span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold tracking-tight text-white">
-                SYNAPSE
-              </span>
-              <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-[11px] font-mono font-medium text-emerald-400 border border-emerald-500/30">
-                BRAIN &amp; MUSCLE v1.0
-              </span>
-            </div>
-            <p className="text-xs text-slate-400">
-              Stateless Control Plane &amp; mTLS/Yamux Remote Execution Nodes
-            </p>
-          </div>
-        </div>
 
-        {/* Project Switcher & Mode Indicator */}
-        <div className="flex flex-wrap items-center gap-3">
           <select
             value={activeProject?.project_id || ""}
-            onChange={(e) => loadDashboard(e.target.value)}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 focus:border-emerald-500 focus:outline-none"
+            onChange={(e) => loadWorkspace(e.target.value, true)}
+            className="rounded border border-white/[0.08] bg-zinc-900/90 px-2 py-1 font-mono text-[11px] text-zinc-200 focus:border-emerald-500/60 focus:outline-none"
           >
             {projects.map((p) => (
               <option key={p.project_id} value={p.project_id}>
-                Vault: {p.name} ({p.project_id})
+                {p.project_id}
               </option>
             ))}
           </select>
 
+          <button
+            onClick={() => setNewProjectModal(true)}
+            className="rounded border border-white/[0.07] bg-white/[0.02] p-1 text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200"
+            title="Create New Project Brain Vault"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+
           {activeProject?.planning_only ? (
-            <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300">
-              <Lock className="h-3.5 w-3.5" />
-              <span>Planning-Only Mode (0 Nodes Assigned)</span>
-            </div>
+            <span className="flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] text-amber-300">
+              <Lock className="h-3 w-3" />
+              PLANNING-ONLY
+            </span>
           ) : (
-            <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              <span>
-                Execution Unlocked ({activeProject?.assigned_nodes.length}{" "}
-                Node(s))
-              </span>
-            </div>
+            <span className="flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-300">
+              <ShieldCheck className="h-3 w-3" />
+              MUSCLE ACTIVE ({primaryNode})
+            </span>
           )}
+        </div>
+
+        {/* Center: Workbench Editor Mode Switcher */}
+        <div className="hidden md:flex items-center gap-1 rounded-md border border-white/[0.06] bg-[#060609] p-0.5">
+          {[
+            { id: "code", label: activeFilePath || "Code", icon: FileCode2 },
+            { id: "architecture", label: "Architecture.md", icon: Network },
+            { id: "memory", label: "Memory.md", icon: FileText },
+            {
+              id: "secrets",
+              label: `Secrets (${secretKeys.length})`,
+              icon: KeyRound,
+            },
+            {
+              id: "preview",
+              label: `Live Preview :${previewPort}`,
+              icon: Globe,
+            },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isAct = centerView === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setCenterView(tab.id as typeof centerView)}
+                className={`flex items-center gap-1.5 rounded px-2.5 py-1 font-mono text-[11px] transition ${
+                  isAct
+                    ? "bg-white/[0.08] text-white shadow-sm"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                <Icon className="h-3 w-3 text-emerald-400" />
+                <span className="max-w-[140px] truncate">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right: Custom API Base URL Trigger + Terminal Toggle */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAiEndpointModalOpen(true)}
+            className="flex items-center gap-2 rounded border border-white/[0.09] bg-white/[0.03] px-2.5 py-1 font-mono text-[11px] text-zinc-300 hover:border-emerald-500/40 hover:bg-white/[0.06]"
+            title="Configure Custom LLM API Base URL, Provider & Model"
+          >
+            <Settings2 className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="text-emerald-300">{modelName}</span>
+            <span className="hidden sm:inline text-zinc-500">•</span>
+            <span className="hidden sm:inline max-w-[170px] truncate text-zinc-400">
+              {baseUrl.replace(/^https?:\/\//, "")}
+            </span>
+            <ChevronDown className="h-3 w-3 text-zinc-500" />
+          </button>
 
           <button
-            onClick={() => loadDashboard(activeProject?.project_id)}
-            className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800/70 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
-            title="Refresh Telemetry & Vault"
+            onClick={() => setBottomDockOpen((v) => !v)}
+            className={`rounded border p-1.5 transition ${
+              bottomDockOpen
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                : "border-white/[0.07] bg-white/[0.02] text-zinc-400"
+            }`}
+            title="Toggle Persistent PTY & Audit Dock"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
+            <TerminalIcon className="h-3.5 w-3.5" />
           </button>
         </div>
       </header>
 
-      {/* Main Content Layout */}
-      <div className="flex flex-1 flex-col lg:flex-row">
-        {/* Left Sidebar: Telemetry, Cartridges & Navigation */}
-        <aside className="w-full border-b border-slate-800/80 bg-[#0b0d14] p-4 lg:w-80 lg:border-b-0 lg:border-r flex flex-col gap-5">
-          {/* Navigation Tabs */}
-          <nav className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-1">
+      {/* ═══════════════════════════════════════════════════════════════════════
+          MAIN 4-PANE IDE BODY (Activity Bar | Left Sidebar | Center | Right AI)
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* 1. Ultra-Slim Activity Bar (44px) */}
+        <aside className="flex w-11 shrink-0 flex-col items-center justify-between border-r border-white/[0.07] bg-[#08080c] py-2.5">
+          <div className="flex flex-col items-center gap-2">
             {[
               {
-                id: "orchestrator",
-                label: "AI Orchestrator & Chat",
-                icon: Bot,
+                id: "explorer",
+                title: "Remote Workspace Explorer (STREAM_TYPE_RPC_FS)",
+                icon: Folder,
               },
               {
                 id: "vault",
-                label: "Project Brain Vault",
+                title: "Project Brain Vault Artifacts",
                 icon: FolderGit2,
               },
               {
-                id: "explorer",
-                label: "Remote Workspace FS",
-                icon: FileCode2,
-              },
-              {
-                id: "terminal",
-                label: "Live PTY (xterm.js)",
-                icon: TerminalIcon,
-              },
-              {
-                id: "preview",
-                label: "Live-Preview Proxy",
-                icon: Globe,
-              },
-              {
                 id: "nodes",
-                label: "Axon Nodes & PKI",
+                title: "Axon Muscle Nodes & mTLS Enrollment",
                 icon: Server,
               },
               {
-                id: "audit",
-                label: `Audit Log (${auditLogs.length})`,
-                icon: ShieldAlert,
+                id: "cartridges",
+                title: "Pluggable Rule Cartridges (/cartridges/*.md)",
+                icon: Layers,
               },
             ].map((item) => {
               const Icon = item.icon;
-              const active = activeTab === item.id;
+              const active = leftSidebarView === item.id;
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id as typeof activeTab)}
-                  className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                  onClick={() =>
+                    setLeftSidebarView(item.id as typeof leftSidebarView)
+                  }
+                  title={item.title}
+                  className={`relative flex h-8 w-8 items-center justify-center rounded-md transition ${
                     active
-                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
-                      : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-200"
+                      ? "bg-white/[0.08] text-emerald-400"
+                      : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300"
                   }`}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span>{item.label}</span>
+                  {active && (
+                    <span className="absolute left-0 h-4 w-0.5 rounded-r bg-emerald-400" />
+                  )}
+                  <Icon className="h-4 w-4" />
                 </button>
               );
             })}
-          </nav>
-
-          {/* Assigned Muscle Nodes & 5s Hardware Telemetry */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3.5">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Activity className="h-3.5 w-3.5 text-emerald-400" />
-                Muscle Telemetry (5s)
-              </span>
-              <span className="text-[11px] font-mono text-slate-400">
-                {gatewayNodes.length} live
-              </span>
-            </div>
-
-            {activeProject?.assigned_nodes.length === 0 ? (
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 text-xs text-amber-300/90">
-                No Axon nodes assigned to this project. Project is locked in{" "}
-                <strong>Planning-Only Mode</strong>.
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {activeProject?.assigned_nodes.map((n) => {
-                  const hb =
-                    activeProject.telemetry?.[n.node_id] ||
-                    gatewayNodes.find((gn) => gn.node_id === n.node_id)
-                      ?.last_heartbeat;
-                  return (
-                    <div
-                      key={n.node_id}
-                      className="rounded-lg border border-slate-800 bg-[#090b10] p-2.5 text-xs"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono font-semibold text-slate-200 flex items-center gap-1.5">
-                          <span
-                            className={`h-2 w-2 rounded-full ${
-                              n.online ? "bg-emerald-400" : "bg-slate-500"
-                            }`}
-                          />
-                          {n.node_id}
-                        </span>
-                        <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-emerald-400">
-                          {n.tier.replace("TIER_", "T")}
-                        </span>
-                      </div>
-                      {hb ? (
-                        <div className="mt-2 space-y-1 text-[11px] text-slate-400">
-                          <div className="flex justify-between">
-                            <span>CPU:</span>
-                            <span className="font-mono text-slate-200">
-                              {hb.cpu_percent.toFixed(1)}%
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>RAM:</span>
-                            <span className="font-mono text-slate-200">
-                              {hb.ram_percent.toFixed(1)}%
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Disk (/):</span>
-                            <span className="font-mono text-slate-200">
-                              {hb.disk_percent.toFixed(1)}%
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="mt-1.5 text-[11px] text-slate-400">
-                          Awaiting 5s gopsutil heartbeat...
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
 
-          {/* Pluggable Rule Cartridges (/cartridges/*.md) */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3.5">
-            <div className="mb-2.5 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <FileCode2 className="h-3.5 w-3.5 text-cyan-400" />
-                Rule Cartridges
-              </span>
-              <span className="text-[11px] text-slate-400">
-                /cartridges/*.md
-              </span>
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={() => setAiEndpointModalOpen(true)}
+              title="API Base URL & Provider Settings"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200"
+            >
+              <Settings2 className="h-4 w-4" />
+            </button>
+          </div>
+        </aside>
+
+        {/* 2. Left Context Sidebar (250px) */}
+        <aside className="flex w-64 shrink-0 flex-col border-r border-white/[0.07] bg-[#08080c] text-xs overflow-hidden">
+          {/* VIEW A: REMOTE WORKSPACE FILE TREE */}
+          {leftSidebarView === "explorer" && (
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2">
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Workspace ({remoteDir})
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => fetchRemoteDir(".")}
+                    className="rounded px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 hover:bg-white/[0.06] hover:text-white"
+                  >
+                    root
+                  </button>
+                  <button
+                    onClick={() => fetchRemoteDir(remoteDir)}
+                    className="rounded p-1 text-zinc-400 hover:bg-white/[0.06] hover:text-white"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick New File Input */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newFileName.trim()) return;
+                  setActiveFilePath(newFileName.trim());
+                  setEditorContent(
+                    `// ${newFileName.trim()} — Synapse Workspace\n`
+                  );
+                  setCenterView("code");
+                  setNewFileName("");
+                }}
+                className="flex items-center border-b border-white/[0.06] px-2 py-1.5 gap-1"
+              >
+                <input
+                  type="text"
+                  value={newFileName}
+                  onChange={(e) => setNewFileName(e.target.value)}
+                  placeholder="New file (e.g. app.ts)..."
+                  className="w-full rounded bg-zinc-900/90 px-2 py-1 font-mono text-[11px] text-zinc-200 border border-white/[0.06] focus:border-emerald-500/50 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="rounded bg-white/[0.06] p-1 text-zinc-300 hover:bg-emerald-500/20 hover:text-emerald-300"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </form>
+
+              <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
+                {activeProject?.planning_only ? (
+                  <div className="p-3 text-[11px] text-amber-300/80 font-mono">
+                    Project is in Planning-Only Mode. Assign an Axon node to
+                    browse remote files.
+                  </div>
+                ) : remoteEntries.length === 0 ? (
+                  <div className="p-3 text-[11px] text-zinc-500 font-mono">
+                    Empty workspace directory.
+                  </div>
+                ) : (
+                  remoteEntries.map((entry) => {
+                    const isSelected = activeFilePath.endsWith(entry.name);
+                    return (
+                      <div
+                        key={entry.path}
+                        className={`group flex items-center justify-between rounded px-2 py-1 font-mono text-[11px] transition ${
+                          isSelected
+                            ? "bg-emerald-500/15 text-emerald-300"
+                            : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200"
+                        }`}
+                      >
+                        <button
+                          onClick={() =>
+                            entry.is_dir
+                              ? fetchRemoteDir(entry.path)
+                              : openRemoteFile(entry.path)
+                          }
+                          className="flex flex-1 items-center gap-1.5 truncate text-left"
+                        >
+                          {entry.is_dir ? (
+                            <Folder className="h-3.5 w-3.5 shrink-0 text-amber-400/90" />
+                          ) : (
+                            <FileCode2 className="h-3.5 w-3.5 shrink-0 text-cyan-400/90" />
+                          )}
+                          <span className="truncate">{entry.name}</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRemoteFile(entry.path)}
+                          className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
-            <div className="space-y-1.5">
+          )}
+
+          {/* VIEW B: PROJECT BRAIN VAULT ARTIFACTS */}
+          {leftSidebarView === "vault" && (
+            <div className="flex flex-1 flex-col p-2 space-y-1">
+              <div className="px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                Brain Vault (/var/lib/synapse)
+              </div>
+              {[
+                {
+                  id: "architecture",
+                  name: "Architecture.md",
+                  desc: "Mermaid Topology & Layout",
+                },
+                {
+                  id: "memory",
+                  name: "Memory.md",
+                  desc: "Engineering Journal",
+                },
+                {
+                  id: "secrets",
+                  name: "Secrets.enc",
+                  desc: `AES-256-GCM (${secretKeys.length} keys)`,
+                },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setCenterView(item.id as typeof centerView)}
+                  className={`flex flex-col rounded-md px-2.5 py-2 text-left transition ${
+                    centerView === item.id
+                      ? "bg-white/[0.08] text-white"
+                      : "text-zinc-400 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <span className="font-mono text-[11px] text-emerald-300">
+                    {item.name}
+                  </span>
+                  <span className="text-[10px] text-zinc-500">{item.desc}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* VIEW C: AXON MUSCLE NODES & PKI */}
+          {leftSidebarView === "nodes" && (
+            <div className="flex flex-1 flex-col overflow-y-auto p-2.5 space-y-3">
+              <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                Axon Nodes ({gatewayNodes.length} online)
+              </div>
+
+              {gatewayNodes.map((gn) => {
+                const isAssigned = activeProject?.assigned_nodes.some(
+                  (a) => a.node_id === gn.node_id
+                );
+                return (
+                  <div
+                    key={gn.node_id}
+                    className="rounded border border-white/[0.07] bg-white/[0.02] p-2.5 space-y-2"
+                  >
+                    <div className="flex items-center justify-between font-mono text-[11px]">
+                      <span className="text-emerald-300 font-semibold">
+                        {gn.node_id}
+                      </span>
+                      <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] text-cyan-300">
+                        {gn.tier.replace("TIER_", "T")}
+                      </span>
+                    </div>
+                    {gn.last_heartbeat && (
+                      <div className="grid grid-cols-3 gap-1 font-mono text-[10px] text-zinc-400">
+                        <span>
+                          CPU {gn.last_heartbeat.cpu_percent.toFixed(0)}%
+                        </span>
+                        <span>
+                          RAM {gn.last_heartbeat.ram_percent.toFixed(0)}%
+                        </span>
+                        <span>
+                          DSK {gn.last_heartbeat.disk_percent.toFixed(0)}%
+                        </span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() =>
+                        isAssigned
+                          ? handleUnassignNode(gn.node_id)
+                          : handleAssignNode(gn.node_id, gn.tier)
+                      }
+                      className={`w-full rounded py-1 font-mono text-[10px] ${
+                        isAssigned
+                          ? "border border-rose-500/30 bg-rose-500/10 text-rose-300"
+                          : "bg-emerald-600 text-white"
+                      }`}
+                    >
+                      {isAssigned ? "Unassign Node" : "Assign to Project"}
+                    </button>
+                  </div>
+                );
+              })}
+
+              <div className="border-t border-white/[0.07] pt-3 space-y-2">
+                <span className="font-mono text-[10px] uppercase text-zinc-400">
+                  Enroll New Muscle Node
+                </span>
+                <select
+                  value={joinTier}
+                  onChange={(e) => setJoinTier(e.target.value as AutonomyTier)}
+                  className="w-full rounded border border-white/[0.08] bg-zinc-900 px-2 py-1 font-mono text-[10px] text-zinc-200"
+                >
+                  <option value="TIER_1_UNLEASHED">TIER_1_UNLEASHED</option>
+                  <option value="TIER_2_WORKSPACE_JAIL">
+                    TIER_2_WORKSPACE_JAIL
+                  </option>
+                  <option value="TIER_3_SUPERVISED">TIER_3_SUPERVISED</option>
+                </select>
+                <button
+                  onClick={handleGenerateJoinToken}
+                  className="w-full rounded bg-emerald-600 py-1.5 font-mono text-[11px] font-medium text-white hover:bg-emerald-500"
+                >
+                  Generate CSR Token
+                </button>
+                {issuedToken && (
+                  <pre className="overflow-x-auto rounded border border-emerald-500/30 bg-black p-2 font-mono text-[10px] text-emerald-400">
+                    {`curl -fsSL ${gatewayUrl}/install.sh | sh -s -- ${issuedToken} ${joinTier}`}
+                  </pre>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* VIEW D: PLUGGABLE RULE CARTRIDGES */}
+          {leftSidebarView === "cartridges" && (
+            <div className="flex flex-1 flex-col overflow-y-auto p-2.5 space-y-2">
+              <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                Rule Cartridges (/cartridges)
+              </div>
               {cartridges.map((c) => {
-                const enabled =
+                const active =
                   activeProject?.active_cartridges.includes(c.id) ?? false;
                 return (
                   <button
                     key={c.id}
                     onClick={() => handleToggleCartridge(c.id)}
-                    className={`w-full text-left rounded-lg border p-2 text-xs transition ${
-                      enabled
-                        ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-200"
-                        : "border-slate-800 bg-slate-900/40 text-slate-400 hover:border-slate-700"
+                    className={`w-full rounded border p-2 text-left transition ${
+                      active
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-zinc-100"
+                        : "border-white/[0.06] bg-white/[0.01] text-zinc-500 hover:border-white/[0.15]"
                     }`}
                   >
-                    <div className="flex items-center justify-between font-medium">
-                      <span className="font-mono">{c.id}.md</span>
-                      <span className="text-[10px] uppercase">
-                        {enabled ? "ACTIVE" : "OFF"}
+                    <div className="flex items-center justify-between font-mono text-[11px]">
+                      <span className={active ? "text-emerald-300" : ""}>
+                        {c.id}.md
+                      </span>
+                      <span className="text-[9px]">
+                        {active ? "ON" : "OFF"}
                       </span>
                     </div>
-                    <p className="mt-0.5 line-clamp-2 text-[11px] opacity-80">
+                    <p className="mt-1 line-clamp-2 text-[10px] opacity-80">
                       {c.description}
                     </p>
                   </button>
                 );
               })}
             </div>
-          </div>
+          )}
         </aside>
 
-        {/* Primary Workspace Pane */}
-        <section className="flex-1 p-6 overflow-y-auto">
-          {/* TIER_3_SUPERVISED Pending Approvals Banner */}
-          {pendingApprovals.length > 0 && (
-            <div className="mb-6 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
-              <div className="flex items-center gap-2 text-amber-300 font-semibold text-sm mb-2">
-                <AlertTriangle className="h-4 w-4" />
-                <span>
-                  TIER_3_SUPERVISED Interceptor — {pendingApprovals.length} Tool
-                  Call(s) Awaiting Approval
-                </span>
-              </div>
-              <div className="space-y-2">
-                {pendingApprovals.map((appr) => (
-                  <div
-                    key={appr.approval_id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-[#0b0d14] p-3 text-xs"
-                  >
-                    <div>
-                      <span className="font-mono font-bold text-amber-300">
-                        [{appr.approval_id}] {appr.tool_name}
-                      </span>{" "}
-                      on node{" "}
-                      <span className="font-mono text-emerald-400">
-                        {appr.node_id}
-                      </span>
-                      <pre className="mt-1 max-w-2xl overflow-x-auto rounded bg-slate-900 p-2 font-mono text-[11px] text-slate-300">
-                        {JSON.stringify(appr.arguments, null, 2)}
-                      </pre>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() =>
-                          handleResolveApproval(appr.approval_id, "approve")
-                        }
-                        className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-500"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Approve &amp; Execute
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleResolveApproval(appr.approval_id, "reject")
-                        }
-                        className="flex items-center gap-1 rounded-lg bg-rose-600/80 px-3 py-1.5 font-medium text-white hover:bg-rose-600"
-                      >
-                        <XCircle className="h-3.5 w-3.5" />
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 1: AI ORCHESTRATOR & POLICY INTERCEPTOR */}
-          {activeTab === "orchestrator" && (
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-              <div className="xl:col-span-2 flex flex-col rounded-xl border border-slate-800 bg-[#0c0e17] overflow-hidden">
-                {/* Provider Config Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/60 px-4 py-3 text-xs">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-slate-300">
-                      AI Engine:
+        {/* 3. Center Workbench Area (Editor / Topology / Preview + Dockable Bottom PTY) */}
+        <main className="flex flex-1 flex-col min-w-0 bg-[#060609] overflow-hidden">
+          {/* Upper Editor / Canvas Pane */}
+          <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+            {/* CODE & UNIFIED DIFF EDITOR */}
+            {centerView === "code" && (
+              <div className="flex flex-1 flex-col min-h-0">
+                <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#08080c] px-3 py-1.5 text-xs">
+                  <div className="flex items-center gap-2 font-mono text-[11px]">
+                    <span className="text-zinc-500">
+                      {primaryNode || "local"}:/opt/axon/workspaces/
+                      {activeProject?.project_id}/
                     </span>
-                    <select
-                      value={provider}
-                      onChange={(e) => setProvider(e.target.value)}
-                      className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200"
-                    >
-                      <option value="synapse-autonomous">
-                        Synapse Autonomous (Built-in Deterministic)
-                      </option>
-                      <option value="openai">OpenAI Compatible</option>
-                      <option value="anthropic">Anthropic Claude</option>
-                      <option value="ollama">Ollama Local LLM</option>
-                    </select>
-                    <input
-                      type="text"
-                      value={modelName}
-                      onChange={(e) => setModelName(e.target.value)}
-                      placeholder="Model (e.g. gpt-4o, llama3.1)"
-                      className="w-36 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200"
-                    />
-                    {(provider === "openai" || provider === "anthropic") && (
-                      <input
-                        type="password"
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="API Key (optional if set in env)"
-                        className="w-44 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-200"
-                      />
-                    )}
+                    <span className="text-emerald-300 font-medium">
+                      {activeFilePath}
+                    </span>
                   </div>
-                  <span className="text-[11px] text-slate-400">
-                    5 Schemas Active
-                  </span>
-                </div>
-
-                {/* Chat Transcript */}
-                <div className="flex-1 space-y-4 p-4 max-h-[500px] overflow-y-auto">
-                  {chatHistory.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className={`rounded-xl p-3.5 text-sm ${
-                        item.role === "user"
-                          ? "ml-8 bg-emerald-500/10 border border-emerald-500/30 text-slate-100"
-                          : "mr-8 bg-slate-900/90 border border-slate-800 text-slate-200"
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setShowDiffDrawer((v) => !v)}
+                      className={`flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] ${
+                        showDiffDrawer
+                          ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
+                          : "border-white/[0.08] bg-white/[0.02] text-zinc-400 hover:text-white"
                       }`}
                     >
-                      <div className="mb-1 text-[11px] font-mono uppercase text-slate-400">
-                        {item.role === "user"
-                          ? "Operator"
-                          : "Synapse Brain Orchestrator"}
+                      <GitCompare className="h-3 w-3" />
+                      Unified Diff
+                    </button>
+                    <button
+                      onClick={handleSaveRemoteFile}
+                      className="flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-0.5 font-mono text-[11px] font-medium text-white hover:bg-emerald-500"
+                    >
+                      <Save className="h-3 w-3" />
+                      Save (Atomic)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-1 min-h-0 overflow-hidden">
+                  <textarea
+                    value={editorContent}
+                    onChange={(e) => setEditorContent(e.target.value)}
+                    spellCheck={false}
+                    placeholder="// Select a file from the left Explorer or run 'deploy microservice 4050'..."
+                    className="flex-1 resize-none bg-[#060609] p-4 font-mono text-[12px] leading-relaxed text-zinc-200 focus:outline-none"
+                  />
+
+                  {showDiffDrawer && (
+                    <div className="flex w-80 flex-col border-l border-white/[0.07] bg-[#08080c] p-3 space-y-2">
+                      <div className="flex items-center justify-between font-mono text-[11px] text-amber-300">
+                        <span>Apply Unified Diff</span>
+                        <button
+                          onClick={handleApplyDiff}
+                          className="rounded bg-amber-600 px-2 py-0.5 text-[10px] text-white"
+                        >
+                          Apply Patch
+                        </button>
                       </div>
-                      <div className="whitespace-pre-wrap leading-relaxed text-xs">
-                        {item.content}
-                      </div>
-                      {item.toolResults && item.toolResults.length > 0 && (
-                        <div className="mt-3 space-y-2">
-                          {item.toolResults.map((tr, tIdx) => (
-                            <div
-                              key={tIdx}
-                              className="rounded-lg border border-slate-700/80 bg-[#07090e] p-2.5 font-mono text-[11px]"
-                            >
-                              <div className="flex items-center justify-between text-emerald-400 mb-1">
-                                <span>Tool: {tr.tool_name}</span>
-                                <span className="uppercase">{tr.status}</span>
-                              </div>
-                              <pre className="overflow-x-auto text-slate-300 max-h-48">
-                                {JSON.stringify(tr.output, null, 2)}
-                              </pre>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <textarea
+                        value={diffPatchText}
+                        onChange={(e) => setDiffPatchText(e.target.value)}
+                        spellCheck={false}
+                        placeholder={`@@ -1,3 +1,3 @@\n-const port = 3000;\n+const port = 4050;`}
+                        className="flex-1 resize-none rounded border border-white/[0.07] bg-black p-2 font-mono text-[11px] text-amber-200 focus:outline-none"
+                      />
                     </div>
-                  ))}
+                  )}
                 </div>
+              </div>
+            )}
 
-                {/* Chat Input */}
-                <form
-                  onSubmit={handleSendMessage}
-                  className="flex items-center gap-2 border-t border-slate-800 bg-slate-900/40 p-3"
-                >
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder={
-                      activeProject?.planning_only
-                        ? "Planning-Only Mode: Ask to update Architecture.md or test '$ uname -a' lock..."
-                        : "Enter instruction or '$ <shell_command>' to execute via Sentinel PTY..."
-                    }
-                    className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3.5 py-2 text-xs text-slate-100 focus:border-emerald-500 focus:outline-none"
-                  />
+            {/* ARCHITECTURE.MD + VISUAL MERMAID TOPOLOGY */}
+            {centerView === "architecture" && (
+              <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+                <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#08080c] px-3 py-1.5">
+                  <span className="font-mono text-[11px] text-emerald-300">
+                    Vault://Architecture.md — Living System Topology
+                  </span>
                   <button
-                    type="submit"
-                    disabled={chatBusy}
-                    className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                    onClick={() => handleSaveBrainDoc("Architecture.md")}
+                    className="flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-0.5 font-mono text-[11px] text-white hover:bg-emerald-500"
                   >
-                    <Send className="h-3.5 w-3.5" />
-                    <span>{chatBusy ? "Running..." : "Send"}</span>
+                    <Save className="h-3 w-3" />
+                    Save Architecture.md
                   </button>
-                </form>
-              </div>
-
-              {/* Direct Tool Dispatcher & Guardrail Verification Panel */}
-              <div className="space-y-4">
-                <div className="rounded-xl border border-slate-800 bg-[#0c0e17] p-4">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-3">
-                    AI Tool Schema Quick-Dispatch
-                  </h3>
-                  <p className="text-xs text-slate-400 mb-3">
-                    Directly invoke the 5 Synapse AI tools through the Core
-                    Policy Interceptor:
-                  </p>
-                  <div className="space-y-2">
-                    <button
-                      onClick={() =>
-                        handleQuickTool("core_update_brain_doc", {
-                          document: "Memory.md",
-                          mode: "append",
-                          content: `- **[${new Date().toISOString()}]** Verified Brain & Muscle mTLS Yamux state.`,
-                        })
-                      }
-                      className="w-full flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs hover:border-emerald-500/40"
-                    >
-                      <span className="font-mono text-cyan-300">
-                        core_update_brain_doc
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        Append Memory.md
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        handleQuickTool("core_register_service", {
-                          service_id: "web-preview-3000",
-                          name: "App Server :3000",
-                          node_id: primaryNode || "node-local",
-                          protocol: "http",
-                          port: 3000,
-                          path: "/",
-                        })
-                      }
-                      className="w-full flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs hover:border-emerald-500/40"
-                    >
-                      <span className="font-mono text-cyan-300">
-                        core_register_service
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        Port 3000
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        handleQuickTool("node_pty_exec", {
-                          node_id: primaryNode,
-                          command: "uname -a && pwd && id",
-                          wait_timeout_ms: 10000,
-                        })
-                      }
-                      className="w-full flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs hover:border-emerald-500/40"
-                    >
-                      <span className="font-mono text-emerald-300">
-                        node_pty_exec
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        Sentinel PTY Probe
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        handleQuickTool("node_pty_exec", {
-                          node_id: primaryNode,
-                          command: "sudo systemctl stop axon.service",
-                          wait_timeout_ms: 5000,
-                        })
-                      }
-                      className="w-full flex items-center justify-between rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs hover:border-rose-500/50"
-                    >
-                      <span className="font-mono text-rose-300">
-                        node_pty_exec (Guardrail Test)
-                      </span>
-                      <span className="text-[11px] text-rose-300">
-                        Self-Lockout Block
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        handleQuickTool("node_fs_operation", {
-                          node_id: primaryNode,
-                          operation: "list_dir",
-                          path: ".",
-                        })
-                      }
-                      className="w-full flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs hover:border-emerald-500/40"
-                    >
-                      <span className="font-mono text-emerald-300">
-                        node_fs_operation
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        list_dir (.)
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={async () => {
-                        if (!activeProject) return;
-                        const prompt = "deploy microservice 4050";
-                        const nextHistory: ChatItem[] = [
-                          ...chatHistory,
-                          { role: "user", content: prompt },
-                        ];
-                        setChatHistory(nextHistory);
-                        setChatBusy(true);
-                        try {
-                          const res = await fetch("/api/orchestrator", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              project_id: activeProject.project_id,
-                              provider: "synapse-autonomous",
-                              messages: nextHistory.map((m) => ({
-                                role: m.role,
-                                content: m.content,
-                              })),
-                            }),
-                          });
-                          const data = await res.json();
-                          setChatHistory((prev) => [
-                            ...prev,
-                            {
-                              role: "assistant",
-                              content: data.reply,
-                              toolResults: data.tool_results,
-                            },
-                          ]);
-                          await loadDashboard(activeProject.project_id);
-                        } finally {
-                          setChatBusy(false);
-                        }
-                      }}
-                      className="w-full flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs hover:bg-emerald-500/25"
-                    >
-                      <span className="font-mono font-semibold text-emerald-300">
-                        Multi-Step Autonomous Loop
-                      </span>
-                      <span className="text-[11px] text-emerald-200">
-                        FS + PTY + Service + Vault
-                      </span>
-                    </button>
-                  </div>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: PROJECT BRAIN VAULT */}
-          {activeTab === "vault" && (
-            <div className="space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-white">
-                    Project Brain Vault —{" "}
-                    <span className="font-mono text-emerald-400">
-                      /var/lib/synapse/projects/{activeProject?.project_id}/
-                    </span>
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    The Core holds zero developer runtimes. All project state is
-                    persisted in 5 deterministic Vault artifacts.
-                  </p>
-                </div>
-                <form
-                  onSubmit={handleCreateProject}
-                  className="flex items-center gap-2"
-                >
-                  <input
-                    type="text"
-                    value={newProjName}
-                    onChange={(e) => setNewProjName(e.target.value)}
-                    placeholder="New project ID..."
-                    className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100"
-                  />
-                  <button
-                    type="submit"
-                    className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    New Vault
-                  </button>
-                </form>
-              </div>
-
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                {/* Architecture.md */}
-                <div className="rounded-xl border border-slate-800 bg-[#0c0e17] p-4 flex flex-col">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-mono text-xs font-semibold text-emerald-400">
-                      1. Architecture.md (Mermaid Topology &amp; Remote Layout)
-                    </span>
-                    <button
-                      onClick={() =>
-                        handleSaveBrainDoc("Architecture.md", architectureMd)
-                      }
-                      className="rounded bg-emerald-600/20 border border-emerald-500/40 px-2.5 py-1 text-xs text-emerald-300 hover:bg-emerald-600/30"
-                    >
-                      Save Architecture.md
-                    </button>
-                  </div>
+                <div className="grid flex-1 grid-cols-1 lg:grid-cols-2 min-h-0 overflow-hidden">
                   <textarea
                     value={architectureMd}
                     onChange={(e) => setArchitectureMd(e.target.value)}
-                    rows={12}
-                    className="w-full flex-1 rounded-lg border border-slate-800 bg-[#07090e] p-3 font-mono text-xs text-slate-200 focus:border-emerald-500 focus:outline-none"
+                    spellCheck={false}
+                    className="resize-none border-r border-white/[0.06] bg-[#060609] p-4 font-mono text-[12px] leading-relaxed text-zinc-200 focus:outline-none"
                   />
-                </div>
-
-                {/* Memory.md */}
-                <div className="rounded-xl border border-slate-800 bg-[#0c0e17] p-4 flex flex-col">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-mono text-xs font-semibold text-cyan-400">
-                      2. Memory.md (Chronological Engineering Journal)
-                    </span>
-                    <button
-                      onClick={() => handleSaveBrainDoc("Memory.md", memoryMd)}
-                      className="rounded bg-cyan-600/20 border border-cyan-500/40 px-2.5 py-1 text-xs text-cyan-300 hover:bg-cyan-600/30"
-                    >
-                      Save Memory.md
-                    </button>
+                  <div className="overflow-y-auto p-4 bg-[#07070b]">
+                    <MermaidTopologyView markdown={architectureMd} />
                   </div>
-                  <textarea
-                    value={memoryMd}
-                    onChange={(e) => setMemoryMd(e.target.value)}
-                    rows={12}
-                    className="w-full flex-1 rounded-lg border border-slate-800 bg-[#07090e] p-3 font-mono text-xs text-slate-200 focus:border-cyan-500 focus:outline-none"
-                  />
                 </div>
               </div>
+            )}
 
-              {/* Visual Mermaid Topology Graph */}
-              <MermaidTopologyView markdown={architectureMd} />
+            {/* MEMORY.MD ENGINEERING JOURNAL */}
+            {centerView === "memory" && (
+              <div className="flex flex-1 flex-col min-h-0">
+                <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#08080c] px-3 py-1.5">
+                  <span className="font-mono text-[11px] text-cyan-300">
+                    Vault://Memory.md — Chronological Engineering Journal
+                  </span>
+                  <button
+                    onClick={() => handleSaveBrainDoc("Memory.md")}
+                    className="flex items-center gap-1 rounded bg-cyan-600 px-2.5 py-0.5 font-mono text-[11px] text-white hover:bg-cyan-500"
+                  >
+                    <Save className="h-3 w-3" />
+                    Save Memory.md
+                  </button>
+                </div>
+                <textarea
+                  value={memoryMd}
+                  onChange={(e) => setMemoryMd(e.target.value)}
+                  spellCheck={false}
+                  className="flex-1 resize-none bg-[#060609] p-4 font-mono text-[12px] leading-relaxed text-zinc-200 focus:outline-none"
+                />
+              </div>
+            )}
 
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                {/* Secrets.enc (AES-256-GCM) */}
-                <div className="rounded-xl border border-slate-800 bg-[#0c0e17] p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="font-mono text-xs font-semibold text-amber-400 flex items-center gap-1.5">
-                      <KeyRound className="h-4 w-4" />
-                      3. Secrets.enc (AES-256-GCM Encrypted Vault)
-                    </span>
-                    <span className="text-[11px] text-slate-400">
-                      Auto-redacted as [REDACTED_SECRET:KEY]
-                    </span>
+            {/* SECRETS.ENC VAULT MANAGER */}
+            {centerView === "secrets" && (
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="max-w-2xl space-y-4">
+                  <div>
+                    <h2 className="font-mono text-sm font-semibold text-white">
+                      AES-256-GCM Encrypted Secrets Vault (`Secrets.enc`)
+                    </h2>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      Injected automatically into remote PTY sessions and
+                      scrubbed as{" "}
+                      <code className="text-amber-300">
+                        [REDACTED_SECRET:KEY]
+                      </code>{" "}
+                      before reaching the LLM context window.
+                    </p>
                   </div>
 
-                  <form
-                    onSubmit={handleAddSecret}
-                    className="flex flex-wrap gap-2 mb-3"
-                  >
+                  <form onSubmit={handleAddSecret} className="flex gap-2">
                     <input
                       type="text"
                       value={newSecretKey}
                       onChange={(e) => setNewSecretKey(e.target.value)}
-                      placeholder="SECRET_KEY (e.g. DB_PASSWORD)"
-                      className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-xs text-slate-200"
+                      placeholder="KEY_NAME (e.g. DATABASE_URL)"
+                      className="flex-1 rounded border border-white/[0.08] bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-200"
                     />
                     <input
                       type="password"
                       value={newSecretVal}
                       onChange={(e) => setNewSecretVal(e.target.value)}
                       placeholder="Secret value..."
-                      className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-xs text-slate-200"
+                      className="flex-1 rounded border border-white/[0.08] bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-200"
                     />
                     <button
                       type="submit"
-                      className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-500"
+                      className="rounded bg-emerald-600 px-4 py-1.5 font-mono text-xs font-medium text-white hover:bg-emerald-500"
                     >
-                      Encrypt &amp; Store
+                      Encrypt
                     </button>
                   </form>
 
-                  <div className="space-y-1.5">
+                  <div className="divide-y divide-white/[0.06] rounded border border-white/[0.07] bg-[#08080c]">
                     {secretKeys.length === 0 ? (
-                      <p className="text-xs text-slate-400">
-                        No secrets stored yet.
-                      </p>
+                      <div className="p-4 font-mono text-xs text-zinc-500">
+                        Zero encrypted keys in Secrets.enc
+                      </div>
                     ) : (
                       secretKeys.map((k) => (
                         <div
                           key={k}
-                          className="flex items-center justify-between rounded-lg border border-slate-800 bg-[#07090e] px-3 py-2 text-xs font-mono"
+                          className="flex items-center justify-between px-3.5 py-2 font-mono text-xs"
                         >
                           <span className="text-amber-300">{k}</span>
-                          <span className="text-slate-400">
-                            [AES-256-GCM ENCRYPTED]
+                          <span className="text-[10px] text-zinc-500">
+                            AES-256-GCM • REDACTED IN PTY
                           </span>
                         </div>
                       ))
                     )}
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* State.json Snapshot */}
-                <div className="rounded-xl border border-slate-800 bg-[#0c0e17] p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-mono text-xs font-semibold text-purple-400 flex items-center gap-1.5">
-                      <Database className="h-4 w-4" />
-                      4. State.json (Single Source of Truth)
+            {/* LIVE-PREVIEW REVERSE PROXY IFRAME */}
+            {centerView === "preview" && (
+              <div className="flex flex-1 flex-col min-h-0">
+                <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#08080c] px-3 py-1.5 font-mono text-[11px]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-emerald-400">TUNNEL</span>
+                    <span className="text-zinc-400">
+                      {gatewayUrl}/preview/{activeProject?.project_id}/
+                      {primaryNode || "node"}/
                     </span>
+                    <input
+                      type="number"
+                      value={previewPort}
+                      onChange={(e) =>
+                        setPreviewPort(Number(e.target.value) || 3000)
+                      }
+                      className="w-16 rounded border border-white/[0.1] bg-zinc-900 px-1.5 py-0.5 text-zinc-200"
+                    />
                   </div>
-                  <pre className="max-h-60 overflow-auto rounded-lg border border-slate-800 bg-[#07090e] p-3 font-mono text-[11px] text-slate-300">
-                    {JSON.stringify(activeProject, null, 2)}
-                  </pre>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2.5: REMOTE WORKSPACE ATOMIC FILESYSTEM EXPLORER */}
-          {activeTab === "explorer" && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-white">
-                    Remote Node Workspace Explorer (`STREAM_TYPE_RPC_FS`)
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Inspect, atomically write, or patch files with Unified Diffs
-                    directly on the remote Axon Muscle Node (`/opt/axon/workspaces/
-                    {activeProject?.project_id}`).
-                  </p>
-                </div>
-              </div>
-              <RemoteWorkspaceExplorer
-                projectId={activeProject?.project_id || "synapse-cloud-demo"}
-                nodeId={primaryNode}
-                onAuditRefresh={() => loadDashboard(activeProject?.project_id)}
-              />
-            </div>
-          )}
-
-          {/* TAB 3: LIVE STATEFUL PTY TERMINAL (xterm.js) */}
-          {activeTab === "terminal" && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-white">
-                    Persistent Stateful PTY Session (`creack/pty` + `xterm.js`)
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Mirrors the real-time shell byte-stream over Yamux{" "}
-                    <code className="text-emerald-400">STREAM_TYPE_PTY</code>{" "}
-                    and preserves CWD &amp; environment variables across AI tool
-                    calls.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-slate-400">Target Node:</span>
-                  <select
-                    value={primaryNode}
-                    onChange={(e) => setSelectedNodeId(e.target.value)}
-                    className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 font-mono text-slate-200"
-                  >
-                    <option value="">-- Select Node --</option>
-                    {gatewayNodes.map((n) => (
-                      <option key={n.node_id} value={n.node_id}>
-                        {n.node_id} ({n.tier})
-                      </option>
-                    ))}
-                    {activeProject?.assigned_nodes.map((n) => (
-                      <option key={`assigned-${n.node_id}`} value={n.node_id}>
-                        {n.node_id} (assigned)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {!primaryNode ? (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-sm text-amber-200">
-                  No Axon Muscle Node is currently selected or connected. Enroll
-                  a node in the <strong>Axon Nodes &amp; PKI</strong> tab to
-                  open a live PTY stream.
-                </div>
-              ) : (
-                <XTermTerminal
-                  gatewayUrl={gatewayUrl}
-                  projectId={activeProject?.project_id || "synapse-cloud-demo"}
-                  nodeId={primaryNode}
-                  sessionId={`default-${
-                    activeProject?.project_id || "synapse-cloud-demo"
-                  }`}
-                />
-              )}
-            </div>
-          )}
-
-          {/* TAB 4: LIVE-PREVIEW TCP/HTTP REVERSE PROXY */}
-          {activeTab === "preview" && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-white">
-                    Live TCP/HTTP Port-Forwarding Reverse Proxy
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Tunnels{" "}
-                    <code className="text-emerald-400">
-                      127.0.0.1:&lt;port&gt;
-                    </code>{" "}
-                    from the remote Axon Muscle Node directly into this
-                    authenticated WebUI iframe via{" "}
-                    <code className="text-cyan-400">
-                      /preview/{activeProject?.project_id}/
-                      {primaryNode || "<node_id>"}/{previewPort}
-                    </code>
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 text-xs">
-                  <input
-                    type="number"
-                    value={previewPort}
-                    onChange={(e) =>
-                      setPreviewPort(Number(e.target.value) || 3000)
-                    }
-                    className="w-24 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 font-mono text-slate-200"
-                  />
                   <a
-                    href={`${gatewayUrl}/preview/${
-                      activeProject?.project_id || "synapse-cloud-demo"
-                    }/${primaryNode || "node-local"}/${previewPort}/`}
+                    href={`${gatewayUrl}/preview/${activeProject?.project_id}/${primaryNode}/${previewPort}/`}
                     target="_blank"
                     rel="noreferrer"
-                    className="rounded-lg bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-500"
+                    className="flex items-center gap-1 text-zinc-400 hover:text-white"
                   >
-                    Open in New Tab
+                    <span>Open External</span>
+                    <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
-              </div>
-
-              <div className="overflow-hidden rounded-xl border border-slate-800 bg-[#07090e]">
-                <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/70 px-4 py-2 text-xs font-mono text-slate-300">
-                  <span>
-                    GET {gatewayUrl}/preview/
-                    {activeProject?.project_id || "synapse-cloud-demo"}/
-                    {primaryNode || "unassigned"}/{previewPort}/
-                  </span>
-                  <span className="text-emerald-400">
-                    STREAM_TYPE_PORT_FORWARD
-                  </span>
-                </div>
                 <iframe
-                  title="Synapse Live Preview"
-                  src={`${gatewayUrl}/preview/${
-                    activeProject?.project_id || "synapse-cloud-demo"
-                  }/${primaryNode || "unassigned"}/${previewPort}/`}
-                  className="h-[520px] w-full bg-white"
+                  title="Live Preview"
+                  src={`${gatewayUrl}/preview/${activeProject?.project_id}/${
+                    primaryNode || "unassigned"
+                  }/${previewPort}/`}
+                  className="flex-1 w-full bg-white"
                 />
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* TAB 5: AXON NODES & ONE-TIME CSR BOOTSTRAPPING */}
-          {activeTab === "nodes" && (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <div className="rounded-xl border border-slate-800 bg-[#0c0e17] p-5 space-y-4">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-emerald-400" />
-                  1. Enroll New Axon Muscle Node (mTLS CSR Bootstrap)
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Generate a one-time join token. When you run{" "}
-                  <code className="text-emerald-400">
-                    axon join &lt;token&gt;
-                  </code>{" "}
-                  on a remote Linux server, the agent generates an ECDSA P-256
-                  keypair, submits an X.509 CSR, and establishes an outbound{" "}
-                  <code className="text-cyan-400">hashicorp/yamux</code> reverse
-                  tunnel.
-                </p>
-
-                <div className="space-y-3">
-                  <label className="block text-xs font-medium text-slate-300">
-                    Node Autonomy Tier
-                  </label>
-                  <select
-                    value={joinTier}
-                    onChange={(e) =>
-                      setJoinTier(e.target.value as AutonomyTier)
-                    }
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200"
-                  >
-                    <option value="TIER_1_UNLEASHED">
-                      TIER_1_UNLEASHED — Full Root/Sudo Server Provisioning
-                    </option>
-                    <option value="TIER_2_WORKSPACE_JAIL">
-                      TIER_2_WORKSPACE_JAIL — Path-Jailed to
-                      /opt/axon/workspaces/&lt;project_id&gt;
-                    </option>
-                    <option value="TIER_3_SUPERVISED">
-                      TIER_3_SUPERVISED — Read Immediate; Write/Exec Requires
-                      WebUI Approval
-                    </option>
-                  </select>
-
+          {/* Lower Dockable Panel: Persistent Stateful PTY (`xterm.js`) & Immutable `Audit.jsonl` */}
+          {bottomDockOpen && (
+            <div className="flex h-56 shrink-0 flex-col border-t border-white/[0.08] bg-[#060609]">
+              <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#09090d] px-3 py-1">
+                <div className="flex items-center gap-3 font-mono text-[11px]">
                   <button
-                    onClick={handleGenerateJoinToken}
-                    className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
+                    onClick={() => setBottomDockView("pty")}
+                    className={`flex items-center gap-1.5 py-0.5 border-b-2 transition ${
+                      bottomDockView === "pty"
+                        ? "border-emerald-400 text-white"
+                        : "border-transparent text-zinc-500 hover:text-zinc-300"
+                    }`}
                   >
-                    <KeyRound className="h-4 w-4" />
-                    Generate One-Time CSR Join Token
+                    <TerminalIcon className="h-3 w-3 text-emerald-400" />
+                    <span>TERMINAL (PTY)</span>
+                  </button>
+                  <button
+                    onClick={() => setBottomDockView("audit")}
+                    className={`flex items-center gap-1.5 py-0.5 border-b-2 transition ${
+                      bottomDockView === "audit"
+                        ? "border-emerald-400 text-white"
+                        : "border-transparent text-zinc-500 hover:text-zinc-300"
+                    }`}
+                  >
+                    <ShieldAlert className="h-3 w-3 text-cyan-400" />
+                    <span>AUDIT.JSONL ({auditLogs.length})</span>
                   </button>
                 </div>
 
-                {issuedToken && (
-                  <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3.5 text-xs space-y-2.5">
-                    <div className="font-semibold text-emerald-300">
-                      Option A — Zero-Dependency One-Liner (Downloads binary + systemd):
+                <button
+                  onClick={() => setBottomDockOpen(false)}
+                  className="text-zinc-500 hover:text-zinc-300"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-hidden">
+                {bottomDockView === "pty" ? (
+                  primaryNode ? (
+                    <XTermTerminal
+                      gatewayUrl={gatewayUrl}
+                      projectId={
+                        activeProject?.project_id || "synapse-cloud-demo"
+                      }
+                      nodeId={primaryNode}
+                      sessionId={`default-${
+                        activeProject?.project_id || "synapse-cloud-demo"
+                      }`}
+                    />
+                  ) : (
+                    <div className="p-3 font-mono text-xs text-zinc-500">
+                      No Axon Muscle Node connected.
                     </div>
-                    <pre className="overflow-x-auto rounded bg-[#07090e] p-2.5 font-mono text-[11px] text-emerald-400">
-                      {`curl -fsSL ${gatewayUrl}/install.sh | sh -s -- ${issuedToken} ${joinTier}`}
-                    </pre>
-                    <div className="font-semibold text-cyan-300">
-                      Option B — Direct CLI Enrollment:
-                    </div>
-                    <pre className="overflow-x-auto rounded bg-[#07090e] p-2.5 font-mono text-[11px] text-cyan-400">
-                      {`axon join --core ${gatewayUrl} --tier ${joinTier} --run ${issuedToken}`}
-                    </pre>
+                  )
+                ) : (
+                  <div className="h-full overflow-y-auto divide-y divide-white/[0.04] p-2 font-mono text-[11px]">
+                    {auditLogs.map((log, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between py-1 px-2 hover:bg-white/[0.02]"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="text-zinc-600">
+                            {log.timestamp.slice(11, 19)}
+                          </span>
+                          <span className="text-emerald-400">
+                            {log.tool_name}
+                          </span>
+                          <span className="truncate text-zinc-400">
+                            {log.summary}
+                          </span>
+                        </div>
+                        <span
+                          className={`ml-2 shrink-0 rounded px-1.5 py-0.5 text-[9px] uppercase ${
+                            log.status === "executed"
+                              ? "bg-emerald-500/15 text-emerald-300"
+                              : "bg-amber-500/15 text-amber-300"
+                          }`}
+                        >
+                          {log.status}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+        </main>
 
-                <div className="border-t border-slate-800 pt-4">
-                  <h4 className="text-xs font-semibold text-slate-300 mb-2">
-                    Assign Node to Project{" "}
-                    <span className="text-emerald-400">
-                      {activeProject?.project_id}
-                    </span>
-                  </h4>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={manualNodeId}
-                      onChange={(e) => setManualNodeId(e.target.value)}
-                      placeholder="Node ID (e.g. node-prod-01)"
-                      className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-xs text-slate-200"
-                    />
+        {/* 4. Right AI Copilot & Autonomous Orchestrator Dock (370px) */}
+        <aside className="flex w-[370px] shrink-0 flex-col border-l border-white/[0.07] bg-[#08080c] overflow-hidden">
+          <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2">
+            <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-white">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+              <span>AI ORCHESTRATOR</span>
+            </div>
+            <button
+              onClick={() => handleQuickAction("deploy microservice 4050")}
+              disabled={chatBusy}
+              className="flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-300 hover:bg-emerald-500/20"
+            >
+              <Play className="h-2.5 w-2.5" />
+              Auto-Deploy :4050
+            </button>
+          </div>
+
+          {/* TIER_3_SUPERVISED Inline Approvals */}
+          {pendingApprovals.length > 0 && (
+            <div className="border-b border-amber-500/30 bg-amber-500/10 p-2.5 space-y-2">
+              <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-amber-300">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <span>TIER_3_SUPERVISED APPROVAL</span>
+              </div>
+              {pendingApprovals.map((appr) => (
+                <div
+                  key={appr.approval_id}
+                  className="rounded border border-amber-500/30 bg-black/60 p-2 font-mono text-[10px] space-y-1.5"
+                >
+                  <div className="text-amber-200">
+                    {appr.tool_name} @ {appr.node_id}
+                  </div>
+                  <div className="flex gap-1.5">
                     <button
-                      onClick={() => handleAssignNode(manualNodeId, joinTier)}
-                      className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700"
+                      onClick={() =>
+                        handleResolveApproval(appr.approval_id, "approve")
+                      }
+                      className="flex-1 rounded bg-emerald-600 py-1 text-white"
                     >
-                      Assign to Project
+                      Approve
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleResolveApproval(appr.approval_id, "reject")
+                      }
+                      className="flex-1 rounded bg-rose-600 py-1 text-white"
+                    >
+                      Reject
                     </button>
                   </div>
                 </div>
-              </div>
+              ))}
+            </div>
+          )}
 
-              {/* Connected Nodes on Core Gateway */}
-              <div className="rounded-xl border border-slate-800 bg-[#0c0e17] p-5 space-y-4">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <HardDrive className="h-5 w-5 text-cyan-400" />
-                  2. Connected mTLS + Yamux Nodes ({gatewayNodes.length})
-                </h3>
+          {/* Chat Message Stream */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            {chatHistory.map((item, idx) => (
+              <div
+                key={idx}
+                className={`rounded-lg border p-2.5 text-xs ${
+                  item.role === "user"
+                    ? "border-emerald-500/25 bg-emerald-500/[0.06] text-zinc-100 ml-4"
+                    : "border-white/[0.06] bg-white/[0.02] text-zinc-300"
+                }`}
+              >
+                <div className="mb-1 flex items-center justify-between font-mono text-[10px] text-zinc-500">
+                  <span>{item.role === "user" ? "YOU" : "SYNAPSE BRAIN"}</span>
+                </div>
+                <div className="whitespace-pre-wrap leading-relaxed text-[12px]">
+                  {item.content}
+                </div>
 
-                {gatewayNodes.length === 0 ? (
-                  <p className="text-xs text-slate-400">
-                    No active Axon reverse tunnels currently connected to{" "}
-                    <code>{gatewayUrl}</code>.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {gatewayNodes.map((gn) => {
-                      const isAssigned = activeProject?.assigned_nodes.some(
-                        (an) => an.node_id === gn.node_id
-                      );
+                {/* Compact Collapsible Execution Pills */}
+                {item.toolResults && item.toolResults.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {item.toolResults.map((tr, tIdx) => {
+                      const pillKey = `${idx}-${tIdx}`;
+                      const isExp = expandedTools[pillKey];
                       return (
                         <div
-                          key={gn.node_id}
-                          className="rounded-lg border border-slate-800 bg-[#07090e] p-3.5 text-xs space-y-2"
+                          key={tIdx}
+                          className="rounded border border-white/[0.07] bg-[#050508] font-mono text-[10px]"
                         >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span className="font-mono font-bold text-emerald-400">
-                                {gn.node_id}
-                              </span>
-                              <span className="ml-2 text-slate-400">
-                                ({gn.remote_addr})
-                              </span>
-                            </div>
-                            <span className="rounded bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-cyan-300">
-                              {gn.tier}
+                          <button
+                            onClick={() =>
+                              setExpandedTools((p) => ({
+                                ...p,
+                                [pillKey]: !p[pillKey],
+                              }))
+                            }
+                            className="flex w-full items-center justify-between px-2 py-1 text-left"
+                          >
+                            <span className="flex items-center gap-1.5 text-emerald-400">
+                              {isExp ? (
+                                <ChevronDown className="h-3 w-3" />
+                              ) : (
+                                <ChevronRight className="h-3 w-3" />
+                              )}
+                              <span>{tr.tool_name}</span>
                             </span>
-                          </div>
-                          {gn.last_heartbeat && (
-                            <div className="grid grid-cols-3 gap-2 rounded bg-slate-900/70 p-2 font-mono text-[11px]">
-                              <div>
-                                CPU: {gn.last_heartbeat.cpu_percent.toFixed(1)}%
-                              </div>
-                              <div>
-                                RAM: {gn.last_heartbeat.ram_percent.toFixed(1)}%
-                              </div>
-                              <div>
-                                Disk:{" "}
-                                {gn.last_heartbeat.disk_percent.toFixed(1)}%
-                              </div>
-                            </div>
+                            <span
+                              className={`uppercase ${
+                                tr.status === "executed"
+                                  ? "text-emerald-400"
+                                  : "text-rose-400"
+                              }`}
+                            >
+                              {tr.status}
+                            </span>
+                          </button>
+                          {isExp && (
+                            <pre className="border-t border-white/[0.06] p-2 overflow-x-auto text-zinc-400 max-h-40">
+                              {JSON.stringify(tr.output, null, 2)}
+                            </pre>
                           )}
-                          <div className="flex justify-end">
-                            {isAssigned ? (
-                              <button
-                                onClick={() => handleUnassignNode(gn.node_id)}
-                                className="rounded border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-300"
-                              >
-                                Unassign from Project
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() =>
-                                  handleAssignNode(gn.node_id, gn.tier)
-                                }
-                                className="flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white"
-                              >
-                                <Play className="h-3 w-3" />
-                                Assign to {activeProject?.project_id}
-                              </button>
-                            )}
-                          </div>
                         </div>
                       );
                     })}
                   </div>
                 )}
               </div>
-            </div>
-          )}
+            ))}
+          </div>
 
-          {/* TAB 6: IMMUTABLE APPEND-ONLY AUDIT LOG (Audit.jsonl) */}
-          {activeTab === "audit" && (
-            <div className="rounded-xl border border-slate-800 bg-[#0c0e17] p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-white">
-                    5. Immutable Append-Only Audit Log (`Audit.jsonl`)
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Every AI tool call, Policy Interceptor block, and user
-                    approval is recorded in{" "}
-                    <code className="text-emerald-400">
-                      /var/lib/synapse/projects/{activeProject?.project_id}
-                      /Audit.jsonl
-                    </code>
-                    .
+          {/* Quick Command Chips */}
+          <div className="flex items-center gap-1 overflow-x-auto border-t border-white/[0.05] px-2.5 py-1.5">
+            {[
+              { label: "$ uname -a", cmd: "$ uname -a && pwd" },
+              { label: "ls workspace", cmd: "list files" },
+              {
+                label: "Test Guardrail",
+                cmd: "$ sudo systemctl stop axon.service",
+              },
+            ].map((chip) => (
+              <button
+                key={chip.label}
+                onClick={() => handleQuickAction(chip.cmd)}
+                className="shrink-0 rounded border border-white/[0.07] bg-white/[0.02] px-2 py-0.5 font-mono text-[10px] text-zinc-400 hover:border-emerald-500/30 hover:text-zinc-200"
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Prompt Composer */}
+          <form
+            onSubmit={handleSendMessage}
+            className="border-t border-white/[0.07] bg-[#09090d] p-2.5"
+          >
+            <div className="flex items-center gap-1.5 rounded-md border border-white/[0.09] bg-[#050508] px-2.5 py-1.5 focus-within:border-emerald-500/50">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Ask AI or run '$ <cmd>'..."
+                className="flex-1 bg-transparent font-mono text-xs text-zinc-100 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={chatBusy}
+                className="rounded bg-emerald-600 p-1.5 text-white hover:bg-emerald-500 disabled:opacity-40"
+              >
+                <Send className="h-3 w-3" />
+              </button>
+            </div>
+          </form>
+        </aside>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          BOTTOM IDE STATUS BAR (22px)
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <footer className="flex h-6 shrink-0 items-center justify-between border-t border-white/[0.07] bg-[#09090d] px-3 font-mono text-[10px] text-zinc-500">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5 text-emerald-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            mTLS+Yamux: {gatewayNodes.length} Node(s)
+          </span>
+          {activeHeartbeat && (
+            <span>
+              CPU {activeHeartbeat.cpu_percent.toFixed(1)}% • RAM{" "}
+              {activeHeartbeat.ram_percent.toFixed(1)}%
+            </span>
+          )}
+          <span className="text-zinc-400">{editorStatus}</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setAiEndpointModalOpen(true)}
+            className="hover:text-emerald-300"
+          >
+            Endpoint: {baseUrl} ({modelName})
+          </button>
+          <span>Cartridges: {activeProject?.active_cartridges.length || 0}</span>
+        </div>
+      </footer>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          MODAL: CUSTOM API BASE URL & MODEL CONFIGURATION
+      ═══════════════════════════════════════════════════════════════════════ */}
+      {aiEndpointModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-xl border border-white/[0.1] bg-[#0b0b10] p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
+              <div>
+                <h3 className="font-mono text-sm font-semibold text-white">
+                  AI Provider &amp; Custom Base URL Configuration
+                </h3>
+                <p className="text-[11px] text-zinc-400">
+                  Connect any OpenAI-compatible API (OpenRouter, vLLM, LiteLLM,
+                  Ollama, DeepSeek) or Anthropic proxy.
+                </p>
+              </div>
+              <button
+                onClick={() => setAiEndpointModalOpen(false)}
+                className="text-zinc-500 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAiEndpoint} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-mono text-[11px] text-zinc-400 mb-1">
+                  Provider Protocol Preset
+                </label>
+                <select
+                  value={provider}
+                  onChange={(e) => {
+                    const nextProv = e.target.value;
+                    setProvider(nextProv);
+                    const preset = PROVIDER_PRESETS[nextProv];
+                    if (preset) {
+                      setBaseUrl(preset.defaultUrl);
+                      setModelName(preset.defaultModel);
+                    }
+                  }}
+                  className="w-full rounded border border-white/[0.1] bg-zinc-900 px-3 py-2 font-mono text-xs text-white focus:border-emerald-500 focus:outline-none"
+                >
+                  {Object.entries(PROVIDER_PRESETS).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-mono text-[11px] text-zinc-400 mb-1">
+                  Custom API Base URL
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder="https://api.openai.com/v1 or http://10.0.0.5:11434/v1"
+                    className="flex-1 rounded border border-white/[0.1] bg-zinc-900 px-3 py-2 font-mono text-xs text-emerald-300 focus:border-emerald-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSyncModels}
+                    disabled={syncingModels}
+                    className="flex items-center gap-1.5 rounded border border-white/[0.1] bg-white/[0.04] px-3 py-2 font-mono text-[11px] text-zinc-200 hover:bg-white/[0.08]"
+                  >
+                    <RefreshCw
+                      className={`h-3.5 w-3.5 ${
+                        syncingModels ? "animate-spin" : ""
+                      }`}
+                    />
+                    Fetch /models
+                  </button>
+                </div>
+                {modelSyncStatus && (
+                  <p className="mt-1 font-mono text-[10px] text-cyan-300">
+                    {modelSyncStatus}
                   </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block font-mono text-[11px] text-zinc-400 mb-1">
+                  Model Identifier
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                    placeholder="e.g. gpt-4o, claude-3-5-sonnet, deepseek-chat"
+                    className="flex-1 rounded border border-white/[0.1] bg-zinc-900 px-3 py-2 font-mono text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                  {discoveredModels.length > 0 && (
+                    <select
+                      value={modelName}
+                      onChange={(e) => setModelName(e.target.value)}
+                      className="max-w-[180px] rounded border border-white/[0.1] bg-zinc-900 px-2 py-2 font-mono text-xs text-emerald-300"
+                    >
+                      {discoveredModels.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                {auditLogs.map((log, i) => (
-                  <div
-                    key={i}
-                    className="flex flex-col gap-1 rounded-lg border border-slate-800 bg-[#07090e] p-3 text-xs font-mono"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400">{log.timestamp}</span>
-                        <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-cyan-300">
-                          {log.actor}
-                        </span>
-                        <span className="font-bold text-emerald-400">
-                          {log.tool_name}
-                        </span>
-                        {log.node_id && (
-                          <span className="text-amber-300">@{log.node_id}</span>
-                        )}
-                      </div>
-                      <span
-                        className={`rounded px-2 py-0.5 text-[10px] uppercase ${
-                          log.status === "executed" || log.status === "approved"
-                            ? "bg-emerald-500/15 text-emerald-300"
-                            : log.status === "paused_tier3"
-                            ? "bg-amber-500/15 text-amber-300"
-                            : "bg-rose-500/15 text-rose-300"
-                        }`}
-                      >
-                        {log.status}
-                      </span>
-                    </div>
-                    <div className="text-slate-300">{log.summary}</div>
-                  </div>
-                ))}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-1">
+                  <label className="block font-mono text-[11px] text-zinc-400 mb-1">
+                    Vault Secret Name
+                  </label>
+                  <input
+                    type="text"
+                    value={apiKeySecretName}
+                    onChange={(e) => setApiKeySecretName(e.target.value)}
+                    className="w-full rounded border border-white/[0.1] bg-zinc-900 px-2.5 py-2 font-mono text-xs text-amber-300"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block font-mono text-[11px] text-zinc-400 mb-1">
+                    API Key (Encrypted in Vault Secrets.enc)
+                  </label>
+                  <input
+                    type="password"
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder={
+                      secretKeys.includes(apiKeySecretName)
+                        ? "•••••••• (Stored in Secrets.enc — leave blank to keep)"
+                        : "sk-..."
+                    }
+                    className="w-full rounded border border-white/[0.1] bg-zinc-900 px-3 py-2 font-mono text-xs text-white"
+                  />
+                </div>
               </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.07]">
+                <button
+                  type="button"
+                  onClick={() => setAiEndpointModalOpen(false)}
+                  className="rounded border border-white/[0.08] px-3 py-1.5 font-mono text-xs text-zinc-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 rounded bg-emerald-600 px-4 py-1.5 font-mono text-xs font-medium text-white hover:bg-emerald-500"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  Save Endpoint to Vault
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CREATE NEW PROJECT BRAIN VAULT */}
+      {newProjectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!newProjName.trim()) return;
+              const res = await fetch("/api/projects", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "create_project",
+                  new_project_id: newProjName,
+                  name: newProjName,
+                }),
+              });
+              const data = await res.json();
+              setNewProjName("");
+              setNewProjectModal(false);
+              if (data.project?.project_id) {
+                await loadWorkspace(data.project.project_id, true);
+              }
+            }}
+            className="w-full max-w-sm rounded-xl border border-white/[0.1] bg-[#0b0b10] p-4 space-y-3"
+          >
+            <div className="flex items-center justify-between font-mono text-xs font-semibold text-white">
+              <span>Initialize New Project Brain Vault</span>
+              <button
+                type="button"
+                onClick={() => setNewProjectModal(false)}
+                className="text-zinc-500 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-          )}
-        </section>
-      </div>
+            <input
+              type="text"
+              value={newProjName}
+              onChange={(e) => setNewProjName(e.target.value)}
+              placeholder="project-id (e.g. edge-api-v2)"
+              className="w-full rounded border border-white/[0.1] bg-zinc-900 px-3 py-2 font-mono text-xs text-white"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="submit"
+                className="rounded bg-emerald-600 px-3 py-1.5 font-mono text-xs text-white"
+              >
+                Create Vault
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
