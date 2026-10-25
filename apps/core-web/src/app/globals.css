@@ -29,10 +29,10 @@ code {
   background-size: 22px 22px;
 }
 
-/* NetBird Control Center Animated Dashed Edge */
+/* NetBird Control Center Animated Dashed Edge (period = 6 + 6 = 12px; 24px = 2 full periods for seamless loop) */
 @keyframes cc-edge-dash {
   from {
-    stroke-dashoffset: 20;
+    stroke-dashoffset: 24;
   }
   to {
     stroke-dashoffset: 0;
@@ -40,7 +40,8 @@ code {
 }
 
 .cc-animated-edge {
-  animation: cc-edge-dash 0.6s linear infinite;
+  animation: cc-edge-dash 0.9s linear infinite;
+  will-change: stroke-dashoffset;
 }
 
 @keyframes slow-ping {

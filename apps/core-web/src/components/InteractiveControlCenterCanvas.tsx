@@ -196,17 +196,35 @@ export default function InteractiveControlCenterCanvas({
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
 
+  const peerIdsKey = useMemo(
+    () =>
+      gatewayNodes.length > 0
+        ? gatewayNodes.map((n) => n.node_id).join(",")
+        : "empty",
+    [gatewayNodes]
+  );
+  const cartridgeIdsKey = useMemo(
+    () => cartridges.map((c) => c.id).join(","),
+    [cartridges]
+  );
+  const activeCartridgesKey = useMemo(
+    () => activeCartridges.join(","),
+    [activeCartridges]
+  );
+
   // Compute deterministic default layout coordinates for all nodes based on `flowView`
   const computeDefaultLayout = useCallback((): Record<string, CanvasPos> => {
     const next: Record<string, CanvasPos> = {};
     const peerIds =
-      gatewayNodes.length > 0
-        ? gatewayNodes.map((n) => `peer:${n.node_id}`)
+      peerIdsKey !== "empty"
+        ? peerIdsKey.split(",").map((id) => `peer:${id}`)
         : ["peer:empty"];
 
     const policyIds = [
       "policy:tier",
-      ...cartridges.map((c) => `policy:${c.id}`),
+      ...(cartridgeIdsKey
+        ? cartridgeIdsKey.split(",").map((id) => `policy:${id}`)
+        : []),
       "policy:guardrail",
     ];
 
@@ -273,7 +291,7 @@ export default function InteractiveControlCenterCanvas({
     });
 
     return next;
-  }, [gatewayNodes, cartridges, flowView]);
+  }, [peerIdsKey, cartridgeIdsKey, flowView]);
 
   // Initialize or update layout when flowView changes or new nodes arrive
   useEffect(() => {
@@ -294,20 +312,25 @@ export default function InteractiveControlCenterCanvas({
   useEffect(() => {
     setPositions(computeDefaultLayout());
     setFocusedNodeId(null);
-  }, [flowView]);
+  }, [flowView, computeDefaultLayout]);
 
   // Measure every node's real DOM width/height so handles attach with 100% pixel accuracy
   const measureNodes = useCallback(() => {
-    const nextSizes: Record<string, { w: number; h: number }> = {};
-    for (const [id, el] of Object.entries(nodeRefs.current)) {
-      if (el) {
-        nextSizes[id] = {
-          w: el.offsetWidth || 260,
-          h: el.offsetHeight || 44,
-        };
+    setSizes((prev) => {
+      let changed = false;
+      const nextSizes: Record<string, { w: number; h: number }> = { ...prev };
+      for (const [id, el] of Object.entries(nodeRefs.current)) {
+        if (el) {
+          const w = el.offsetWidth || 260;
+          const h = el.offsetHeight || 44;
+          if (!prev[id] || prev[id].w !== w || prev[id].h !== h) {
+            nextSizes[id] = { w, h };
+            changed = true;
+          }
+        }
       }
-    }
-    setSizes(nextSizes);
+      return changed ? nextSizes : prev;
+    });
   }, []);
 
   useEffect(() => {
@@ -355,16 +378,20 @@ export default function InteractiveControlCenterCanvas({
   const edges = useMemo<CanvasEdge[]>(() => {
     const list: CanvasEdge[] = [];
     const peerIds =
-      gatewayNodes.length > 0
-        ? gatewayNodes.map((n) => `peer:${n.node_id}`)
+      peerIdsKey !== "empty"
+        ? peerIdsKey.split(",").map((id) => `peer:${id}`)
         : ["peer:empty"];
+    const cartridgeList = cartridgeIdsKey ? cartridgeIdsKey.split(",") : [];
+    const activeSet = new Set(
+      activeCartridgesKey ? activeCartridgesKey.split(",") : []
+    );
 
     const policyIds = [
       { id: "policy:tier", active: true, color: "#f68330" },
-      ...cartridges.map((c) => {
-        const isOn = activeCartridges.includes(c.id);
+      ...cartridgeList.map((cid) => {
+        const isOn = activeSet.has(cid);
         return {
-          id: `policy:${c.id}`,
+          id: `policy:${cid}`,
           active: isOn,
           color: isOn ? "#31c48d" : "#474e57",
         };
@@ -400,15 +427,15 @@ export default function InteractiveControlCenterCanvas({
       active: true,
     });
 
-    cartridges.forEach((c) => {
-      const isOn = activeCartridges.includes(c.id);
+    cartridgeList.forEach((cid) => {
+      const isOn = activeSet.has(cid);
       const targetRes =
-        c.id === "auto-ssl-caddy" || c.id === "zero-trust-networking"
+        cid === "auto-ssl-caddy" || cid === "zero-trust-networking"
           ? "res:reverse-proxy"
           : "res:brain-vault";
       list.push({
-        id: `policy:${c.id}->${targetRes}`,
-        from: `policy:${c.id}`,
+        id: `policy:${cid}->${targetRes}`,
+        from: `policy:${cid}`,
         to: targetRes,
         color: isOn ? "#31c48d" : "#474e57",
         active: isOn,
@@ -424,7 +451,7 @@ export default function InteractiveControlCenterCanvas({
     });
 
     return list;
-  }, [gatewayNodes, cartridges, activeCartridges]);
+  }, [peerIdsKey, cartridgeIdsKey, activeCartridgesKey]);
 
   // Determine which nodes/edges are highlighted when hovering or focusing a node
   const activeHighlightNode = hoveredNodeId || focusedNodeId;
@@ -773,7 +800,7 @@ export default function InteractiveControlCenterCanvas({
               fill="none"
               stroke="#f68330"
               strokeWidth={2.2}
-              strokeDasharray="5 5"
+              strokeDasharray="6 6"
               className="cc-animated-edge"
             />
           )}
