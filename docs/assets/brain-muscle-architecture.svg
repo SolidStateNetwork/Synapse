@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 440" width="100%" height="100%">
+  <defs>
+    <pattern id="arch-dots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="11" cy="11" r="1.25" fill="#2e3238" />
+    </pattern>
+    <style>
+      @keyframes stream-dash {
+        from { stroke-dashoffset: 24; }
+        to { stroke-dashoffset: 0; }
+      }
+      .s-edge {
+        stroke-dasharray: 6 6;
+        animation: stream-dash 0.9s linear infinite;
+      }
+      .f-sans {
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+      }
+      .f-mono {
+        font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+      }
+    </style>
+  </defs>
+
+  <!-- Canvas Background -->
+  <rect width="1200" height="440" rx="14" fill="#16181b" stroke="#292d33" stroke-width="1.5" />
+  <rect width="1200" height="440" rx="14" fill="url(#arch-dots)" />
+
+  <!-- LEFT: THE BRAIN (synapse-core) -->
+  <g transform="translate(32, 32)">
+    <rect x="0" y="0" width="380" height="376" rx="12" fill="#1d2024" stroke="#f68330" stroke-width="1.5" />
+    <rect x="16" y="16" width="104" height="22" rx="5" fill="#341b09" stroke="#f68330" stroke-width="0.8" />
+    <text x="26" y="31" fill="#f68330" font-size="10" font-weight="700" class="f-mono">THE BRAIN</text>
+    <text x="132" y="31" fill="#ffffff" font-size="13" font-weight="700" class="f-sans">synapse-core (Stateless Hub)</text>
+
+    <!-- Box 1: Next.js 15 Control Center & ReAct Orchestrator -->
+    <rect x="16" y="52" width="348" height="92" rx="8" fill="#22252a" stroke="#2e3238" />
+    <text x="28" y="74" fill="#ffffff" font-size="12" font-weight="600" class="f-sans">core-web (Next.js 15 + AI Orchestrator)</text>
+    <text x="28" y="94" fill="#9ca3af" font-size="10.5" class="f-mono">• Interactive Control Center &amp; xterm.js PTY</text>
+    <text x="28" y="112" fill="#9ca3af" font-size="10.5" class="f-mono">• 5-Layer XML System Prompt Assembler</text>
+    <text x="28" y="130" fill="#9ca3af" font-size="10.5" class="f-mono">• Tier-3 Policy &amp; Diff Approval Interceptor</text>
+
+    <!-- Box 2: Go Core Gateway -->
+    <rect x="16" y="156" width="348" height="92" rx="8" fill="#22252a" stroke="#2e3238" />
+    <text x="28" y="178" fill="#f68330" font-size="12" font-weight="600" class="f-sans">core-gateway (Go mTLS 1.3 + Yamux Hub)</text>
+    <text x="28" y="198" fill="#9ca3af" font-size="10.5" class="f-mono">• X.509 Root CA &amp; 15m One-Time CSR Tokens</text>
+    <text x="28" y="216" fill="#9ca3af" font-size="10.5" class="f-mono">• Strict mTLS (:8443) + Yamux Multiplexer</text>
+    <text x="28" y="234" fill="#9ca3af" font-size="10.5" class="f-mono">• Loopback Live-Preview Proxy (:8081/preview)</text>
+
+    <!-- Box 3: Project Brain Vault -->
+    <rect x="16" y="260" width="348" height="100" rx="8" fill="#22252a" stroke="#31c48d" stroke-width="1" />
+    <text x="28" y="282" fill="#31c48d" font-size="12" font-weight="600" class="f-sans">Project Brain Vault (/projects/&lt;id&gt;/)</text>
+    <text x="28" y="302" fill="#e4e7e9" font-size="10.5" class="f-mono">├── Architecture.md   ├── Memory.md</text>
+    <text x="28" y="320" fill="#e4e7e9" font-size="10.5" class="f-mono">├── State.json        ├── Audit.jsonl</text>
+    <text x="28" y="338" fill="#f68330" font-size="10.5" class="f-mono">└── Secrets.enc (AES-256-GCM Encrypted)</text>
+  </g>
+
+  <!-- CENTER: 4 MULTIPLEXED YAMUX STREAMS OVER SINGLE OUTBOUND mTLS 1.3 TUNNEL -->
+  <g transform="translate(412, 0)">
+    <!-- Tunnel Header -->
+    <rect x="74" y="36" width="228" height="30" rx="15" fill="#1d2024" stroke="#f68330" stroke-width="1.2" />
+    <text x="92" y="55" fill="#ffffff" font-size="10.5" font-weight="600" class="f-mono">Outbound mTLS 1.3 (:8443)</text>
+
+    <!-- Stream 1 -->
+    <path d="M 0 120 C 120 120, 256 120, 376 120" fill="none" stroke="#f68330" stroke-width="2.2" class="s-edge" />
+    <circle cx="0" cy="120" r="4" fill="#181a1d" stroke="#f68330" stroke-width="2" />
+    <circle cx="376" cy="120" r="4" fill="#181a1d" stroke="#f68330" stroke-width="2" />
+    <rect x="68" y="96" width="240" height="22" rx="6" fill="#1d2024" stroke="#2e3238" />
+    <text x="80" y="111" fill="#f68330" font-size="10" font-weight="600" class="f-mono">Stream 1: Atomic FS &amp; Unified Diff</text>
+
+    <!-- Stream 2 -->
+    <path d="M 0 195 C 120 195, 256 195, 376 195" fill="none" stroke="#31c48d" stroke-width="2.2" class="s-edge" />
+    <circle cx="0" cy="195" r="4" fill="#181a1d" stroke="#31c48d" stroke-width="2" />
+    <circle cx="376" cy="195" r="4" fill="#181a1d" stroke="#31c48d" stroke-width="2" />
+    <rect x="68" y="171" width="240" height="22" rx="6" fill="#1d2024" stroke="#2e3238" />
+    <text x="80" y="186" fill="#31c48d" font-size="10" font-weight="600" class="f-mono">Stream 2: Persistent PTY Sentinel</text>
+
+    <!-- Stream 3 -->
+    <path d="M 0 270 C 120 270, 256 270, 376 270" fill="none" stroke="#38bdf8" stroke-width="2.2" class="s-edge" />
+    <circle cx="0" cy="270" r="4" fill="#181a1d" stroke="#38bdf8" stroke-width="2" />
+    <circle cx="376" cy="270" r="4" fill="#181a1d" stroke="#38bdf8" stroke-width="2" />
+    <rect x="68" y="246" width="240" height="22" rx="6" fill="#1d2024" stroke="#2e3238" />
+    <text x="80" y="261" fill="#38bdf8" font-size="10" font-weight="600" class="f-mono">Stream 3: 127.0.0.1 Tunnel Proxy</text>
+
+    <!-- Stream 4 -->
+    <path d="M 0 345 C 120 345, 256 345, 376 345" fill="none" stroke="#a855f7" stroke-width="2.2" class="s-edge" />
+    <circle cx="0" cy="345" r="4" fill="#181a1d" stroke="#a855f7" stroke-width="2" />
+    <circle cx="376" cy="345" r="4" fill="#181a1d" stroke="#a855f7" stroke-width="2" />
+    <rect x="68" y="321" width="240" height="22" rx="6" fill="#1d2024" stroke="#2e3238" />
+    <text x="80" y="336" fill="#c084fc" font-size="10" font-weight="600" class="f-mono">Stream 4: 5s Heartbeat &amp; Probes</text>
+  </g>
+
+  <!-- RIGHT: THE MUSCLE (axon Single-Binary Agent) -->
+  <g transform="translate(788, 32)">
+    <rect x="0" y="0" width="380" height="376" rx="12" fill="#1d2024" stroke="#31c48d" stroke-width="1.5" />
+    <rect x="16" y="16" width="110" height="22" rx="5" fill="#052e16" stroke="#31c48d" stroke-width="0.8" />
+    <text x="26" y="31" fill="#31c48d" font-size="10" font-weight="700" class="f-mono">THE MUSCLE</text>
+    <text x="138" y="31" fill="#ffffff" font-size="13" font-weight="700" class="f-sans">axon (Single-Binary Go Node)</text>
+
+    <!-- Box 1: Native FS & PTY Engine -->
+    <rect x="16" y="52" width="348" height="92" rx="8" fill="#22252a" stroke="#2e3238" />
+    <text x="28" y="74" fill="#ffffff" font-size="12" font-weight="600" class="f-sans">Stateful PTY &amp; Atomic FS Engine</text>
+    <text x="28" y="94" fill="#9ca3af" font-size="10.5" class="f-mono">• Persistent bash (/dev/ptmx + /proc/pid/cwd)</text>
+    <text x="28" y="112" fill="#9ca3af" font-size="10.5" class="f-mono">• Atomic write, Unified Diff patch &amp; chmod</text>
+    <text x="28" y="130" fill="#9ca3af" font-size="10.5" class="f-mono">• Tier-2 Canonical Chroot / Path Sandbox</text>
+
+    <!-- Box 2: Hardcoded Deterministic Guardrails -->
+    <rect x="16" y="156" width="348" height="92" rx="8" fill="#22252a" stroke="#38bdf8" stroke-width="1" />
+    <text x="28" y="178" fill="#38bdf8" font-size="12" font-weight="600" class="f-sans">Hardcoded Deterministic Guardrails</text>
+    <text x="28" y="198" fill="#e4e7e9" font-size="10.5" class="f-mono">• Self-Lockout Protection (PID/Unit/Firewall)</text>
+    <text x="28" y="216" fill="#e4e7e9" font-size="10.5" class="f-mono">• 16 KB Output Truncation (4KB Head/12KB Tail)</text>
+    <text x="28" y="234" fill="#e4e7e9" font-size="10.5" class="f-mono">• Real-time Secret Redaction Pipeline</text>
+
+    <!-- Box 3: Loopback Proxy & Telemetry Collector -->
+    <rect x="16" y="260" width="348" height="100" rx="8" fill="#22252a" stroke="#2e3238" />
+    <text x="28" y="282" fill="#ffffff" font-size="12" font-weight="600" class="f-sans">Loopback Dialer &amp; Health Collector</text>
+    <text x="28" y="302" fill="#9ca3af" font-size="10.5" class="f-mono">• Zero-Firewall 127.0.0.1:&lt;port&gt; forwarding</text>
+    <text x="28" y="320" fill="#9ca3af" font-size="10.5" class="f-mono">• 5s CPU / RAM / Disk telemetry (gopsutil)</text>
+    <text x="28" y="338" fill="#31c48d" font-size="10.5" class="f-mono">• Automated HTTP / TCP Service Health Probes</text>
+  </g>
+</svg>
