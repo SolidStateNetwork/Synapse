@@ -682,40 +682,6 @@ export default function InteractiveControlCenterCanvas({
         }}
         className="absolute left-0 top-0 h-[1200px] w-[1600px]"
       >
-        {/* Column Headers on the Canvas */}
-        <div
-          style={{
-            left: (positions[`peer:${primaryNode}`]?.x ?? 40) + 4,
-            top: Math.max(
-              8,
-              (positions[`peer:${primaryNode}`]?.y ?? 125) - 28
-            ),
-          }}
-          className="pointer-events-none absolute font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400"
-        >
-          Muscle Peers ({gatewayNodes.length})
-        </div>
-
-        <div
-          style={{
-            left: (positions["policy:tier"]?.x ?? 420) + 8,
-            top: Math.max(8, (positions["policy:tier"]?.y ?? 42) - 28),
-          }}
-          className="pointer-events-none absolute font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400"
-        >
-          Access Policies &amp; Rule Cartridges
-        </div>
-
-        <div
-          style={{
-            left: (positions["res:ai-provider"]?.x ?? 770) + 4,
-            top: Math.max(8, (positions["res:ai-provider"]?.y ?? 32) - 28),
-          }}
-          className="pointer-events-none absolute font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400"
-        >
-          Brain Control Plane &amp; Resources
-        </div>
-
         {/* DYNAMIC PIXEL-ACCURATE BEZIER EDGES SVG LAYER */}
         <svg
           className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
@@ -860,22 +826,22 @@ export default function InteractiveControlCenterCanvas({
                   : "border-nb-gray-800"
               }`}
             >
-              {/* Left Target Handle */}
+              {/* Left Interactive Handle (visible on hover for drag-to-connect) */}
               <div
                 onPointerDown={(e) => startHandleConnect(e, nodeKey, "left")}
-                title="Drag to connect policy"
+                title="Drag connection to any Policy Pill"
                 className="absolute -left-2 top-1/2 -translate-y-1/2 flex h-4 w-4 cursor-crosshair items-center justify-center rounded-full border border-nb-gray-700 bg-nb-gray-940 opacity-0 group-hover/peer:opacity-100 hover:border-netbird hover:scale-125 transition"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-netbird" />
               </div>
 
-              {/* Right Source Handle (NetBird style handle bar + interactive port) */}
+              {/* Right Interactive Handle (visible on hover for drag-to-connect) */}
               <div
                 onPointerDown={(e) => startHandleConnect(e, nodeKey, "right")}
                 title="Drag connection to any Policy Pill"
-                className="absolute -right-2 top-1/2 -translate-y-1/2 flex h-5 w-3.5 cursor-crosshair items-center justify-center rounded-r border border-nb-gray-700 bg-nb-gray-900 hover:border-netbird hover:bg-netbird transition"
+                className="absolute -right-2 top-1/2 -translate-y-1/2 flex h-4 w-4 cursor-crosshair items-center justify-center rounded-full border border-nb-gray-700 bg-nb-gray-940 opacity-0 group-hover/peer:opacity-100 hover:border-netbird hover:scale-125 transition"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                <span className="h-1.5 w-1.5 rounded-full bg-netbird" />
               </div>
 
               {gn.node_id === "empty" ? (
@@ -893,6 +859,14 @@ export default function InteractiveControlCenterCanvas({
                 </div>
               ) : (
                 <>
+                  <div className="mb-2 flex items-center justify-between border-b border-nb-gray-800/70 pb-1.5">
+                    <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-nb-gray-400">
+                      Muscle Peer · Outbound mTLS
+                    </span>
+                    <span className="font-mono text-[9px] text-green-400">
+                      ONLINE
+                    </span>
+                  </div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-nb-gray-800 bg-nb-gray-940 text-netbird">
