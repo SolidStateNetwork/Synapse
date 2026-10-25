@@ -459,6 +459,9 @@ export interface PersistedChatMessage {
   }>;
 }
 
+const DEFAULT_CONTROL_CENTER_WELCOME =
+  "Welcome to **Synapse Control Center**. Your interactive overlay topology, Muscle Peers, `Rule Cartridges`, and `Brain Vault` are mapped on the main canvas.\n\nUse the **Control Center** to drag nodes, toggle policies, or click `+ Add Peer` to enroll a new Linux server with one command.";
+
 export function readChatHistory(
   projectId: string,
   limit = 100
@@ -468,8 +471,7 @@ export function readChatHistory(
   if (!fs.existsSync(chatPath)) {
     const welcome: PersistedChatMessage = {
       role: "assistant",
-      content:
-        "Welcome to **Synapse Studio**. Your project documents (`Architecture.md`, `Memory.md`, and `Rule Cartridges`) are rendered cleanly on the right.\n\nPress **`Ctrl+K` (`⌘K`)** to open the Command Palette, click the **API Endpoint pill** in the top-right to set any custom `Base URL`, or run an autonomous workflow below.",
+      content: DEFAULT_CONTROL_CENTER_WELCOME,
       timestamp: new Date().toISOString(),
     };
     fs.writeFileSync(chatPath, JSON.stringify(welcome) + "\n", "utf8");
@@ -480,12 +482,29 @@ export function readChatHistory(
     .split("\n")
     .filter((l) => l.trim().length > 0);
   const out: PersistedChatMessage[] = [];
+  let migratedLegacyWelcome = false;
   for (const line of lines.slice(-limit)) {
     try {
-      out.push(JSON.parse(line));
+      const parsed = JSON.parse(line) as PersistedChatMessage;
+      if (
+        parsed.role === "assistant" &&
+        typeof parsed.content === "string" &&
+        parsed.content.includes("Synapse Studio")
+      ) {
+        parsed.content = DEFAULT_CONTROL_CENTER_WELCOME;
+        migratedLegacyWelcome = true;
+      }
+      out.push(parsed);
     } catch {
       // ignore malformed line
     }
+  }
+  if (migratedLegacyWelcome) {
+    fs.writeFileSync(
+      chatPath,
+      out.map((m) => JSON.stringify(m)).join("\n") + "\n",
+      "utf8"
+    );
   }
   return out;
 }

@@ -41,7 +41,7 @@ export default function MermaidTopologyView({
         parsedEdges.push({
           fromId: edgeMatch[1],
           fromLabel: (edgeMatch[2] || edgeMatch[1]).replace(/\\n/g, " · "),
-          edgeLabel: edgeMatch[3] || "mTLS + Yamux Stream",
+          edgeLabel: edgeMatch[3] || "mTLS 1.3 + Yamux Stream",
           toId: edgeMatch[4],
           toLabel: (edgeMatch[5] || edgeMatch[4]).replace(/\\n/g, " · "),
         });
@@ -56,28 +56,28 @@ export default function MermaidTopologyView({
   }
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.03] to-transparent p-6 shadow-lg">
-      <div className="mb-5 flex items-center justify-between">
+    <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-930/90 p-5 shadow-md">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
             <Layers className="h-4 w-4" />
           </span>
           <div>
-            <h3 className="text-sm font-semibold text-white">
+            <h3 className="text-xs font-semibold text-white">
               Live System Topology Graph
             </h3>
-            <p className="text-xs text-zinc-400">
-              Interactive architecture visualization rendered from{" "}
-              <code className="text-emerald-300">Architecture.md</code>
+            <p className="text-[11px] text-nb-gray-400">
+              Architecture flow parsed from{" "}
+              <code className="font-mono text-netbird">Architecture.md</code>
             </p>
           </div>
         </div>
-        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 font-mono text-[11px] text-emerald-300">
+        <span className="rounded-md border border-green-500/40 bg-green-950 px-2.5 py-0.5 font-mono text-[10px] text-green-400">
           {edges.length} Active Topology Link(s)
         </span>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {edges.map((edge, idx) => {
           const isCore =
             edge.fromId.toLowerCase().includes("core") ||
@@ -89,11 +89,11 @@ export default function MermaidTopologyView({
           return (
             <div
               key={idx}
-              className="grid grid-cols-1 md:grid-cols-11 items-center gap-3 rounded-xl border border-white/[0.07] bg-[#08080d]/90 p-4"
+              className="grid grid-cols-1 md:grid-cols-11 items-center gap-3 rounded-lg border border-nb-gray-800 bg-nb-gray-940 p-3.5"
             >
               {/* Source Node Card */}
-              <div className="md:col-span-4 flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-3.5">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300">
+              <div className="md:col-span-4 flex items-center gap-3 rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
                   {isCore ? (
                     <Cpu className="h-4 w-4" />
                   ) : (
@@ -101,7 +101,7 @@ export default function MermaidTopologyView({
                   )}
                 </div>
                 <div className="min-w-0">
-                  <div className="font-mono text-[10px] uppercase tracking-wider text-emerald-400">
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-netbird">
                     {edge.fromId}
                   </div>
                   <div className="truncate text-xs font-medium text-white">
@@ -110,20 +110,26 @@ export default function MermaidTopologyView({
                 </div>
               </div>
 
-              {/* Animated Connection Bridge */}
+              {/* Connection Bridge */}
               <div className="md:col-span-3 flex flex-col items-center justify-center px-2 py-1">
-                <span className="mb-1 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-0.5 font-mono text-[10px] text-cyan-300">
+                <span className="mb-1.5 rounded-full border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-0.5 font-mono text-[10px] text-nb-gray-200">
                   {edge.edgeLabel}
                 </span>
-                <div className="flex w-full items-center gap-1 text-zinc-600">
-                  <div className="h-[1px] flex-1 bg-gradient-to-r from-emerald-500/40 via-cyan-500/50 to-cyan-400/40" />
-                  <ArrowRight className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                <div className="flex w-full items-center gap-1.5">
+                  <div className="h-[1.5px] flex-1 border-t border-dashed border-netbird/70" />
+                  <ArrowRight className="h-3.5 w-3.5 text-netbird shrink-0" />
                 </div>
               </div>
 
               {/* Target Node Card */}
-              <div className="md:col-span-4 flex items-center gap-3 rounded-xl border border-cyan-500/25 bg-cyan-500/[0.06] p-3.5">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-300">
+              <div className="md:col-span-4 flex items-center gap-3 rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-3">
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
+                    isApp
+                      ? "border-sky-500/40 bg-sky-950/60 text-sky-400"
+                      : "border-green-500/40 bg-green-950 text-green-400"
+                  }`}
+                >
                   {isApp ? (
                     <Globe className="h-4 w-4" />
                   ) : (
@@ -131,7 +137,11 @@ export default function MermaidTopologyView({
                   )}
                 </div>
                 <div className="min-w-0">
-                  <div className="font-mono text-[10px] uppercase tracking-wider text-cyan-300">
+                  <div
+                    className={`font-mono text-[10px] uppercase tracking-wider ${
+                      isApp ? "text-sky-400" : "text-green-400"
+                    }`}
+                  >
                     {edge.toId}
                   </div>
                   <div className="truncate text-xs font-medium text-white">

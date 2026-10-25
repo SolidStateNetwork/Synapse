@@ -338,7 +338,7 @@ export default function SynapseNetBirdControlCenter() {
     {
       role: "assistant",
       content:
-        "Welcome to **Synapse Control Center**. Your overlay topology, Muscle Peers, Rule Cartridges, and Brain Vault are mapped live on the canvas.\n\nPress **`Ctrl+K`** (`⌘K`) for quick navigation or click **`+ Add Peer`** to enroll a new Linux server with one command.",
+        "Welcome to **Synapse Control Center**. Your interactive overlay topology, Muscle Peers, `Rule Cartridges`, and `Brain Vault` are mapped on the main canvas.\n\nUse the **Control Center** to drag nodes, toggle policies, or click `+ Add Peer` to enroll a new Linux server with one command.",
     },
   ]);
 
@@ -1893,38 +1893,44 @@ export default function SynapseNetBirdControlCenter() {
                 VIEW 5: BRAIN VAULT DOCUMENTS (`brain-vault`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "brain-vault" && (
-              <div className="mx-auto max-w-5xl p-6 space-y-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-1">
-                    {(["Architecture.md", "Memory.md"] as const).map((doc) => (
-                      <button
-                        key={doc}
-                        onClick={() => {
-                          setBrainDocTab(doc);
-                          setIsEditingMarkdown(false);
-                        }}
-                        className={`rounded-md px-3.5 py-1.5 text-xs font-medium transition ${
-                          brainDocTab === doc
-                            ? "bg-nb-gray-900 text-white"
-                            : "text-nb-gray-400 hover:text-white"
-                        }`}
-                      >
-                        {doc}
-                      </button>
-                    ))}
+              <div className="mx-auto max-w-6xl p-6 space-y-6">
+                {/* NetBird Page Header */}
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h1 className="text-xl font-medium text-nb-gray-100">
+                      Project Brain Vault
+                    </h1>
+                    <p className="text-xs text-nb-gray-400 mt-0.5">
+                      Persistent cognitive state (
+                      <code className="font-mono text-nb-gray-200">
+                        /projects/{activeProject?.project_id || "synapse-cloud-demo"}/
+                      </code>
+                      ), Mermaid architecture specs, engineering journal, and
+                      AES-256-GCM secrets.
+                    </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => setActiveNav("control-center")}
+                      className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-930 px-3 py-1.5 text-xs text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
+                    >
+                      <Network className="h-3.5 w-3.5 text-netbird" />
+                      <span>View on Canvas</span>
+                    </button>
                     <button
                       onClick={() => setIsEditingMarkdown((v) => !v)}
-                      className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 text-xs text-nb-gray-200 hover:text-white"
+                      className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-1.5 text-xs font-medium text-nb-gray-100 hover:bg-nb-gray-900 hover:text-white transition"
                     >
-                      {isEditingMarkdown ? "Reader View" : "Edit Raw Markdown"}
+                      <Code2 className="h-3.5 w-3.5 text-netbird" />
+                      <span>
+                        {isEditingMarkdown ? "Reader View" : "Edit Raw Markdown"}
+                      </span>
                     </button>
                     {isEditingMarkdown && (
                       <button
                         onClick={() => handleSaveBrainDoc(brainDocTab)}
-                        className="flex items-center gap-1.5 rounded-md bg-netbird px-3.5 py-1.5 text-xs font-medium text-white hover:bg-netbird-500"
+                        className="flex items-center gap-1.5 rounded-md bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 transition"
                       >
                         <Save className="h-3.5 w-3.5" />
                         <span>Save {brainDocTab}</span>
@@ -1933,30 +1939,303 @@ export default function SynapseNetBirdControlCenter() {
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-6">
-                  {isEditingMarkdown ? (
-                    <textarea
-                      value={
-                        brainDocTab === "Architecture.md"
-                          ? architectureMd
-                          : memoryMd
-                      }
-                      onChange={(e) =>
-                        brainDocTab === "Architecture.md"
-                          ? setArchitectureMd(e.target.value)
-                          : setMemoryMd(e.target.value)
-                      }
-                      className="h-[540px] w-full rounded-md border border-nb-gray-800 bg-nb-gray-960 p-4 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
-                    />
-                  ) : (
-                    <RichMarkdownDocument
-                      markdown={
-                        brainDocTab === "Architecture.md"
-                          ? architectureMd
-                          : memoryMd
-                      }
-                    />
-                  )}
+                {/* 4-Card NetBird Vault Artifact Selector Bar */}
+                <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+                  <button
+                    onClick={() => {
+                      setBrainDocTab("Architecture.md");
+                      setIsEditingMarkdown(false);
+                    }}
+                    className={`flex flex-col justify-between rounded-lg border p-4 text-left transition ${
+                      brainDocTab === "Architecture.md"
+                        ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/30"
+                        : "border-nb-gray-900 bg-nb-gray-940 hover:border-nb-gray-800 hover:bg-nb-gray-930/60"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
+                          <FileText className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="font-mono text-xs font-semibold text-white">
+                            Architecture.md
+                          </div>
+                          <div className="text-[11px] text-nb-gray-400">
+                            Mermaid &amp; File Specs
+                          </div>
+                        </div>
+                      </div>
+                      <span className="rounded border border-netbird-500/40 bg-netbird-950 px-2 py-0.5 font-mono text-[10px] text-netbird">
+                        ACTIVE
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setBrainDocTab("Memory.md");
+                      setIsEditingMarkdown(false);
+                    }}
+                    className={`flex flex-col justify-between rounded-lg border p-4 text-left transition ${
+                      brainDocTab === "Memory.md"
+                        ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/30"
+                        : "border-nb-gray-900 bg-nb-gray-940 hover:border-nb-gray-800 hover:bg-nb-gray-930/60"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-sky-500/40 bg-sky-950/60 text-sky-400">
+                          <BookOpen className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="font-mono text-xs font-semibold text-white">
+                            Memory.md
+                          </div>
+                          <div className="text-[11px] text-nb-gray-400">
+                            Engineering Journal
+                          </div>
+                        </div>
+                      </div>
+                      <span className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2 py-0.5 font-mono text-[10px] text-nb-gray-300">
+                        LOG
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveNav("peers")}
+                    className="flex flex-col justify-between rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-4 text-left transition hover:border-nb-gray-800 hover:bg-nb-gray-930/60"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-green-500/40 bg-green-950 text-green-400">
+                          <Server className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="font-mono text-xs font-semibold text-white">
+                            State.json
+                          </div>
+                          <div className="text-[11px] text-nb-gray-400">
+                            {gatewayNodes.length} Peer(s) ·{" "}
+                            {(activeProject?.registered_services || []).length}{" "}
+                            Service(s)
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-nb-gray-400" />
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setSettingsTab("secrets-vault");
+                      setActiveNav("settings");
+                    }}
+                    className="flex flex-col justify-between rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-4 text-left transition hover:border-nb-gray-800 hover:bg-nb-gray-930/60"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-yellow-500/40 bg-yellow-950/60 text-yellow-400">
+                          <KeyRound className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="font-mono text-xs font-semibold text-white">
+                            Secrets.enc
+                          </div>
+                          <div className="text-[11px] text-nb-gray-400">
+                            {secretKeys.length} AES-256-GCM Key(s)
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-nb-gray-400" />
+                    </div>
+                  </button>
+                </div>
+
+                {/* Main 12-Column NetBird Document + State Inspector Grid */}
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+                  {/* Left 8 Columns: Active Vault Document */}
+                  <div className="lg:col-span-8 flex flex-col overflow-hidden rounded-lg border border-nb-gray-900 bg-nb-gray-940">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <FolderGit2 className="h-4 w-4 text-netbird" />
+                        <span className="font-mono text-xs font-medium text-white">
+                          /projects/{activeProject?.project_id || "synapse-cloud-demo"}/
+                          {brainDocTab}
+                        </span>
+                      </div>
+                      <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[10px] text-nb-gray-400">
+                        {brainDocTab === "Architecture.md"
+                          ? "System Prompt Context: Always Injected"
+                          : "Chronological Audit & Learnings"}
+                      </span>
+                    </div>
+
+                    <div className="p-5">
+                      {isEditingMarkdown ? (
+                        <textarea
+                          value={
+                            brainDocTab === "Architecture.md"
+                              ? architectureMd
+                              : memoryMd
+                          }
+                          onChange={(e) =>
+                            brainDocTab === "Architecture.md"
+                              ? setArchitectureMd(e.target.value)
+                              : setMemoryMd(e.target.value)
+                          }
+                          className="h-[520px] w-full rounded-md border border-nb-gray-800 bg-nb-gray-960 p-4 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
+                        />
+                      ) : (
+                        <RichMarkdownDocument
+                          variant={
+                            brainDocTab === "Memory.md"
+                              ? "memory"
+                              : "architecture"
+                          }
+                          markdown={
+                            brainDocTab === "Architecture.md"
+                              ? architectureMd
+                              : memoryMd
+                          }
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right 4 Columns: Live State.json & Policy Context */}
+                  <div className="lg:col-span-4 space-y-4">
+                    {/* Card 1: Enrolled Muscle Peers */}
+                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-nb-gray-100 flex items-center gap-2">
+                          <Server className="h-3.5 w-3.5 text-netbird" />
+                          Assigned Muscle Peers
+                        </span>
+                        <span className="font-mono text-[10px] text-green-400">
+                          {gatewayNodes.length} ONLINE
+                        </span>
+                      </div>
+
+                      {gatewayNodes.length > 0 ? (
+                        <div className="space-y-2">
+                          {gatewayNodes.map((gn) => (
+                            <div
+                              key={gn.node_id}
+                              className="flex items-center justify-between rounded-md border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 text-xs"
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <span className="h-2 w-2 rounded-full bg-green-400 shrink-0" />
+                                <span className="font-mono font-medium text-white truncate">
+                                  {gn.node_id}
+                                </span>
+                              </div>
+                              <span className="rounded border border-netbird-500/40 bg-netbird-950 px-1.5 py-0.5 font-mono text-[10px] text-netbird">
+                                {gn.tier.replace("TIER_", "T")}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-md border border-nb-gray-800/70 bg-nb-gray-930/60 p-3 text-xs text-nb-gray-400">
+                          No Muscle Peers enrolled yet.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card 2: Active Rule Cartridges */}
+                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-nb-gray-100 flex items-center gap-2">
+                          <Shield className="h-3.5 w-3.5 text-green-400" />
+                          Active Rule Cartridges
+                        </span>
+                        <button
+                          onClick={() => setActiveNav("access-control")}
+                          className="text-[11px] text-netbird hover:underline"
+                        >
+                          Configure →
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {cartridges.map((c) => {
+                          const enabled =
+                            activeProject?.active_cartridges?.includes(c.id);
+                          return (
+                            <div
+                              key={c.id}
+                              onClick={() => handleToggleCartridge(c.id)}
+                              className="flex cursor-pointer items-center justify-between rounded-md border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 text-xs hover:border-nb-gray-700"
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <span
+                                  className={`h-2 w-2 rounded-full ${
+                                    enabled ? "bg-green-400" : "bg-nb-gray-500"
+                                  }`}
+                                />
+                                <span className="text-nb-gray-200 truncate">
+                                  {c.name}
+                                </span>
+                              </div>
+                              <span
+                                className={`font-mono text-[10px] ${
+                                  enabled ? "text-green-400" : "text-nb-gray-500"
+                                }`}
+                              >
+                                {enabled ? "ON" : "OFF"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Card 3: Registered Loopback Services */}
+                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-nb-gray-100 flex items-center gap-2">
+                          <Globe className="h-3.5 w-3.5 text-sky-400" />
+                          Loopback Tunnels (`State.json`)
+                        </span>
+                        <button
+                          onClick={() => setActiveNav("reverse-proxy")}
+                          className="text-[11px] text-netbird hover:underline"
+                        >
+                          Proxy →
+                        </button>
+                      </div>
+
+                      {(activeProject?.registered_services || []).length > 0 ? (
+                        <div className="space-y-1.5">
+                          {(activeProject?.registered_services || []).map(
+                            (svc) => (
+                              <div
+                                key={svc.service_id}
+                                onClick={() => {
+                                  setPreviewPort(svc.port);
+                                  setActiveNav("reverse-proxy");
+                                }}
+                                className="flex cursor-pointer items-center justify-between rounded-md border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 text-xs hover:bg-nb-gray-900"
+                              >
+                                <span className="font-medium text-white">
+                                  {svc.name}
+                                </span>
+                                <span className="font-mono text-[11px] text-nb-gray-300">
+                                  127.0.0.1:{svc.port}
+                                </span>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      ) : (
+                        <div className="rounded-md border border-nb-gray-800/70 bg-nb-gray-930/60 p-3 text-xs text-nb-gray-400">
+                          No loopback services registered yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
