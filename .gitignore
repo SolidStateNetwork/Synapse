@@ -1,0 +1,40 @@
+# Binaries & build outputs
+bin/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+/axon
+/core-gateway
+agents/axon/axon
+apps/core-gateway/core-gateway
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.enc
+
+# Runtime Data & Logs
+/tmp/
+*.log
+.synapse-data/
+/var/lib/synapse/
+
+# OS & IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp

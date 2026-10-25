@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package synapse.tunnel.v1;
+
+option go_package = "github.com/SolidStateNetwork/Synapse/proto;tunnelv1";
+
+enum StreamType {
+  STREAM_TYPE_UNSPECIFIED = 0;
+  STREAM_TYPE_RPC_FS = 1;
+  STREAM_TYPE_PTY = 2;
+  STREAM_TYPE_PORT_FORWARD = 3;
+  STREAM_TYPE_TELEMETRY = 4;
+}
+
+enum AutonomyTier {
+  AUTONOMY_TIER_UNSPECIFIED = 0;
+  TIER_1_UNLEASHED = 1;
+  TIER_2_WORKSPACE_JAIL = 2;
+  TIER_3_SUPERVISED = 3;
+}
+
+message StreamHeader {
+  StreamType stream_type = 1;
+  string project_id = 2;
+  string session_id = 3;
+  uint32 target_port = 4;
+}
+
+message FsRequest {
+  string request_id = 1;
+  string project_id = 2;
+  AutonomyTier tier = 3;
+  string operation = 4; // read_file, write_file, apply_unified_diff, list_dir, stat, delete
+  string path = 5;
+  bytes content = 6;
+  string diff = 7;
+}
+
+message FsEntry {
+  string name = 1;
+  string path = 2;
+  bool is_dir = 3;
+  int64 size = 4;
+  int64 mod_time = 5;
+  string mode = 6;
+}
+
+message FsResponse {
+  string request_id = 1;
+  bool success = 2;
+  string error = 3;
+  bytes content = 4;
+  repeated FsEntry entries = 5;
+}
+
+message PtyExecRequest {
+  string cmd_id = 1;
+  string session_id = 2;
+  string project_id = 3;
+  AutonomyTier tier = 4;
+  string command = 5;
+  uint32 wait_timeout_ms = 6;
+  map<string, string> secrets = 7;
+  uint32 cols = 8;
+  uint32 rows = 9;
+}
+
+message PtyExecResponse {
+  string cmd_id = 1;
+  string session_id = 2;
+  string output = 3;
+  int32 exit_code = 4;
+  string cwd = 5;
+  bool timed_out = 6;
+  bool truncated = 7;
+  string full_log_path = 8;
+  bool blocked_by_guardrail = 9;
+  string guardrail_reason = 10;
+}
+
+message ServiceHealthTarget {
+  string service_id = 1;
+  string name = 2;
+  string protocol = 3; // tcp, http
+  uint32 port = 4;
+  string path = 5;
+}
+
+message ServiceHealthStatus {
+  string service_id = 1;
+  string name = 2;
+  uint32 port = 3;
+  bool healthy = 4;
+  int32 status_code = 5;
+  int64 latency_ms = 6;
+  string last_error = 7;
+}
+
+message NodeHeartbeat {
+  string node_id = 1;
+  string hostname = 2;
+  string os_arch = 3;
+  AutonomyTier tier = 4;
+  double cpu_percent = 5;
+  double ram_percent = 6;
+  uint64 ram_used_bytes = 7;
+  uint64 ram_total_bytes = 8;
+  double disk_percent = 9;
+  uint64 disk_used_bytes = 10;
+  uint64 disk_total_bytes = 11;
+  int64 timestamp_unix = 12;
+  repeated ServiceHealthStatus services = 13;
+  repeated string active_pty_sessions = 14;
+}
