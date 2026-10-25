@@ -5,27 +5,34 @@ import {
   SYNAPSE_TOOL_SCHEMAS,
   type ToolDispatchResult,
 } from "@/lib/orchestrator";
-import { ensureProjectVault, getDecryptedSecrets } from "@/lib/vault";
+import {
+  appendChatMessage,
+  ensureProjectVault,
+  getDecryptedSecrets,
+} from "@/lib/vault";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
 }
 
+type StepProgressCallback = (event: {
+  type: "step_start" | "step_done";
+  step: number;
+  tool_name: string;
+  result?: ToolDispatchResult;
+}) => void;
+
 const MAX_AGENT_ITERATIONS = 5;
 
-/**
- * Multi-Turn ReAct Tool Loop for OpenAI & Ollama compatible endpoints.
- * Feeds tool execution outputs back into the LLM until a final synthesis message is produced
- * or a Policy Interceptor gate (Planning-Only lock / TIER_3_SUPERVISED pause) halts execution.
- */
 async function runOpenAICompatibleAgentLoop(
   projectId: string,
   endpoint: string,
   model: string,
   apiKey: string,
   systemPrompt: string,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  onProgress?: StepProgressCallback
 ): Promise<{ reply: string; toolResults: ToolDispatchResult[] } | null> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -70,7 +77,6 @@ async function runOpenAICompatibleAgentLoop(
 
     const toolCalls = choice.tool_calls;
     if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
-      // Model finished its reasoning loop
       break;
     }
 
@@ -86,12 +92,25 @@ async function runOpenAICompatibleAgentLoop(
         fnArgs = {};
       }
 
+      onProgress?.({
+        type: "step_start",
+        step: allToolResults.length + 1,
+        tool_name: fnName,
+      });
+
       const dispatched = await interceptAndExecuteTool(
         projectId,
         fnName,
         fnArgs
       );
       allToolResults.push(dispatched);
+
+      onProgress?.({
+        type: "step_done",
+        step: allToolResults.length,
+        tool_name: fnName,
+        result: dispatched,
+      });
 
       conversation.push({
         role: "tool",
@@ -122,16 +141,14 @@ async function runOpenAICompatibleAgentLoop(
   };
 }
 
-/**
- * Multi-Turn ReAct Tool Loop for Anthropic Messages API (`tool_use` + `tool_result`).
- */
 async function runAnthropicAgentLoop(
   projectId: string,
   baseUrl: string,
   model: string,
   apiKey: string,
   systemPrompt: string,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  onProgress?: StepProgressCallback
 ): Promise<{ reply: string; toolResults: ToolDispatchResult[] } | null> {
   const anthropicTools = SYNAPSE_TOOL_SCHEMAS.map((t) => ({
     name: t.function.name,
@@ -195,12 +212,27 @@ async function runAnthropicAgentLoop(
     let haltedByInterceptor = false;
 
     for (const tu of toolUses) {
+      const fnName = String(tu.name || "");
+      onProgress?.({
+        type: "step_start",
+        step: allToolResults.length + 1,
+        tool_name: fnName,
+      });
+
       const dispatched = await interceptAndExecuteTool(
         projectId,
-        String(tu.name || ""),
+        fnName,
         (tu.input as Record<string, unknown>) || {}
       );
       allToolResults.push(dispatched);
+
+      onProgress?.({
+        type: "step_done",
+        step: allToolResults.length,
+        tool_name: fnName,
+        result: dispatched,
+      });
+
       toolResultBlocks.push({
         type: "tool_result",
         tool_use_id: tu.id,
@@ -230,21 +262,33 @@ async function runAnthropicAgentLoop(
   };
 }
 
-/**
- * Built-in Deterministic Multi-Step Autonomous Workflow Engine:
- * Executes end-to-end multi-tool sequences (FS write -> Sentinel PTY -> Service Registration -> Brain Vault update)
- * without requiring external cloud API keys.
- */
 async function runDeterministicAutonomousWorkflow(
   projectId: string,
-  userPrompt: string
+  userPrompt: string,
+  onProgress?: StepProgressCallback
 ): Promise<{ reply: string; toolResults: ToolDispatchResult[] }> {
   const state = ensureProjectVault(projectId);
   const primaryNode = state.assigned_nodes[0]?.node_id || "";
   const toolResults: ToolDispatchResult[] = [];
   const lower = userPrompt.trim().toLowerCase();
 
-  // Multi-Step Autonomous Playbook: "deploy microservice" / "bootstrap app" / "autodeploy"
+  const runStep = async (
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<ToolDispatchResult> => {
+    const stepNum = toolResults.length + 1;
+    onProgress?.({ type: "step_start", step: stepNum, tool_name: toolName });
+    const res = await interceptAndExecuteTool(projectId, toolName, args);
+    toolResults.push(res);
+    onProgress?.({
+      type: "step_done",
+      step: stepNum,
+      tool_name: toolName,
+      result: res,
+    });
+    return res;
+  };
+
   if (
     lower.includes("deploy microservice") ||
     lower.includes("bootstrap app") ||
@@ -269,65 +313,39 @@ server.listen(port, "127.0.0.1", () => {
 });
 `;
 
-    // Step 1: Atomic FS Write (`node_fs_operation`)
-    const step1 = await interceptAndExecuteTool(
-      projectId,
-      "node_fs_operation",
-      {
-        node_id: primaryNode,
-        operation: "write_file",
-        path: "service/server.js",
-        content: appSource,
-      }
-    );
-    toolResults.push(step1);
+    const step1 = await runStep("node_fs_operation", {
+      node_id: primaryNode,
+      operation: "write_file",
+      path: "service/server.js",
+      content: appSource,
+    });
     if (step1.status !== "executed") {
-      return {
-        reply: formatHaltedWorkflowReply(step1, 1),
-        toolResults,
-      };
+      return { reply: formatHaltedWorkflowReply(step1, 1), toolResults };
     }
 
-    // Step 2: Persistent Stateful PTY Verification (`node_pty_exec`)
-    const step2 = await interceptAndExecuteTool(projectId, "node_pty_exec", {
+    const step2 = await runStep("node_pty_exec", {
       node_id: primaryNode,
       command: `ls -lh service/server.js && node -c service/server.js && echo "Syntax verified on $(hostname) in $(pwd)"`,
       wait_timeout_ms: 10000,
     });
-    toolResults.push(step2);
     if (step2.status !== "executed") {
-      return {
-        reply: formatHaltedWorkflowReply(step2, 2),
-        toolResults,
-      };
+      return { reply: formatHaltedWorkflowReply(step2, 2), toolResults };
     }
 
-    // Step 3: Register Service Port for 5s Health Checks & Live-Preview Proxy (`core_register_service`)
-    const step3 = await interceptAndExecuteTool(
-      projectId,
-      "core_register_service",
-      {
-        service_id: `auto-svc-${port}`,
-        name: `Autonomous Microservice :${port}`,
-        node_id: primaryNode,
-        protocol: "http",
-        port,
-        path: "/",
-      }
-    );
-    toolResults.push(step3);
+    await runStep("core_register_service", {
+      service_id: `auto-svc-${port}`,
+      name: `Autonomous Microservice :${port}`,
+      node_id: primaryNode,
+      protocol: "http",
+      port,
+      path: "/",
+    });
 
-    // Step 4: Update Architecture.md & Memory.md in Brain Vault (`core_update_brain_doc`)
-    const step4 = await interceptAndExecuteTool(
-      projectId,
-      "core_update_brain_doc",
-      {
-        document: "Memory.md",
-        mode: "append",
-        content: `- **[${new Date().toISOString()}]** Multi-Step Autonomous Deployment completed on node \`${primaryNode}\`: wrote \`service/server.js\`, verified syntax via Sentinel PTY, and registered Live-Preview service on \`127.0.0.1:${port}\`.`,
-      }
-    );
-    toolResults.push(step4);
+    await runStep("core_update_brain_doc", {
+      document: "Memory.md",
+      mode: "append",
+      content: `- **[${new Date().toISOString()}]** Multi-Step Autonomous Deployment completed on node \`${primaryNode}\`: wrote \`service/server.js\`, verified syntax via Sentinel PTY, and registered Live-Preview service on \`127.0.0.1:${port}\`.`,
+    });
 
     return {
       reply: `### Multi-Step Autonomous Workflow Completed (4/4 Steps)\n1. **\`node_fs_operation\`**: Atomically wrote \`service/server.js\` inside workspace jail.\n2. **\`node_pty_exec\`**: Verified syntax & workspace state via persistent Sentinel PTY.\n3. **\`core_register_service\`**: Registered \`127.0.0.1:${port}\` for 5s health checks & Live-Preview (\`/preview/${projectId}/${primaryNode}/${port}\`).\n4. **\`core_update_brain_doc\`**: Recorded deployment in \`Memory.md\`.`,
@@ -335,59 +353,45 @@ server.listen(port, "127.0.0.1", () => {
     };
   }
 
-  // Single-step deterministic commands
   if (
     lower.startsWith("exec:") ||
     lower.startsWith("run:") ||
     lower.startsWith("$ ")
   ) {
     const cmd = userPrompt.replace(/^(exec:|run:|\$ )/i, "").trim();
-    const res = await interceptAndExecuteTool(projectId, "node_pty_exec", {
+    await runStep("node_pty_exec", {
       node_id: primaryNode,
       command: cmd,
       wait_timeout_ms: 15000,
     });
-    toolResults.push(res);
   } else if (lower.startsWith("ls") || lower.includes("list files")) {
-    const res = await interceptAndExecuteTool(projectId, "node_fs_operation", {
+    await runStep("node_fs_operation", {
       node_id: primaryNode,
       operation: "list_dir",
       path: ".",
     });
-    toolResults.push(res);
   } else if (lower.includes("update memory") || lower.includes("journal")) {
-    const res = await interceptAndExecuteTool(
-      projectId,
-      "core_update_brain_doc",
-      {
-        document: "Memory.md",
-        mode: "append",
-        content: `- **[${new Date().toISOString()}]** AI Orchestrator Note: ${userPrompt}`,
-      }
-    );
-    toolResults.push(res);
+    await runStep("core_update_brain_doc", {
+      document: "Memory.md",
+      mode: "append",
+      content: `- **[${new Date().toISOString()}]** AI Orchestrator Note: ${userPrompt}`,
+    });
   } else if (lower.includes("register service")) {
     const portMatch = userPrompt.match(/(\d{2,5})/);
     const port = portMatch ? Number(portMatch[1]) : 3000;
-    const res = await interceptAndExecuteTool(
-      projectId,
-      "core_register_service",
-      {
-        service_id: `svc-${port}`,
-        name: `Web Service :${port}`,
-        node_id: primaryNode || "local-node",
-        protocol: "http",
-        port,
-        path: "/",
-      }
-    );
-    toolResults.push(res);
+    await runStep("core_register_service", {
+      service_id: `svc-${port}`,
+      name: `Web Service :${port}`,
+      node_id: primaryNode || "local-node",
+      protocol: "http",
+      port,
+      path: "/",
+    });
   }
 
   if (toolResults.length > 0) {
-    const first = toolResults[0];
     return {
-      reply: formatHaltedWorkflowReply(first, 1),
+      reply: formatHaltedWorkflowReply(toolResults[0], 1),
       toolResults,
     };
   }
@@ -395,7 +399,7 @@ server.listen(port, "127.0.0.1", () => {
   const reply = state.planning_only
     ? `**Planning-Only Mode Active** for project \`${state.project_id}\`.\n\n- Active Rule Cartridges: ${
         state.active_cartridges.map((c) => `\`${c}\``).join(", ") || "none"
-      }\n- Because no Axon Muscle Node is assigned yet, remote execution tools (\`node_pty_exec\`, \`node_fs_operation\`) are locked by the Core Policy Interceptor.\n- Assign a node in **Axon Nodes & PKI** or type \`deploy microservice 4050\` / \`$ uname -a\` to test the Policy Interceptor lock.`
+      }\n- Because no Axon Muscle Node is assigned yet, remote execution tools (\`node_pty_exec\`, \`node_fs_operation\`) are locked by the Core Policy Interceptor.\n- Assign a node in **Nodes & Vault** or type \`deploy microservice 4050\` / \`$ uname -a\` to test the Policy Interceptor lock.`
     : `**Active Execution Mode** on project \`${state.project_id}\` (${state.assigned_nodes.length} Axon Muscle Node(s) assigned).\n\n- Type **\`deploy microservice 4050\`** to trigger a **4-step autonomous execution loop** (\`node_fs_operation\` -> \`node_pty_exec\` -> \`core_register_service\` -> \`core_update_brain_doc\`).\n- Prefix any command with \`$ <command>\` (e.g. \`$ uname -a && pwd\`) to invoke \`node_pty_exec\` with Sentinel Framing.`;
 
   return { reply, toolResults };
@@ -421,6 +425,7 @@ export async function POST(req: NextRequest) {
   const vaultSecrets = getDecryptedSecrets(projectId);
 
   const action = String(body.action || "");
+  const streamMode = Boolean(body.stream);
   const provider = String(
     body.provider || state.ai_settings?.provider || "synapse-autonomous"
   );
@@ -459,21 +464,14 @@ export async function POST(req: NextRequest) {
       : `${cleanBase}/v1/models`;
 
     try {
-      const headers: Record<string, string> = {
-        Accept: "application/json",
-      };
-      if (apiKey) {
-        headers["Authorization"] = `Bearer ${apiKey}`;
-      }
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
       const res = await fetch(modelsUrl, { headers });
       if (!res.ok) {
-        return NextResponse.json(
-          {
-            models: [],
-            error: `Endpoint ${modelsUrl} returned HTTP ${res.status}`,
-          },
-          { status: 200 }
-        );
+        return NextResponse.json({
+          models: [],
+          error: `Endpoint ${modelsUrl} returned HTTP ${res.status}`,
+        });
       }
       const data = await res.json();
       const rawList = Array.isArray(data.data)
@@ -484,10 +482,7 @@ export async function POST(req: NextRequest) {
       const modelIds = rawList
         .map((m: { id?: string; name?: string }) => m.id || m.name || "")
         .filter(Boolean);
-      return NextResponse.json({
-        models: modelIds,
-        endpoint: modelsUrl,
-      });
+      return NextResponse.json({ models: modelIds, endpoint: modelsUrl });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return NextResponse.json({
@@ -502,7 +497,6 @@ export async function POST(req: NextRequest) {
     | undefined;
   const messages = (body.messages || []) as ChatMessage[];
 
-  // 1. Direct deterministic tool invocation from WebUI quick-dispatch
   if (directTool && directTool.name) {
     const res = await interceptAndExecuteTool(
       projectId,
@@ -519,72 +513,128 @@ export async function POST(req: NextRequest) {
   const lastUserMsg =
     messages.filter((m) => m.role === "user").pop()?.content || "";
 
-  // 2. Multi-Turn OpenAI-Compatible / Custom Base URL / OpenRouter / vLLM / Ollama Loop
-  if (
-    provider === "openai-compatible" ||
-    provider === "openai" ||
-    provider === "openrouter" ||
-    provider === "vllm" ||
-    provider === "ollama"
-  ) {
-    try {
-      const cleanBase = rawBaseUrl.replace(/\/$/, "");
-      const endpoint = cleanBase.endsWith("/chat/completions")
-        ? cleanBase
-        : cleanBase.endsWith("/v1")
-        ? `${cleanBase}/chat/completions`
-        : `${cleanBase}/v1/chat/completions`;
-
-      const loopResult = await runOpenAICompatibleAgentLoop(
-        projectId,
-        endpoint,
-        model || "gpt-4o",
-        apiKey,
-        systemPrompt,
-        messages
-      );
-      if (loopResult) {
-        return NextResponse.json({
-          reply: loopResult.reply,
-          tool_results: loopResult.toolResults,
-          active_endpoint: endpoint,
-        });
-      }
-    } catch {
-      // Fall back to deterministic autonomous workflow engine if custom endpoint is unreachable
-    }
+  // Persist user message to Chat.jsonl
+  if (lastUserMsg) {
+    appendChatMessage(projectId, {
+      role: "user",
+      content: lastUserMsg,
+      timestamp: new Date().toISOString(),
+    });
   }
 
-  // 3. Multi-Turn Anthropic Claude Tool-Calling Loop (supports custom Anthropic base_url proxies)
-  if (provider === "anthropic" && apiKey) {
-    try {
-      const loopResult = await runAnthropicAgentLoop(
-        projectId,
-        rawBaseUrl,
-        model,
-        apiKey,
-        systemPrompt,
-        messages
-      );
-      if (loopResult) {
-        return NextResponse.json({
-          reply: loopResult.reply,
-          tool_results: loopResult.toolResults,
-        });
+  const executePipeline = async (onProgress?: StepProgressCallback) => {
+    if (
+      provider === "openai-compatible" ||
+      provider === "openai" ||
+      provider === "openrouter" ||
+      provider === "vllm" ||
+      provider === "ollama"
+    ) {
+      try {
+        const cleanBase = rawBaseUrl.replace(/\/$/, "");
+        const endpoint = cleanBase.endsWith("/chat/completions")
+          ? cleanBase
+          : cleanBase.endsWith("/v1")
+          ? `${cleanBase}/chat/completions`
+          : `${cleanBase}/v1/chat/completions`;
+
+        const loopResult = await runOpenAICompatibleAgentLoop(
+          projectId,
+          endpoint,
+          model || "gpt-4o",
+          apiKey,
+          systemPrompt,
+          messages,
+          onProgress
+        );
+        if (loopResult) return loopResult;
+      } catch {
+        // Fall through
       }
-    } catch {
-      // Fall back to deterministic autonomous workflow engine
     }
+
+    if (provider === "anthropic" && apiKey) {
+      try {
+        const loopResult = await runAnthropicAgentLoop(
+          projectId,
+          rawBaseUrl,
+          model,
+          apiKey,
+          systemPrompt,
+          messages,
+          onProgress
+        );
+        if (loopResult) return loopResult;
+      } catch {
+        // Fall through
+      }
+    }
+
+    return runDeterministicAutonomousWorkflow(
+      projectId,
+      lastUserMsg,
+      onProgress
+    );
+  };
+
+  // Real-time Server-Sent Events (SSE) Streaming Mode
+  if (streamMode) {
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        const sendEvent = (payload: Record<string, unknown>) => {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(payload)}\n\n`)
+          );
+        };
+
+        try {
+          const finalOut = await executePipeline((ev) => {
+            sendEvent(ev);
+          });
+
+          appendChatMessage(projectId, {
+            role: "assistant",
+            content: finalOut.reply,
+            timestamp: new Date().toISOString(),
+            toolResults: finalOut.toolResults,
+          });
+
+          sendEvent({
+            type: "complete",
+            reply: finalOut.reply,
+            tool_results: finalOut.toolResults,
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          sendEvent({ type: "error", error: msg });
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    });
   }
 
-  // 4. Built-in Deterministic Multi-Step Autonomous Workflow Engine
-  const autoResult = await runDeterministicAutonomousWorkflow(
-    projectId,
-    lastUserMsg
-  );
+  // Standard JSON Response Mode (Backward-Compatible)
+  const finalOut = await executePipeline();
+  appendChatMessage(projectId, {
+    role: "assistant",
+    content: finalOut.reply,
+    timestamp: new Date().toISOString(),
+    toolResults: finalOut.toolResults,
+  });
+
   return NextResponse.json({
-    reply: autoResult.reply,
-    tool_results: autoResult.toolResults,
+    reply: finalOut.reply,
+    tool_results: finalOut.toolResults,
     system_prompt_preview: systemPrompt.slice(0, 600) + "...",
   });
 }

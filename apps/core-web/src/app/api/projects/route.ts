@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   appendAuditLog,
+  clearChatHistory,
   deleteSecret,
   ensureProjectVault,
   listProjects,
   listSecretKeys,
   readAuditLogs,
   readBrainDoc,
+  readChatHistory,
   saveProjectState,
   setSecret,
   writeBrainDoc,
@@ -44,6 +46,7 @@ export async function GET(req: NextRequest) {
     memory_md: readBrainDoc(projectId, "Memory.md"),
     secret_keys: listSecretKeys(projectId),
     audit_logs: readAuditLogs(projectId, 60),
+    chat_history: readChatHistory(projectId, 100),
     cartridges: listCartridges(),
     gateway_nodes: liveNodes,
     gateway_url: CORE_GATEWAY_URL,
@@ -62,6 +65,11 @@ export async function POST(req: NextRequest) {
       String(body.description || "")
     );
     return NextResponse.json({ project: created });
+  }
+
+  if (action === "clear_chat") {
+    const reset = clearChatHistory(projectId);
+    return NextResponse.json({ chat_history: reset });
   }
 
   const state = ensureProjectVault(projectId);

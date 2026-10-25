@@ -350,3 +350,68 @@ export function readAuditLogs(projectId: string, limit = 100): AuditEntry[] {
   }
   return parsed.reverse();
 }
+
+export interface PersistedChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  toolResults?: Array<{
+    tool_name: string;
+    status: string;
+    output: unknown;
+    approval_id?: string;
+  }>;
+}
+
+export function readChatHistory(
+  projectId: string,
+  limit = 100
+): PersistedChatMessage[] {
+  ensureProjectVault(projectId);
+  const chatPath = path.join(getProjectDir(projectId), "Chat.jsonl");
+  if (!fs.existsSync(chatPath)) {
+    const welcome: PersistedChatMessage = {
+      role: "assistant",
+      content:
+        "Welcome to **Synapse Studio**. Your project documents (`Architecture.md`, `Memory.md`, and `Rule Cartridges`) are rendered cleanly on the right.\n\nPress **`Ctrl+K` (`⌘K`)** to open the Command Palette, click the **API Endpoint pill** in the top-right to set any custom `Base URL`, or run an autonomous workflow below.",
+      timestamp: new Date().toISOString(),
+    };
+    fs.writeFileSync(chatPath, JSON.stringify(welcome) + "\n", "utf8");
+    return [welcome];
+  }
+  const lines = fs
+    .readFileSync(chatPath, "utf8")
+    .split("\n")
+    .filter((l) => l.trim().length > 0);
+  const out: PersistedChatMessage[] = [];
+  for (const line of lines.slice(-limit)) {
+    try {
+      out.push(JSON.parse(line));
+    } catch {
+      // ignore malformed line
+    }
+  }
+  return out;
+}
+
+export function appendChatMessage(
+  projectId: string,
+  msg: PersistedChatMessage
+): void {
+  ensureProjectVault(projectId);
+  const chatPath = path.join(getProjectDir(projectId), "Chat.jsonl");
+  fs.appendFileSync(chatPath, JSON.stringify(msg) + "\n", "utf8");
+}
+
+export function clearChatHistory(projectId: string): PersistedChatMessage[] {
+  ensureProjectVault(projectId);
+  const chatPath = path.join(getProjectDir(projectId), "Chat.jsonl");
+  const resetMsg: PersistedChatMessage = {
+    role: "assistant",
+    content:
+      "Conversation context compacted and cleared. Ready for new instructions.",
+    timestamp: new Date().toISOString(),
+  };
+  fs.writeFileSync(chatPath, JSON.stringify(resetMsg) + "\n", "utf8");
+  return [resetMsg];
+}

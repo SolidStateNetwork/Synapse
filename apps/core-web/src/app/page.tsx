@@ -11,6 +11,7 @@ import {
   ChevronRight,
   ChevronUp,
   Code2,
+  Command,
   Cpu,
   Edit3,
   Eye,
@@ -22,12 +23,14 @@ import {
   Globe,
   KeyRound,
   Layers,
+  Loader2,
   Lock,
   Network,
   Play,
   Plus,
   RefreshCw,
   Save,
+  Search,
   Send,
   Server,
   Settings2,
@@ -190,6 +193,8 @@ export default function SynapseCalmStudio() {
   const [terminalDrawerOpen, setTerminalDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<"pty" | "audit">("pty");
   const [aiEndpointModalOpen, setAiEndpointModalOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
 
   // Remote File Explorer & Editor State
   const [remoteDir, setRemoteDir] = useState(".");
@@ -213,9 +218,16 @@ export default function SynapseCalmStudio() {
   const [syncingModels, setSyncingModels] = useState(false);
   const [modelSyncStatus, setModelSyncStatus] = useState("");
 
-  // Copilot Chat State
+  // Copilot Chat & Live SSE Step Streaming State
   const [chatInput, setChatInput] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
+  const [liveSteps, setLiveSteps] = useState<
+    Array<{
+      step: number;
+      tool_name: string;
+      status: "running" | "executed" | "blocked" | "requires_approval" | "error";
+    }>
+  >([]);
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>(
     {}
   );
@@ -223,7 +235,7 @@ export default function SynapseCalmStudio() {
     {
       role: "assistant",
       content:
-        "Welcome to **Synapse Studio**. Your project documents (`Architecture.md`, `Memory.md`, and `Rule Cartridges`) are rendered cleanly on the right.\n\nClick the **API Endpoint pill** in the top-right to configure any custom `Base URL`, or run an autonomous workflow below.",
+        "Welcome to **Synapse Studio**. Your project documents (`Architecture.md`, `Memory.md`, and `Rule Cartridges`) are rendered cleanly on the right.\n\nPress **`Ctrl+K`** (`⌘K`) for the Command Palette or click the **API Endpoint pill** in the top-right to configure any custom `Base URL`.",
     },
   ]);
 
@@ -267,6 +279,20 @@ export default function SynapseCalmStudio() {
           setApiKeySecretName(ai.api_key_secret_name || "LLM_API_KEY");
         }
 
+        if (syncAiSettings && Array.isArray(data.chat_history)) {
+          if (data.chat_history.length > 0) {
+            setChatHistory(data.chat_history);
+          } else {
+            setChatHistory([
+              {
+                role: "assistant",
+                content:
+                  "Welcome to **Synapse Studio**. Your project documents (`Architecture.md`, `Memory.md`, and `Rule Cartridges`) are rendered cleanly on the right.\n\nPress **`Ctrl+K`** (`⌘K`) for the Command Palette or click the **API Endpoint pill** in the top-right to configure any custom `Base URL`.",
+              },
+            ]);
+          }
+        }
+
         const firstNode =
           data.active_project?.assigned_nodes?.[0]?.node_id ||
           data.gateway_nodes?.[0]?.node_id ||
@@ -281,6 +307,21 @@ export default function SynapseCalmStudio() {
 
   useEffect(() => {
     loadWorkspace("synapse-cloud-demo", true);
+  }, []);
+
+  // Global Ctrl+K / Cmd+K Command Palette Shortcut
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen((v) => !v);
+        setCommandQuery("");
+      } else if (e.key === "Escape") {
+        setCommandPaletteOpen(false);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
   useEffect(() => {
@@ -499,14 +540,16 @@ export default function SynapseCalmStudio() {
     }
   }
 
-  async function handleSendMessage(e: React.FormEvent) {
-    e.preventDefault();
-    if (!chatInput.trim() || !activeProject) return;
-    const userMsg: ChatItem = { role: "user", content: chatInput };
+  async function runStreamingPrompt(
+    promptText: string,
+    overrideProvider?: string
+  ) {
+    if (!activeProject || !promptText.trim()) return;
+    const userMsg: ChatItem = { role: "user", content: promptText };
     const nextHistory = [...chatHistory, userMsg];
     setChatHistory(nextHistory);
-    setChatInput("");
     setChatBusy(true);
+    setLiveSteps([]);
 
     try {
       const res = await fetch("/api/orchestrator", {
@@ -514,69 +557,122 @@ export default function SynapseCalmStudio() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           project_id: activeProject.project_id,
-          provider,
+          provider: overrideProvider || provider,
           base_url: baseUrl,
           model: modelName,
           api_key: apiKeyInput,
+          stream: true,
           messages: nextHistory.map((m) => ({
             role: m.role,
             content: m.content,
           })),
         }),
       });
-      const data = await res.json();
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: data.reply || "Completed.",
-          toolResults: data.tool_results,
-        },
-      ]);
+
+      if (!res.body) {
+        throw new Error("ReadableStream not available");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() || "";
+
+        for (const frame of frames) {
+          const line = frame
+            .split("\n")
+            .find((l) => l.startsWith("data:"));
+          if (!line) continue;
+          try {
+            const evt = JSON.parse(line.replace(/^data:\s*/, ""));
+            if (evt.type === "step_start") {
+              setLiveSteps((prev) => [
+                ...prev,
+                {
+                  step: evt.step,
+                  tool_name: evt.tool_name,
+                  status: "running",
+                },
+              ]);
+            } else if (evt.type === "step_done" && evt.result) {
+              setLiveSteps((prev) =>
+                prev.map((s) =>
+                  s.step === evt.step && s.tool_name === evt.result.tool_name
+                    ? { ...s, status: evt.result.status }
+                    : s
+                )
+              );
+            } else if (evt.type === "complete") {
+              setChatHistory((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: evt.reply || "Completed.",
+                  toolResults: evt.tool_results,
+                },
+              ]);
+            } else if (evt.type === "error") {
+              setChatHistory((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: `Error: ${evt.error}`,
+                },
+              ]);
+            }
+          } catch {
+            // ignore malformed frame
+          }
+        }
+      }
+
       await loadWorkspace(activeProject.project_id);
       if (primaryNode) fetchRemoteDir(remoteDir);
     } finally {
       setChatBusy(false);
+      setLiveSteps([]);
     }
+  }
+
+  async function handleSendMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!chatInput.trim() || !activeProject) return;
+    const text = chatInput;
+    setChatInput("");
+    await runStreamingPrompt(text);
   }
 
   async function handleQuickAction(promptText: string) {
     if (!activeProject) return;
-    const nextHistory: ChatItem[] = [
-      ...chatHistory,
-      { role: "user", content: promptText },
-    ];
-    setChatHistory(nextHistory);
-    setChatBusy(true);
-    try {
-      const res = await fetch("/api/orchestrator", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project_id: activeProject.project_id,
-          provider: "synapse-autonomous",
-          base_url: baseUrl,
-          model: modelName,
-          messages: nextHistory.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
-      });
-      const data = await res.json();
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: data.reply || "Executed.",
-          toolResults: data.tool_results,
-        },
-      ]);
-      await loadWorkspace(activeProject.project_id);
-      if (primaryNode) fetchRemoteDir(remoteDir);
-    } finally {
-      setChatBusy(false);
-    }
+    await runStreamingPrompt(promptText, "synapse-autonomous");
+  }
+
+  async function handleClearChat() {
+    if (!activeProject) return;
+    await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "clear_chat",
+        project_id: activeProject.project_id,
+      }),
+    });
+    setChatHistory([
+      {
+        role: "assistant",
+        content:
+          "Conversation history compacted & cleared (`Chat.jsonl` reset).",
+      },
+    ]);
+    setStatusToast("Cleared Chat.jsonl");
+    setTimeout(() => setStatusToast(""), 3000);
   }
 
   async function handleSaveBrainDoc(doc: "Architecture.md" | "Memory.md") {
@@ -822,13 +918,25 @@ export default function SynapseCalmStudio() {
           })}
         </nav>
 
-        {/* Right: Custom Base URL Pill */}
-        <div className="flex items-center gap-2.5">
+        {/* Right: Command Palette (Ctrl+K) & Custom Base URL Pill */}
+        <div className="flex items-center gap-2">
           {statusToast && (
             <span className="hidden lg:inline-block rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-mono text-[11px] text-emerald-300">
               {statusToast}
             </span>
           )}
+
+          <button
+            onClick={() => {
+              setCommandPaletteOpen(true);
+              setCommandQuery("");
+            }}
+            className="hidden sm:flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.02] px-2.5 py-1.5 text-xs text-zinc-400 transition hover:border-white/[0.18] hover:text-zinc-200"
+            title="Open Command Palette (Ctrl+K)"
+          >
+            <Command className="h-3.5 w-3.5 text-zinc-500" />
+            <span className="font-mono text-[11px]">Ctrl+K</span>
+          </button>
 
           <button
             onClick={() => setAiEndpointModalOpen(true)}
@@ -858,14 +966,24 @@ export default function SynapseCalmStudio() {
                 AI Orchestrator
               </span>
             </div>
-            <button
-              onClick={() => handleQuickAction("deploy microservice 4050")}
-              disabled={chatBusy}
-              className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
-            >
-              <Play className="h-3 w-3" />
-              Auto-Deploy :4050
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleClearChat}
+                disabled={chatBusy}
+                title="Compact / Clear Conversation History (Chat.jsonl)"
+                className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-1.5 text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200 disabled:opacity-50"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+              <button
+                onClick={() => handleQuickAction("deploy microservice 4050")}
+                disabled={chatBusy}
+                className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
+              >
+                <Play className="h-3 w-3" />
+                Auto-Deploy :4050
+              </button>
+            </div>
           </div>
 
           {/* TIER_3_SUPERVISED Approval Banner (Only visible when needed) */}
@@ -976,6 +1094,41 @@ export default function SynapseCalmStudio() {
                 )}
               </div>
             ))}
+
+            {/* Live SSE Tool-Step Progress Card */}
+            {chatBusy && (
+              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.04] p-3.5 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-emerald-300">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Synapse Brain executing...</span>
+                </div>
+                {liveSteps.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    {liveSteps.map((ls, sIdx) => (
+                      <div
+                        key={`${ls.step}-${ls.tool_name}-${sIdx}`}
+                        className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-black/50 px-2.5 py-1.5 font-mono text-[11px]"
+                      >
+                        <span className="text-zinc-300">
+                          Step {ls.step}: {ls.tool_name}
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] uppercase ${
+                            ls.status === "running"
+                              ? "bg-amber-500/20 text-amber-300 animate-pulse"
+                              : ls.status === "executed"
+                              ? "bg-emerald-500/20 text-emerald-300"
+                              : "bg-rose-500/20 text-rose-300"
+                          }`}
+                        >
+                          {ls.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Subtle Quick Actions & Input Box */}
@@ -1876,6 +2029,142 @@ export default function SynapseCalmStudio() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          MODAL: CTRL+K / CMD+K COMMAND PALETTE (2026 Developer Studio)
+      ═══════════════════════════════════════════════════════════════════════ */}
+      {commandPaletteOpen && (
+        <div
+          onClick={() => setCommandPaletteOpen(false)}
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/75 pt-24 backdrop-blur-sm p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0c0c13] shadow-2xl"
+          >
+            <div className="flex items-center gap-3 border-b border-white/[0.08] px-4 py-3">
+              <Search className="h-4 w-4 text-emerald-400" />
+              <input
+                type="text"
+                autoFocus
+                value={commandQuery}
+                onChange={(e) => setCommandQuery(e.target.value)}
+                placeholder="Type a command or search views, endpoints, actions..."
+                className="flex-1 bg-transparent text-xs text-white placeholder:text-zinc-500 focus:outline-none"
+              />
+              <span className="rounded border border-white/[0.1] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">
+                ESC
+              </span>
+            </div>
+
+            <div className="max-h-80 overflow-y-auto p-2 space-y-1">
+              {[
+                {
+                  id: "view-arch",
+                  label: "View: System Architecture (Architecture.md)",
+                  category: "Brain Stage",
+                  run: () => {
+                    setMainStageView("brain");
+                    setBrainSubTab("architecture");
+                  },
+                },
+                {
+                  id: "view-mem",
+                  label: "View: Engineering Journal Timeline (Memory.md)",
+                  category: "Brain Stage",
+                  run: () => {
+                    setMainStageView("brain");
+                    setBrainSubTab("memory");
+                  },
+                },
+                {
+                  id: "view-cart",
+                  label: "View: Pluggable Rule Cartridges",
+                  category: "Brain Stage",
+                  run: () => {
+                    setMainStageView("brain");
+                    setBrainSubTab("cartridges");
+                  },
+                },
+                {
+                  id: "view-code",
+                  label: "Stage: Remote Code & Atomic Unified Diff Editor",
+                  category: "Workspace",
+                  run: () => setMainStageView("workspace"),
+                },
+                {
+                  id: "view-preview",
+                  label: "Stage: Live App Preview (Zero-Port-Forwarding Proxy)",
+                  category: "Preview",
+                  run: () => setMainStageView("preview"),
+                },
+                {
+                  id: "view-infra",
+                  label: "Stage: Axon Muscle Nodes & Encrypted Secrets Vault",
+                  category: "Infrastructure",
+                  run: () => setMainStageView("infrastructure"),
+                },
+                {
+                  id: "cfg-api",
+                  label:
+                    "Configure Custom API Base URL & Model (OpenRouter / Ollama / vLLM)",
+                  category: "AI Settings",
+                  run: () => setAiEndpointModalOpen(true),
+                },
+                {
+                  id: "act-deploy",
+                  label: "Autonomous Action: Deploy Microservice on Port 4050",
+                  category: "Orchestrator",
+                  run: () => handleQuickAction("deploy microservice 4050"),
+                },
+                {
+                  id: "act-term",
+                  label: "Toggle Bottom Live PTY Terminal Drawer",
+                  category: "Terminal",
+                  run: () => setTerminalDrawerOpen((v) => !v),
+                },
+                {
+                  id: "act-clear-chat",
+                  label: "Compact / Clear Conversation History (Chat.jsonl)",
+                  category: "Orchestrator",
+                  run: () => handleClearChat(),
+                },
+                {
+                  id: "act-new-proj",
+                  label: "Create New Project Vault",
+                  category: "Projects",
+                  run: () => setNewProjectModal(true),
+                },
+              ]
+                .filter(
+                  (item) =>
+                    !commandQuery.trim() ||
+                    item.label
+                      .toLowerCase()
+                      .includes(commandQuery.toLowerCase()) ||
+                    item.category
+                      .toLowerCase()
+                      .includes(commandQuery.toLowerCase())
+                )
+                .map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setCommandPaletteOpen(false);
+                      item.run();
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-xs text-zinc-200 transition hover:bg-emerald-500/15 hover:text-white"
+                  >
+                    <span>{item.label}</span>
+                    <span className="rounded-md bg-white/[0.05] px-2 py-0.5 font-mono text-[10px] text-zinc-400">
+                      {item.category}
+                    </span>
+                  </button>
+                ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
