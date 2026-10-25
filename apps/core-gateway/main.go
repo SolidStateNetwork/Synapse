@@ -109,6 +109,9 @@ func main() {
 			})
 			return
 		}
+		if projectID != "" {
+			nodeHub.EnsureNodeAssignedToProject(projectID, req.NodeID, tier)
+		}
 		log.Printf("[core-gateway] signed X.509 mTLS certificate for node %q (tier=%s, project=%s)", req.NodeID, tier, projectID)
 		writeJSON(w, http.StatusOK, tunnelv1.CSRBootstrapResponse{
 			Success:    true,
@@ -329,27 +332,34 @@ func main() {
 	// 8. Authenticated TCP/HTTP Live-Preview Reverse Proxy: /preview/<project_id>/<node_id>/<port>
 	mux.HandleFunc("/preview/", proxy.NewLivePreviewHandler(nodeHub))
 
-	// 9. Zero-Dependency Axon Static Binary Download (/dl/axon-linux-amd64)
-	mux.HandleFunc("/dl/axon-linux-amd64", func(w http.ResponseWriter, r *http.Request) {
-		candidates := []string{
-			os.Getenv("SYNAPSE_AXON_BINARY_PATH"),
-			"/usr/local/bin/axon-linux-amd64",
-			"./bin/axon",
-			"../../bin/axon",
-		}
-		for _, candidate := range candidates {
-			if candidate == "" {
-				continue
+	// 9. Zero-Dependency Axon Static Binary Download (/dl/axon-linux-amd64 & /dl/axon-linux-arm64)
+	serveAxonBinary := func(arch string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			candidates := []string{
+				os.Getenv("SYNAPSE_AXON_BINARY_PATH"),
+				fmt.Sprintf("/usr/local/bin/axon-linux-%s", arch),
+				fmt.Sprintf("./bin/axon-linux-%s", arch),
+				"./bin/axon",
+				"../../bin/axon",
 			}
-			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-				w.Header().Set("Content-Type", "application/octet-stream")
-				w.Header().Set("Content-Disposition", "attachment; filename=\"axon\"")
-				http.ServeFile(w, r, candidate)
-				return
+			for _, candidate := range candidates {
+				if candidate == "" {
+					continue
+				}
+				if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+					w.Header().Set("Content-Type", "application/octet-stream")
+					w.Header().Set("Content-Disposition", "attachment; filename=\"axon\"")
+					http.ServeFile(w, r, candidate)
+					return
+				}
 			}
+			// Fallback to official GitHub Release asset
+			ghReleaseURL := fmt.Sprintf("https://github.com/SolidStateNetwork/Synapse/releases/latest/download/axon-linux-%s", arch)
+			http.Redirect(w, r, ghReleaseURL, http.StatusFound)
 		}
-		http.Error(w, "axon static binary not found on gateway; build ./bin/axon first", http.StatusNotFound)
-	})
+	}
+	mux.HandleFunc("/dl/axon-linux-amd64", serveAxonBinary("amd64"))
+	mux.HandleFunc("/dl/axon-linux-arm64", serveAxonBinary("arm64"))
 
 	// 10. One-Liner Axon Node Enrollment & Systemd Installer Script (/install.sh)
 	mux.HandleFunc("/install.sh", func(w http.ResponseWriter, r *http.Request) {
@@ -367,15 +377,53 @@ func main() {
 		script := fmt.Sprintf(`#!/usr/bin/env sh
 set -eu
 
-TOKEN="${1:-}"
-TIER="${2:-TIER_2_WORKSPACE_JAIL}"
-NODE_ID="${3:-}"
 CORE_URL="%s"
+TOKEN=""
+TIER="TIER_2_WORKSPACE_JAIL"
+NODE_ID=""
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --core)
+      CORE_URL="$2"
+      shift 2
+      ;;
+    --token)
+      TOKEN="$2"
+      shift 2
+      ;;
+    --tier)
+      TIER="$2"
+      shift 2
+      ;;
+    --node-id)
+      NODE_ID="$2"
+      shift 2
+      ;;
+    *)
+      if [ -z "$TOKEN" ]; then
+        TOKEN="$1"
+      elif [ "$TIER" = "TIER_2_WORKSPACE_JAIL" ] && ( [ "$1" = "TIER_1_UNLEASHED" ] || [ "$1" = "TIER_2_WORKSPACE_JAIL" ] || [ "$1" = "TIER_3_SUPERVISED" ] ); then
+        TIER="$1"
+      elif [ -z "$NODE_ID" ]; then
+        NODE_ID="$1"
+      fi
+      shift
+      ;;
+  esac
+done
 
 if [ -z "$TOKEN" ]; then
-  echo "Usage: curl -fsSL $CORE_URL/install.sh | sudo sh -s -- <join_token> [tier] [node_id]"
+  echo "Usage: curl -fsSL $CORE_URL/install.sh | sudo sh -s -- <join_token> [TIER_1_UNLEASHED|TIER_2_WORKSPACE_JAIL|TIER_3_SUPERVISED] [node_id]"
   exit 1
 fi
+
+ARCH_RAW="$(uname -m)"
+case "$ARCH_RAW" in
+  x86_64|amd64) ARCH="amd64" ;;
+  aarch64|arm64) ARCH="arm64" ;;
+  *) ARCH="amd64" ;;
+esac
 
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/axon"
@@ -389,18 +437,21 @@ fi
 
 mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$WORKSPACE_DIR"
 
-echo "[synapse] Downloading static Axon Muscle binary from $CORE_URL/dl/axon-linux-amd64 ..."
-curl -fsSL "$CORE_URL/dl/axon-linux-amd64" -o "$INSTALL_DIR/axon"
+echo "[synapse] Downloading static Axon Muscle binary (linux/${ARCH})..."
+if ! curl -fsSL "$CORE_URL/dl/axon-linux-${ARCH}" -o "$INSTALL_DIR/axon" 2>/dev/null; then
+  echo "[synapse] Falling back to GitHub Releases (axon-linux-${ARCH})..."
+  curl -fsSL "https://github.com/SolidStateNetwork/Synapse/releases/latest/download/axon-linux-${ARCH}" -o "$INSTALL_DIR/axon"
+fi
 chmod +x "$INSTALL_DIR/axon"
 
-echo "[synapse] Bootstrapping mTLS identity with Core Gateway ($TIER)..."
+echo "[synapse] Authenticating one-time token & bootstrapping mTLS 1.3 CSR with Core ($CORE_URL)..."
 if [ -n "$NODE_ID" ]; then
   "$INSTALL_DIR/axon" join --core "$CORE_URL" --tier "$TIER" --node-id "$NODE_ID" --config-dir "$CONFIG_DIR" --workspace-root "$WORKSPACE_DIR" "$TOKEN"
 else
   "$INSTALL_DIR/axon" join --core "$CORE_URL" --tier "$TIER" --config-dir "$CONFIG_DIR" --workspace-root "$WORKSPACE_DIR" "$TOKEN"
 fi
 
-if [ "$(id -u)" -eq 0 ] && command -v systemctl >/dev/null 2>&1; then
+if [ "$(id -u)" -eq 0 ] && command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
   cat >/etc/systemd/system/axon.service <<EOF
 [Unit]
 Description=Synapse Axon Muscle Node Agent
@@ -419,11 +470,11 @@ WantedBy=multi-user.target
 EOF
   systemctl daemon-reload
   systemctl enable --now axon.service
-  echo "[synapse] axon.service enabled and started via systemd."
+  echo "[synapse] ✔ axon.service enabled and started via systemd (mTLS + Yamux Reverse Tunnel active)."
 else
-  echo "[synapse] Starting axon daemon in background (non-root mode)..."
+  pkill -f "$INSTALL_DIR/axon run --config-dir $CONFIG_DIR" 2>/dev/null || true
   nohup "$INSTALL_DIR/axon" run --config-dir "$CONFIG_DIR" >/tmp/axon-agent.log 2>&1 &
-  echo "[synapse] Axon started (PID $!, logs at /tmp/axon-agent.log)."
+  echo "[synapse] ✔ Axon daemon started in background (PID $!, logs at /tmp/axon-agent.log)."
 fi
 `, coreBaseURL)
 		_, _ = w.Write([]byte(script))

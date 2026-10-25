@@ -233,12 +233,17 @@ func (a *Authority) SignNodeCSR(req tunnelv1.CSRBootstrapRequest) (certPEM []byt
 	}
 
 	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	var localities []string
+	if projectID != "" {
+		localities = []string{projectID}
+	}
 	clientTmpl := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
 			CommonName:         req.NodeID,
 			Organization:       []string{"Synapse Muscle Node"},
 			OrganizationalUnit: []string{string(assignedTier)},
+			Locality:           localities,
 		},
 		DNSNames:    csr.DNSNames,
 		NotBefore:   time.Now().Add(-5 * time.Minute),

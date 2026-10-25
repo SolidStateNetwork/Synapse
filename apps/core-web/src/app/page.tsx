@@ -267,7 +267,9 @@ export default function SynapseCalmStudio() {
   const [joinTier, setJoinTier] = useState<AutonomyTier>(
     "TIER_2_WORKSPACE_JAIL"
   );
+  const [joinNodeName, setJoinNodeName] = useState("");
   const [issuedToken, setIssuedToken] = useState<string | null>(null);
+  const [copiedJoinCmd, setCopiedJoinCmd] = useState(false);
   const [newSecretKey, setNewSecretKey] = useState("");
   const [newSecretVal, setNewSecretVal] = useState("");
   const [previewPort, setPreviewPort] = useState<number>(3000);
@@ -292,7 +294,20 @@ export default function SynapseCalmStudio() {
         setAuditLogs(data.audit_logs || []);
         setCartridges(data.cartridges || []);
         setGatewayNodes(data.gateway_nodes || []);
-        if (data.gateway_url) setGatewayUrl(data.gateway_url);
+        if (data.gateway_url) {
+          let resolvedUrl = String(data.gateway_url);
+          if (
+            typeof window !== "undefined" &&
+            (resolvedUrl.includes("core-gateway") ||
+              resolvedUrl.includes("127.0.0.1") ||
+              resolvedUrl.includes("localhost"))
+          ) {
+            resolvedUrl = `${window.location.protocol}//${window.location.hostname}:8081`;
+          }
+          setGatewayUrl((prev) =>
+            prev === "http://127.0.0.1:8081" ? resolvedUrl : prev
+          );
+        }
 
         if (syncAiSettings && data.active_project?.ai_settings) {
           const ai = data.active_project.ai_settings as AIProviderSettings;
@@ -880,15 +895,25 @@ export default function SynapseCalmStudio() {
           </div>
 
           {activeProject?.planning_only ? (
-            <span className="hidden sm:flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-300">
+            <button
+              onClick={() => {
+                setMainStageView("infrastructure");
+                handleGenerateJoinToken();
+              }}
+              className="hidden sm:flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-300 hover:bg-amber-500/20 transition"
+              title="Click to generate a 1-command connector install token"
+            >
               <Lock className="h-3 w-3" />
-              Planning-Only
-            </span>
+              Planning-Only · + Connect Node
+            </button>
           ) : (
-            <span className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300">
+            <button
+              onClick={() => setMainStageView("infrastructure")}
+              className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20 transition"
+            >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               {primaryNode}
-            </span>
+            </button>
           )}
         </div>
 
@@ -1704,7 +1729,22 @@ export default function SynapseCalmStudio() {
                         autonomy tiers.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={gatewayUrl}
+                        onChange={(e) => setGatewayUrl(e.target.value)}
+                        placeholder="http://<CORE_IP>:8081"
+                        title="Public Core Gateway URL reachable by remote nodes"
+                        className="w-48 rounded-xl border border-white/[0.09] bg-zinc-900 px-3 py-1.5 font-mono text-xs text-emerald-300"
+                      />
+                      <input
+                        type="text"
+                        value={joinNodeName}
+                        onChange={(e) => setJoinNodeName(e.target.value)}
+                        placeholder="Node ID (optional, e.g. prod-01)"
+                        className="w-44 rounded-xl border border-white/[0.09] bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-200"
+                      />
                       <select
                         value={joinTier}
                         onChange={(e) =>
@@ -1732,12 +1772,25 @@ export default function SynapseCalmStudio() {
                   </div>
 
                   {issuedToken && (
-                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.07] p-4 space-y-2">
-                      <div className="text-xs font-medium text-emerald-300">
-                        Run on your Linux server to enroll via CSR:
+                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.07] p-4 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-medium text-emerald-300">
+                          One-Command Connector Install &amp; Token Login (auto-detects amd64/arm64, exchanges CSR, starts systemd daemon &amp; binds to project):
+                        </div>
+                        <button
+                          onClick={() => {
+                            const cmd = `curl -fsSL ${gatewayUrl.replace(/\/$/, "")}/install.sh | sudo sh -s -- ${issuedToken} ${joinTier}${joinNodeName.trim() ? ` ${joinNodeName.trim()}` : ""}`;
+                            navigator.clipboard.writeText(cmd);
+                            setCopiedJoinCmd(true);
+                            setTimeout(() => setCopiedJoinCmd(false), 2500);
+                          }}
+                          className="rounded-lg bg-emerald-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-emerald-500"
+                        >
+                          {copiedJoinCmd ? "✔ Copied!" : "Copy Command"}
+                        </button>
                       </div>
                       <pre className="overflow-x-auto rounded-lg bg-black/80 p-3 font-mono text-xs text-emerald-400">
-                        {`curl -fsSL ${gatewayUrl}/install.sh | sh -s -- ${issuedToken} ${joinTier}`}
+                        {`curl -fsSL ${gatewayUrl.replace(/\/$/, "")}/install.sh | sudo sh -s -- ${issuedToken} ${joinTier}${joinNodeName.trim() ? ` ${joinNodeName.trim()}` : ""}`}
                       </pre>
                     </div>
                   )}

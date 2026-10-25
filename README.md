@@ -65,26 +65,30 @@ Static, zero-dependency (`CGO_ENABLED=0`) binaries are built automatically for e
 | `axon-darwin-arm64` | `Apple Silicon` | macOS | [Latest Release](https://github.com/SolidStateNetwork/Synapse/releases/latest/download/axon-darwin-arm64) |
 | `core-gateway-linux-amd64` | `x86_64` | Linux | [Latest Release](https://github.com/SolidStateNetwork/Synapse/releases/latest/download/core-gateway-linux-amd64) |
 
-### 1. Start the Brain (`synapse-core`)
+### 1. Deploy the Core ("The Brain" — `synapse-core`) via Docker
+Deploy the entire Stateless Control Plane (`core-web` + `core-gateway` + mTLS CA + Brain Vault) on any server with Docker using a single command:
 ```bash
-git clone https://github.com/SolidStateNetwork/Synapse.git
-cd Synapse
-docker compose up --build -d
-# Studio WebUI: http://localhost:3000
-# Core Gateway: http://localhost:8081 (HTTP Control & Live-Preview) / :8443 (mTLS Yamux)
+curl -fsSL https://raw.githubusercontent.com/SolidStateNetwork/Synapse/main/scripts/deploy-core.sh | bash
+```
+Or directly with `docker compose` using the prebuilt GitHub Container Registry (`GHCR`) images:
+```bash
+curl -fsSL https://raw.githubusercontent.com/SolidStateNetwork/Synapse/main/docker-compose.yml -o docker-compose.yml
+docker compose pull && docker compose up -d
+# Studio WebUI:      http://<CORE_IP>:3000
+# Core Gateway API:  http://<CORE_IP>:8081
+# mTLS Yamux Tunnel: <CORE_IP>:8443
 ```
 
-### 2. Enroll a Remote Muscle Node (`axon`)
-Generate a one-time join token in the Studio WebUI (or via `POST /api/gateway/token`), then run on any target server:
+### 2. Install & Connect a Remote Muscle Node (`axon`) with One Command + Token Login
+1. Open the **Synapse Studio WebUI** (`http://<CORE_IP>:3000`), go to **Nodes & Vault**, and click **Generate Join Command** (or use the token printed by `deploy-core.sh`).
+2. Run the one-liner on any target Linux server (`x86_64` or `arm64`):
 ```bash
-curl -sSL http://<core-host>:8081/install.sh | sudo bash -s -- http://<core-host>:8081 <ONE_TIME_TOKEN> <NODE_ID> TIER_2_WORKSPACE_JAIL
+curl -fsSL http://<CORE_IP>:8081/install.sh | sudo sh -s -- <ONE_TIME_JOIN_TOKEN> TIER_2_WORKSPACE_JAIL
 ```
-Or manually with the static binary:
-```bash
-curl -fL https://github.com/SolidStateNetwork/Synapse/releases/latest/download/axon-linux-amd64 -o /usr/local/bin/axon
-chmod +x /usr/local/bin/axon
-axon join --core http://<core-host>:8081 --node-id prod-node-01 --tier TIER_2_WORKSPACE_JAIL --run <ONE_TIME_TOKEN>
-```
+**What happens automatically:**
+- Detects the host CPU architecture (`amd64` / `arm64`) and downloads the static `axon` binary from your Core Gateway (or GitHub Releases fallback).
+- Logs in to the Core Gateway with `<ONE_TIME_JOIN_TOKEN>`, generates a local ECDSA P-256 keypair, and exchanges an X.509 CSR for a signed mTLS 1.3 client certificate (`/etc/axon/node.crt`).
+- Installs & starts `axon.service` via `systemd`, opens the outbound mTLS 1.3 + `hashicorp/yamux` reverse tunnel on port `8443`, and **automatically assigns the node to your project**!
 
 ---
 

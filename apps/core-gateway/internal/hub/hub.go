@@ -87,6 +87,13 @@ func (h *Hub) handleConnection(rawConn net.Conn) {
 	if len(clientCert.Subject.OrganizationalUnit) > 0 {
 		tier = tunnelv1.AutonomyTier(clientCert.Subject.OrganizationalUnit[0])
 	}
+	projectID := ""
+	if len(clientCert.Subject.Locality) > 0 {
+		projectID = clientCert.Subject.Locality[0]
+	}
+	if projectID != "" {
+		h.EnsureNodeAssignedToProject(projectID, nodeID, tier)
+	}
 
 	// Core Gateway acts as the Yamux Client over the reverse connection so it can open streams to Axon,
 	// while also accepting the telemetry stream opened by Axon.
@@ -274,6 +281,58 @@ func (h *Hub) ListNodes() []NodeSummary {
 		})
 	}
 	return out
+}
+
+// EnsureNodeAssignedToProject automatically binds an enrolled Axon node to its target Project Brain Vault State.json.
+func (h *Hub) EnsureNodeAssignedToProject(projectID string, nodeID string, tier tunnelv1.AutonomyTier) {
+	if h.VaultRoot == "" || projectID == "" || nodeID == "" {
+		return
+	}
+	projDir := filepath.Join(h.VaultRoot, projectID)
+	_ = os.MkdirAll(projDir, 0o755)
+	statePath := filepath.Join(projDir, "State.json")
+
+	var state map[string]any
+	if raw, err := os.ReadFile(statePath); err == nil {
+		_ = json.Unmarshal(raw, &state)
+	}
+	if state == nil {
+		state = map[string]any{
+			"project_id":          projectID,
+			"name":                projectID,
+			"assigned_nodes":      []any{},
+			"active_cartridges":   []string{"docker-first", "zero-trust-networking"},
+			"registered_services": []any{},
+			"telemetry":           map[string]any{},
+			"pending_approvals":   []any{},
+			"updated_at":          time.Now().UTC().Format(time.RFC3339),
+		}
+	}
+
+	assigned, _ := state["assigned_nodes"].([]any)
+	found := false
+	for _, item := range assigned {
+		if m, ok := item.(map[string]any); ok && m["node_id"] == nodeID {
+			m["online"] = true
+			m["status"] = "ONLINE"
+			m["tier"] = string(tier)
+			found = true
+		}
+	}
+	if !found {
+		assigned = append(assigned, map[string]any{
+			"node_id": nodeID,
+			"tier":    string(tier),
+			"online":  true,
+			"status":  "ONLINE",
+		})
+	}
+	state["assigned_nodes"] = assigned
+	state["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+
+	if updatedBytes, err := json.MarshalIndent(state, "", "  "); err == nil {
+		_ = os.WriteFile(statePath, updatedBytes, 0o644)
+	}
 }
 
 // syncTelemetryToProjectVaults updates State.json inside any Project Brain Vault that has nodeID assigned.
