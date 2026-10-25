@@ -125,7 +125,7 @@ func (m *Manager) GetOrCreateSession(sessionID string, projectID string, tier tu
 
 	var cmd *exec.Cmd
 	if strings.HasSuffix(shellBin, "bash") {
-		cmd = exec.Command(shellBin, "--norc", "--noprofile")
+		cmd = exec.Command(shellBin, "--norc", "--noprofile", "--noediting")
 	} else {
 		cmd = exec.Command(shellBin)
 	}
@@ -146,6 +146,7 @@ func (m *Manager) GetOrCreateSession(sessionID string, projectID string, tier tu
 		return nil, fmt.Errorf("start persistent pty: %w", err)
 	}
 
+	initCap := make(chan []byte, 64)
 	sess := &Session{
 		ID:            sessionID,
 		ProjectID:     safeProj,
@@ -155,13 +156,31 @@ func (m *Manager) GetOrCreateSession(sessionID string, projectID string, tier tu
 		WorkspaceRoot: initialDir,
 		knownSecret:   make(map[string]string),
 		subscribers:   make(map[chan []byte]struct{}),
+		captureCh:     initCap,
 	}
 
 	go sess.readLoop()
 
-	// Disable terminal echo and prompt noise for clean command framing while keeping interactive usability
-	_, _ = ptmx.Write([]byte("stty -echo 2>/dev/null; export PS1=''; unset PROMPT_COMMAND\n"))
-	time.Sleep(40 * time.Millisecond)
+	// Disable terminal echo and wait deterministically for shell readiness
+	_, _ = ptmx.Write([]byte("stty -echo 2>/dev/null; export PS1=''; unset PROMPT_COMMAND; printf \"__SYNAPSE_INIT_\"\"READY__\\n\"\n"))
+	initDeadline := time.NewTimer(2 * time.Second)
+	var initBuf bytes.Buffer
+initWait:
+	for {
+		select {
+		case chunk := <-initCap:
+			initBuf.Write(chunk)
+			if strings.Contains(initBuf.String(), "__SYNAPSE_INIT_READY__") {
+				break initWait
+			}
+		case <-initDeadline.C:
+			break initWait
+		}
+	}
+	initDeadline.Stop()
+	sess.subMu.Lock()
+	sess.captureCh = nil
+	sess.subMu.Unlock()
 
 	m.sessions[sessionID] = sess
 	return sess, nil
@@ -403,11 +422,12 @@ func (m *Manager) Execute(req tunnelv1.PtyExecRequest) tunnelv1.PtyExecResponse 
 	}
 
 	// Deterministic Sentinel Framing as required by the Synapse specification:
-	// command; echo -e "\n__SYNAPSE_EOF_<cmd_id>:$?__"
+	// command; printf "\n__SYNAPSE_"EOF"_<cmd_id>:%d__\n" "$?"
 	sentinelPrefix := fmt.Sprintf("__SYNAPSE_EOF_%s:", cmdID)
 	sentinelRegex := regexp.MustCompile(`(?m)\r?\n?__SYNAPSE_EOF_` + regexp.QuoteMeta(cmdID) + `:(-?\d+)__\r?\n?`)
+	echoedSentinelCmdRegex := regexp.MustCompile(`(?m)^.*__SYNAPSE_.*EOF.*$\r?\n?`)
 
-	framedCommand := fmt.Sprintf("%s%s\necho -e \"\\n__SYNAPSE_EOF_%s:$?__\"\n", envExports.String(), req.Command, cmdID)
+	framedCommand := fmt.Sprintf("%s%s\nprintf \"\\n__SYNAPSE_\"\"EOF_%s:%%d__\\n\" \"$?\"\n", envExports.String(), req.Command, cmdID)
 	if _, err := sess.Ptmx.Write([]byte(framedCommand)); err != nil {
 		return tunnelv1.PtyExecResponse{
 			CmdID:     cmdID,
@@ -457,9 +477,9 @@ loop:
 	}
 
 	rawOutput := rawBuf.String()
-	// Strip the sentinel marker from the output
+	// Strip the sentinel marker and any echoed framing lines from the output
 	rawOutput = sentinelRegex.ReplaceAllString(rawOutput, "")
-	// Also strip any echoed command prefix if stty echo was re-enabled by a subcommand
+	rawOutput = echoedSentinelCmdRegex.ReplaceAllString(rawOutput, "")
 	rawOutput = strings.TrimPrefix(rawOutput, framedCommand)
 
 	cwd := sess.ResolveCWD()

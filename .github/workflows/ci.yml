@@ -18,6 +18,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.23"
+          cache-dependency-path: |
+            agents/axon/go.sum
+            apps/core-gateway/go.sum
 
       - name: Run Unit Tests (Guardrails, Sentinel PTY, Atomic FS, mTLS PKI)
         env:
