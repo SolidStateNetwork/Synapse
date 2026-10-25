@@ -101,7 +101,7 @@
   <rect x="212" y="87" width="760" height="612" fill="url(#cc-dots)" />
 
   <!-- Top Floating Canvas Pill -->
-  <rect x="230" y="102" width="320" height="28" rx="8" fill="#1d2024" stroke="#2e3238" />
+  <rect x="230" y="102" width="385" height="28" rx="8" fill="#1d2024" stroke="#2e3238" />
   <circle cx="244" cy="116" r="3.5" fill="#31c48d" />
   <text x="256" y="120" fill="#ffffff" font-size="10.5" font-weight="600" class="f-sans">Interactive Canvas</text>
   <text x="358" y="120" fill="#9ca3af" font-size="10" class="f-sans">· Drag any node or handle · Scroll to zoom</text>
@@ -144,9 +144,9 @@
     <text x="154" y="97" fill="#9ca3af" font-size="9.5" class="f-mono">DSK <tspan fill="#ffffff">11%</tspan></text>
 
     <!-- Tier Pill + PTY Link -->
-    <rect x="14" y="118" width="118" height="20" rx="4" fill="#341b09" stroke="#f68330" stroke-width="0.8" />
-    <text x="20" y="131" fill="#f68330" font-size="8.5" font-weight="600" class="f-mono">TIER_2_WORKSPACE_JAIL</text>
-    <text x="144" y="131" fill="#d1d5db" font-size="9.5" text-decoration="underline" class="f-sans">Open PTY →</text>
+    <rect x="14" y="118" width="128" height="20" rx="4" fill="#341b09" stroke="#f68330" stroke-width="0.8" />
+    <text x="20" y="131" fill="#f68330" font-size="8" font-weight="600" class="f-mono">TIER_2_WORKSPACE_JAIL</text>
+    <text x="150" y="131" fill="#d1d5db" font-size="9.5" text-decoration="underline" class="f-sans">Open PTY →</text>
 
     <!-- Exact Handle Endpoint -->
     <circle cx="224" cy="75" r="3.5" fill="#181a1d" stroke="#f68330" stroke-width="2" />
@@ -158,7 +158,7 @@
     <rect x="0" y="0" width="182" height="36" rx="18" fill="#1d2024" stroke="#f68330" stroke-width="1.2" />
     <circle cx="0" cy="18" r="3.2" fill="#181a1d" stroke="#f68330" stroke-width="1.8" />
     <circle cx="16" cy="18" r="3.5" fill="#f68330" />
-    <text x="28" y="22" fill="#ffffff" font-size="10" font-weight="600" class="f-mono">TIER_2_WORKSPACE_JAIL</text>
+    <text x="26" y="22" fill="#ffffff" font-size="9.5" font-weight="600" class="f-mono">TIER_2_WORKSPACE_JAIL</text>
     <circle cx="182" cy="18" r="3.2" fill="#181a1d" stroke="#f68330" stroke-width="1.8" />
   </g>
 
@@ -167,9 +167,9 @@
     <rect x="0" y="0" width="182" height="36" rx="18" fill="#1d2024" stroke="#2e3238" stroke-width="1.2" />
     <circle cx="0" cy="18" r="3.2" fill="#181a1d" stroke="#31c48d" stroke-width="1.8" />
     <circle cx="16" cy="18" r="3.5" fill="#31c48d" />
-    <text x="28" y="22" fill="#e4e7e9" font-size="10.5" class="f-sans">Docker-First Execution</text>
-    <rect x="148" y="10" width="24" height="16" rx="8" fill="#052e16" stroke="#31c48d" stroke-width="0.8" />
-    <text x="153" y="21" fill="#31c48d" font-size="8.5" font-weight="600" class="f-mono">ON</text>
+    <text x="26" y="22" fill="#e4e7e9" font-size="10" class="f-sans">Docker-First</text>
+    <rect x="144" y="10" width="26" height="16" rx="8" fill="#052e16" stroke="#31c48d" stroke-width="0.8" />
+    <text x="150" y="21" fill="#31c48d" font-size="8.5" font-weight="600" class="f-mono">ON</text>
     <circle cx="182" cy="18" r="3.2" fill="#181a1d" stroke="#31c48d" stroke-width="1.8" />
   </g>
 
@@ -177,16 +177,16 @@
   <g transform="translate(518, 298)" opacity="0.65">
     <rect x="0" y="0" width="182" height="36" rx="18" fill="#1d2024" stroke="#2e3238" />
     <circle cx="16" cy="18" r="3.5" fill="#5e6570" />
-    <text x="28" y="22" fill="#9ca3af" font-size="10.5" class="f-sans">Auto-SSL Reverse Proxy</text>
-    <text x="152" y="21" fill="#9ca3af" font-size="8.5" class="f-mono">OFF</text>
+    <text x="26" y="22" fill="#9ca3af" font-size="10" class="f-sans">Auto-SSL Caddy</text>
+    <text x="148" y="21" fill="#9ca3af" font-size="8.5" class="f-mono">OFF</text>
   </g>
 
   <!-- Pill 4: Native Systemd (OFF) -->
   <g transform="translate(518, 358)" opacity="0.65">
     <rect x="0" y="0" width="182" height="36" rx="18" fill="#1d2024" stroke="#2e3238" />
     <circle cx="16" cy="18" r="3.5" fill="#5e6570" />
-    <text x="28" y="22" fill="#9ca3af" font-size="10.5" class="f-sans">Native Systemd Daemons</text>
-    <text x="152" y="21" fill="#9ca3af" font-size="8.5" class="f-mono">OFF</text>
+    <text x="26" y="22" fill="#9ca3af" font-size="10" class="f-sans">Native Systemd</text>
+    <text x="148" y="21" fill="#9ca3af" font-size="8.5" class="f-mono">OFF</text>
   </g>
 
   <!-- Pill 5: Zero-Trust Networking (ON) -->
@@ -194,9 +194,9 @@
     <rect x="0" y="0" width="182" height="36" rx="18" fill="#1d2024" stroke="#2e3238" stroke-width="1.2" />
     <circle cx="0" cy="18" r="3.2" fill="#181a1d" stroke="#31c48d" stroke-width="1.8" />
     <circle cx="16" cy="18" r="3.5" fill="#31c48d" />
-    <text x="28" y="22" fill="#e4e7e9" font-size="10.5" class="f-sans">Zero-Trust Networking</text>
-    <rect x="148" y="10" width="24" height="16" rx="8" fill="#052e16" stroke="#31c48d" stroke-width="0.8" />
-    <text x="153" y="21" fill="#31c48d" font-size="8.5" font-weight="600" class="f-mono">ON</text>
+    <text x="26" y="22" fill="#e4e7e9" font-size="10" class="f-sans">Zero-Trust Net</text>
+    <rect x="144" y="10" width="26" height="16" rx="8" fill="#052e16" stroke="#31c48d" stroke-width="0.8" />
+    <text x="150" y="21" fill="#31c48d" font-size="8.5" font-weight="600" class="f-mono">ON</text>
     <circle cx="182" cy="18" r="3.2" fill="#181a1d" stroke="#31c48d" stroke-width="1.8" />
   </g>
 
@@ -205,7 +205,7 @@
     <rect x="0" y="0" width="182" height="36" rx="18" fill="#1d2024" stroke="#0284c7" stroke-width="1.2" />
     <circle cx="0" cy="18" r="3.2" fill="#181a1d" stroke="#38bdf8" stroke-width="1.8" />
     <circle cx="16" cy="18" r="3.5" fill="#38bdf8" />
-    <text x="28" y="22" fill="#e4e7e9" font-size="10.5" class="f-sans">Self-Lockout Guardrail</text>
+    <text x="26" y="22" fill="#e4e7e9" font-size="10" class="f-sans">Self-Lockout Guard</text>
     <circle cx="182" cy="18" r="3.2" fill="#181a1d" stroke="#38bdf8" stroke-width="1.8" />
   </g>
 
