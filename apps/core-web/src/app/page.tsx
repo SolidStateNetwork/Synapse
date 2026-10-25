@@ -923,6 +923,53 @@ export default function SynapseDashboard() {
                         list_dir (.)
                       </span>
                     </button>
+
+                    <button
+                      onClick={async () => {
+                        if (!activeProject) return;
+                        const prompt = "deploy microservice 4050";
+                        const nextHistory: ChatItem[] = [
+                          ...chatHistory,
+                          { role: "user", content: prompt },
+                        ];
+                        setChatHistory(nextHistory);
+                        setChatBusy(true);
+                        try {
+                          const res = await fetch("/api/orchestrator", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              project_id: activeProject.project_id,
+                              provider: "synapse-autonomous",
+                              messages: nextHistory.map((m) => ({
+                                role: m.role,
+                                content: m.content,
+                              })),
+                            }),
+                          });
+                          const data = await res.json();
+                          setChatHistory((prev) => [
+                            ...prev,
+                            {
+                              role: "assistant",
+                              content: data.reply,
+                              toolResults: data.tool_results,
+                            },
+                          ]);
+                          await loadDashboard(activeProject.project_id);
+                        } finally {
+                          setChatBusy(false);
+                        }
+                      }}
+                      className="w-full flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs hover:bg-emerald-500/25"
+                    >
+                      <span className="font-mono font-semibold text-emerald-300">
+                        Multi-Step Autonomous Loop
+                      </span>
+                      <span className="text-[11px] text-emerald-200">
+                        FS + PTY + Service + Vault
+                      </span>
+                    </button>
                   </div>
                 </div>
               </div>

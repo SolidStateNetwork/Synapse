@@ -14,7 +14,7 @@ ENV SYNAPSE_VAULT_DIR=/var/lib/synapse/projects
 ENV SYNAPSE_CARTRIDGES_DIR=/app/cartridges
 COPY --from=builder /workspace/cartridges ./cartridges
 COPY --from=builder /workspace/apps/core-web/.next/standalone ./
-COPY --from=builder /workspace/apps/core-web/.next/static ./apps/core-web/.next/static
+COPY --from=builder /workspace/apps/core-web/.next/static ./.next/static
 VOLUME ["/var/lib/synapse"]
 EXPOSE 3000
-CMD ["node", "apps/core-web/server.js"]
+CMD ["node", "server.js"]
