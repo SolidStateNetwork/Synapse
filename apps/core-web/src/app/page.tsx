@@ -1796,11 +1796,18 @@ export default function SynapseNetBirdControlCenter() {
         }`}
       >
         {/* Top Brand + Project Switcher */}
-        <div className="space-y-3 p-3.5">
-          <div className="flex items-center justify-between px-1.5">
+        <div className={sidebarCollapsed ? "space-y-3 p-2.5" : "space-y-3 p-3.5"}>
+          <div
+            className={
+              sidebarCollapsed
+                ? "flex flex-col items-center gap-2"
+                : "flex items-center justify-between px-1.5"
+            }
+          >
             <div
               onClick={() => setActiveNav("control-center")}
               className="flex cursor-pointer items-center gap-2.5"
+              title="Synapse Control Center"
             >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird shadow-sm">
                 <Network className="h-4 w-4 text-netbird" />
@@ -1824,7 +1831,7 @@ export default function SynapseNetBirdControlCenter() {
 
             <button
               onClick={() => setSidebarCollapsed((v) => !v)}
-              className="rounded-md p-1.5 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white transition-colors"
               title={sidebarCollapsed ? "Sidebar ausklappen" : "Sidebar einklappen"}
             >
               {sidebarCollapsed ? (
@@ -1884,7 +1891,12 @@ export default function SynapseNetBirdControlCenter() {
                   <li className="list-none">
                     <button
                       onClick={() => setActiveNav(item.id)}
-                      className={`flex w-full items-center justify-between rounded-lg px-3 py-[0.46rem] text-[0.84rem] font-normal transition-colors ${
+                      title={sidebarCollapsed ? item.label : undefined}
+                      className={`relative flex w-full items-center rounded-lg text-[0.84rem] font-normal transition-colors ${
+                        sidebarCollapsed
+                          ? "justify-center p-2.5"
+                          : "justify-between px-3 py-[0.46rem]"
+                      } ${
                         isActive
                           ? "bg-nb-gray-900 text-white"
                           : "text-nb-gray-400 hover:bg-nb-gray-900/50 hover:text-nb-gray-200"
@@ -1903,6 +1915,15 @@ export default function SynapseNetBirdControlCenter() {
                           </span>
                         )}
                       </div>
+                      {sidebarCollapsed && item.badge !== undefined && (
+                        <span
+                          className={`absolute right-1.5 top-1.5 h-2 w-2 rounded-full ${
+                            item.badgeColor === "red"
+                              ? "bg-red-500 animate-pulse"
+                              : "bg-netbird"
+                          }`}
+                        />
+                      )}
                       {!sidebarCollapsed && item.badge !== undefined && (
                         <span
                           className={`rounded-md border px-1.5 py-0.5 font-mono text-[10px] leading-none ${
@@ -1926,7 +1947,24 @@ export default function SynapseNetBirdControlCenter() {
 
         {/* Minimalist Bottom Mesh Status Pill */}
         <div className="p-3.5">
-          {!sidebarCollapsed && (
+          {sidebarCollapsed ? (
+            <div
+              className="flex justify-center py-1"
+              title={
+                activeProject?.planning_only
+                  ? "Planning-Only"
+                  : `mTLS 1.3 Mesh (${gatewayNodes.filter((n) => n.online).length} online)`
+              }
+            >
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${
+                  activeProject?.planning_only
+                    ? "bg-amber-400"
+                    : "bg-green-400"
+                }`}
+              />
+            </div>
+          ) : (
             <div className="flex items-center justify-between rounded-lg border border-nb-gray-900 bg-nb-gray-940/70 px-3 py-2 text-[11px] text-nb-gray-400">
               <span className="flex items-center gap-2 text-nb-gray-200">
                 <span
@@ -1951,7 +1989,7 @@ export default function SynapseNetBirdControlCenter() {
       ═══════════════════════════════════════════════════════════════════════ */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* CLEAN TOP HEADER BAR (No duplicate segmented tabs or clutter) */}
-        <header className="flex h-13 shrink-0 items-center justify-between border-b border-nb-gray-900 bg-nb-gray-950 px-5">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-nb-gray-900 bg-nb-gray-950 px-6 py-3">
           {/* Left: Breadcrumbs + Active Peer Status */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 text-sm">
