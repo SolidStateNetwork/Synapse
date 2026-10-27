@@ -656,16 +656,19 @@ export async function interceptAndExecuteTool(
 
   if (toolName === "core_manage_secret") {
     const action = String(args.action || "list");
-    const key = String(args.key || "").trim().toUpperCase();
-    const value = String(args.value || "");
+    const key = String(args.key || args.key_name || "").trim().toUpperCase();
+    const value = String(args.value || args.secret_value || "");
     const length = Number(args.length || 32);
     let keys: string[] = [];
 
     if (action === "generate_random" && key) {
       keys = generateRandomSecret(projectId, key, length);
-    } else if ((action === "set_value" || action === "set") && key) {
+    } else if (
+      (action === "set_value" || action === "set" || action === "set_secret") &&
+      key
+    ) {
       keys = setSecret(projectId, key, value);
-    } else if (action === "delete" && key) {
+    } else if ((action === "delete" || action === "delete_secret") && key) {
       keys = deleteSecret(projectId, key);
     } else {
       keys = listSecretKeys(projectId);

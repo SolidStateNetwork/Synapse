@@ -490,10 +490,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         ok: !execOut.isError,
+        isError: execOut.isError,
         tool: body.tool,
         result: execOut.result,
       },
-      { status: execOut.isError ? 400 : 200 }
+      { status: 200 }
     );
   }
 
