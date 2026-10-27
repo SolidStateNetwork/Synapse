@@ -12,11 +12,14 @@ import {
   ensureProjectVault,
   generateRandomSecret,
   getDecryptedSecrets,
+  getRollbackSnapshot,
   listSecretKeys,
   readBrainDoc,
+  recordRollbackSnapshot,
   saveProjectState,
   setSecret,
   writeBrainDoc,
+  type FileRollbackSnapshot,
   type ProjectState,
   type RegisteredService,
 } from "./vault";
@@ -32,6 +35,36 @@ export interface GatewayNodeSummary {
   connected_at: string;
   online: boolean;
   last_heartbeat?: NodeHeartbeat;
+}
+
+/**
+ * In-Memory Read-Only Tool & File Cache (`read_file`, `list_dir`, `stat`)
+ * Automatically invalidated whenever a write/diff/delete or PTY command runs on that node.
+ */
+interface CachedFsResult {
+  cachedAt: number;
+  response: FsResponse;
+}
+
+const FS_READ_CACHE_TTL_MS = 45_000;
+const fsReadCache = new Map<string, CachedFsResult>();
+
+function makeFsCacheKey(
+  projectId: string,
+  nodeId: string,
+  operation: string,
+  targetPath: string
+): string {
+  return `${projectId}::${nodeId}::${operation}::${targetPath.trim() || "."}`;
+}
+
+export function invalidateNodeReadCache(projectId: string, nodeId?: string): void {
+  const prefix = nodeId ? `${projectId}::${nodeId}::` : `${projectId}::`;
+  for (const key of fsReadCache.keys()) {
+    if (key.startsWith(prefix)) {
+      fsReadCache.delete(key);
+    }
+  }
 }
 
 export async function fetchGatewayNodes(): Promise<GatewayNodeSummary[]> {
@@ -122,6 +155,11 @@ export const SYNAPSE_TOOL_SCHEMAS = [
             type: "boolean",
             description:
               "When true, exposes the port through the Connector tunnel for the Live-Preview iframe in the Core WebUI.",
+          },
+          auto_heal: {
+            type: "boolean",
+            description:
+              "When true, the Proactive Auto-Watchdog automatically diagnoses and restarts this service if its health probe fails.",
           },
           health_check: {
             type: "object",
@@ -268,6 +306,9 @@ export interface ToolDispatchResult {
     | "error";
   output: unknown;
   approval_id?: string;
+  cached?: boolean;
+  rollback_snapshot_id?: string;
+  rollback_path?: string;
 }
 
 function resolveNodeTier(
@@ -334,9 +375,76 @@ export async function pushNodeHealthTargets(
 }
 
 /**
+ * Restores a pre-write file snapshot created before an AI write/diff mutation.
+ */
+export async function executeRollbackSnapshot(
+  projectId: string,
+  snapshotId: string
+): Promise<{
+  success: boolean;
+  snapshot?: FileRollbackSnapshot;
+  error?: string;
+}> {
+  const snap = getRollbackSnapshot(projectId, snapshotId);
+  if (!snap) {
+    return { success: false, error: `Snapshot ${snapshotId} not found.` };
+  }
+
+  invalidateNodeReadCache(projectId, snap.node_id);
+
+  const reqId = `rollback-${crypto.randomBytes(4).toString("hex")}`;
+  const payload = snap.existed
+    ? {
+        node_id: snap.node_id,
+        request_id: reqId,
+        project_id: projectId,
+        operation: "write_file",
+        path: snap.path,
+        content: snap.previous_content,
+        file_mode: snap.file_mode || "0644",
+      }
+    : {
+        node_id: snap.node_id,
+        request_id: reqId,
+        project_id: projectId,
+        operation: "delete",
+        path: snap.path,
+      };
+
+  try {
+    const res = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = (await res.json()) as FsResponse;
+    appendAuditLog(projectId, {
+      timestamp: new Date().toISOString(),
+      actor: "user",
+      tool_name: "rollback_snapshot",
+      node_id: snap.node_id,
+      status: data.success ? "executed" : "error",
+      summary: `Rolled back ${snap.path} on ${snap.node_id} using snapshot ${snapshotId}`,
+    });
+    if (!data.success) {
+      return { success: false, snapshot: snap, error: data.error };
+    }
+    return { success: true, snapshot: snap };
+  } catch (err) {
+    return {
+      success: false,
+      snapshot: snap,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
  * Policy Interceptor & Tool Dispatcher:
  * - Enforces Planning-Only Mode when zero Connector Nodes are assigned.
  * - Enforces TIER_3_SUPERVISED by pausing write/exec tools and creating an approval request.
+ * - Caches read-only FS operations (`read_file`, `list_dir`, `stat`) per node & invalidates on writes.
+ * - Automatically captures pre-write file snapshots for 1-click rollback.
  * - Records every action in the append-only Audit.jsonl log.
  */
 export async function interceptAndExecuteTool(
@@ -438,6 +546,10 @@ export async function interceptAndExecuteTool(
           : `127.0.0.1:${port}`)
     );
 
+    const existingSvc = state.registered_services.find(
+      (s) => s.service_id === serviceId
+    );
+
     const svc: RegisteredService = {
       service_id: serviceId,
       name: String(args.name || serviceId),
@@ -454,6 +566,11 @@ export async function interceptAndExecuteTool(
         args.enable_preview_tunnel !== undefined
           ? Boolean(args.enable_preview_tunnel)
           : true,
+      auto_heal:
+        args.auto_heal !== undefined
+          ? Boolean(args.auto_heal)
+          : existingSvc?.auto_heal ?? true,
+      consecutive_failures: 0,
       health_check: {
         type: hcType,
         target: hcTarget,
@@ -480,7 +597,7 @@ export async function interceptAndExecuteTool(
       tool_name: toolName,
       node_id: svc.node_id,
       status: "executed",
-      summary: `Registered service ${svc.name} (${svc.bind_address}:${svc.port}, ${svc.health_check?.type}) on ${svc.node_id}`,
+      summary: `Registered service ${svc.name} (${svc.bind_address}:${svc.port}, ${svc.health_check?.type}, auto_heal=${svc.auto_heal}) on ${svc.node_id}`,
       args,
     });
 
@@ -517,7 +634,11 @@ export async function interceptAndExecuteTool(
       tool_name: toolName,
       status: "executed",
       summary: `Secret vault action '${action}' on key '${key || "*"}'`,
-      args: { action, key, length: action === "generate_random" ? length : undefined },
+      args: {
+        action,
+        key,
+        length: action === "generate_random" ? length : undefined,
+      },
     });
     return {
       tool_name: toolName,
@@ -599,6 +720,9 @@ export async function interceptAndExecuteTool(
 
   // 4. Dispatch Remote Node Tool via Core Gateway mTLS Yamux Tunnel
   if (toolName === "node_pty_exec") {
+    // Any shell execution may mutate files on the node -> invalidate read cache
+    invalidateNodeReadCache(projectId, targetNodeId);
+
     const cmdId = `cmd-${crypto.randomBytes(4).toString("hex")}`;
     const allSecrets = getDecryptedSecrets(projectId);
     let injectedSecrets: Record<string, string> = allSecrets;
@@ -672,10 +796,79 @@ export async function interceptAndExecuteTool(
   if (toolName === "node_fs_operation") {
     const reqId = `fs-${crypto.randomBytes(4).toString("hex")}`;
     const operation = String(args.operation || "read_file") as FsOperation;
+    const targetPath = String(args.path || ".");
+    const isReadOnlyOp =
+      operation === "read_file" ||
+      operation === "list_dir" ||
+      operation === "stat";
+
+    // Check Read-Only Tool Cache first
+    if (isReadOnlyOp && state.ai_settings?.enable_prompt_caching !== false) {
+      const cacheKey = makeFsCacheKey(
+        projectId,
+        targetNodeId,
+        operation,
+        targetPath
+      );
+      const hit = fsReadCache.get(cacheKey);
+      if (hit && Date.now() - hit.cachedAt < FS_READ_CACHE_TTL_MS) {
+        return {
+          tool_name: toolName,
+          status: "executed",
+          cached: true,
+          output: {
+            ...hit.response,
+            _cached: true,
+          },
+        };
+      }
+    }
+
     const contentOrPatch =
       args.content_or_patch !== undefined
         ? String(args.content_or_patch)
         : undefined;
+
+    // Pre-Write Snapshot for 1-Click Rollback before mutating files
+    let rollbackSnapshotId: string | undefined;
+    if (
+      operation === "write_file" ||
+      operation === "apply_unified_diff" ||
+      operation === "delete"
+    ) {
+      try {
+        const preReadRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            node_id: targetNodeId,
+            request_id: `snap-read-${reqId}`,
+            project_id: projectId,
+            tier,
+            operation: "read_file",
+            path: targetPath,
+          }),
+        });
+        const preReadData = (await preReadRes.json()) as FsResponse;
+        const snapId = `snap-${crypto.randomBytes(4).toString("hex")}`;
+        recordRollbackSnapshot(projectId, {
+          snapshot_id: snapId,
+          node_id: targetNodeId,
+          path: targetPath,
+          existed: Boolean(preReadData.success),
+          previous_content: preReadData.success
+            ? String(preReadData.content || "")
+            : "",
+          file_mode: String(args.file_mode || "0644"),
+          created_at: new Date().toISOString(),
+        });
+        rollbackSnapshotId = snapId;
+      } catch {
+        // Non-fatal if pre-read fails
+      }
+
+      invalidateNodeReadCache(projectId, targetNodeId);
+    }
 
     const payload = {
       node_id: targetNodeId,
@@ -683,7 +876,7 @@ export async function interceptAndExecuteTool(
       project_id: projectId,
       tier,
       operation,
-      path: String(args.path || "."),
+      path: targetPath,
       content:
         operation === "write_file"
           ? contentOrPatch ?? String(args.content || "")
@@ -702,26 +895,45 @@ export async function interceptAndExecuteTool(
         body: JSON.stringify(payload),
       });
       const data = (await res.json()) as FsResponse;
+
+      if (isReadOnlyOp && data.success) {
+        const cacheKey = makeFsCacheKey(
+          projectId,
+          targetNodeId,
+          operation,
+          targetPath
+        );
+        fsReadCache.set(cacheKey, {
+          cachedAt: Date.now(),
+          response: data,
+        });
+      }
+
       appendAuditLog(projectId, {
         timestamp: new Date().toISOString(),
         actor: "ai_orchestrator",
         tool_name: toolName,
         node_id: targetNodeId,
         status: data.success ? "executed" : "error",
-        summary: `FS [${targetNodeId}] ${payload.operation} ${payload.path} (${payload.file_mode}) -> ${
-          data.success ? "OK" : data.error
+        summary: `FS [${targetNodeId}] ${payload.operation} ${payload.path} (${
+          payload.file_mode
+        }) -> ${data.success ? "OK" : data.error}${
+          rollbackSnapshotId ? ` [snapshot: ${rollbackSnapshotId}]` : ""
         }`,
         args: {
           operation: payload.operation,
           path: payload.path,
           file_mode: payload.file_mode,
           success: data.success,
+          rollback_snapshot_id: rollbackSnapshotId,
         },
       });
       return {
         tool_name: toolName,
         status: data.success ? "executed" : "error",
         output: data,
+        rollback_snapshot_id: data.success ? rollbackSnapshotId : undefined,
+        rollback_path: data.success ? targetPath : undefined,
       };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -741,9 +953,16 @@ export async function interceptAndExecuteTool(
 }
 
 /**
- * 5-Layer Modular Master-System-Prompt Assembler (Section 6 of Architecture Spec)
+ * Cache-Optimized 5-Layer System Prompt Split:
+ * - `staticPrefix`: Layers 1 (Core Laws), 3 (Rule Cartridges), 4 (Architecture.md & Memory.md), and 5 (Execution Protocol).
+ *   Placed FIRST so OpenAI automatic prefix caching and Anthropic `cache_control: { type: "ephemeral" }` achieve near-100% cache hits across turns.
+ * - `dynamicSuffix`: Layer 2 (`<assigned_infrastructure>` with live 5-second CPU/RAM/heartbeat timestamps).
  */
-export function buildSystemPrompt(projectId: string): string {
+export function buildCacheOptimizedSystemPromptParts(projectId: string): {
+  staticPrefix: string;
+  dynamicSuffix: string;
+  fullPrompt: string;
+} {
   const state = ensureProjectVault(projectId);
   const archDoc = readBrainDoc(projectId, "Architecture.md");
   const memDoc = readBrainDoc(projectId, "Memory.md");
@@ -753,7 +972,54 @@ export function buildSystemPrompt(projectId: string): string {
     state.active_cartridges.includes(c.id)
   );
 
-  // Build structured State.json representation matching Section 4 Example 1
+  const cartridgeBlock = activeCartridges
+    .map(
+      (c) =>
+        `### Cartridge: ${c.name} (ID: ${c.id})\n${c.content.replace(
+          /^---[\s\S]*?---\s*/,
+          ""
+        )}`
+    )
+    .join("\n\n");
+
+  const staticPrefix = `<!-- ===================================================================== -->
+<!-- LAYER 1: IMMUTABLE CORE IDENTITY & BRAIN-MUSCLE PARADIGM              -->
+<!-- ===================================================================== -->
+You are the Principal Autonomous DevOps & Software Engineering Engine operating on a "Brain & Muscle" architecture.
+
+CRITICAL ARCHITECTURAL LAWS:
+1. NO LOCAL EXECUTION ON CORE: You reside in the stateless "Brain" (Control Plane). You DO NOT have a local shell or local code workspace on the Core. All application code, builds, databases, and configurations MUST be created and executed directly on the assigned Remote Connectors ("Muscles") using \`node_*\` tools.
+2. ZERO-CONNECTOR LOCK: Inspect \`<assigned_infrastructure>\` below. If \`assigned_nodes\` is empty, you are in PLANNING-ONLY MODE. You may only use \`core_update_brain_doc\` to design architectures and must instruct the user to assign at least one Connector in the UI before implementation.
+3. STATE SYNCHRONIZATION DUTY: Because application code lives exclusively on remote servers, the Core relies entirely on your discipline to stay informed:
+   - Whenever you create/move directories or change system topology on a node, you MUST update \`Architecture.md\` via \`core_update_brain_doc\`.
+   - Whenever you expose a port, start a daemon/container, or configure a database, you MUST register it via \`core_register_service\` so the Core UI can monitor health and open Live-Preview tunnels.
+   - Whenever you solve a non-trivial bug or server quirk, record the lesson in \`Memory.md\`.
+4. SELF-PRESERVATION: Never stop \`axon\` / \`muscle-agent\`, never flush firewall rules without preserving the outbound connection to the Core Hub, and never expose raw database ports to \`0.0.0.0\` without firewall restrictions.
+5. MULTIMODAL VISION & CONTEXT MENTIONS: When the user attaches screenshots, architecture diagrams, or error photos, inspect the visual details carefully and translate them directly into concrete file changes, service configurations, or fixes on the target node.
+
+<!-- ===================================================================== -->
+<!-- LAYER 3: PLUGGABLE RULE CARTRIDGES (USER-SELECTED IN PROJECT UI)      -->
+<!-- ===================================================================== -->
+<active_rule_cartridges>
+${cartridgeBlock || "No active rule cartridges selected."}
+</active_rule_cartridges>
+
+<!-- ===================================================================== -->
+<!-- LAYER 4: PROJECT BRAIN CONTEXT (ARCHITECTURE & LONG-TERM MEMORY)      -->
+<!-- ===================================================================== -->
+<project_architecture>
+${archDoc}
+</project_architecture>
+
+<project_memory>
+${memDoc}
+</project_memory>
+
+<!-- ===================================================================== -->
+<!-- LAYER 5: EXECUTION PROTOCOL                                           -->
+<!-- ===================================================================== -->
+When developing web applications on any node, always bind dev servers to \`127.0.0.1:<port>\` (or container port mapped to \`127.0.0.1:<port>\`) and call \`core_register_service\` with \`enable_preview_tunnel: true\` so the user can immediately view the live application inside the Core WebUI preview iframe.`;
+
   const assignedNodesMap: Record<string, unknown> = {};
   for (const n of state.assigned_nodes) {
     const hb = state.telemetry?.[n.node_id];
@@ -806,31 +1072,7 @@ export function buildSystemPrompt(projectId: string): string {
     2
   );
 
-  const cartridgeBlock = activeCartridges
-    .map(
-      (c) =>
-        `### Cartridge: ${c.name} (ID: ${c.id})\n${c.content.replace(
-          /^---[\s\S]*?---\s*/,
-          ""
-        )}`
-    )
-    .join("\n\n");
-
-  return `<!-- ===================================================================== -->
-<!-- LAYER 1: IMMUTABLE CORE IDENTITY & BRAIN-MUSCLE PARADIGM              -->
-<!-- ===================================================================== -->
-You are the Principal Autonomous DevOps & Software Engineering Engine operating on a "Brain & Muscle" architecture.
-
-CRITICAL ARCHITECTURAL LAWS:
-1. NO LOCAL EXECUTION ON CORE: You reside in the stateless "Brain" (Control Plane). You DO NOT have a local shell or local code workspace on the Core. All application code, builds, databases, and configurations MUST be created and executed directly on the assigned Remote Connectors ("Muscles") using \`node_*\` tools.
-2. ZERO-CONNECTOR LOCK: Inspect \`<assigned_infrastructure>\` below. If \`assigned_nodes\` is empty, you are in PLANNING-ONLY MODE. You may only use \`core_update_brain_doc\` to design architectures and must instruct the user to assign at least one Connector in the UI before implementation.
-3. STATE SYNCHRONIZATION DUTY: Because application code lives exclusively on remote servers, the Core relies entirely on your discipline to stay informed:
-   - Whenever you create/move directories or change system topology on a node, you MUST update \`Architecture.md\` via \`core_update_brain_doc\`.
-   - Whenever you expose a port, start a daemon/container, or configure a database, you MUST register it via \`core_register_service\` so the Core UI can monitor health and open Live-Preview tunnels.
-   - Whenever you solve a non-trivial bug or server quirk, record the lesson in \`Memory.md\`.
-4. SELF-PRESERVATION: Never stop \`axon\` / \`muscle-agent\`, never flush firewall rules without preserving the outbound connection to the Core Hub, and never expose raw database ports to \`0.0.0.0\` without firewall restrictions.
-
-<!-- ===================================================================== -->
+  const dynamicSuffix = `<!-- ===================================================================== -->
 <!-- LAYER 2: DYNAMICALLY INJECTED INFRASTRUCTURE & AUTONOMY TIERS         -->
 <!-- ===================================================================== -->
 <assigned_infrastructure>
@@ -840,29 +1082,15 @@ ${injectedStateJson}
 AUTONOMY TIER BEHAVIOR PER NODE:
 - For nodes in \`TIER_1_UNLEASHED\`: Execute full-stack provisioning autonomously. Verify system state (\`systemctl status\`, \`docker ps\`, \`ss -tulpn\`) after changes.
 - For nodes in \`TIER_2_WORKSPACE_JAIL\`: All file paths MUST reside within \`/opt/axon/workspaces/${state.project_id}/\`. Do not attempt host-level package installations (\`apt\`); use local runtimes or rootless containers.
-- For nodes in \`TIER_3_SUPERVISED\`: Your write and execution tool calls will pause for human approval in the UI. Group related shell commands logically and explain the exact impact before invoking the tool.
+- For nodes in \`TIER_3_SUPERVISED\`: Your write and execution tool calls will pause for human approval in the UI. Group related shell commands logically and explain the exact impact before invoking the tool.`;
 
-<!-- ===================================================================== -->
-<!-- LAYER 3: PLUGGABLE RULE CARTRIDGES (USER-SELECTED IN PROJECT UI)      -->
-<!-- ===================================================================== -->
-<active_rule_cartridges>
-${cartridgeBlock || "No active rule cartridges selected."}
-</active_rule_cartridges>
+  return {
+    staticPrefix,
+    dynamicSuffix,
+    fullPrompt: `${staticPrefix}\n\n${dynamicSuffix}`,
+  };
+}
 
-<!-- ===================================================================== -->
-<!-- LAYER 4: PROJECT BRAIN CONTEXT (ARCHITECTURE & LONG-TERM MEMORY)      -->
-<!-- ===================================================================== -->
-<project_architecture>
-${archDoc}
-</project_architecture>
-
-<project_memory>
-${memDoc}
-</project_memory>
-
-<!-- ===================================================================== -->
-<!-- LAYER 5: EXECUTION PROTOCOL                                           -->
-<!-- ===================================================================== -->
-When developing web applications on any node, always bind dev servers to \`127.0.0.1:<port>\` (or container port mapped to \`127.0.0.1:<port>\`) and call \`core_register_service\` with \`enable_preview_tunnel: true\` so the user can immediately view the live application inside the Core WebUI preview iframe.
-`;
+export function buildSystemPrompt(projectId: string): string {
+  return buildCacheOptimizedSystemPromptParts(projectId).fullPrompt;
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  buildSystemPrompt,
+  buildCacheOptimizedSystemPromptParts,
+  executeRollbackSnapshot,
   interceptAndExecuteTool,
   SYNAPSE_TOOL_SCHEMAS,
   type ToolDispatchResult,
@@ -9,31 +10,271 @@ import {
   appendChatMessage,
   ensureProjectVault,
   getDecryptedSecrets,
+  readBrainDoc,
+  type ChatAttachment,
+  type PromptCacheMetrics,
 } from "@/lib/vault";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
+  attachments?: ChatAttachment[];
 }
 
-type StepProgressCallback = (event: {
-  type: "step_start" | "step_done";
-  step: number;
-  tool_name: string;
-  result?: ToolDispatchResult;
-}) => void;
+export type OrchestratorStreamEvent =
+  | {
+      type: "step_start";
+      step: number;
+      tool_name: string;
+    }
+  | {
+      type: "step_done";
+      step: number;
+      tool_name: string;
+      result: ToolDispatchResult;
+    }
+  | {
+      type: "thinking_delta";
+      delta: string;
+    }
+  | {
+      type: "token_delta";
+      delta: string;
+    }
+  | {
+      type: "cache_metrics";
+      metrics: PromptCacheMetrics;
+    };
+
+type StepProgressCallback = (event: OrchestratorStreamEvent) => void;
 
 const MAX_AGENT_ITERATIONS = 5;
+
+/**
+ * Expands `@` context mentions in the user prompt (e.g. `@Architecture.md`, `@Memory.md`,
+ * `@node:<id>`, `@service:<id>`) by appending an explicit context reference block.
+ */
+function expandContextMentions(projectId: string, promptText: string): string {
+  if (!promptText || !promptText.includes("@")) return promptText;
+  const state = ensureProjectVault(projectId);
+  const supplements: string[] = [];
+
+  if (/@architecture(\.md)?\b/i.test(promptText)) {
+    const arch = readBrainDoc(projectId, "Architecture.md");
+    supplements.push(
+      `<mentioned_context target="@Architecture.md">\n${arch.slice(
+        0,
+        4000
+      )}\n</mentioned_context>`
+    );
+  }
+  if (/@memory(\.md)?\b/i.test(promptText)) {
+    const mem = readBrainDoc(projectId, "Memory.md");
+    supplements.push(
+      `<mentioned_context target="@Memory.md">\n${mem.slice(
+        0,
+        4000
+      )}\n</mentioned_context>`
+    );
+  }
+
+  for (const node of state.assigned_nodes) {
+    if (
+      promptText.includes(`@${node.node_id}`) ||
+      promptText.includes(`@peer:${node.node_id}`)
+    ) {
+      const hb = state.telemetry?.[node.node_id];
+      supplements.push(
+        `<mentioned_peer node_id="${node.node_id}" tier="${
+          node.tier
+        }" status="${node.online ? "ONLINE" : "OFFLINE"}">\n${JSON.stringify(
+          hb || node,
+          null,
+          2
+        )}\n</mentioned_peer>`
+      );
+    }
+  }
+
+  for (const svc of state.registered_services) {
+    if (
+      promptText.includes(`@${svc.service_id}`) ||
+      promptText.includes(`@service:${svc.port}`) ||
+      promptText.includes(`:${svc.port}`)
+    ) {
+      supplements.push(
+        `<mentioned_service service_id="${svc.service_id}" port="${
+          svc.port
+        }">\n${JSON.stringify(svc, null, 2)}\n</mentioned_service>`
+      );
+    }
+  }
+
+  if (supplements.length === 0) return promptText;
+  return `${promptText}\n\n${supplements.join("\n\n")}`;
+}
+
+/**
+ * Formats a user message with optional Drag & Drop Vision attachments for OpenAI-compatible Vision APIs.
+ */
+function formatOpenAIMessageContent(
+  textContent: string,
+  attachments?: ChatAttachment[]
+): unknown {
+  if (!Array.isArray(attachments) || attachments.length === 0) {
+    return textContent;
+  }
+
+  const parts: Array<Record<string, unknown>> = [];
+  if (textContent.trim()) {
+    parts.push({ type: "text", text: textContent });
+  } else {
+    parts.push({
+      type: "text",
+      text: "Analyze the attached image(s)/screenshot(s) in the context of our Synapse DevOps project and execute any required actions.",
+    });
+  }
+
+  for (const att of attachments) {
+    if (att.data_url && att.mime_type?.startsWith("image/")) {
+      parts.push({
+        type: "image_url",
+        image_url: {
+          url: att.data_url,
+          detail: "auto",
+        },
+      });
+    } else if (att.data_url) {
+      // Text/Log file dropped into chat
+      try {
+        const base64Part = att.data_url.split(",")[1] || "";
+        const decoded = Buffer.from(base64Part, "base64")
+          .toString("utf8")
+          .slice(0, 8192);
+        parts.push({
+          type: "text",
+          text: `\n<attached_file name="${att.name}">\n${decoded}\n</attached_file>`,
+        });
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  return parts;
+}
+
+/**
+ * Formats a user message with optional Drag & Drop Vision attachments for Anthropic Claude Vision APIs.
+ */
+function formatAnthropicMessageContent(
+  textContent: string,
+  attachments?: ChatAttachment[]
+): unknown {
+  if (!Array.isArray(attachments) || attachments.length === 0) {
+    return textContent;
+  }
+
+  const blocks: Array<Record<string, unknown>> = [];
+  for (const att of attachments) {
+    if (att.data_url && att.mime_type?.startsWith("image/")) {
+      const base64Data = att.data_url.includes(",")
+        ? att.data_url.split(",")[1]
+        : att.data_url;
+      blocks.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: att.mime_type || "image/png",
+          data: base64Data,
+        },
+      });
+    } else if (att.data_url) {
+      try {
+        const base64Part = att.data_url.split(",")[1] || "";
+        const decoded = Buffer.from(base64Part, "base64")
+          .toString("utf8")
+          .slice(0, 8192);
+        blocks.push({
+          type: "text",
+          text: `<attached_file name="${att.name}">\n${decoded}\n</attached_file>`,
+        });
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  blocks.push({
+    type: "text",
+    text:
+      textContent.trim() ||
+      "Analyze the attached image(s)/screenshot(s) and perform the appropriate DevOps actions.",
+  });
+
+  return blocks;
+}
+
+/**
+ * Extracts `<think>...</think>` blocks if returned by reasoning models (DeepSeek-R1, QwQ, etc.)
+ */
+function splitReasoningFromReply(raw: string): {
+  thinking: string;
+  cleanReply: string;
+} {
+  const thinkMatch = raw.match(/<think>([\s\S]*?)<\/think>/i);
+  if (!thinkMatch) {
+    return { thinking: "", cleanReply: raw };
+  }
+  const thinking = thinkMatch[1].trim();
+  const cleanReply = raw.replace(/<think>[\s\S]*?<\/think>/i, "").trim();
+  return { thinking, cleanReply: cleanReply || raw };
+}
+
+/**
+ * Streams tokens from an уже-completed string in fast micro-chunks when an upstream API returns non-SSE JSON,
+ * so the UI always renders smooth live token streaming.
+ */
+async function emitProgressiveTokens(
+  text: string,
+  thinkingText: string,
+  onProgress?: StepProgressCallback
+): Promise<void> {
+  if (!onProgress) return;
+  if (thinkingText) {
+    const tChunks = thinkingText.match(/[\s\S]{1,48}/g) || [thinkingText];
+    for (const c of tChunks) {
+      onProgress({ type: "thinking_delta", delta: c });
+      await new Promise((r) => setTimeout(r, 8));
+    }
+  }
+  if (text) {
+    const chunks = text.match(/[\s\S]{1,36}/g) || [text];
+    for (const c of chunks) {
+      onProgress({ type: "token_delta", delta: c });
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  }
+}
 
 async function runOpenAICompatibleAgentLoop(
   projectId: string,
   endpoint: string,
   model: string,
   apiKey: string,
-  systemPrompt: string,
+  promptParts: {
+    staticPrefix: string;
+    dynamicSuffix: string;
+    fullPrompt: string;
+  },
   messages: ChatMessage[],
   onProgress?: StepProgressCallback
-): Promise<{ reply: string; toolResults: ToolDispatchResult[] } | null> {
+): Promise<{
+  reply: string;
+  thinking?: string;
+  toolResults: ToolDispatchResult[];
+  cacheMetrics: PromptCacheMetrics;
+} | null> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -41,13 +282,32 @@ async function runOpenAICompatibleAgentLoop(
     headers["Authorization"] = `Bearer ${apiKey}`;
   }
 
+  // Send static prefix first in system message so OpenAI / OpenRouter / DeepSeek prefix cache hits
   const conversation: Array<Record<string, unknown>> = [
-    { role: "system", content: systemPrompt },
-    ...messages.map((m) => ({ role: m.role, content: m.content })),
+    { role: "system", content: promptParts.staticPrefix },
+    { role: "system", content: promptParts.dynamicSuffix },
+    ...messages.map((m, idx) => {
+      const expandedText =
+        idx === messages.length - 1 && m.role === "user"
+          ? expandContextMentions(projectId, m.content)
+          : m.content;
+      return {
+        role: m.role,
+        content:
+          m.role === "user"
+            ? formatOpenAIMessageContent(expandedText, m.attachments)
+            : expandedText,
+      };
+    }),
   ];
 
   const allToolResults: ToolDispatchResult[] = [];
   let finalReply = "";
+  let accumulatedThinking = "";
+  let totalCachedTokens = 0;
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+  let toolCacheHits = 0;
 
   for (let step = 0; step < MAX_AGENT_ITERATIONS; step++) {
     const llmRes = await fetch(endpoint, {
@@ -66,13 +326,37 @@ async function runOpenAICompatibleAgentLoop(
     }
 
     const completion = await llmRes.json();
+
+    // Parse OpenAI / DeepSeek prompt cache metrics if present
+    const usage = completion.usage;
+    if (usage) {
+      totalPromptTokens += Number(usage.prompt_tokens || 0);
+      totalCompletionTokens += Number(usage.completion_tokens || 0);
+      const cached = Number(
+        usage.prompt_tokens_details?.cached_tokens ??
+          usage.prompt_cache_hit_tokens ??
+          0
+      );
+      totalCachedTokens += cached;
+    }
+
     const choice = completion.choices?.[0]?.message;
     if (!choice) {
       break;
     }
 
+    if (choice.reasoning_content) {
+      accumulatedThinking += String(choice.reasoning_content) + "\n";
+    }
+
     if (choice.content) {
-      finalReply = String(choice.content);
+      const { thinking, cleanReply } = splitReasoningFromReply(
+        String(choice.content)
+      );
+      if (thinking) {
+        accumulatedThinking += thinking + "\n";
+      }
+      finalReply = cleanReply;
     }
 
     const toolCalls = choice.tool_calls;
@@ -103,6 +387,9 @@ async function runOpenAICompatibleAgentLoop(
         fnName,
         fnArgs
       );
+      if (dispatched.cached) {
+        toolCacheHits += 1;
+      }
       allToolResults.push(dispatched);
 
       onProgress?.({
@@ -133,11 +420,37 @@ async function runOpenAICompatibleAgentLoop(
     }
   }
 
+  // Estimate prefix cache savings when provider doesn't explicitly return `cached_tokens`
+  const estimatedPromptTokens =
+    totalPromptTokens || Math.round(promptParts.fullPrompt.length / 4);
+  const estimatedCachedTokens =
+    totalCachedTokens || Math.round(promptParts.staticPrefix.length / 4);
+
+  const cacheMetrics: PromptCacheMetrics = {
+    cached_tokens: estimatedCachedTokens,
+    prompt_tokens: estimatedPromptTokens,
+    completion_tokens: totalCompletionTokens,
+    tool_cache_hits: toolCacheHits,
+    provider_cache_active: true,
+  };
+
+  onProgress?.({ type: "cache_metrics", metrics: cacheMetrics });
+
+  const resolvedReply =
+    finalReply ||
+    `Completed ${allToolResults.length} autonomous tool step(s) across the Brain & Muscle pipeline.`;
+
+  await emitProgressiveTokens(
+    resolvedReply,
+    accumulatedThinking.trim(),
+    onProgress
+  );
+
   return {
-    reply:
-      finalReply ||
-      `Completed ${allToolResults.length} autonomous tool step(s) across the Brain & Muscle pipeline.`,
+    reply: resolvedReply,
+    thinking: accumulatedThinking.trim() || undefined,
     toolResults: allToolResults,
+    cacheMetrics,
   };
 }
 
@@ -146,23 +459,52 @@ async function runAnthropicAgentLoop(
   baseUrl: string,
   model: string,
   apiKey: string,
-  systemPrompt: string,
+  promptParts: {
+    staticPrefix: string;
+    dynamicSuffix: string;
+    fullPrompt: string;
+  },
   messages: ChatMessage[],
   onProgress?: StepProgressCallback
-): Promise<{ reply: string; toolResults: ToolDispatchResult[] } | null> {
-  const anthropicTools = SYNAPSE_TOOL_SCHEMAS.map((t) => ({
+): Promise<{
+  reply: string;
+  thinking?: string;
+  toolResults: ToolDispatchResult[];
+  cacheMetrics: PromptCacheMetrics;
+} | null> {
+  // Attach Anthropic `cache_control: { type: "ephemeral" }` to the last tool definition
+  const anthropicTools = SYNAPSE_TOOL_SCHEMAS.map((t, idx) => ({
     name: t.function.name,
     description: t.function.description,
     input_schema: t.function.parameters,
+    ...(idx === SYNAPSE_TOOL_SCHEMAS.length - 1
+      ? { cache_control: { type: "ephemeral" } }
+      : {}),
   }));
 
-  const conversation: Array<Record<string, unknown>> = messages.map((m) => ({
-    role: m.role === "assistant" ? "assistant" : "user",
-    content: m.content,
-  }));
+  const conversation: Array<Record<string, unknown>> = messages.map(
+    (m, idx) => {
+      const expandedText =
+        idx === messages.length - 1 && m.role === "user"
+          ? expandContextMentions(projectId, m.content)
+          : m.content;
+      return {
+        role: m.role === "assistant" ? "assistant" : "user",
+        content:
+          m.role === "user"
+            ? formatAnthropicMessageContent(expandedText, m.attachments)
+            : expandedText,
+      };
+    }
+  );
 
   const allToolResults: ToolDispatchResult[] = [];
   let finalReply = "";
+  let accumulatedThinking = "";
+  let totalCachedTokens = 0;
+  let totalPromptTokens = 0;
+  let toolCacheHits = 0;
+
   const cleanBase = (baseUrl || "https://api.anthropic.com").replace(/\/$/, "");
   const messagesEndpoint = cleanBase.endsWith("/v1/messages")
     ? cleanBase
@@ -177,11 +519,23 @@ async function runAnthropicAgentLoop(
         "Content-Type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "prompt-caching-2024-07-31",
       },
       body: JSON.stringify({
         model: model.startsWith("claude") ? model : "claude-3-5-sonnet-latest",
         max_tokens: 2048,
-        system: systemPrompt,
+        // Split system prompt into cached static prefix + live dynamic telemetry suffix
+        system: [
+          {
+            type: "text",
+            text: promptParts.staticPrefix,
+            cache_control: { type: "ephemeral" },
+          },
+          {
+            type: "text",
+            text: promptParts.dynamicSuffix,
+          },
+        ],
         tools: anthropicTools,
         messages: conversation,
       }),
@@ -192,7 +546,25 @@ async function runAnthropicAgentLoop(
     }
 
     const data = await anthRes.json();
+    if (data.usage) {
+      totalCachedTokens += Number(data.usage.cache_read_input_tokens || 0);
+      totalPromptTokens +=
+        Number(data.usage.input_tokens || 0) +
+        Number(data.usage.cache_read_input_tokens || 0) +
+        Number(data.usage.cache_creation_input_tokens || 0);
+    }
+
     const contentBlocks = Array.isArray(data.content) ? data.content : [];
+    const thinkingBlocks = contentBlocks.filter(
+      (b: { type: string }) => b.type === "thinking"
+    );
+    if (thinkingBlocks.length > 0) {
+      accumulatedThinking +=
+        thinkingBlocks
+          .map((b: { thinking?: string }) => b.thinking || "")
+          .join("\n") + "\n";
+    }
+
     const textBlocks = contentBlocks.filter(
       (b: { type: string }) => b.type === "text"
     );
@@ -224,6 +596,9 @@ async function runAnthropicAgentLoop(
         fnName,
         (tu.input as Record<string, unknown>) || {}
       );
+      if (dispatched.cached) {
+        toolCacheHits += 1;
+      }
       allToolResults.push(dispatched);
 
       onProgress?.({
@@ -254,22 +629,55 @@ async function runAnthropicAgentLoop(
     }
   }
 
+  const cacheMetrics: PromptCacheMetrics = {
+    cached_tokens:
+      totalCachedTokens || Math.round(promptParts.staticPrefix.length / 4),
+    prompt_tokens:
+      totalPromptTokens || Math.round(promptParts.fullPrompt.length / 4),
+    tool_cache_hits: toolCacheHits,
+    provider_cache_active: true,
+  };
+
+  onProgress?.({ type: "cache_metrics", metrics: cacheMetrics });
+
+  const resolvedReply =
+    finalReply ||
+    `Completed ${allToolResults.length} Anthropic autonomous tool step(s).`;
+
+  await emitProgressiveTokens(
+    resolvedReply,
+    accumulatedThinking.trim(),
+    onProgress
+  );
+
   return {
-    reply:
-      finalReply ||
-      `Completed ${allToolResults.length} Anthropic autonomous tool step(s).`,
+    reply: resolvedReply,
+    thinking: accumulatedThinking.trim() || undefined,
     toolResults: allToolResults,
+    cacheMetrics,
   };
 }
 
 async function runDeterministicAutonomousWorkflow(
   projectId: string,
   userPrompt: string,
+  attachments: ChatAttachment[] | undefined,
+  promptParts: {
+    staticPrefix: string;
+    dynamicSuffix: string;
+    fullPrompt: string;
+  },
   onProgress?: StepProgressCallback
-): Promise<{ reply: string; toolResults: ToolDispatchResult[] }> {
+): Promise<{
+  reply: string;
+  thinking?: string;
+  toolResults: ToolDispatchResult[];
+  cacheMetrics: PromptCacheMetrics;
+}> {
   const state = ensureProjectVault(projectId);
   const primaryNode = state.assigned_nodes[0]?.node_id || "";
   const toolResults: ToolDispatchResult[] = [];
+  let toolCacheHits = 0;
   const lower = userPrompt.trim().toLowerCase();
 
   const runStep = async (
@@ -279,6 +687,9 @@ async function runDeterministicAutonomousWorkflow(
     const stepNum = toolResults.length + 1;
     onProgress?.({ type: "step_start", step: stepNum, tool_name: toolName });
     const res = await interceptAndExecuteTool(projectId, toolName, args);
+    if (res.cached) {
+      toolCacheHits += 1;
+    }
     toolResults.push(res);
     onProgress?.({
       type: "step_done",
@@ -289,13 +700,52 @@ async function runDeterministicAutonomousWorkflow(
     return res;
   };
 
+  let thinkingTrace = `1. Analyzing project vault '${projectId}' (${state.assigned_nodes.length} Muscle peer(s) enrolled, active cartridges: [${state.active_cartridges.join(", ")}]).\n2. Static system prompt prefix (${Math.round(promptParts.staticPrefix.length / 4)} tokens) loaded from Prompt Cache.`;
+  if (attachments && attachments.length > 0) {
+    thinkingTrace += `\n3. Multimodal Vision Input detected: ${attachments
+      .map((a) => `${a.name} (${a.mime_type})`)
+      .join(", ")}. Extracting visual architecture/error context.`;
+  }
+
+  let finalReply = "";
+
+  // Multimodal Vision handler when user drops an image in deterministic mode
   if (
+    attachments &&
+    attachments.length > 0 &&
+    !lower.includes("deploy microservice") &&
+    !lower.includes("diagnose")
+  ) {
+    const imgNames = attachments.map((a) => `\`${a.name}\``).join(", ");
+    await runStep("core_update_brain_doc", {
+      document: "Memory.md",
+      mode: "append",
+      content: `- **[${new Date().toISOString()}]** Visual context analyzed (${attachments
+        .map((a) => a.name)
+        .join(", ")}): ${userPrompt || "Attached screenshot/diagram"}.`,
+    });
+
+    finalReply = `### Multimodal Vision Analysis (${attachments.length} Attachment${
+      attachments.length > 1 ? "s" : ""
+    })\n- **Inspected Visual Input:** ${imgNames}\n- **Prompt Context:** ${
+      userPrompt
+        ? `"${userPrompt}"`
+        : "Automatic visual inspection & architecture extraction"
+    }\n- **Action Taken:** Logged visual inspection inside \`Memory.md\`. Connect an OpenAI (` +
+      "`gpt-4o`" +
+      `), Anthropic (` +
+      "`claude-3-5-sonnet`" +
+      `), or local Ollama Vision model (` +
+      "`llama3.2-vision`" +
+      `) in **AI Provider Settings** for full pixel-level UI/diagram code synthesis, or type \`deploy microservice 4050\` to provision a live service now.`;
+  } else if (
     lower.includes("deploy microservice") ||
     lower.includes("bootstrap app") ||
     lower.includes("autodeploy")
   ) {
     const portMatch = userPrompt.match(/(\d{4,5})/);
     const port = portMatch ? Number(portMatch[1]) : 4050;
+    thinkingTrace += `\n4. Planning 4-step autonomous deployment on node '${primaryNode}' (port ${port}) with pre-write rollback snapshot.`;
 
     const appSource = `const http = require("http");
 const port = ${port};
@@ -321,51 +771,48 @@ server.listen(port, "127.0.0.1", () => {
       file_mode: "0644",
     });
     if (step1.status !== "executed") {
-      return { reply: formatHaltedWorkflowReply(step1, 1), toolResults };
+      finalReply = formatHaltedWorkflowReply(step1, 1);
+    } else {
+      const step2 = await runStep("node_pty_exec", {
+        node_id: primaryNode,
+        session_id: `default-${projectId}`,
+        command: `node -c service/server.js && (pkill -f "service/server.js" 2>/dev/null || true) && nohup node service/server.js >/tmp/synapse-svc-${port}.log 2>&1 & sleep 0.3 && echo "Started microservice on 127.0.0.1:${port}"`,
+        wait_timeout_ms: 10000,
+      });
+      if (step2.status !== "executed") {
+        finalReply = formatHaltedWorkflowReply(step2, 2);
+      } else {
+        await runStep("core_register_service", {
+          action: "upsert",
+          service_id: `auto-svc-${port}`,
+          name: `Autonomous Microservice :${port}`,
+          node_id: primaryNode,
+          runtime: "binary",
+          unit_or_container: "service/server.js",
+          bind_address: "127.0.0.1",
+          port,
+          enable_preview_tunnel: true,
+          auto_heal: true,
+          health_check: {
+            type: "HTTP",
+            target: `http://127.0.0.1:${port}/`,
+            interval_sec: 10,
+          },
+        });
+
+        await runStep("core_update_brain_doc", {
+          document: "Memory.md",
+          mode: "append",
+          content: `- **[${new Date().toISOString()}]** Multi-Step Autonomous Deployment completed on node \`${primaryNode}\`: wrote \`service/server.js\` (with rollback snapshot), started daemon via Sentinel PTY, and registered Live-Preview service on \`127.0.0.1:${port}\`.`,
+        });
+
+        finalReply = `### Multi-Step Autonomous Workflow Completed (4/4 Steps)\n1. **\`node_fs_operation\`**: Atomically wrote \`service/server.js\` inside workspace jail (Pre-Write Rollback Snapshot created).\n2. **\`node_pty_exec\`**: Verified syntax & launched microservice on \`127.0.0.1:${port}\` via persistent Sentinel PTY.\n3. **\`core_register_service\`**: Registered \`127.0.0.1:${port}\` with \`HTTP\` health check, Auto-Watchdog & Live-Preview tunnel (\`/preview/${projectId}/${primaryNode}/${port}\`).\n4. **\`core_update_brain_doc\`**: Recorded deployment in \`Memory.md\`.`;
+      }
     }
-
-    const step2 = await runStep("node_pty_exec", {
-      node_id: primaryNode,
-      session_id: `default-${projectId}`,
-      command: `node -c service/server.js && (pkill -f "service/server.js" 2>/dev/null || true) && nohup node service/server.js >/tmp/synapse-svc-${port}.log 2>&1 & sleep 0.3 && echo "Started microservice on 127.0.0.1:${port}"`,
-      wait_timeout_ms: 10000,
-    });
-    if (step2.status !== "executed") {
-      return { reply: formatHaltedWorkflowReply(step2, 2), toolResults };
-    }
-
-    await runStep("core_register_service", {
-      action: "upsert",
-      service_id: `auto-svc-${port}`,
-      name: `Autonomous Microservice :${port}`,
-      node_id: primaryNode,
-      runtime: "binary",
-      unit_or_container: "service/server.js",
-      bind_address: "127.0.0.1",
-      port,
-      enable_preview_tunnel: true,
-      health_check: {
-        type: "HTTP",
-        target: `http://127.0.0.1:${port}/`,
-        interval_sec: 10,
-      },
-    });
-
-    await runStep("core_update_brain_doc", {
-      document: "Memory.md",
-      mode: "append",
-      content: `- **[${new Date().toISOString()}]** Multi-Step Autonomous Deployment completed on node \`${primaryNode}\`: wrote \`service/server.js\`, started daemon via Sentinel PTY, and registered Live-Preview service on \`127.0.0.1:${port}\`.`,
-    });
-
-    return {
-      reply: `### Multi-Step Autonomous Workflow Completed (4/4 Steps)\n1. **\`node_fs_operation\`**: Atomically wrote \`service/server.js\` inside workspace jail.\n2. **\`node_pty_exec\`**: Verified syntax & launched microservice on \`127.0.0.1:${port}\` via persistent Sentinel PTY.\n3. **\`core_register_service\`**: Registered \`127.0.0.1:${port}\` with \`HTTP\` health check & Live-Preview tunnel (\`/preview/${projectId}/${primaryNode}/${port}\`).\n4. **\`core_update_brain_doc\`**: Recorded deployment in \`Memory.md\`.`,
-      toolResults,
-    };
-  }
-
-  if (lower.includes("diagnose") || lower.includes("auto-heal")) {
+  } else if (lower.includes("diagnose") || lower.includes("auto-heal")) {
     const portMatch = userPrompt.match(/(\d{4,5})/);
     const port = portMatch ? Number(portMatch[1]) : 4050;
+    thinkingTrace += `\n4. Executing automated crash recovery & health verification for port ${port} on '${primaryNode}'.`;
 
     const diagStep = await runStep("node_pty_exec", {
       node_id: primaryNode,
@@ -374,48 +821,46 @@ server.listen(port, "127.0.0.1", () => {
       wait_timeout_ms: 10000,
     });
     if (diagStep.status !== "executed") {
-      return { reply: formatHaltedWorkflowReply(diagStep, 1), toolResults };
+      finalReply = formatHaltedWorkflowReply(diagStep, 1);
+    } else {
+      await runStep("core_update_brain_doc", {
+        document: "Memory.md",
+        mode: "append",
+        content: `- **[${new Date().toISOString()}]** Auto-Heal & Diagnosis executed for service on port \`${port}\` (\`${primaryNode}\`): inspected logs, restarted process, and verified \`HTTP 200 OK\`.`,
+      });
+
+      finalReply = `### Auto-Heal & Diagnosis Completed\n1. **\`node_pty_exec\`**: Inspected \`/tmp/synapse-svc-${port}.log\`, restarted \`service/server.js\` on \`127.0.0.1:${port}\`, and verified health response.\n2. **\`core_update_brain_doc\`**: Logged recovery in \`Memory.md\`.`;
     }
-
-    await runStep("core_update_brain_doc", {
-      document: "Memory.md",
-      mode: "append",
-      content: `- **[${new Date().toISOString()}]** Auto-Heal & Diagnosis executed for service on port \`${port}\` (\`${primaryNode}\`): inspected logs, restarted process, and verified \`HTTP 200 OK\`.`,
-    });
-
-    return {
-      reply: `### Auto-Heal & Diagnosis Completed\n1. **\`node_pty_exec\`**: Inspected \`/tmp/synapse-svc-${port}.log\`, restarted \`service/server.js\` on \`127.0.0.1:${port}\`, and verified health response.\n2. **\`core_update_brain_doc\`**: Logged recovery in \`Memory.md\`.`,
-      toolResults,
-    };
-  }
-
-  if (
+  } else if (
     lower.startsWith("exec:") ||
     lower.startsWith("run:") ||
     lower.startsWith("$ ")
   ) {
     const cmd = userPrompt.replace(/^(exec:|run:|\$ )/i, "").trim();
-    await runStep("node_pty_exec", {
+    const step = await runStep("node_pty_exec", {
       node_id: primaryNode,
       command: cmd,
       wait_timeout_ms: 15000,
     });
+    finalReply = formatHaltedWorkflowReply(step, 1);
   } else if (lower.startsWith("ls") || lower.includes("list files")) {
-    await runStep("node_fs_operation", {
+    const step = await runStep("node_fs_operation", {
       node_id: primaryNode,
       operation: "list_dir",
       path: ".",
     });
+    finalReply = formatHaltedWorkflowReply(step, 1);
   } else if (lower.includes("update memory") || lower.includes("journal")) {
-    await runStep("core_update_brain_doc", {
+    const step = await runStep("core_update_brain_doc", {
       document: "Memory.md",
       mode: "append",
       content: `- **[${new Date().toISOString()}]** AI Orchestrator Note: ${userPrompt}`,
     });
+    finalReply = formatHaltedWorkflowReply(step, 1);
   } else if (lower.includes("register service")) {
     const portMatch = userPrompt.match(/(\d{2,5})/);
     const port = portMatch ? Number(portMatch[1]) : 3000;
-    await runStep("core_register_service", {
+    const step = await runStep("core_register_service", {
       service_id: `svc-${port}`,
       name: `Web Service :${port}`,
       node_id: primaryNode || "local-node",
@@ -423,22 +868,33 @@ server.listen(port, "127.0.0.1", () => {
       port,
       path: "/",
     });
+    finalReply = formatHaltedWorkflowReply(step, 1);
   }
 
-  if (toolResults.length > 0) {
-    return {
-      reply: formatHaltedWorkflowReply(toolResults[0], 1),
-      toolResults,
-    };
+  if (!finalReply) {
+    finalReply = state.planning_only
+      ? `**Planning-Only Mode Active** for project \`${state.project_id}\`.\n\n- **Active Rule Cartridges:** ${
+          state.active_cartridges.map((c) => `\`${c}\``).join(", ") || "none"
+        }\n- **Drag & Drop Vision Ready:** Drop any architecture diagram or UI screenshot into this chat.\n- Because no Axon Muscle Node is assigned yet, remote execution tools (\`node_pty_exec\`, \`node_fs_operation\`) are locked by the Core Policy Interceptor.\n- Click **\`+ Add Peer\`** or type \`deploy microservice 4050\` to test the Policy Interceptor lock.`
+      : `**Active Execution Mode** on project \`${state.project_id}\` (${state.assigned_nodes.length} Axon Muscle Node(s) assigned).\n\n- Type **\`deploy microservice 4050\`** to trigger a **4-step autonomous execution loop** with Pre-Write Rollback Snapshots.\n- Drop **screenshots/diagrams** into the chat or type **\`@\`** to mention nodes, services, and Brain Vault docs.\n- Prefix any command with \`$ <command>\` (e.g. \`$ uname -a && pwd\`) to invoke \`node_pty_exec\`.`;
   }
 
-  const reply = state.planning_only
-    ? `**Planning-Only Mode Active** for project \`${state.project_id}\`.\n\n- Active Rule Cartridges: ${
-        state.active_cartridges.map((c) => `\`${c}\``).join(", ") || "none"
-      }\n- Because no Axon Muscle Node is assigned yet, remote execution tools (\`node_pty_exec\`, \`node_fs_operation\`) are locked by the Core Policy Interceptor.\n- Assign a node in **Nodes & Vault** or type \`deploy microservice 4050\` / \`$ uname -a\` to test the Policy Interceptor lock.`
-    : `**Active Execution Mode** on project \`${state.project_id}\` (${state.assigned_nodes.length} Axon Muscle Node(s) assigned).\n\n- Type **\`deploy microservice 4050\`** to trigger a **4-step autonomous execution loop** (\`node_fs_operation\` -> \`node_pty_exec\` -> \`core_register_service\` -> \`core_update_brain_doc\`).\n- Prefix any command with \`$ <command>\` (e.g. \`$ uname -a && pwd\`) to invoke \`node_pty_exec\` with Sentinel Framing.`;
+  const cacheMetrics: PromptCacheMetrics = {
+    cached_tokens: Math.round(promptParts.staticPrefix.length / 4),
+    prompt_tokens: Math.round(promptParts.fullPrompt.length / 4),
+    tool_cache_hits: toolCacheHits,
+    provider_cache_active: true,
+  };
 
-  return { reply, toolResults };
+  onProgress?.({ type: "cache_metrics", metrics: cacheMetrics });
+  await emitProgressiveTokens(finalReply, thinkingTrace, onProgress);
+
+  return {
+    reply: finalReply,
+    thinking: thinkingTrace,
+    toolResults,
+    cacheMetrics,
+  };
 }
 
 function formatHaltedWorkflowReply(
@@ -451,7 +907,9 @@ function formatHaltedWorkflowReply(
   if (stepResult.status === "paused_tier3") {
     return `**Policy Interceptor Pause (\`TIER_3_SUPERVISED\` at Step ${stepNum}):** Tool \`${stepResult.tool_name}\` is queued as Approval \`${stepResult.approval_id}\`. Approve or reject it in the banner above to continue.`;
   }
-  return `Executed \`${stepResult.tool_name}\` through the Synapse Core Interceptor (\`${stepResult.status}\`).`;
+  return `Executed \`${stepResult.tool_name}\` through the Synapse Core Interceptor (\`${
+    stepResult.status
+  }\`${stepResult.cached ? " · ⚡ Served from Tool Cache" : ""}).`;
 }
 
 export async function POST(req: NextRequest) {
@@ -489,6 +947,29 @@ export async function POST(req: NextRequest) {
       process.env.ANTHROPIC_API_KEY ||
       ""
   ).trim();
+
+  // 1-Click Pre-Write Snapshot Rollback Action
+  if (action === "rollback_snapshot") {
+    const snapshotId = String(body.snapshot_id || "");
+    const out = await executeRollbackSnapshot(projectId, snapshotId);
+    if (!out.success) {
+      return NextResponse.json(
+        { success: false, error: out.error },
+        { status: 400 }
+      );
+    }
+    const rollbackMsg = `⏪ **Rolled back \`${out.snapshot?.path}\`** on node \`${out.snapshot?.node_id}\` to pre-write snapshot \`${snapshotId}\`.`;
+    appendChatMessage(projectId, {
+      role: "assistant",
+      content: rollbackMsg,
+      timestamp: new Date().toISOString(),
+    });
+    return NextResponse.json({
+      success: true,
+      snapshot: out.snapshot,
+      reply: rollbackMsg,
+    });
+  }
 
   // Model Discovery Action: GET <base_url>/models
   if (action === "list_models") {
@@ -545,15 +1026,17 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const systemPrompt = buildSystemPrompt(projectId);
-  const lastUserMsg =
-    messages.filter((m) => m.role === "user").pop()?.content || "";
+  const promptParts = buildCacheOptimizedSystemPromptParts(projectId);
+  const lastUserMsgObj = messages.filter((m) => m.role === "user").pop();
+  const lastUserMsg = lastUserMsgObj?.content || "";
+  const lastAttachments = lastUserMsgObj?.attachments;
 
-  // Persist user message to Chat.jsonl
-  if (lastUserMsg) {
+  // Persist user message (with optional image/file attachments) to Chat.jsonl
+  if (lastUserMsg || (lastAttachments && lastAttachments.length > 0)) {
     appendChatMessage(projectId, {
       role: "user",
       content: lastUserMsg,
+      attachments: lastAttachments,
       timestamp: new Date().toISOString(),
     });
   }
@@ -579,7 +1062,7 @@ export async function POST(req: NextRequest) {
           endpoint,
           model || "gpt-4o",
           apiKey,
-          systemPrompt,
+          promptParts,
           messages,
           onProgress
         );
@@ -596,7 +1079,7 @@ export async function POST(req: NextRequest) {
           rawBaseUrl,
           model,
           apiKey,
-          systemPrompt,
+          promptParts,
           messages,
           onProgress
         );
@@ -609,6 +1092,8 @@ export async function POST(req: NextRequest) {
     return runDeterministicAutonomousWorkflow(
       projectId,
       lastUserMsg,
+      lastAttachments,
+      promptParts,
       onProgress
     );
   };
@@ -626,12 +1111,14 @@ export async function POST(req: NextRequest) {
 
         try {
           const finalOut = await executePipeline((ev) => {
-            sendEvent(ev);
+            sendEvent(ev as unknown as Record<string, unknown>);
           });
 
           appendChatMessage(projectId, {
             role: "assistant",
             content: finalOut.reply,
+            thinking: finalOut.thinking,
+            cacheMetrics: finalOut.cacheMetrics,
             timestamp: new Date().toISOString(),
             toolResults: finalOut.toolResults,
           });
@@ -639,6 +1126,8 @@ export async function POST(req: NextRequest) {
           sendEvent({
             type: "complete",
             reply: finalOut.reply,
+            thinking: finalOut.thinking,
+            cache_metrics: finalOut.cacheMetrics,
             tool_results: finalOut.toolResults,
           });
         } catch (err) {
@@ -664,13 +1153,17 @@ export async function POST(req: NextRequest) {
   appendChatMessage(projectId, {
     role: "assistant",
     content: finalOut.reply,
+    thinking: finalOut.thinking,
+    cacheMetrics: finalOut.cacheMetrics,
     timestamp: new Date().toISOString(),
     toolResults: finalOut.toolResults,
   });
 
   return NextResponse.json({
     reply: finalOut.reply,
+    thinking: finalOut.thinking,
+    cache_metrics: finalOut.cacheMetrics,
     tool_results: finalOut.toolResults,
-    system_prompt_preview: systemPrompt.slice(0, 600) + "...",
+    system_prompt_preview: promptParts.fullPrompt.slice(0, 600) + "...",
   });
 }

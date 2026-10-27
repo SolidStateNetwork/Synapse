@@ -43,9 +43,38 @@ export interface RegisteredService {
   port: number;
   path?: string;
   enable_preview_tunnel?: boolean;
+  auto_heal?: boolean;
+  consecutive_failures?: number;
+  last_auto_heal_at?: string;
   health_check?: ServiceHealthCheckSpec;
   healthy?: boolean;
   registered_at: string;
+}
+
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  mime_type: string;
+  data_url: string;
+  size_bytes?: number;
+}
+
+export interface FileRollbackSnapshot {
+  snapshot_id: string;
+  node_id: string;
+  path: string;
+  existed: boolean;
+  previous_content: string;
+  file_mode?: string;
+  created_at: string;
+}
+
+export interface PromptCacheMetrics {
+  cached_tokens: number;
+  prompt_tokens: number;
+  completion_tokens?: number;
+  tool_cache_hits: number;
+  provider_cache_active: boolean;
 }
 
 export interface PendingApproval {
@@ -62,6 +91,8 @@ export interface AIProviderSettings {
   base_url: string;
   model: string;
   api_key_secret_name?: string;
+  enable_prompt_caching?: boolean;
+  enable_auto_watchdog?: boolean;
   custom_headers?: Record<string, string>;
 }
 
@@ -76,6 +107,7 @@ export interface ProjectState {
   active_pty_sessions: string[];
   telemetry: Record<string, NodeHeartbeat>;
   pending_approvals: PendingApproval[];
+  rollback_snapshots?: FileRollbackSnapshot[];
   ai_settings?: AIProviderSettings;
   created_at: string;
   updated_at: string;
@@ -86,13 +118,20 @@ export interface AuditEntry {
   actor: "ai_orchestrator" | "user" | "policy_interceptor";
   tool_name: string;
   node_id?: string;
-  status: "executed" | "paused_tier3" | "approved" | "rejected" | "blocked_planning_mode" | "error";
+  status:
+    | "executed"
+    | "paused_tier3"
+    | "approved"
+    | "rejected"
+    | "blocked_planning_mode"
+    | "error";
   summary: string;
   args?: Record<string, unknown>;
 }
 
 function resolveVaultBaseDir(): string {
-  const configured = process.env.SYNAPSE_VAULT_DIR || "/var/lib/synapse/projects";
+  const configured =
+    process.env.SYNAPSE_VAULT_DIR || "/var/lib/synapse/projects";
   try {
     fs.mkdirSync(configured, { recursive: true });
     fs.accessSync(configured, fs.constants.W_OK);
@@ -197,7 +236,10 @@ flowchart LR
   }
 
   if (!fs.existsSync(secPath)) {
-    fs.writeFileSync(secPath, encryptSecretsMap({}), { encoding: "utf8", mode: 0o600 });
+    fs.writeFileSync(secPath, encryptSecretsMap({}), {
+      encoding: "utf8",
+      mode: 0o600,
+    });
   }
 
   if (!fs.existsSync(auditPath)) {
@@ -213,7 +255,9 @@ flowchart LR
 
   if (fs.existsSync(statePath)) {
     try {
-      const existing = JSON.parse(fs.readFileSync(statePath, "utf8")) as ProjectState;
+      const existing = JSON.parse(
+        fs.readFileSync(statePath, "utf8")
+      ) as ProjectState;
       existing.planning_only = (existing.assigned_nodes || []).length === 0;
       return existing;
     } catch {
@@ -235,18 +279,34 @@ flowchart LR
     active_pty_sessions: [],
     telemetry: {},
     pending_approvals: [],
+    rollback_snapshots: [],
     ai_settings: {
       provider: "openai-compatible",
       base_url: "https://api.openai.com/v1",
       model: "gpt-4o",
       api_key_secret_name: "LLM_API_KEY",
+      enable_prompt_caching: true,
+      enable_auto_watchdog: true,
     },
     created_at: now,
     updated_at: now,
   };
 
-  fs.writeFileSync(statePath, JSON.stringify(initialState, null, 2), "utf8");
+  atomicWriteJsonSync(statePath, initialState);
   return initialState;
+}
+
+function atomicWriteJsonSync(targetPath: string, data: unknown): void {
+  const dir = path.dirname(targetPath);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmpPath = path.join(
+    dir,
+    `.state-tmp-${process.pid}-${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}.json`
+  );
+  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf8");
+  fs.renameSync(tmpPath, targetPath);
 }
 
 export function listProjects(): ProjectState[] {
@@ -275,12 +335,29 @@ export function saveProjectState(state: ProjectState): ProjectState {
   fs.mkdirSync(dir, { recursive: true });
   state.planning_only = (state.assigned_nodes || []).length === 0;
   state.updated_at = new Date().toISOString();
-  fs.writeFileSync(
-    path.join(dir, "State.json"),
-    JSON.stringify(state, null, 2),
-    "utf8"
-  );
+  atomicWriteJsonSync(path.join(dir, "State.json"), state);
   return state;
+}
+
+export function recordRollbackSnapshot(
+  projectId: string,
+  snapshot: FileRollbackSnapshot
+): FileRollbackSnapshot {
+  const state = ensureProjectVault(projectId);
+  const existing = state.rollback_snapshots || [];
+  state.rollback_snapshots = [snapshot, ...existing].slice(0, 35);
+  saveProjectState(state);
+  return snapshot;
+}
+
+export function getRollbackSnapshot(
+  projectId: string,
+  snapshotId: string
+): FileRollbackSnapshot | undefined {
+  const state = ensureProjectVault(projectId);
+  return (state.rollback_snapshots || []).find(
+    (s) => s.snapshot_id === snapshotId
+  );
 }
 
 export function readBrainDoc(
@@ -296,7 +373,11 @@ export function writeBrainDoc(
   projectId: string,
   doc: "Architecture.md" | "Memory.md",
   content: string,
-  mode: "overwrite" | "overwrite_full" | "append" | "replace_section" = "overwrite",
+  mode:
+    | "overwrite"
+    | "overwrite_full"
+    | "append"
+    | "replace_section" = "overwrite",
   sectionHeader?: string
 ): string {
   ensureProjectVault(projectId);
@@ -315,7 +396,10 @@ export function writeBrainDoc(
 
   if (mode === "replace_section" && sectionHeader && sectionHeader.trim()) {
     const lines = existing.split("\n");
-    const targetHeader = sectionHeader.trim().replace(/^#+\s*/, "").toLowerCase();
+    const targetHeader = sectionHeader
+      .trim()
+      .replace(/^#+\s*/, "")
+      .toLowerCase();
     let startIdx = -1;
     let startLevel = 2;
 
@@ -356,7 +440,6 @@ export function writeBrainDoc(
       fs.writeFileSync(filePath, next, "utf8");
       return next;
     } else {
-      // Section not found yet: append as a new section
       const prefixHeader = sectionHeader.trim().startsWith("#")
         ? sectionHeader.trim()
         : `## ${sectionHeader.trim()}`;
@@ -396,7 +479,11 @@ export function getDecryptedSecrets(projectId: string): Record<string, string> {
   return decryptSecretsMap(fs.readFileSync(secPath, "utf8"));
 }
 
-export function setSecret(projectId: string, key: string, value: string): string[] {
+export function setSecret(
+  projectId: string,
+  key: string,
+  value: string
+): string[] {
   ensureProjectVault(projectId);
   const secPath = path.join(getProjectDir(projectId), "Secrets.enc");
   const current = decryptSecretsMap(fs.readFileSync(secPath, "utf8"));
@@ -451,16 +538,22 @@ export interface PersistedChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  attachments?: ChatAttachment[];
+  thinking?: string;
+  cacheMetrics?: PromptCacheMetrics;
   toolResults?: Array<{
     tool_name: string;
     status: string;
     output: unknown;
     approval_id?: string;
+    cached?: boolean;
+    rollback_snapshot_id?: string;
+    rollback_path?: string;
   }>;
 }
 
 const DEFAULT_CONTROL_CENTER_WELCOME =
-  "Welcome to **Synapse Control Center**. Your interactive overlay topology, Muscle Peers, `Rule Cartridges`, and `Brain Vault` are mapped on the main canvas.\n\nUse the **Control Center** to drag nodes, toggle policies, or click `+ Add Peer` to enroll a new Linux server with one command.";
+  "Welcome to **Synapse Control Center**. Your interactive overlay topology, Muscle Peers, `Rule Cartridges`, and `Brain Vault` are mapped on the main canvas.\n\n- **Drag & Drop Vision:** Drop screenshots, architecture diagrams, or log images (or paste with `Ctrl+V`) directly into this chat.\n- **Smart Context Mentions:** Type `@` to reference peers, services, or Brain Vault docs.\n- **Prompt & Tool Caching:** Static system layers and read-only file calls are automatically cached.";
 
 export function readChatHistory(
   projectId: string,
@@ -524,7 +617,7 @@ export function clearChatHistory(projectId: string): PersistedChatMessage[] {
   const resetMsg: PersistedChatMessage = {
     role: "assistant",
     content:
-      "Conversation context compacted and cleared. Ready for new instructions.",
+      "Conversation context compacted and cleared. Ready for new instructions (Prompt Cache & Vision active).",
     timestamp: new Date().toISOString(),
   };
   fs.writeFileSync(chatPath, JSON.stringify(resetMsg) + "\n", "utf8");

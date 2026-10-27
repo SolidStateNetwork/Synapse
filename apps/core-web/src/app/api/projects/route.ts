@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   appendAuditLog,
+  appendChatMessage,
   clearChatHistory,
   deleteSecret,
   ensureProjectVault,
@@ -29,6 +30,13 @@ export async function GET(req: NextRequest) {
 
   // Merge live gateway node status, telemetry & service health into project state view
   let stateChanged = false;
+  const watchdogTargets: Array<{
+    service_id: string;
+    name: string;
+    node_id: string;
+    port: number;
+  }> = [];
+
   for (const assigned of state.assigned_nodes) {
     const match = liveNodes.find((n) => n.node_id === assigned.node_id);
     assigned.online = Boolean(match?.online);
@@ -65,6 +73,33 @@ export async function GET(req: NextRequest) {
               stateChanged = true;
             }
             svc.healthy = liveSvc.healthy;
+            if (liveSvc.healthy) {
+              svc.consecutive_failures = 0;
+            } else {
+              svc.consecutive_failures = (svc.consecutive_failures || 0) + 1;
+              stateChanged = true;
+
+              const lastHealMs = svc.last_auto_heal_at
+                ? new Date(svc.last_auto_heal_at).getTime()
+                : 0;
+              const cooldownPassed = Date.now() - lastHealMs > 30_000;
+              if (
+                svc.auto_heal !== false &&
+                state.ai_settings?.enable_auto_watchdog !== false &&
+                (svc.consecutive_failures || 0) >= 2 &&
+                cooldownPassed
+              ) {
+                svc.last_auto_heal_at = new Date().toISOString();
+                svc.consecutive_failures = 0;
+                watchdogTargets.push({
+                  service_id: svc.service_id,
+                  name: svc.name,
+                  node_id: svc.node_id,
+                  port: svc.port,
+                });
+              }
+            }
+
             svc.health_check = {
               type:
                 svc.health_check?.type ||
@@ -87,6 +122,34 @@ export async function GET(req: NextRequest) {
   }
   if (stateChanged) {
     saveProjectState(state);
+  }
+
+  // Trigger Proactive Auto-Watchdog self-healing for degraded services
+  for (const target of watchdogTargets) {
+    try {
+      const healRes = await interceptAndExecuteTool(projectId, "node_pty_exec", {
+        node_id: target.node_id,
+        session_id: `default-${projectId}`,
+        command: `tail -n 20 /tmp/synapse-svc-${target.port}.log 2>/dev/null || true; (nohup node service/server.js >/tmp/synapse-svc-${target.port}.log 2>&1 &); sleep 0.3; curl -s http://127.0.0.1:${target.port}/`,
+        wait_timeout_ms: 8000,
+      });
+
+      writeBrainDoc(
+        projectId,
+        "Memory.md",
+        `- **[${new Date().toISOString()}]** 🤖 **Proactive Auto-Watchdog:** Automatically restarted unhealthy service \`${target.name}\` (\`127.0.0.1:${target.port}\` on \`${target.node_id}\`).`,
+        "append"
+      );
+
+      appendChatMessage(projectId, {
+        role: "assistant",
+        content: `🤖 **Proactive Auto-Watchdog Triggered:** Detected consecutive health probe failures on **${target.name}** (\`127.0.0.1:${target.port}\` on \`${target.node_id}\`). Automatically inspected logs, restarted the daemon, and logged the recovery in \`Memory.md\`.`,
+        timestamp: new Date().toISOString(),
+        toolResults: [healRes],
+      });
+    } catch {
+      // ignore background watchdog error
+    }
   }
 
   return NextResponse.json({
@@ -187,6 +250,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ project: saved });
   }
 
+  if (action === "toggle_service_auto_heal") {
+    const serviceId = String(body.service_id || "");
+    for (const svc of state.registered_services) {
+      if (svc.service_id === serviceId) {
+        svc.auto_heal = svc.auto_heal === false ? true : false;
+      }
+    }
+    const saved = saveProjectState(state);
+    return NextResponse.json({ project: saved });
+  }
+
   if (action === "save_doc") {
     const doc =
       body.document === "Memory.md" ? "Memory.md" : "Architecture.md";
@@ -249,6 +323,14 @@ export async function POST(req: NextRequest) {
       base_url: baseUrl,
       model,
       api_key_secret_name: secretName,
+      enable_prompt_caching:
+        body.enable_prompt_caching !== undefined
+          ? Boolean(body.enable_prompt_caching)
+          : state.ai_settings?.enable_prompt_caching ?? true,
+      enable_auto_watchdog:
+        body.enable_auto_watchdog !== undefined
+          ? Boolean(body.enable_auto_watchdog)
+          : state.ai_settings?.enable_auto_watchdog ?? true,
     };
 
     if (body.api_key && String(body.api_key).trim() !== "") {

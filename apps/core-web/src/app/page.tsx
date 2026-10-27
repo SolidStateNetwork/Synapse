@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   Activity,
@@ -51,6 +51,11 @@ import {
   Wrench,
   X,
   Zap,
+  Image as ImageIcon,
+  Paperclip,
+  RotateCcw,
+  AtSign,
+  Brain,
 } from "lucide-react";
 import RichMarkdownDocument from "@/components/RichMarkdownDocument";
 import InteractiveControlCenterCanvas from "@/components/InteractiveControlCenterCanvas";
@@ -120,6 +125,8 @@ interface AIProviderSettings {
   base_url: string;
   model: string;
   api_key_secret_name: string;
+  enable_prompt_caching?: boolean;
+  enable_auto_watchdog?: boolean;
 }
 
 interface ProjectState {
@@ -204,15 +211,37 @@ interface FsEntry {
   mod_time_unix: number;
 }
 
+interface ChatAttachment {
+  id: string;
+  name: string;
+  mime_type: string;
+  data_url: string;
+  size_bytes?: number;
+}
+
+interface PromptCacheMetrics {
+  cached_tokens: number;
+  prompt_tokens: number;
+  completion_tokens?: number;
+  tool_cache_hits: number;
+  provider_cache_active: boolean;
+}
+
 interface ToolResultItem {
   tool_name: string;
   status: string;
   output: unknown;
+  cached?: boolean;
+  rollback_snapshot_id?: string;
+  rollback_path?: string;
 }
 
 interface ChatItem {
   role: "user" | "assistant";
   content: string;
+  attachments?: ChatAttachment[];
+  thinking?: string;
+  cacheMetrics?: PromptCacheMetrics;
   toolResults?: ToolResultItem[];
 }
 
@@ -316,13 +345,29 @@ export default function SynapseNetBirdControlCenter() {
   const [syncingModels, setSyncingModels] = useState(false);
   const [modelSyncStatus, setModelSyncStatus] = useState("");
 
-  // Copilot Chat & Live SSE Step Streaming State
+  // Copilot Chat, Multimodal Vision Drag & Drop, Live Token/Thinking Stream & Caching State
   const [chatInput, setChatInput] = useState("");
+  const [chatAttachments, setChatAttachments] = useState<ChatAttachment[]>([]);
+  const [isDraggingOverChat, setIsDraggingOverChat] = useState(false);
+  const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState("");
+  const [streamingReplyText, setStreamingReplyText] = useState("");
+  const [streamingThinkingText, setStreamingThinkingText] = useState("");
+  const [latestCacheMetrics, setLatestCacheMetrics] =
+    useState<PromptCacheMetrics | null>(null);
+  const [enablePromptCaching, setEnablePromptCaching] = useState(true);
+  const [enableAutoWatchdog, setEnableAutoWatchdog] = useState(true);
+  const [expandedThinking, setExpandedThinking] = useState<
+    Record<number, boolean>
+  >({});
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const [chatBusy, setChatBusy] = useState(false);
   const [liveSteps, setLiveSteps] = useState<
     Array<{
       step: number;
       tool_name: string;
+      cached?: boolean;
       status:
         | "running"
         | "executed"
@@ -393,6 +438,8 @@ export default function SynapseNetBirdControlCenter() {
           setBaseUrl(ai.base_url || "https://api.openai.com/v1");
           setModelName(ai.model || "gpt-4o");
           setApiKeySecretName(ai.api_key_secret_name || "LLM_API_KEY");
+          setEnablePromptCaching(ai.enable_prompt_caching !== false);
+          setEnableAutoWatchdog(ai.enable_auto_watchdog !== false);
         }
 
         if (syncAiSettings && Array.isArray(data.chat_history)) {
@@ -637,6 +684,8 @@ export default function SynapseNetBirdControlCenter() {
         base_url: baseUrl,
         model: modelName,
         api_key_secret_name: apiKeySecretName,
+        enable_prompt_caching: enablePromptCaching,
+        enable_auto_watchdog: enableAutoWatchdog,
         api_key: apiKeyInput,
       }),
     });
@@ -676,16 +725,175 @@ export default function SynapseNetBirdControlCenter() {
     }
   }
 
+  async function processDroppedOrSelectedFiles(files: FileList | File[]) {
+    const list = Array.from(files);
+    const added: ChatAttachment[] = [];
+    for (const file of list.slice(0, 6)) {
+      if (file.size > 8 * 1024 * 1024) {
+        setStatusToast(`Skipped ${file.name} (>8MB limit)`);
+        setTimeout(() => setStatusToast(""), 3000);
+        continue;
+      }
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => resolve("");
+        reader.readAsDataURL(file);
+      });
+      if (dataUrl) {
+        added.push({
+          id: `att-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+          name: file.name || "screenshot.png",
+          mime_type: file.type || "image/png",
+          data_url: dataUrl,
+          size_bytes: file.size,
+        });
+      }
+    }
+    if (added.length > 0) {
+      setChatAttachments((prev) => [...prev, ...added].slice(0, 6));
+    }
+  }
+
+  function handleChatPaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === "file") {
+        const f = item.getAsFile();
+        if (f) files.push(f);
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      processDroppedOrSelectedFiles(files);
+    }
+  }
+
+  async function handleRollbackSnapshot(snapshotId: string, filePath?: string) {
+    if (!activeProject || !snapshotId) return;
+    try {
+      const res = await fetch("/api/orchestrator", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "rollback_snapshot",
+          project_id: activeProject.project_id,
+          snapshot_id: snapshotId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStatusToast(`Rolled back ${filePath || snapshotId}`);
+        setTimeout(() => setStatusToast(""), 3000);
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content:
+              data.reply ||
+              `⏪ Rolled back ${filePath || "file"} to snapshot ${snapshotId}.`,
+          },
+        ]);
+        await loadWorkspace(activeProject.project_id);
+        if (primaryNode) {
+          fetchRemoteDir(remoteDir);
+          if (filePath) openRemoteFile(filePath);
+        }
+      } else {
+        setStatusToast(data.error || "Rollback failed");
+        setTimeout(() => setStatusToast(""), 3000);
+      }
+    } catch {
+      setStatusToast("Rollback request failed");
+      setTimeout(() => setStatusToast(""), 3000);
+    }
+  }
+
+  const mentionCandidates = useMemo(() => {
+    const items: Array<{ token: string; label: string; category: string }> = [
+      {
+        token: "@Architecture.md",
+        label: "Project Architecture & Mermaid Specs",
+        category: "Vault",
+      },
+      {
+        token: "@Memory.md",
+        label: "Engineering Journal & Past Fixes",
+        category: "Vault",
+      },
+    ];
+    for (const n of gatewayNodes) {
+      items.push({
+        token: `@${n.node_id}`,
+        label: `Muscle Peer (${n.tier})`,
+        category: "Peer",
+      });
+    }
+    for (const svc of activeProject?.registered_services || []) {
+      items.push({
+        token: `@service:${svc.port}`,
+        label: `${svc.name} (127.0.0.1:${svc.port})`,
+        category: "Service",
+      });
+    }
+    return items.filter(
+      (i) =>
+        !mentionFilter ||
+        i.token.toLowerCase().includes(mentionFilter.toLowerCase()) ||
+        i.label.toLowerCase().includes(mentionFilter.toLowerCase())
+    );
+  }, [gatewayNodes, activeProject?.registered_services, mentionFilter]);
+
+  function handleChatInputChange(val: string) {
+    setChatInput(val);
+    const atMatch = val.match(/(?:^|\s)@([a-zA-Z0-9._:-]*)$/);
+    if (atMatch) {
+      setMentionFilter(atMatch[1] || "");
+      setMentionMenuOpen(true);
+    } else {
+      setMentionMenuOpen(false);
+    }
+  }
+
+  function insertMentionToken(token: string) {
+    const replaced = chatInput.replace(
+      /(?:^|\s)@([a-zA-Z0-9._:-]*)$/,
+      (m) => (m.startsWith(" ") ? ` ${token} ` : `${token} `)
+    );
+    setChatInput(replaced);
+    setMentionMenuOpen(false);
+  }
+
   async function runStreamingPrompt(
     promptText: string,
-    overrideProvider?: string
+    overrideProvider?: string,
+    attachmentsToSend?: ChatAttachment[]
   ) {
-    if (!activeProject || !promptText.trim()) return;
-    const userMsg: ChatItem = { role: "user", content: promptText };
+    if (
+      !activeProject ||
+      (!promptText.trim() &&
+        (!attachmentsToSend || attachmentsToSend.length === 0))
+    )
+      return;
+    const userMsg: ChatItem = {
+      role: "user",
+      content:
+        promptText.trim() ||
+        `Attached ${attachmentsToSend?.length || 1} visual file(s)`,
+      attachments:
+        attachmentsToSend && attachmentsToSend.length > 0
+          ? attachmentsToSend
+          : undefined,
+    };
     const nextHistory = [...chatHistory, userMsg];
     setChatHistory(nextHistory);
     setChatBusy(true);
     setLiveSteps([]);
+    setStreamingReplyText("");
+    setStreamingThinkingText("");
 
     try {
       const res = await fetch("/api/orchestrator", {
@@ -701,6 +909,7 @@ export default function SynapseNetBirdControlCenter() {
           messages: nextHistory.map((m) => ({
             role: m.role,
             content: m.content,
+            attachments: m.attachments,
           })),
         }),
       });
@@ -739,19 +948,36 @@ export default function SynapseNetBirdControlCenter() {
               setLiveSteps((prev) =>
                 prev.map((s) =>
                   s.step === evt.step && s.tool_name === evt.result.tool_name
-                    ? { ...s, status: evt.result.status }
+                    ? {
+                        ...s,
+                        status: evt.result.status,
+                        cached: Boolean(evt.result.cached),
+                      }
                     : s
                 )
               );
+            } else if (evt.type === "thinking_delta" && evt.delta) {
+              setStreamingThinkingText((prev) => prev + String(evt.delta));
+            } else if (evt.type === "token_delta" && evt.delta) {
+              setStreamingReplyText((prev) => prev + String(evt.delta));
+            } else if (evt.type === "cache_metrics" && evt.metrics) {
+              setLatestCacheMetrics(evt.metrics);
             } else if (evt.type === "complete") {
+              if (evt.cache_metrics) {
+                setLatestCacheMetrics(evt.cache_metrics);
+              }
               setChatHistory((prev) => [
                 ...prev,
                 {
                   role: "assistant",
                   content: evt.reply || "Completed.",
+                  thinking: evt.thinking,
+                  cacheMetrics: evt.cache_metrics,
                   toolResults: evt.tool_results,
                 },
               ]);
+              setStreamingReplyText("");
+              setStreamingThinkingText("");
             } else if (evt.type === "error") {
               setChatHistory((prev) => [
                 ...prev,
@@ -784,15 +1010,20 @@ export default function SynapseNetBirdControlCenter() {
     } finally {
       setChatBusy(false);
       setLiveSteps([]);
+      setStreamingReplyText("");
+      setStreamingThinkingText("");
     }
   }
 
-  async function handleSendPrompt(e: React.FormEvent) {
-    e.preventDefault();
-    if (!chatInput.trim() || chatBusy) return;
+  async function handleSendPrompt(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    if ((!chatInput.trim() && chatAttachments.length === 0) || chatBusy) return;
     const text = chatInput.trim();
+    const atts = [...chatAttachments];
     setChatInput("");
-    await runStreamingPrompt(text);
+    setChatAttachments([]);
+    setMentionMenuOpen(false);
+    await runStreamingPrompt(text, undefined, atts);
   }
 
   async function handleQuickAction(actionPrompt: string) {
@@ -2736,125 +2967,442 @@ export default function SynapseNetBirdControlCenter() {
 
           {/* ─────────────────────────────────────────────────────────────────
               RIGHT DOCKED AI COPILOT & REACT ORCHESTRATOR PANEL
+              (With Drag & Drop Vision, Prompt/Tool Caching, Live Thinking & Rollback)
           ───────────────────────────────────────────────────────────────── */}
           {copilotDrawerOpen && (
-            <aside className="flex w-[380px] shrink-0 flex-col border-l border-nb-gray-900 bg-nb-gray-940">
-              <div className="flex items-center justify-between border-b border-nb-gray-900 px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-netbird" />
-                  <span className="text-xs font-semibold text-white">
-                    Synapse AI Orchestrator
-                  </span>
+            <aside
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingOverChat(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.currentTarget === e.target) {
+                  setIsDraggingOverChat(false);
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingOverChat(false);
+                if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+                  processDroppedOrSelectedFiles(e.dataTransfer.files);
+                }
+              }}
+              className="relative flex w-[400px] shrink-0 flex-col border-l border-nb-gray-900 bg-nb-gray-940"
+            >
+              {/* Drag & Drop Vision Overlay */}
+              {isDraggingOverChat && (
+                <div
+                  onDragLeave={() => setIsDraggingOverChat(false)}
+                  className="pointer-events-none absolute inset-2 z-40 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-netbird bg-nb-gray-950/90 p-6 text-center backdrop-blur-sm"
+                >
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-netbird-500/40 bg-netbird-950 text-netbird">
+                    <ImageIcon className="h-6 w-6" />
+                  </div>
+                  <p className="text-sm font-semibold text-white">
+                    Drop Screenshots, Diagrams, or Logs Here
+                  </p>
+                  <p className="mt-1 text-xs text-nb-gray-300">
+                    Synapse Vision will inspect your images and translate them
+                    into server configs or bug fixes.
+                  </p>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={handleClearChat}
-                    className="rounded px-2 py-0.5 text-[10px] text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
-                    title="Clear conversation"
+              )}
+
+              {/* Header + Prompt Cache Status Badge */}
+              <div className="border-b border-nb-gray-900 px-4 py-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-netbird" />
+                    <span className="text-xs font-semibold text-white">
+                      Synapse AI Orchestrator
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={handleClearChat}
+                      className="rounded px-2 py-0.5 text-[10px] text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
+                      title="Clear conversation"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={() => setCopilotDrawerOpen(false)}
+                      className="text-nb-gray-400 hover:text-white"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-1 text-[10px]">
+                  <span
+                    className="flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-950/40 px-2 py-0.5 font-mono text-emerald-300"
+                    title="Static 5-Layer System Prefix & Read-Only FS Calls Cached"
                   >
-                    Clear
-                  </button>
-                  <button
-                    onClick={() => setCopilotDrawerOpen(false)}
-                    className="text-nb-gray-400 hover:text-white"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                    <Zap className="h-2.5 w-2.5 text-emerald-400" />
+                    {latestCacheMetrics ? (
+                      <span>
+                        Cache: {latestCacheMetrics.cached_tokens} tok
+                        {latestCacheMetrics.tool_cache_hits > 0
+                          ? ` · ${latestCacheMetrics.tool_cache_hits} FS hit(s)`
+                          : ""}
+                      </span>
+                    ) : (
+                      <span>Prefix &amp; Tool Cache Ready</span>
+                    )}
+                  </span>
+
+                  <span className="font-mono text-nb-gray-400">
+                    Vision · @Mentions · Rollback
+                  </span>
                 </div>
               </div>
 
-              {/* Chat Messages + Tier-3 Inline Approvals */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
-                {chatHistory.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`rounded-lg p-3.5 text-xs ${
-                      msg.role === "user"
-                        ? "ml-6 border border-netbird-500/40 bg-netbird-950/50 text-white"
-                        : "border border-nb-gray-800/80 bg-nb-gray-930 text-nb-gray-100"
-                    }`}
-                  >
-                    <RichMarkdownDocument markdown={msg.content} />
-
-                    {msg.toolResults && msg.toolResults.length > 0 && (
-                      <div className="mt-2.5 space-y-1.5 border-t border-nb-gray-800 pt-2">
-                        {msg.toolResults.map((tr, tIdx) => {
-                          const key = `${idx}-${tIdx}`;
-                          const open = expandedTools[key];
-                          return (
+              {/* Chat Messages + Multimodal Previews + Reasoning + Rollback */}
+              <div
+                ref={chatScrollRef}
+                className="flex-1 overflow-y-auto p-4 space-y-3.5"
+              >
+                {chatHistory.map((msg, idx) => {
+                  const thinkingOpen = expandedThinking[idx];
+                  return (
+                    <div
+                      key={idx}
+                      className={`rounded-lg p-3.5 text-xs ${
+                        msg.role === "user"
+                          ? "ml-5 border border-netbird-500/40 bg-netbird-950/50 text-white"
+                          : "border border-nb-gray-800/80 bg-nb-gray-930 text-nb-gray-100"
+                      }`}
+                    >
+                      {/* Attached Vision Images / Files inside User Message */}
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="mb-2.5 flex flex-wrap gap-2">
+                          {msg.attachments.map((att) => (
                             <div
-                              key={key}
-                              className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 font-mono text-[11px]"
+                              key={att.id}
+                              className="group relative overflow-hidden rounded-md border border-nb-gray-700 bg-nb-gray-950"
                             >
-                              <button
-                                onClick={() =>
-                                  setExpandedTools((prev) => ({
-                                    ...prev,
-                                    [key]: !prev[key],
-                                  }))
-                                }
-                                className="flex w-full items-center justify-between text-left"
-                              >
-                                <span className="text-netbird">
-                                  {tr.tool_name}
-                                </span>
-                                <span className="text-[10px] uppercase text-green-400">
-                                  {tr.status}
-                                </span>
-                              </button>
-                              {open && (
-                                <pre className="mt-1.5 max-h-36 overflow-auto text-[10px] text-nb-gray-300">
-                                  {JSON.stringify(tr.output, null, 2)}
-                                </pre>
+                              {att.mime_type?.startsWith("image/") ? (
+                                <img
+                                  src={att.data_url}
+                                  alt={att.name}
+                                  className="h-20 w-28 object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-14 w-28 items-center gap-1.5 px-2 font-mono text-[10px] text-nb-gray-200">
+                                  <FileText className="h-3.5 w-3.5 shrink-0 text-netbird" />
+                                  <span className="truncate">{att.name}</span>
+                                </div>
                               )}
+                              <div className="bg-black/75 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-300 truncate max-w-[112px]">
+                                {att.name}
+                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                          ))}
+                        </div>
+                      )}
 
-                {chatBusy && (
-                  <div className="rounded-lg border border-netbird-500/40 bg-nb-gray-930 p-3 text-xs space-y-2">
-                    <div className="flex items-center gap-2 text-netbird font-medium">
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      <span>ReAct Loop Executing...</span>
+                      {/* Collapsible AI Reasoning / Thinking Trace */}
+                      {msg.thinking && (
+                        <div className="mb-2.5 rounded border border-nb-gray-800 bg-nb-gray-950/80 px-2.5 py-1.5">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedThinking((prev) => ({
+                                ...prev,
+                                [idx]: !prev[idx],
+                              }))
+                            }
+                            className="flex w-full items-center justify-between font-mono text-[10px] text-nb-gray-300 hover:text-white"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <Brain className="h-3 w-3 text-netbird" />
+                              <span>AI Reasoning &amp; Context Trace</span>
+                            </span>
+                            <span>{thinkingOpen ? "Hide" : "Show"}</span>
+                          </button>
+                          {thinkingOpen && (
+                            <pre className="mt-1.5 whitespace-pre-wrap border-t border-nb-gray-800 pt-1.5 font-mono text-[10px] text-nb-gray-400">
+                              {msg.thinking}
+                            </pre>
+                          )}
+                        </div>
+                      )}
+
+                      <RichMarkdownDocument markdown={msg.content} />
+
+                      {/* Per-Turn Cache Savings Footer */}
+                      {msg.cacheMetrics && (
+                        <div className="mt-2 flex items-center justify-between border-t border-nb-gray-800/60 pt-1.5 font-mono text-[10px] text-nb-gray-400">
+                          <span className="flex items-center gap-1 text-emerald-400">
+                            <Zap className="h-2.5 w-2.5" />
+                            <span>
+                              {msg.cacheMetrics.cached_tokens} cached /{" "}
+                              {msg.cacheMetrics.prompt_tokens} prompt tok
+                            </span>
+                          </span>
+                          {msg.cacheMetrics.tool_cache_hits > 0 && (
+                            <span className="text-sky-400">
+                              {msg.cacheMetrics.tool_cache_hits} FS cache hit(s)
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Executed Tool Calls + Cache Badge + 1-Click Rollback */}
+                      {msg.toolResults && msg.toolResults.length > 0 && (
+                        <div className="mt-2.5 space-y-1.5 border-t border-nb-gray-800 pt-2">
+                          {msg.toolResults.map((tr, tIdx) => {
+                            const key = `${idx}-${tIdx}`;
+                            const open = expandedTools[key];
+                            return (
+                              <div
+                                key={key}
+                                className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 font-mono text-[11px]"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setExpandedTools((prev) => ({
+                                        ...prev,
+                                        [key]: !prev[key],
+                                      }))
+                                    }
+                                    className="flex flex-1 items-center justify-between text-left"
+                                  >
+                                    <span className="flex items-center gap-1.5 text-netbird">
+                                      <span>{tr.tool_name}</span>
+                                      {tr.cached && (
+                                        <span className="rounded bg-emerald-950 px-1.5 py-0.2 text-[9px] text-emerald-300 border border-emerald-500/30">
+                                          CACHED
+                                        </span>
+                                      )}
+                                    </span>
+                                    <span className="text-[10px] uppercase text-green-400">
+                                      {tr.status}
+                                    </span>
+                                  </button>
+
+                                  {tr.rollback_snapshot_id && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleRollbackSnapshot(
+                                          tr.rollback_snapshot_id!,
+                                          tr.rollback_path
+                                        )
+                                      }
+                                      title={`Rollback ${
+                                        tr.rollback_path || "file"
+                                      } to pre-write snapshot`}
+                                      className="flex items-center gap-1 rounded border border-amber-500/40 bg-amber-950/50 px-1.5 py-0.5 text-[9px] text-amber-300 hover:bg-amber-900/60 hover:text-white"
+                                    >
+                                      <RotateCcw className="h-2.5 w-2.5" />
+                                      <span>Rollback</span>
+                                    </button>
+                                  )}
+                                </div>
+                                {open && (
+                                  <pre className="mt-1.5 max-h-36 overflow-auto text-[10px] text-nb-gray-300">
+                                    {JSON.stringify(tr.output, null, 2)}
+                                  </pre>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
+                  );
+                })}
+
+                {/* Live SSE ReAct Steps + Progressive Thinking & Token Stream */}
+                {chatBusy && (
+                  <div className="rounded-lg border border-netbird-500/40 bg-nb-gray-930 p-3 text-xs space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-netbird font-medium">
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        <span>ReAct Loop &amp; Live Stream...</span>
+                      </div>
+                      <span className="font-mono text-[10px] text-emerald-400">
+                        ⚡ Prefix Cached
+                      </span>
+                    </div>
+
                     {liveSteps.map((s, i) => (
                       <div
                         key={i}
                         className="flex items-center justify-between font-mono text-[11px] text-nb-gray-300"
                       >
-                        <span>
-                          #{s.step} {s.tool_name}
+                        <span className="flex items-center gap-1.5">
+                          <span>
+                            #{s.step} {s.tool_name}
+                          </span>
+                          {s.cached && (
+                            <span className="rounded bg-emerald-950 px-1 text-[9px] text-emerald-300">
+                              CACHE HIT
+                            </span>
+                          )}
                         </span>
                         <span className="text-netbird uppercase">
                           {s.status}
                         </span>
                       </div>
                     ))}
+
+                    {streamingThinkingText && (
+                      <div className="rounded border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[10px] text-nb-gray-400 whitespace-pre-wrap">
+                        <div className="mb-1 flex items-center gap-1 text-netbird">
+                          <Brain className="h-3 w-3" />
+                          <span>Thinking...</span>
+                        </div>
+                        {streamingThinkingText}
+                      </div>
+                    )}
+
+                    {streamingReplyText && (
+                      <div className="border-t border-nb-gray-800 pt-2 text-nb-gray-100">
+                        <RichMarkdownDocument markdown={streamingReplyText} />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Prompt Input Box */}
+              {/* Multimodal Prompt Input Box with Thumbnail Strip, @-Mentions & Drag-and-Drop */}
               <form
                 onSubmit={handleSendPrompt}
-                className="border-t border-nb-gray-900 bg-nb-gray-950 p-3 space-y-2"
+                className="relative border-t border-nb-gray-900 bg-nb-gray-950 p-3 space-y-2"
               >
-                <div className="flex gap-2">
-                  <input
-                    type="text"
+                {/* @-Context Mention Autocomplete Popover */}
+                {mentionMenuOpen && mentionCandidates.length > 0 && (
+                  <div className="absolute bottom-full left-3 right-3 mb-1.5 max-h-48 overflow-y-auto rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-1.5 shadow-2xl z-30">
+                    <div className="px-2 py-1 font-mono text-[10px] uppercase text-nb-gray-400">
+                      Insert @Context Mention
+                    </div>
+                    {mentionCandidates.map((cand) => (
+                      <button
+                        key={cand.token}
+                        type="button"
+                        onClick={() => insertMentionToken(cand.token)}
+                        className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-left text-xs text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white"
+                      >
+                        <div>
+                          <span className="font-mono font-semibold text-netbird">
+                            {cand.token}
+                          </span>
+                          <span className="ml-2 text-[11px] text-nb-gray-400">
+                            {cand.label}
+                          </span>
+                        </div>
+                        <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-400">
+                          {cand.category}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Pending Drag & Drop / Pasted Image Attachment Thumbnails */}
+                {chatAttachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pb-1">
+                    {chatAttachments.map((att) => (
+                      <div
+                        key={att.id}
+                        className="relative flex items-center gap-2 rounded-md border border-netbird-500/40 bg-nb-gray-930 p-1.5 pr-6 text-[11px] text-nb-gray-200"
+                      >
+                        {att.mime_type?.startsWith("image/") ? (
+                          <img
+                            src={att.data_url}
+                            alt={att.name}
+                            className="h-9 w-9 rounded object-cover"
+                          />
+                        ) : (
+                          <FileText className="h-5 w-5 text-netbird" />
+                        )}
+                        <div className="max-w-[110px] truncate font-mono text-[10px]">
+                          {att.name}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setChatAttachments((prev) =>
+                              prev.filter((x) => x.id !== att.id)
+                            )
+                          }
+                          className="absolute right-1 top-1 rounded bg-nb-gray-900 p-0.5 text-nb-gray-400 hover:text-white"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,.log,.txt,.json,.md,.yml,.yaml"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      processDroppedOrSelectedFiles(e.target.files);
+                      e.target.value = "";
+                    }
+                  }}
+                />
+
+                <div className="flex items-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach image, screenshot, diagram, or log file (or Drag & Drop / Ctrl+V)"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white"
+                  >
+                    <Paperclip className="h-3.5 w-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = chatInput.endsWith("@")
+                        ? chatInput
+                        : `${chatInput}${
+                            chatInput && !chatInput.endsWith(" ") ? " @" : "@"
+                          }`;
+                      handleChatInputChange(next);
+                    }}
+                    title="Mention a Peer, Service, or Brain Vault Doc (@)"
+                    className="flex h-9 w-8 shrink-0 items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white"
+                  >
+                    <AtSign className="h-3.5 w-3.5" />
+                  </button>
+
+                  <textarea
+                    rows={2}
                     value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Ask Synapse AI to deploy, inspect, or heal..."
-                    className="flex-1 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white placeholder:text-nb-gray-400 focus:border-netbird focus:outline-none"
+                    onChange={(e) => handleChatInputChange(e.target.value)}
+                    onPaste={handleChatPaste}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendPrompt();
+                      }
+                    }}
+                    placeholder="Ask Synapse AI, type @ to mention, or drop/paste images..."
+                    className="flex-1 resize-none rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 text-xs text-white placeholder:text-nb-gray-400 focus:border-netbird focus:outline-none"
                   />
+
                   <button
                     type="submit"
                     disabled={chatBusy}
-                    className="rounded-md bg-netbird px-3.5 py-2 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-40"
+                    className="flex h-9 items-center justify-center rounded-md bg-netbird px-3.5 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-40"
                   >
                     <Send className="h-3.5 w-3.5" />
                   </button>
@@ -3161,6 +3709,42 @@ export default function SynapseNetBirdControlCenter() {
                   }
                   className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 pt-1">
+                <label className="flex items-center gap-2.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 p-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={enablePromptCaching}
+                    onChange={(e) => setEnablePromptCaching(e.target.checked)}
+                    className="rounded border-nb-gray-700 accent-netbird"
+                  />
+                  <div>
+                    <div className="font-medium text-white">
+                      Prompt &amp; FS Caching
+                    </div>
+                    <div className="text-[10px] text-nb-gray-400">
+                      Cache static system layers &amp; file reads
+                    </div>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 p-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={enableAutoWatchdog}
+                    onChange={(e) => setEnableAutoWatchdog(e.target.checked)}
+                    className="rounded border-nb-gray-700 accent-netbird"
+                  />
+                  <div>
+                    <div className="font-medium text-white">
+                      Proactive Auto-Watchdog
+                    </div>
+                    <div className="text-[10px] text-nb-gray-400">
+                      Auto-heal crashed services in background
+                    </div>
+                  </div>
+                </label>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-nb-gray-900">

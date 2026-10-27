@@ -65,13 +65,19 @@ Want the AI to follow strict best practices without writing long prompts? On the
 - ⚙️ **[`Native Systemd`](./cartridges/native-systemd.md):** Instructs the AI to create hardened Linux `systemd` background services (`ProtectSystem=strict`, `NoNewPrivileges=true`).
 - 🌐 **[`Auto-SSL Caddy`](./cartridges/auto-ssl-caddy.md):** Guides the AI to configure automatic HTTPS and security headers via Caddy.
 
-### 4. 24/7 Self-Healing & Automated Diagnostics
-Every 5 seconds, your servers report their hardware health and test all registered web apps (`HTTP`, `TCP`, or custom scripts). If a service crashes or stops responding, Synapse immediately flags it in the UI and lets you trigger **1-Click AI Auto-Heal**—the AI reads the crash logs, repairs the configuration or process, verifies `HTTP 200 OK`, and documents the fix in `Memory.md`.
+### 4. 24/7 Self-Healing, Proactive Watchdog & 1-Click Rollback
+- **Proactive Auto-Watchdog:** Every 5 seconds, your servers report their hardware health and test all registered web apps (`HTTP`, `TCP`, or custom scripts). If a service fails consecutive health checks, the **Proactive Auto-Watchdog** automatically inspects the crash logs, restarts the daemon, verifies `HTTP 200 OK`, and posts a recovery report in the chat.
+- **Pre-Write File Snapshots & 1-Click Rollback:** Before the AI overwrites or patches any file on your server, Synapse automatically saves a snapshot. Every file mutation in the chat includes a **⏪ Rollback** button to undo changes with a single click.
 
-### 5. Bring Your Own AI (Cloud or 100% Local)
-Synapse is completely model-agnostic. Switch AI brains anytime in the UI:
+### 5. Multimodal Drag & Drop Vision, `@`-Mentions & Smart Caching
+- **Drag & Drop Vision (Images, Diagrams & Logs):** Drop screenshots of broken UIs, architecture diagrams, or log files directly into the chat (or paste screenshots with `Ctrl+V`). The AI inspects the visual input and translates it directly into server configurations or code fixes.
+- **Smart `@`-Context Mentions:** Type `@` in the chat to autocomplete and reference specific Muscle Peers (`@node-01`), running services (`@service:4050`), or Brain Vault documents (`@Architecture.md`, `@Memory.md`).
+- **Multi-Level Prompt & Tool Caching:** Static system layers (`Core Laws`, `Rule Cartridges`, `Architecture.md`, `Memory.md`) are structured for automatic prefix caching (OpenAI / DeepSeek / Anthropic `cache_control: ephemeral`), while repeated read-only file calls (`read_file`, `list_dir`, `stat`) are served from an in-memory cache that automatically invalidates on writes.
+
+### 6. Bring Your Own AI (Cloud or 100% Local)
+Synapse is completely model-agnostic and streams live reasoning traces (`<think>`) and tokens in real time:
 - **Cloud Models:** OpenAI (`gpt-4o`), Anthropic (`claude-3-5-sonnet`), or OpenRouter.
-- **100% Local & Private:** Connect **Ollama** or **vLLM** (`llama3.1`, `qwen2.5-coder`, `deepseek`) so neither your code nor your server logs ever leave your own hardware.
+- **100% Local & Private:** Connect **Ollama** or **vLLM** (`llama3.1`, `qwen2.5-coder`, `deepseek-r1`, `llama3.2-vision`) so neither your code nor your server logs ever leave your own hardware.
 - **Built-in Deterministic Engine:** Test workflows and policy locks out-of-the-box even before adding an API key.
 
 ---

@@ -331,7 +331,23 @@ func (h *Hub) EnsureNodeAssignedToProject(projectID string, nodeID string, tier 
 	state["updated_at"] = time.Now().UTC().Format(time.RFC3339)
 
 	if updatedBytes, err := json.MarshalIndent(state, "", "  "); err == nil {
-		_ = os.WriteFile(statePath, updatedBytes, 0o644)
+		atomicWriteStateFile(statePath, updatedBytes)
+	}
+}
+
+func atomicWriteStateFile(statePath string, data []byte) {
+	dir := filepath.Dir(statePath)
+	tmp, err := os.CreateTemp(dir, ".state-gw-*")
+	if err != nil {
+		_ = os.WriteFile(statePath, data, 0o644)
+		return
+	}
+	tmpName := tmp.Name()
+	_, _ = tmp.Write(data)
+	_ = tmp.Close()
+	_ = os.Chmod(tmpName, 0o644)
+	if err := os.Rename(tmpName, statePath); err != nil {
+		_ = os.Remove(tmpName)
 	}
 }
 
@@ -385,7 +401,7 @@ func (h *Hub) syncTelemetryToProjectVaults(nodeID string, beat *tunnelv1.NodeHea
 		state["updated_at"] = time.Now().UTC().Format(time.RFC3339)
 
 		if updatedBytes, err := json.MarshalIndent(state, "", "  "); err == nil {
-			_ = os.WriteFile(statePath, updatedBytes, 0o644)
+			atomicWriteStateFile(statePath, updatedBytes)
 		}
 	}
 }
