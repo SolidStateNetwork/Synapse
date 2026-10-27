@@ -2830,23 +2830,14 @@ export default function SynapseNetBirdControlCenter() {
             )}
 
             {/* ═══════════════════════════════════════════════════════════════
-                VIEW 4: UNIFIED SERVICE WORKBENCH WITH CONNECTED BROWSER TABS (`reverse-proxy`)
+                VIEW 4: FLAT, CLEAN TABBED SERVICE WORKBENCH (`reverse-proxy`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "reverse-proxy" &&
               (() => {
                 const allSvcs = activeProject?.registered_services || [];
-                const filteredSvcs = allSvcs.filter((s) => {
-                  const cat = s.category || "backend";
-                  if (serviceCategoryFilter === "all") return true;
-                  return cat === serviceCategoryFilter;
-                });
-
                 const activeSvc =
-                  filteredSvcs.find(
-                    (s) => s.service_id === selectedServiceId
-                  ) ||
-                  filteredSvcs.find((s) => s.port === previewPort) ||
-                  filteredSvcs[0] ||
+                  allSvcs.find((s) => s.service_id === selectedServiceId) ||
+                  allSvcs.find((s) => s.port === previewPort) ||
                   allSvcs[0];
 
                 const activeExtUrl = activeSvc
@@ -2859,66 +2850,16 @@ export default function SynapseNetBirdControlCenter() {
 
                 return (
                   <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6">
-                    {/* COMPACT PAGE HEADER + CATEGORY FILTER */}
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                      <div>
-                        <h1 className="text-xl font-medium text-nb-gray-100">
-                          Services &amp; Reverse-Proxy Workbench
-                        </h1>
-                        <p className="text-xs text-nb-gray-400 mt-0.5">
-                          Jeder erreichbare Dienst ist oben als eigener Reiter
-                          (Tab) angelegt — klicke auf einen Reiter, um dessen
-                          Endpunkte, Inputs oder Live-Webansicht zu nutzen.
-                        </p>
-                      </div>
-
-                      {/* Category Filter Pills */}
-                      <div className="flex flex-wrap items-center gap-1 rounded-xl border border-nb-gray-800/80 bg-nb-gray-940 p-1">
-                        {[
-                          { id: "all", label: "Alle Reiter" },
-                          { id: "webui", label: "🌐 WebUI" },
-                          { id: "backend", label: "⚡ Backend API" },
-                          { id: "database", label: "🗄️ Datenbank" },
-                        ].map((tab) => {
-                          const active = serviceCategoryFilter === tab.id;
-                          return (
-                            <button
-                              key={tab.id}
-                              type="button"
-                              onClick={() =>
-                                setServiceCategoryFilter(
-                                  tab.id as
-                                    | "all"
-                                    | "webui"
-                                    | "backend"
-                                    | "database"
-                                )
-                              }
-                              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                                active
-                                  ? "bg-nb-gray-900 text-white shadow-sm border border-nb-gray-800"
-                                  : "text-nb-gray-400 hover:text-white"
-                              }`}
-                            >
-                              {tab.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* ═══════════════════════════════════════════════════════════
-                        UNIFIED TABBED WORKBENCH WINDOW (Browser-Style Reiter)
-                    ═══════════════════════════════════════════════════════════ */}
-                    <div className="flex flex-col overflow-hidden rounded-2xl border border-nb-gray-800 bg-nb-gray-940 shadow-2xl">
-                      {/* 1. TOP CONNECTED SERVICE TAB BAR (Echte Reiter-Leiste) */}
-                      <div className="flex items-end gap-1.5 overflow-x-auto border-b border-nb-gray-800 bg-nb-gray-950 px-3 pt-2.5">
-                        {filteredSvcs.length === 0 ? (
-                          <div className="px-4 py-2 text-xs text-nb-gray-400">
-                            Keine Dienste in dieser Kategorie vorhanden.
+                    {/* SINGLE CLEAN WORKBENCH CONTAINER (No nested boxes, no duplicate top filter bar) */}
+                    <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-800 bg-nb-gray-940">
+                      {/* 1. SERVICE TABS (Reiter) */}
+                      <div className="flex items-end gap-1 overflow-x-auto border-b border-nb-gray-800 bg-nb-gray-950 px-3 pt-2">
+                        {allSvcs.length === 0 ? (
+                          <div className="px-4 py-2.5 text-xs text-nb-gray-400">
+                            Noch keine Dienste im Projekt registriert.
                           </div>
                         ) : (
-                          filteredSvcs.map((svc) => {
+                          allSvcs.map((svc) => {
                             const healthy =
                               svc.healthy !== false &&
                               svc.health_check?.status !== "UNHEALTHY";
@@ -2934,13 +2875,11 @@ export default function SynapseNetBirdControlCenter() {
                                   setSelectedServiceId(svc.service_id);
                                   setPreviewPort(svc.port);
                                   setPreviewSubPath("/");
-                                  if (serviceWorkspaceTab !== "split") {
-                                    setServiceWorkspaceTab(
-                                      svc.category === "webui"
-                                        ? "preview"
-                                        : "tester"
-                                    );
-                                  }
+                                  setServiceWorkspaceTab(
+                                    svc.category === "webui"
+                                      ? "preview"
+                                      : "tester"
+                                  );
                                   if (
                                     svc.endpoints &&
                                     svc.endpoints.length > 0
@@ -2960,10 +2899,10 @@ export default function SynapseNetBirdControlCenter() {
                                     });
                                   }
                                 }}
-                                className={`group relative flex shrink-0 items-center gap-2.5 rounded-t-xl px-4 py-2.5 text-left text-xs transition-colors ${
+                                className={`relative flex shrink-0 items-center gap-2 rounded-t-lg px-4 py-2.5 text-xs transition-colors ${
                                   isSelected
-                                    ? "-mb-px border-x border-t-2 border-nb-gray-800 border-t-netbird bg-nb-gray-930 font-semibold text-white shadow-sm z-10"
-                                    : "border border-transparent bg-nb-gray-950/60 text-nb-gray-400 hover:bg-nb-gray-900/70 hover:text-nb-gray-200"
+                                    ? "-mb-px border-x border-t-2 border-nb-gray-800 border-t-netbird bg-nb-gray-930 font-semibold text-white z-10"
+                                    : "text-nb-gray-400 hover:bg-nb-gray-900/60 hover:text-nb-gray-200"
                                 }`}
                               >
                                 <span
@@ -2973,31 +2912,15 @@ export default function SynapseNetBirdControlCenter() {
                                       : "bg-red-500 animate-pulse"
                                   }`}
                                 />
-                                <span
-                                  className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold ${
-                                    cat === "webui"
-                                      ? "bg-sky-950/80 text-sky-300 border border-sky-500/30"
-                                      : cat === "database"
-                                      ? "bg-purple-950/80 text-purple-300 border border-purple-500/30"
-                                      : "bg-netbird-950/80 text-netbird border border-netbird-500/30"
-                                  }`}
-                                >
+                                <span className="truncate max-w-[200px]">
+                                  {svc.name}
+                                </span>
+                                <span className="font-mono text-[10px] text-nb-gray-400">
                                   {cat === "webui"
                                     ? "WebUI"
                                     : cat === "database"
                                     ? "DB"
-                                    : "API"}
-                                </span>
-                                <span className="max-w-[180px] truncate">
-                                  {svc.name}
-                                </span>
-                                <span
-                                  className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${
-                                    isSelected
-                                      ? "bg-nb-gray-950 text-netbird"
-                                      : "bg-nb-gray-900 text-nb-gray-500"
-                                  }`}
-                                >
+                                    : "API"}{" "}
                                   :{svc.port}
                                 </span>
                               </button>
@@ -3006,54 +2929,39 @@ export default function SynapseNetBirdControlCenter() {
                         )}
                       </div>
 
-                      {/* 2. DOCKED BROWSER / SERVICE ADDRESS & MODE TOOLBAR */}
+                      {/* 2. FLAT ADDRESS & VIEW BAR (No inner boxes, zero overlap) */}
                       {activeSvc && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-nb-gray-800 bg-nb-gray-930 px-4 py-3">
-                          {/* Left: Connected Node Badge + Copyable Proxy URL Bar */}
-                          <div className="flex flex-1 items-center gap-2 min-w-[260px]">
-                            <span className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 font-mono text-[11px] text-nb-gray-300">
+                        <div className="flex items-center justify-between gap-4 border-b border-nb-gray-800 bg-nb-gray-930 px-4 py-2.5 text-xs">
+                          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                            <Globe className="h-3.5 w-3.5 shrink-0 text-netbird" />
+                            <span className="shrink-0 font-mono text-[11px] text-nb-gray-400">
                               {activeSvc.node_id}:{activeSvc.port}
                             </span>
-
-                            <div className="flex flex-1 items-center justify-between gap-2 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-1.5 text-xs">
-                              <div className="flex items-center gap-2 truncate">
-                                <Globe className="h-3.5 w-3.5 shrink-0 text-netbird" />
-                                <span className="text-[11px] text-nb-gray-500 hidden sm:inline">
-                                  Reverse-Proxy:
-                                </span>
-                                <a
-                                  href={activeExtUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="truncate font-mono text-[11px] text-nb-gray-200 hover:text-netbird hover:underline"
-                                >
-                                  {activeExtUrl}
-                                </a>
-                              </div>
-                              <a
-                                href={activeExtUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex shrink-0 items-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-920 px-2 py-0.5 text-[10px] font-medium text-nb-gray-200 hover:border-netbird hover:text-white transition"
-                              >
-                                <span>Extern öffnen</span>
-                                <ExternalLink className="h-2.5 w-2.5" />
-                              </a>
-                            </div>
+                            <span className="text-nb-gray-700">·</span>
+                            <a
+                              href={activeExtUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="truncate font-mono text-[11px] text-nb-gray-200 hover:text-netbird hover:underline"
+                            >
+                              {activeExtUrl}
+                            </a>
+                            <a
+                              href={activeExtUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-netbird hover:underline ml-1"
+                            >
+                              <span>Extern</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
                           </div>
 
-                          {/* Right: View Switcher inside the Active Service Tab */}
-                          <div className="flex items-center rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-1 text-[11px]">
+                          {/* Simple 2-Button View Switcher (Never overlaps) */}
+                          <div className="flex shrink-0 items-center gap-1">
                             {[
-                              {
-                                id: "tester",
-                                label: "⚡ Interaktiver Tester & Optionen",
-                              },
-                              {
-                                id: "preview",
-                                label: "🌐 Web-Vorschau (Iframe)",
-                              },
-                              { id: "split", label: "Split-Ansicht" },
+                              { id: "tester", label: "API- & DB-Tester" },
+                              { id: "preview", label: "Web-Vorschau" },
                             ].map((mode) => (
                               <button
                                 key={mode.id}
@@ -3063,10 +2971,10 @@ export default function SynapseNetBirdControlCenter() {
                                     mode.id as "split" | "preview" | "tester"
                                   )
                                 }
-                                className={`rounded-lg px-3 py-1 font-medium transition ${
+                                className={`rounded-md px-3 py-1 text-xs font-medium transition ${
                                   serviceWorkspaceTab === mode.id
-                                    ? "bg-netbird text-white shadow-sm"
-                                    : "text-nb-gray-400 hover:text-white"
+                                    ? "bg-netbird text-white"
+                                    : "text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
                                 }`}
                               >
                                 {mode.label}
@@ -3076,261 +2984,232 @@ export default function SynapseNetBirdControlCenter() {
                         </div>
                       )}
 
-                      {/* 3. ACTIVE TAB BODY WORKSPACE */}
-                      {activeSvc && (
-                        <div className="p-5 space-y-5">
-                          {/* INTERACTIVE EXPLORER: LEFT CLICKABLE OPTIONS (4 COLS) + RIGHT REQUEST/RESPONSE CONSOLE (8 COLS) */}
-                          {(serviceWorkspaceTab === "tester" ||
-                            serviceWorkspaceTab === "split") && (
-                            <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-                              {/* Left 4 Cols: Clickable Endpoints & Presets for this Tab */}
-                              <div className="lg:col-span-4 space-y-2.5">
-                                <div className="flex items-center justify-between px-1">
-                                  <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
-                                    Klickbare Optionen &amp; Endpunkte
-                                  </span>
-                                  <span className="font-mono text-[10px] text-nb-gray-500">
-                                    {(activeSvc.endpoints || []).length} verfügbar
-                                  </span>
-                                </div>
-
-                                {(activeSvc.endpoints || []).length === 0 ? (
-                                  <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-4 text-xs text-nb-gray-400">
-                                    Nutze rechts das Eingabefeld, um beliebige
-                                    Pfade oder Payloads an{" "}
-                                    <code className="font-mono text-white">
-                                      :{activeSvc.port}
-                                    </code>{" "}
-                                    zu senden.
-                                  </div>
-                                ) : (
-                                  <div className="space-y-2">
-                                    {(activeSvc.endpoints || []).map((ep) => {
-                                      const isCurrentEp =
-                                        serviceActionMethod === ep.method &&
-                                        serviceActionPath === ep.path;
-                                      return (
-                                        <button
-                                          key={ep.id}
-                                          type="button"
-                                          onClick={() => {
-                                            setSelectedServiceId(
-                                              activeSvc.service_id
-                                            );
-                                            setPreviewPort(activeSvc.port);
-                                            setServiceActionMethod(ep.method);
-                                            setServiceActionPath(ep.path);
-                                            setServiceActionPayload(
-                                              ep.sample_payload || ""
-                                            );
-                                            handleInvokeServiceAction({
-                                              nodeId: activeSvc.node_id,
-                                              port: activeSvc.port,
-                                              method: ep.method,
-                                              path: ep.path,
-                                              payload:
-                                                ep.sample_payload || "",
-                                            });
-                                          }}
-                                          className={`flex w-full items-center justify-between gap-2 rounded-xl border p-3 text-left text-xs transition ${
-                                            isCurrentEp
-                                              ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/30"
-                                              : "border-nb-gray-800 bg-nb-gray-950 hover:border-nb-gray-700 hover:bg-nb-gray-930/60"
-                                          }`}
-                                        >
-                                          <div className="min-w-0">
-                                            <div className="flex items-center gap-2">
-                                              <span
-                                                className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold ${
-                                                  ep.method === "POST"
-                                                    ? "bg-amber-950 text-amber-300 border border-amber-500/30"
-                                                    : ep.method === "SQL"
-                                                    ? "bg-purple-950 text-purple-300 border border-purple-500/30"
-                                                    : "bg-emerald-950 text-emerald-300 border border-emerald-500/30"
-                                                }`}
-                                              >
-                                                {ep.method}
-                                              </span>
-                                              <span className="truncate font-medium text-white">
-                                                {ep.label}
-                                              </span>
-                                            </div>
-                                            <div className="mt-1 truncate font-mono text-[10px] text-nb-gray-400">
-                                              {ep.description || ep.path}
-                                            </div>
-                                          </div>
-                                          <Play className="h-3.5 w-3.5 shrink-0 text-netbird" />
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Right 8 Cols: Interactive Request Builder & Dark Formatted Response */}
-                              <div className="lg:col-span-8 flex flex-col rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-3.5">
-                                <div className="flex flex-wrap gap-2 text-xs">
-                                  <select
-                                    value={serviceActionMethod}
-                                    onChange={(e) =>
-                                      setServiceActionMethod(
-                                        e.target.value as
-                                          | "GET"
-                                          | "POST"
-                                          | "PUT"
-                                          | "DELETE"
-                                          | "SQL"
-                                      )
-                                    }
-                                    className="rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 font-mono text-xs font-semibold text-netbird"
-                                  >
-                                    <option value="GET">GET</option>
-                                    <option value="POST">POST</option>
-                                    <option value="PUT">PUT</option>
-                                    <option value="DELETE">DELETE</option>
-                                    <option value="SQL">SQL</option>
-                                  </select>
-
-                                  <input
-                                    type="text"
-                                    value={serviceActionPath}
-                                    onChange={(e) =>
-                                      setServiceActionPath(e.target.value)
-                                    }
-                                    placeholder={
-                                      serviceActionMethod === "SQL"
-                                        ? "/opt/axon/workspaces/.../pulse.db"
-                                        : "/api/events"
-                                    }
-                                    className="flex-1 min-w-[200px] rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 font-mono text-xs text-white"
-                                  />
-
-                                  <button
-                                    type="button"
-                                    disabled={serviceActionBusy}
-                                    onClick={() => handleInvokeServiceAction()}
-                                    className="flex items-center gap-1.5 rounded-lg bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-50"
-                                  >
-                                    <Play className="h-3.5 w-3.5" />
-                                    <span>
-                                      {serviceActionBusy
-                                        ? "Läuft..."
-                                        : "Ausführen"}
-                                    </span>
-                                  </button>
-                                </div>
-
-                                {/* Optional Payload / SQL Input */}
-                                {(serviceActionMethod !== "GET" ||
-                                  serviceActionPayload.trim().length > 0) && (
-                                  <div className="space-y-1">
-                                    <label className="block font-mono text-[10px] uppercase text-nb-gray-400">
-                                      {serviceActionMethod === "SQL"
-                                        ? "SQL-Query Eingabe:"
-                                        : "JSON Request Body / Input:"}
-                                    </label>
-                                    <textarea
-                                      rows={3}
-                                      value={serviceActionPayload}
-                                      onChange={(e) =>
-                                        setServiceActionPayload(e.target.value)
-                                      }
-                                      placeholder={
-                                        serviceActionMethod === "SQL"
-                                          ? "SELECT * FROM events ORDER BY id DESC LIMIT 10;"
-                                          : '{"action": "ping"}'
-                                      }
-                                      className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-940 p-2.5 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
-                                    />
-                                  </div>
-                                )}
-
-                                {/* Dark Formatted Live Response Console */}
-                                <div className="flex flex-1 flex-col rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-3.5 font-mono text-xs space-y-2">
-                                  <div className="flex items-center justify-between border-b border-nb-gray-800 pb-2 text-[11px]">
-                                    <span className="text-nb-gray-300 font-semibold">
-                                      Live-Antwort von {activeSvc.name} (:
-                                      {activeSvc.port})
-                                    </span>
-                                    {serviceActionResult ? (
-                                      <span
-                                        className={`rounded px-2 py-0.5 text-[10px] ${
-                                          serviceActionResult.ok
-                                            ? "bg-green-950/80 text-green-400 border border-green-500/30"
-                                            : "bg-red-950/80 text-red-400 border border-red-500/30"
-                                        }`}
-                                      >
-                                        {serviceActionResult.method} · HTTP{" "}
-                                        {serviceActionResult.status_code} ·{" "}
-                                        {serviceActionResult.latency_ms} ms
-                                      </span>
-                                    ) : (
-                                      <span className="text-[10px] text-nb-gray-500">
-                                        Bereit
-                                      </span>
-                                    )}
-                                  </div>
-                                  <pre className="max-h-60 min-h-[140px] overflow-auto whitespace-pre-wrap text-nb-gray-100 leading-relaxed">
-                                    {serviceActionResult
-                                      ? serviceActionResult.response_text
-                                      : "Klicke links auf eine der Optionen oder oben auf 'Ausführen', um die Live-Antwort direkt hier anzuzeigen."}
-                                  </pre>
-                                </div>
-                              </div>
+                      {/* 3. FLAT WORKSPACE BODY (Divided cleanly by a thin line, not nested boxes) */}
+                      {activeSvc && serviceWorkspaceTab !== "preview" && (
+                        <div className="grid grid-cols-1 divide-y divide-nb-gray-800 lg:grid-cols-12 lg:divide-y-0 lg:divide-x">
+                          {/* Left 4 Cols: Flat Endpoint List */}
+                          <div className="lg:col-span-4 p-4 space-y-2">
+                            <div className="px-1 pb-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
+                              Verfügbare Optionen
                             </div>
-                          )}
 
-                          {/* LIVE WEB IFRAME VIEW (Shown when 'preview' or 'split' is selected) */}
-                          {(serviceWorkspaceTab === "preview" ||
-                            serviceWorkspaceTab === "split") && (
-                            <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-800 bg-nb-gray-950">
-                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-800 bg-nb-gray-930 px-4 py-2 text-xs">
-                                <div className="flex items-center gap-2">
-                                  <Globe className="h-3.5 w-3.5 text-sky-400" />
-                                  <span className="font-medium text-nb-gray-200">
-                                    Eingebettete Browser-Vorschau
-                                  </span>
-                                  <span className="font-mono text-[11px] text-nb-gray-400">
-                                    :{previewPort}
-                                  </span>
-                                  <input
-                                    type="text"
-                                    value={previewSubPath}
-                                    onChange={(e) =>
-                                      setPreviewSubPath(e.target.value || "/")
-                                    }
-                                    className="w-40 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-white"
-                                    placeholder="/"
-                                  />
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setPreviewReloadNonce((n) => n + 1)
-                                  }
-                                  className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-300 hover:text-white"
-                                >
-                                  Neu laden
-                                </button>
+                            {(activeSvc.endpoints || []).length === 0 ? (
+                              <div className="px-1 text-xs text-nb-gray-400">
+                                Sende rechts eine Anfrage an{" "}
+                                <code className="font-mono text-white">
+                                  :{activeSvc.port}
+                                </code>
+                                .
                               </div>
-                              <iframe
-                                key={`${previewPort}-${previewSubPath}-${previewReloadNonce}`}
-                                title="Synapse Reverse Proxy Preview"
-                                src={`${gatewayUrl}/preview/${
-                                  activeProject?.project_id
-                                }/${
-                                  activeSvc?.node_id ||
-                                  primaryNode ||
-                                  "unassigned"
-                                }/${previewPort}${
-                                  previewSubPath.startsWith("/")
-                                    ? previewSubPath
-                                    : `/${previewSubPath}`
-                                }`}
-                                className="w-full bg-white h-[420px]"
+                            ) : (
+                              <div className="space-y-1.5">
+                                {(activeSvc.endpoints || []).map((ep) => {
+                                  const isCurrentEp =
+                                    serviceActionMethod === ep.method &&
+                                    serviceActionPath === ep.path;
+                                  return (
+                                    <button
+                                      key={ep.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedServiceId(
+                                          activeSvc.service_id
+                                        );
+                                        setPreviewPort(activeSvc.port);
+                                        setServiceActionMethod(ep.method);
+                                        setServiceActionPath(ep.path);
+                                        setServiceActionPayload(
+                                          ep.sample_payload || ""
+                                        );
+                                        handleInvokeServiceAction({
+                                          nodeId: activeSvc.node_id,
+                                          port: activeSvc.port,
+                                          method: ep.method,
+                                          path: ep.path,
+                                          payload: ep.sample_payload || "",
+                                        });
+                                      }}
+                                      className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-xs transition ${
+                                        isCurrentEp
+                                          ? "bg-nb-gray-900 text-white border-l-2 border-l-netbird"
+                                          : "text-nb-gray-300 hover:bg-nb-gray-930 hover:text-white"
+                                      }`}
+                                    >
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          <span
+                                            className={`font-mono text-[10px] font-bold ${
+                                              ep.method === "POST"
+                                                ? "text-amber-400"
+                                                : ep.method === "SQL"
+                                                ? "text-purple-400"
+                                                : "text-emerald-400"
+                                            }`}
+                                          >
+                                            {ep.method}
+                                          </span>
+                                          <span className="truncate font-medium">
+                                            {ep.label}
+                                          </span>
+                                        </div>
+                                        {ep.description && (
+                                          <div className="mt-0.5 truncate text-[11px] text-nb-gray-500">
+                                            {ep.description}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <Play className="h-3 w-3 shrink-0 text-netbird" />
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Right 8 Cols: Flat Request Bar + Output */}
+                          <div className="lg:col-span-8 p-4 space-y-3">
+                            <div className="flex items-center gap-2 text-xs">
+                              <select
+                                value={serviceActionMethod}
+                                onChange={(e) =>
+                                  setServiceActionMethod(
+                                    e.target.value as
+                                      | "GET"
+                                      | "POST"
+                                      | "PUT"
+                                      | "DELETE"
+                                      | "SQL"
+                                  )
+                                }
+                                className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 font-mono text-xs font-semibold text-netbird focus:outline-none"
+                              >
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="DELETE">DELETE</option>
+                                <option value="SQL">SQL</option>
+                              </select>
+
+                              <input
+                                type="text"
+                                value={serviceActionPath}
+                                onChange={(e) =>
+                                  setServiceActionPath(e.target.value)
+                                }
+                                placeholder={
+                                  serviceActionMethod === "SQL"
+                                    ? "/opt/axon/workspaces/.../pulse.db"
+                                    : "/"
+                                }
+                                className="flex-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 font-mono text-xs text-white focus:border-netbird focus:outline-none"
+                              />
+
+                              <button
+                                type="button"
+                                disabled={serviceActionBusy}
+                                onClick={() => handleInvokeServiceAction()}
+                                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-50"
+                              >
+                                <Play className="h-3.5 w-3.5" />
+                                <span>
+                                  {serviceActionBusy
+                                    ? "Läuft..."
+                                    : "Ausführen"}
+                                </span>
+                              </button>
+                            </div>
+
+                            {(serviceActionMethod !== "GET" ||
+                              serviceActionPayload.trim().length > 0) && (
+                              <textarea
+                                rows={3}
+                                value={serviceActionPayload}
+                                onChange={(e) =>
+                                  setServiceActionPayload(e.target.value)
+                                }
+                                placeholder={
+                                  serviceActionMethod === "SQL"
+                                    ? "SELECT * FROM events ORDER BY id DESC LIMIT 10;"
+                                    : '{"action": "ping"}'
+                                }
+                                className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-3 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
+                              />
+                            )}
+
+                            {/* Single flat dark output area */}
+                            <div className="rounded-lg bg-nb-gray-950 p-3.5 font-mono text-xs space-y-2">
+                              <div className="flex items-center justify-between border-b border-nb-gray-900 pb-2 text-[11px]">
+                                <span className="text-nb-gray-400">
+                                  Antwort ({activeSvc.name})
+                                </span>
+                                {serviceActionResult && (
+                                  <span
+                                    className={
+                                      serviceActionResult.ok
+                                        ? "text-green-400"
+                                        : "text-red-400"
+                                    }
+                                  >
+                                    {serviceActionResult.method} · HTTP{" "}
+                                    {serviceActionResult.status_code} ·{" "}
+                                    {serviceActionResult.latency_ms} ms
+                                  </span>
+                                )}
+                              </div>
+                              <pre className="max-h-72 min-h-[160px] overflow-auto whitespace-pre-wrap text-nb-gray-100 leading-relaxed">
+                                {serviceActionResult
+                                  ? serviceActionResult.response_text
+                                  : "Klicke links auf eine Option oder auf 'Ausführen'."}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 4. FLAT WEB PREVIEW (Shown when 'preview' is selected) */}
+                      {activeSvc && serviceWorkspaceTab === "preview" && (
+                        <div className="flex flex-col">
+                          <div className="flex items-center justify-between gap-2 border-b border-nb-gray-800 bg-nb-gray-950 px-4 py-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[11px] text-nb-gray-400">
+                                Pfad auf :{previewPort}
+                              </span>
+                              <input
+                                type="text"
+                                value={previewSubPath}
+                                onChange={(e) =>
+                                  setPreviewSubPath(e.target.value || "/")
+                                }
+                                className="w-48 rounded border border-nb-gray-800 bg-nb-gray-930 px-2.5 py-1 font-mono text-xs text-white focus:border-netbird focus:outline-none"
+                                placeholder="/"
                               />
                             </div>
-                          )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPreviewReloadNonce((n) => n + 1)
+                              }
+                              className="rounded border border-nb-gray-800 bg-nb-gray-930 px-2.5 py-1 text-[11px] text-nb-gray-300 hover:text-white"
+                            >
+                              Neu laden
+                            </button>
+                          </div>
+                          <iframe
+                            key={`${previewPort}-${previewSubPath}-${previewReloadNonce}`}
+                            title="Synapse Reverse Proxy Preview"
+                            src={`${gatewayUrl}/preview/${
+                              activeProject?.project_id
+                            }/${
+                              activeSvc?.node_id ||
+                              primaryNode ||
+                              "unassigned"
+                            }/${previewPort}${
+                              previewSubPath.startsWith("/")
+                                ? previewSubPath
+                                : `/${previewSubPath}`
+                            }`}
+                            className="w-full bg-white h-[480px]"
+                          />
                         </div>
                       )}
                     </div>
