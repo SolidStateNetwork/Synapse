@@ -167,6 +167,34 @@ interface ProjectState {
   telemetry: Record<string, NodeHeartbeat>;
   pending_approvals: PendingApproval[];
   ai_settings?: AIProviderSettings;
+  peer_mesh_links?: Array<{
+    link_id: string;
+    source_node_id: string;
+    target_node_id: string;
+    target_port: number;
+    protocol: "tcp" | "http";
+    alias_env: string;
+    created_at: string;
+  }>;
+  scheduled_playbooks?: Array<{
+    playbook_id: string;
+    name: string;
+    cron: string;
+    prompt: string;
+    target_node_id?: string;
+    enabled: boolean;
+    last_run_at?: string;
+    last_status?: "ok" | "error";
+  }>;
+}
+
+interface StackBlueprint {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  cartridges: string[];
+  prompt: string;
 }
 
 interface AuditEntry {
@@ -395,9 +423,27 @@ export default function SynapseNetBirdControlCenter() {
   const [joinNodeName, setJoinNodeName] = useState("");
   const [issuedToken, setIssuedToken] = useState<string | null>(null);
   const [copiedJoinCmd, setCopiedJoinCmd] = useState(false);
+  const [copiedRebindCmd, setCopiedRebindCmd] = useState(false);
   const [newSecretKey, setNewSecretKey] = useState("");
   const [newSecretVal, setNewSecretVal] = useState("");
   const [previewPort, setPreviewPort] = useState<number>(3000);
+
+  // Wave 2 Expansion State: Blueprints, Custom Cartridges, Playbooks & Mesh Links
+  const [blueprints, setBlueprints] = useState<StackBlueprint[]>([]);
+  const [showCustomCartModal, setShowCustomCartModal] = useState(false);
+  const [customCartName, setCustomCartName] = useState("");
+  const [customCartCategory, setCustomCartCategory] = useState("Custom");
+  const [customCartDesc, setCustomCartDesc] = useState("");
+  const [customCartContent, setCustomCartContent] = useState(
+    "# Custom DevOps Policy\n\n1. Always verify systemd unit syntax before reload.\n2. Keep logs under /var/log/synapse."
+  );
+  const [playbookName, setPlaybookName] = useState("");
+  const [playbookCron, setPlaybookCron] = useState("0 */6 * * *");
+  const [playbookPrompt, setPlaybookPrompt] = useState("");
+  const [meshSourceNode, setMeshSourceNode] = useState("");
+  const [meshTargetNode, setMeshTargetNode] = useState("");
+  const [meshTargetPort, setMeshTargetPort] = useState(5432);
+  const [meshAliasEnv, setMeshAliasEnv] = useState("PEER_DB_URL");
 
   const loadWorkspace = useCallback(
     async (projectId?: string, syncAiSettings = false) => {
@@ -416,6 +462,7 @@ export default function SynapseNetBirdControlCenter() {
         setSecretKeys(data.secret_keys || []);
         setAuditLogs(data.audit_logs || []);
         setCartridges(data.cartridges || []);
+        setBlueprints(data.blueprints || []);
         setGatewayNodes(data.gateway_nodes || []);
         if (data.gateway_url) {
           let resolvedUrl = String(data.gateway_url);
@@ -1248,6 +1295,136 @@ export default function SynapseNetBirdControlCenter() {
       }`
     : "";
 
+  const rebindCliCmd = issuedToken
+    ? `sudo axon switch --core ${gatewayUrl.replace(/\/$/, "")} --token ${issuedToken} --tier ${joinTier}${
+        joinNodeName.trim() ? ` --node ${joinNodeName.trim()}` : ""
+      } --restart`
+    : `sudo axon switch --core ${gatewayUrl.replace(/\/$/, "")} --token <NEW_TOKEN> --tier ${joinTier} --restart`;
+
+  async function handleCreateCustomCartridge(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activeProject || !customCartName.trim()) return;
+    const res = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create_custom_cartridge",
+        project_id: activeProject.project_id,
+        name: customCartName.trim(),
+        category: customCartCategory.trim() || "Custom",
+        description: customCartDesc.trim() || "Custom user-defined policy cartridge",
+        content: customCartContent,
+      }),
+    });
+    const data = await res.json();
+    if (data.cartridge) {
+      setSelectedCartridgeId(data.cartridge.id);
+      setShowCustomCartModal(false);
+      setCustomCartName("");
+      setCustomCartDesc("");
+      setStatusToast(`Created & enabled Cartridge: ${data.cartridge.name}`);
+      setTimeout(() => setStatusToast(""), 3000);
+      await loadWorkspace(activeProject.project_id);
+    }
+  }
+
+  async function handleAddPlaybook(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activeProject || !playbookName.trim() || !playbookPrompt.trim()) return;
+    await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "upsert_playbook",
+        project_id: activeProject.project_id,
+        name: playbookName.trim(),
+        cron: playbookCron.trim() || "0 */6 * * *",
+        prompt: playbookPrompt.trim(),
+        enabled: true,
+      }),
+    });
+    setPlaybookName("");
+    setPlaybookPrompt("");
+    setStatusToast("Scheduled AI Playbook saved");
+    setTimeout(() => setStatusToast(""), 3000);
+    await loadWorkspace(activeProject.project_id);
+  }
+
+  async function handleTogglePlaybook(pb: {
+    playbook_id: string;
+    name: string;
+    cron: string;
+    prompt: string;
+    enabled: boolean;
+  }) {
+    if (!activeProject) return;
+    await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "upsert_playbook",
+        project_id: activeProject.project_id,
+        playbook_id: pb.playbook_id,
+        name: pb.name,
+        cron: pb.cron,
+        prompt: pb.prompt,
+        enabled: !pb.enabled,
+      }),
+    });
+    await loadWorkspace(activeProject.project_id);
+  }
+
+  async function handleDeletePlaybook(playbookId: string) {
+    if (!activeProject) return;
+    await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "delete_playbook",
+        project_id: activeProject.project_id,
+        playbook_id: playbookId,
+      }),
+    });
+    await loadWorkspace(activeProject.project_id);
+  }
+
+  async function handleAddMeshLink(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activeProject || !meshSourceNode.trim() || !meshTargetNode.trim()) return;
+    await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "upsert_mesh_link",
+        project_id: activeProject.project_id,
+        source_node_id: meshSourceNode.trim(),
+        target_node_id: meshTargetNode.trim(),
+        target_port: Number(meshTargetPort) || 5432,
+        protocol: "tcp",
+        alias_env: meshAliasEnv.trim() || "PEER_SERVICE_URL",
+      }),
+    });
+    setStatusToast(
+      `Linked ${meshSourceNode.trim()} -> ${meshTargetNode.trim()}:${meshTargetPort}`
+    );
+    setTimeout(() => setStatusToast(""), 3000);
+    await loadWorkspace(activeProject.project_id);
+  }
+
+  async function handleRemoveMeshLink(linkId: string) {
+    if (!activeProject) return;
+    await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "remove_mesh_link",
+        project_id: activeProject.project_id,
+        link_id: linkId,
+      }),
+    });
+    await loadWorkspace(activeProject.project_id);
+  }
+
   const sidebarItems: Array<{
     id: NavSection;
     label: string;
@@ -1896,6 +2073,232 @@ export default function SynapseNetBirdControlCenter() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Wave 2 Expansion: 1-Click Stack Blueprints, P2P Mesh Links & Scheduled AI Playbooks */}
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                  {/* Card A: 1-Click Stack Blueprints */}
+                  <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-netbird" />
+                          1-Click AI Stack Blueprints
+                        </h2>
+                        <p className="text-[11px] text-nb-gray-400">
+                          Deploy pre-hardened infrastructure stacks autonomously via the AI Orchestrator.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                      {blueprints.map((bp) => (
+                        <div
+                          key={bp.id}
+                          className="flex flex-col justify-between rounded-md border border-nb-gray-800 bg-nb-gray-930 p-3 space-y-2"
+                        >
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-white">
+                                {bp.name}
+                              </span>
+                              <span className="rounded border border-netbird-500/40 bg-netbird-950 px-1.5 py-0.5 font-mono text-[9px] text-netbird">
+                                {bp.category}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-[11px] text-nb-gray-400 leading-snug">
+                              {bp.description}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setCopilotDrawerOpen(true);
+                              runStreamingPrompt(bp.prompt);
+                            }}
+                            className="w-full rounded bg-netbird/90 py-1.5 text-[11px] font-medium text-white hover:bg-netbird"
+                          >
+                            Deploy Stack via AI →
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Card B: Multi-Server Peer-to-Peer Mesh Links & Scheduled Playbooks */}
+                  <div className="space-y-4">
+                    {/* P2P Mesh Links (`core_link_peers`) */}
+                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-3">
+                      <div>
+                        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                          <Network className="h-4 w-4 text-sky-400" />
+                          Multi-Server Peer-to-Peer Mesh Links (`core_link_peers`)
+                        </h2>
+                        <p className="text-[11px] text-nb-gray-400">
+                          Connect services across different Muscle peers over encrypted mTLS loopback tunnels.
+                        </p>
+                      </div>
+                      <form
+                        onSubmit={handleAddMeshLink}
+                        className="grid grid-cols-1 gap-2 sm:grid-cols-4 text-xs"
+                      >
+                        <input
+                          type="text"
+                          value={meshSourceNode}
+                          onChange={(e) => setMeshSourceNode(e.target.value)}
+                          placeholder="Source peer (e.g. web-01)"
+                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 font-mono text-xs text-white"
+                        />
+                        <input
+                          type="text"
+                          value={meshTargetNode}
+                          onChange={(e) => setMeshTargetNode(e.target.value)}
+                          placeholder="Target peer (e.g. db-01)"
+                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 font-mono text-xs text-white"
+                        />
+                        <input
+                          type="number"
+                          value={meshTargetPort}
+                          onChange={(e) =>
+                            setMeshTargetPort(Number(e.target.value) || 5432)
+                          }
+                          placeholder="Port (5432)"
+                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 font-mono text-xs text-netbird"
+                        />
+                        <button
+                          type="submit"
+                          className="rounded bg-netbird px-3 py-1.5 text-xs font-medium text-white hover:bg-netbird-500"
+                        >
+                          + Link Peers
+                        </button>
+                      </form>
+                      <div className="space-y-1.5">
+                        {(activeProject?.peer_mesh_links || []).map((lnk) => (
+                          <div
+                            key={lnk.link_id}
+                            className="flex items-center justify-between rounded border border-nb-gray-800 bg-nb-gray-930 px-3 py-1.5 font-mono text-[11px]"
+                          >
+                            <span className="text-nb-gray-200">
+                              <strong className="text-white">
+                                {lnk.source_node_id}
+                              </strong>{" "}
+                              ⇄{" "}
+                              <strong className="text-sky-400">
+                                {lnk.target_node_id}:{lnk.target_port}
+                              </strong>{" "}
+                              <span className="text-nb-gray-400">
+                                ({lnk.alias_env})
+                              </span>
+                            </span>
+                            <button
+                              onClick={() => handleRemoveMeshLink(lnk.link_id)}
+                              className="text-nb-gray-500 hover:text-red-400"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Scheduled AI Playbooks (Cron) */}
+                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                            <Activity className="h-4 w-4 text-emerald-400" />
+                            Scheduled AI Playbooks (Cron Maintenance)
+                          </h2>
+                          <p className="text-[11px] text-nb-gray-400">
+                            Recurring autonomous health audits, log cleanups &amp; security checks.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {(activeProject?.scheduled_playbooks || []).map(
+                          (pb) => (
+                            <div
+                              key={pb.playbook_id}
+                              className="flex items-center justify-between gap-2 rounded border border-nb-gray-800 bg-nb-gray-930 p-2.5 text-xs"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-white truncate">
+                                    {pb.name}
+                                  </span>
+                                  <span className="rounded border border-nb-gray-700 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[10px] text-netbird">
+                                    {pb.cron}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-nb-gray-400 truncate mt-0.5">
+                                  {pb.prompt}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  onClick={() => {
+                                    setCopilotDrawerOpen(true);
+                                    runStreamingPrompt(pb.prompt);
+                                  }}
+                                  className="rounded border border-netbird-500/40 bg-netbird-950 px-2 py-1 font-mono text-[10px] text-netbird hover:bg-netbird hover:text-white"
+                                >
+                                  Run Now
+                                </button>
+                                <button
+                                  onClick={() => handleTogglePlaybook(pb)}
+                                  className={`rounded border px-2 py-1 font-mono text-[10px] ${
+                                    pb.enabled
+                                      ? "border-green-500/40 bg-green-950 text-green-400"
+                                      : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400"
+                                  }`}
+                                >
+                                  {pb.enabled ? "ON" : "OFF"}
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleDeletePlaybook(pb.playbook_id)
+                                  }
+                                  className="text-nb-gray-500 hover:text-red-400 p-1"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                      <form
+                        onSubmit={handleAddPlaybook}
+                        className="grid grid-cols-1 gap-2 sm:grid-cols-4 pt-1 text-xs"
+                      >
+                        <input
+                          type="text"
+                          value={playbookName}
+                          onChange={(e) => setPlaybookName(e.target.value)}
+                          placeholder="Playbook name..."
+                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 text-xs text-white"
+                        />
+                        <input
+                          type="text"
+                          value={playbookCron}
+                          onChange={(e) => setPlaybookCron(e.target.value)}
+                          placeholder="0 */6 * * *"
+                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 font-mono text-xs text-netbird"
+                        />
+                        <input
+                          type="text"
+                          value={playbookPrompt}
+                          onChange={(e) => setPlaybookPrompt(e.target.value)}
+                          placeholder="AI instruction prompt..."
+                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 text-xs text-white"
+                        />
+                        <button
+                          type="submit"
+                          className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500"
+                        >
+                          + Add Cron
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1904,18 +2307,84 @@ export default function SynapseNetBirdControlCenter() {
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "access-control" && (
               <div className="mx-auto max-w-6xl p-6 space-y-6">
-                <div>
-                  <h1 className="text-xl font-medium text-nb-gray-100">
-                    Access Control, Guardrails &amp; Rule Cartridges
-                  </h1>
-                  <p className="text-xs text-nb-gray-400 mt-0.5">
-                    Configure modular DevOps Rule Cartridges, inspect hardcoded
-                    node guardrails, and review Tier-3 human-in-the-loop
-                    approvals.
-                  </p>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h1 className="text-xl font-medium text-nb-gray-100">
+                      Access Control, Guardrails &amp; Rule Cartridges
+                    </h1>
+                    <p className="text-xs text-nb-gray-400 mt-0.5">
+                      Configure modular DevOps Rule Cartridges, inspect hardcoded
+                      node guardrails, and review Tier-3 human-in-the-loop
+                      approvals with visual diff highlighting.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowCustomCartModal((v) => !v)}
+                    className="flex items-center gap-1.5 rounded-md bg-netbird px-3.5 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>New Custom Cartridge</span>
+                  </button>
                 </div>
 
-                {/* Pending Tier-3 Approvals Gate */}
+                {showCustomCartModal && (
+                  <form
+                    onSubmit={handleCreateCustomCartridge}
+                    className="rounded-lg border border-netbird-500/50 bg-nb-gray-940 p-5 space-y-3 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-white">
+                        Create Custom Rule Cartridge (`.md`)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomCartModal(false)}
+                        className="text-nb-gray-400 hover:text-white"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <input
+                        type="text"
+                        value={customCartName}
+                        onChange={(e) => setCustomCartName(e.target.value)}
+                        placeholder="Cartridge Name (e.g. HIPAA Compliance)"
+                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
+                      />
+                      <input
+                        type="text"
+                        value={customCartCategory}
+                        onChange={(e) => setCustomCartCategory(e.target.value)}
+                        placeholder="Category (e.g. Security)"
+                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
+                      />
+                      <input
+                        type="text"
+                        value={customCartDesc}
+                        onChange={(e) => setCustomCartDesc(e.target.value)}
+                        placeholder="Short description..."
+                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
+                      />
+                    </div>
+                    <textarea
+                      value={customCartContent}
+                      onChange={(e) => setCustomCartContent(e.target.value)}
+                      rows={5}
+                      className="w-full rounded border border-nb-gray-800 bg-nb-gray-960 p-3 font-mono text-xs text-nb-gray-100"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="submit"
+                        className="rounded-md bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500"
+                      >
+                        Save &amp; Enable Cartridge
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Pending Tier-3 Approvals Gate with Visual Unified Diff Highlighting */}
                 {pendingApprovals.length > 0 && (
                   <div className="rounded-lg border border-netbird-500/60 bg-netbird-950/30 p-5 space-y-3">
                     <div className="flex items-center justify-between">
@@ -1926,50 +2395,75 @@ export default function SynapseNetBirdControlCenter() {
                       </span>
                     </div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      {pendingApprovals.map((req) => (
-                        <div
-                          key={req.approval_id}
-                          className="rounded-lg border border-nb-gray-800 bg-nb-gray-940 p-4 space-y-2.5"
-                        >
-                          <div className="flex items-center justify-between font-mono text-xs">
-                            <span className="font-semibold text-white">
-                              {req.tool_name}
-                            </span>
-                            <span className="text-nb-gray-400">
-                              {req.node_id}
-                            </span>
+                      {pendingApprovals.map((req) => {
+                        const rawPreview = String(
+                          req.arguments?.command ||
+                            req.arguments?.content_or_patch ||
+                            req.arguments?.content ||
+                            JSON.stringify(req.arguments, null, 2)
+                        );
+                        return (
+                          <div
+                            key={req.approval_id}
+                            className="rounded-lg border border-nb-gray-800 bg-nb-gray-940 p-4 space-y-2.5"
+                          >
+                            <div className="flex items-center justify-between font-mono text-xs">
+                              <span className="font-semibold text-white">
+                                {req.tool_name}
+                              </span>
+                              <span className="text-nb-gray-400">
+                                {req.node_id}
+                              </span>
+                            </div>
+                            <div className="max-h-40 overflow-auto rounded bg-nb-gray-960 p-2.5 font-mono text-[11px] space-y-0.5">
+                              {rawPreview.split("\n").map((line, idx) => {
+                                const isAdd =
+                                  line.startsWith("+") && !line.startsWith("+++");
+                                const isDel =
+                                  line.startsWith("-") && !line.startsWith("---");
+                                const isHunk = line.startsWith("@@");
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={`px-1 rounded-sm whitespace-pre-wrap break-all ${
+                                      isAdd
+                                        ? "bg-green-950/70 text-green-300"
+                                        : isDel
+                                        ? "bg-red-950/70 text-red-300"
+                                        : isHunk
+                                        ? "bg-sky-950/60 text-sky-300"
+                                        : "text-nb-gray-200"
+                                    }`}
+                                  >
+                                    {line}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() =>
+                                  handleResolveApproval(
+                                    req.approval_id,
+                                    "approve"
+                                  )
+                                }
+                                className="flex-1 rounded-md bg-green-600 py-1.5 text-xs font-medium text-white hover:bg-green-500"
+                              >
+                                Approve &amp; Execute
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleResolveApproval(req.approval_id, "reject")
+                                }
+                                className="flex-1 rounded-md border border-red-500/50 bg-red-950/50 py-1.5 text-xs font-medium text-red-400 hover:bg-red-950"
+                              >
+                                Reject
+                              </button>
+                            </div>
                           </div>
-                          <pre className="max-h-36 overflow-auto rounded bg-nb-gray-960 p-2.5 font-mono text-[11px] text-nb-gray-200">
-                            {String(
-                              req.arguments?.command ||
-                                req.arguments?.content_or_patch ||
-                                req.arguments?.content ||
-                                JSON.stringify(req.arguments, null, 2)
-                            )}
-                          </pre>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() =>
-                                handleResolveApproval(
-                                  req.approval_id,
-                                  "approve"
-                                )
-                              }
-                              className="flex-1 rounded-md bg-green-600 py-1.5 text-xs font-medium text-white hover:bg-green-500"
-                            >
-                              Approve &amp; Execute
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleResolveApproval(req.approval_id, "reject")
-                              }
-                              className="flex-1 rounded-md border border-red-500/50 bg-red-950/50 py-1.5 text-xs font-medium text-red-400 hover:bg-red-950"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -2798,8 +3292,7 @@ export default function SynapseNetBirdControlCenter() {
                       <div className="rounded-lg border border-netbird-500/40 bg-nb-gray-950 p-4 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-medium text-netbird">
-                            Run on target Linux host to install `axon` &amp;
-                            connect via token:
+                            1. Fresh Install — Run on target Linux host to install `axon` &amp; connect via token:
                           </span>
                           <button
                             onClick={() => {
@@ -2819,6 +3312,32 @@ export default function SynapseNetBirdControlCenter() {
                         </pre>
                       </div>
                     )}
+
+                    <div className="rounded-lg border border-sky-500/40 bg-nb-gray-950 p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-medium text-sky-400">
+                            2. Switch / Rebind Existing Muscle Agent via CLI (`axon switch`)
+                          </span>
+                          <p className="text-[11px] text-nb-gray-400">
+                            Already have `axon` installed? Run this in your shell to connect it to this Core with a new token (or use `axon profiles` to switch saved Cores):
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(rebindCliCmd);
+                            setCopiedRebindCmd(true);
+                            setTimeout(() => setCopiedRebindCmd(false), 2500);
+                          }}
+                          className="rounded border border-sky-500/50 bg-sky-950 px-3 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900"
+                        >
+                          {copiedRebindCmd ? "✔ Copied CLI!" : "Copy CLI Switch"}
+                        </button>
+                      </div>
+                      <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-xs text-sky-300">
+                        {rebindCliCmd}
+                      </pre>
+                    </div>
                   </div>
                 )}
 
@@ -3566,6 +4085,33 @@ export default function SynapseNetBirdControlCenter() {
               </div>
               <pre className="overflow-x-auto rounded-md border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-xs text-green-400">
                 {oneLineInstallerCmd || "Generating setup token..."}
+              </pre>
+            </div>
+
+            <div className="space-y-2 border-t border-nb-gray-900 pt-3">
+              <div className="flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-medium text-sky-400">
+                    Or switch an existing Muscle via CLI (`axon switch`):
+                  </span>
+                  <p className="text-[11px] text-nb-gray-400">
+                    Rebind an installed Muscle agent to this Core with a new token (old Core profile is saved under `axon profiles`):
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(rebindCliCmd);
+                    setCopiedRebindCmd(true);
+                    setTimeout(() => setCopiedRebindCmd(false), 2500);
+                  }}
+                  className="flex items-center gap-1 rounded border border-sky-500/50 bg-sky-950 px-3 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900"
+                >
+                  <Copy className="h-3 w-3" />
+                  <span>{copiedRebindCmd ? "Copied CLI!" : "Copy CLI"}</span>
+                </button>
+              </div>
+              <pre className="overflow-x-auto rounded-md border border-nb-gray-800 bg-nb-gray-960 p-3 font-mono text-xs text-sky-300">
+                {rebindCliCmd}
               </pre>
             </div>
 

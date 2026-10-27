@@ -295,6 +295,49 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "core_link_peers",
+      description:
+        "Creates or removes a secure Peer-to-Peer Mesh Tunnel between two Muscle Nodes (e.g. connecting a web node on 127.0.0.1:5432 to a database node's port 5432 without exposing public firewall ports).",
+      parameters: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: ["upsert", "remove"],
+            default: "upsert",
+          },
+          source_node_id: {
+            type: "string",
+            description: "Source Muscle Peer where the local loopback port is opened.",
+          },
+          target_node_id: {
+            type: "string",
+            description: "Destination Muscle Peer hosting the target service.",
+          },
+          local_port: {
+            type: "integer",
+            description: "Local loopback port on source_node_id (127.0.0.1:<local_port>).",
+          },
+          remote_port: {
+            type: "integer",
+            description: "Target port on target_node_id (127.0.0.1:<remote_port>).",
+          },
+          protocol: {
+            type: "string",
+            enum: ["tcp", "http"],
+            default: "tcp",
+          },
+          description: {
+            type: "string",
+          },
+        },
+        required: ["source_node_id", "target_node_id", "remote_port"],
+      },
+    },
+  },
 ];
 
 export interface ToolDispatchResult {
@@ -651,6 +694,82 @@ export async function interceptAndExecuteTool(
           action === "generate_random"
             ? `Generated ${length}-char secret '${key}' in Secrets.enc (never exposed in plaintext).`
             : undefined,
+      },
+    };
+  }
+
+  if (toolName === "core_link_peers") {
+    const action = String(args.action || "upsert");
+    const sourceNodeId = String(
+      args.source_node_id || state.assigned_nodes[0]?.node_id || "node-a"
+    );
+    const targetNodeId = String(
+      args.target_node_id || state.assigned_nodes[1]?.node_id || "node-b"
+    );
+    const remotePort = Number(args.remote_port || 5432);
+    const localPort = Number(args.local_port || remotePort);
+    const linkId = String(
+      args.link_id || `mesh-${sourceNodeId}-${targetNodeId}-${remotePort}`
+    );
+
+    if (action === "remove") {
+      state.peer_mesh_links = (state.peer_mesh_links || []).filter(
+        (l) => l.link_id !== linkId
+      );
+      saveProjectState(state);
+      appendAuditLog(projectId, {
+        timestamp: new Date().toISOString(),
+        actor: "ai_orchestrator",
+        tool_name: toolName,
+        node_id: sourceNodeId,
+        status: "executed",
+        summary: `Removed peer mesh link ${linkId} (${sourceNodeId} -> ${targetNodeId}:${remotePort})`,
+        args,
+      });
+      return {
+        tool_name: toolName,
+        status: "executed",
+        output: { removed: linkId },
+      };
+    }
+
+    const link = {
+      link_id: linkId,
+      source_node_id: sourceNodeId,
+      target_node_id: targetNodeId,
+      local_port: localPort,
+      remote_port: remotePort,
+      protocol: (String(args.protocol || "tcp").toLowerCase() === "http"
+        ? "http"
+        : "tcp") as "tcp" | "http",
+      description: args.description
+        ? String(args.description)
+        : `Encrypted mTLS mesh route ${sourceNodeId} (127.0.0.1:${localPort}) -> ${targetNodeId} (127.0.0.1:${remotePort})`,
+      created_at: new Date().toISOString(),
+    };
+
+    state.peer_mesh_links = [
+      ...(state.peer_mesh_links || []).filter((l) => l.link_id !== linkId),
+      link,
+    ];
+    saveProjectState(state);
+
+    appendAuditLog(projectId, {
+      timestamp: new Date().toISOString(),
+      actor: "ai_orchestrator",
+      tool_name: toolName,
+      node_id: sourceNodeId,
+      status: "executed",
+      summary: `Established Peer-to-Peer Mesh Tunnel: ${sourceNodeId} (127.0.0.1:${localPort}) <=> ${targetNodeId} (127.0.0.1:${remotePort})`,
+      args,
+    });
+
+    return {
+      tool_name: toolName,
+      status: "executed",
+      output: {
+        mesh_link: link,
+        note: `Peer ${sourceNodeId} can now reach ${targetNodeId}:${remotePort} directly via 127.0.0.1:${localPort}.`,
       },
     };
   }

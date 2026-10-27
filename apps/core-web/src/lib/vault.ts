@@ -86,6 +86,28 @@ export interface PendingApproval {
   status: "pending" | "approved" | "rejected";
 }
 
+export interface PeerMeshLink {
+  link_id: string;
+  source_node_id: string;
+  target_node_id: string;
+  local_port: number;
+  remote_port: number;
+  protocol: "tcp" | "http";
+  description?: string;
+  created_at: string;
+}
+
+export interface ScheduledPlaybook {
+  playbook_id: string;
+  name: string;
+  cron_expression: string;
+  prompt: string;
+  target_node_id?: string;
+  enabled: boolean;
+  last_run_at?: string;
+  last_status?: string;
+}
+
 export interface AIProviderSettings {
   provider: string; // "openai-compatible" | "openrouter" | "ollama" | "anthropic" | "synapse-autonomous"
   base_url: string;
@@ -104,6 +126,8 @@ export interface ProjectState {
   assigned_nodes: AssignedNode[];
   active_cartridges: string[];
   registered_services: RegisteredService[];
+  peer_mesh_links?: PeerMeshLink[];
+  scheduled_playbooks?: ScheduledPlaybook[];
   active_pty_sessions: string[];
   telemetry: Record<string, NodeHeartbeat>;
   pending_approvals: PendingApproval[];
@@ -276,6 +300,27 @@ flowchart LR
     assigned_nodes: [],
     active_cartridges: ["docker-first", "zero-trust-networking"],
     registered_services: [],
+    peer_mesh_links: [],
+    scheduled_playbooks: [
+      {
+        playbook_id: "pb-nightly-health",
+        name: "Nightly Disk & Container Hygiene",
+        cron_expression: "0 3 * * *",
+        prompt:
+          "Check disk utilization, prune dangling container logs, and record a summary in Memory.md.",
+        enabled: true,
+        last_status: "Scheduled (03:00 UTC)",
+      },
+      {
+        playbook_id: "pb-security-audit",
+        name: "Weekly Zero-Trust Port Audit",
+        cron_expression: "0 9 * * 1",
+        prompt:
+          "Verify all listening ports bind to 127.0.0.1 and update Architecture.md.",
+        enabled: true,
+        last_status: "Scheduled (Mon 09:00 UTC)",
+      },
+    ],
     active_pty_sessions: [],
     telemetry: {},
     pending_approvals: [],

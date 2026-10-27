@@ -14,7 +14,12 @@ import {
   setSecret,
   writeBrainDoc,
 } from "@/lib/vault";
-import { listCartridges } from "@/lib/cartridges";
+import {
+  deleteCustomCartridge,
+  listCartridges,
+  OFFICIAL_STACK_BLUEPRINTS,
+  saveCustomCartridge,
+} from "@/lib/cartridges";
 import {
   CORE_GATEWAY_URL,
   fetchGatewayNodes,
@@ -161,6 +166,7 @@ export async function GET(req: NextRequest) {
     audit_logs: readAuditLogs(projectId, 60),
     chat_history: readChatHistory(projectId, 100),
     cartridges: listCartridges(),
+    blueprints: OFFICIAL_STACK_BLUEPRINTS,
     gateway_nodes: liveNodes,
     gateway_url: CORE_GATEWAY_URL,
   });
@@ -246,6 +252,105 @@ export async function POST(req: NextRequest) {
     } else {
       state.active_cartridges.push(cartridgeId);
     }
+    const saved = saveProjectState(state);
+    return NextResponse.json({ project: saved });
+  }
+
+  if (action === "create_custom_cartridge") {
+    const created = saveCustomCartridge({
+      name: String(body.name || "Custom DevOps Rule"),
+      description: String(body.description || "User-defined Synapse Rule Cartridge"),
+      category: String(body.category || "custom"),
+      content: String(body.content || ""),
+    });
+    if (!state.active_cartridges.includes(created.id)) {
+      state.active_cartridges.push(created.id);
+    }
+    const saved = saveProjectState(state);
+    appendAuditLog(projectId, {
+      timestamp: new Date().toISOString(),
+      actor: "user",
+      tool_name: "create_custom_cartridge",
+      status: "executed",
+      summary: `Created and activated custom Rule Cartridge '${created.name}' (${created.id}.md)`,
+    });
+    return NextResponse.json({
+      cartridge: created,
+      cartridges: listCartridges(),
+      project: saved,
+    });
+  }
+
+  if (action === "delete_custom_cartridge") {
+    const cartridgeId = String(body.cartridge_id || "");
+    const deleted = deleteCustomCartridge(cartridgeId);
+    state.active_cartridges = state.active_cartridges.filter(
+      (id) => id !== cartridgeId
+    );
+    const saved = saveProjectState(state);
+    return NextResponse.json({
+      deleted,
+      cartridges: listCartridges(),
+      project: saved,
+    });
+  }
+
+  if (action === "upsert_playbook") {
+    const pbId = String(body.playbook_id || `pb-${Date.now()}`);
+    const pb = {
+      playbook_id: pbId,
+      name: String(body.name || "Scheduled AI Playbook"),
+      cron_expression: String(body.cron_expression || "0 3 * * *"),
+      prompt: String(body.prompt || "Inspect server health and update Memory.md"),
+      target_node_id: body.target_node_id ? String(body.target_node_id) : undefined,
+      enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
+      last_status: "Scheduled",
+    };
+    state.scheduled_playbooks = [
+      ...(state.scheduled_playbooks || []).filter(
+        (x) => x.playbook_id !== pbId
+      ),
+      pb,
+    ];
+    const saved = saveProjectState(state);
+    return NextResponse.json({ project: saved });
+  }
+
+  if (action === "delete_playbook") {
+    const pbId = String(body.playbook_id || "");
+    state.scheduled_playbooks = (state.scheduled_playbooks || []).filter(
+      (x) => x.playbook_id !== pbId
+    );
+    const saved = saveProjectState(state);
+    return NextResponse.json({ project: saved });
+  }
+
+  if (action === "upsert_mesh_link") {
+    const res = await interceptAndExecuteTool(
+      projectId,
+      "core_link_peers",
+      {
+        action: "upsert",
+        source_node_id: body.source_node_id,
+        target_node_id: body.target_node_id,
+        local_port: Number(body.local_port || body.remote_port || 5432),
+        remote_port: Number(body.remote_port || 5432),
+        protocol: body.protocol || "tcp",
+        description: body.description,
+      },
+      true
+    );
+    return NextResponse.json({
+      project: ensureProjectVault(projectId),
+      result: res,
+    });
+  }
+
+  if (action === "remove_mesh_link") {
+    const linkId = String(body.link_id || "");
+    state.peer_mesh_links = (state.peer_mesh_links || []).filter(
+      (l) => l.link_id !== linkId
+    );
     const saved = saveProjectState(state);
     return NextResponse.json({ project: saved });
   }

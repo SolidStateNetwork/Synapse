@@ -41,15 +41,16 @@ Instead of typing complex Linux commands yourself, you simply chat with the AI i
 ## 🤖 Core AI Features
 
 ### 1. Autonomous Multi-Step Execution (Not Just a Chatbot)
-Standard AI chatbots only give you code snippets that you have to copy and paste yourself. Synapse uses a **Multi-Turn ReAct (Reason + Act) Loop** with **5 specialized DevOps tools** to do the actual work end-to-end:
+Standard AI chatbots only give you code snippets that you have to copy and paste yourself. Synapse uses a **Multi-Turn ReAct (Reason + Act) Loop** with **6 specialized DevOps tools** to do the actual work end-to-end:
 
 | AI Tool | What the AI Does With It |
 | :--- | :--- |
-| **`node_fs_operation`** | Reads, creates, deletes, or patches files directly on your server using atomic writes and Unified Diffs—faster and safer than copy-pasting over SSH. |
+| **`node_fs_operation`** | Reads, creates, deletes, or patches files directly on your server using atomic writes and Unified Diffs—with automatic pre-write snapshots for 1-click rollback. |
 | **`node_pty_exec`** | Runs commands inside a real, persistent Linux terminal (`bash`). The AI remembers its current folder (`cwd`), environment variables, and running background processes across turns. |
 | **`core_register_service`** | Registers any web app or microservice the AI builds so Synapse can monitor its health 24/7 and stream it right into your browser. |
 | **`core_manage_secret`** | Generates and injects encrypted passwords or API keys (`AES-256-GCM`) directly into your server's memory—**without the AI or logs ever seeing the plaintext password**. |
 | **`core_update_brain_doc`** | Automatically updates your project's system diagrams (`Architecture.md`) and engineering diary (`Memory.md`) after every change. |
+| **`core_link_peers`** | Links two different Muscle servers over an encrypted Peer-to-Peer mesh tunnel (e.g., connecting a frontend server to a database server) and injects the connection URL automatically. |
 
 ### 2. Long-Term Project Memory ("The Brain Vault")
 Most AI assistants suffer from amnesia: when you start a new chat, they forget how your server is configured.
@@ -146,6 +147,21 @@ curl -fsSL http://<CORE_IP>:8081/install.sh | sudo sh -s -- <ONE_TIME_JOIN_TOKEN
 
 > **Zero-Firewall Setup:**
 > You do **not** need to open any incoming ports on your Linux server. The `axon` binary downloads automatically, exchanges a cryptographic certificate (ECDSA P-256 mTLS 1.3), installs itself as a `systemd` service, and connects outbound to your Control Center.
+
+### Step 3 — Switch or Rebind an Existing Muscle via CLI (`axon switch` & `axon profiles`)
+Already have `axon` installed on a server and want to connect it to a **different Core server** with a **new token** directly from the shell? Use the built-in multi-Core CLI commands:
+
+```bash
+# 1. Rebind an existing Muscle to a new Core + Token and restart the background service
+sudo axon switch --core http://<NEW_CORE_IP>:8081 --token <NEW_JOIN_TOKEN> --tier TIER_2_WORKSPACE_JAIL --restart
+
+# 2. Run a Muscle ad-hoc in the foreground against another Core + Token (auto-enrolls if needed)
+axon run --core http://<NEW_CORE_IP>:8081 --token <NEW_JOIN_TOKEN>
+
+# 3. List all saved Core profiles on this machine and switch between them anytime
+axon profiles
+sudo axon switch --profile <SAVED_PROFILE_NAME> --restart
+```
 
 ### Prebuilt Static Release Binaries (`CGO_ENABLED=0`)
 Prefer manual installation? All binaries are compiled with zero external dependencies and available on [GitHub Releases](https://github.com/SolidStateNetwork/Synapse/releases):
