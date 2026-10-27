@@ -426,6 +426,7 @@ export default function InteractiveControlCenterCanvas({
 
   function getEdgeCoords(fromId: string, toId: string) {
     const p1 = positions[fromId] || { x: 60, y: 120 };
+    const p2 = positions[toId] || { x: 430, y: 120 };
     const defaultS1 =
       fromId === "core:hub"
         ? { w: 265, h: 108 }
