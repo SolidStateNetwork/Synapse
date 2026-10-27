@@ -474,7 +474,7 @@ export default function SynapseNetBirdControlCenter() {
   >("all");
   const [serviceWorkspaceTab, setServiceWorkspaceTab] = useState<
     "split" | "preview" | "tester"
-  >("preview");
+  >("tester");
   const [peersSubTab, setPeersSubTab] = useState<
     "nodes" | "mesh" | "blueprints" | "playbooks"
   >("nodes");
@@ -2830,53 +2830,24 @@ export default function SynapseNetBirdControlCenter() {
             )}
 
             {/* ═══════════════════════════════════════════════════════════════
-                VIEW 4: CLEAN SERVICES, REVERSE PROXY & ON-DEMAND TESTER (`reverse-proxy`)
+                VIEW 4: UNIFIED SERVICE WORKBENCH WITH CONNECTED BROWSER TABS (`reverse-proxy`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "reverse-proxy" &&
               (() => {
                 const allSvcs = activeProject?.registered_services || [];
-                const webuiSvcs = allSvcs.filter((s) => s.category === "webui");
-                const dbSvcs = allSvcs.filter((s) => s.category === "database");
-                const backendSvcs = allSvcs.filter(
-                  (s) => s.category !== "webui" && s.category !== "database"
-                );
+                const filteredSvcs = allSvcs.filter((s) => {
+                  const cat = s.category || "backend";
+                  if (serviceCategoryFilter === "all") return true;
+                  return cat === serviceCategoryFilter;
+                });
 
                 const activeSvc =
-                  allSvcs.find((s) => s.service_id === selectedServiceId) ||
-                  allSvcs.find((s) => s.port === previewPort) ||
+                  filteredSvcs.find(
+                    (s) => s.service_id === selectedServiceId
+                  ) ||
+                  filteredSvcs.find((s) => s.port === previewPort) ||
+                  filteredSvcs[0] ||
                   allSvcs[0];
-
-                const categoryGroups = [
-                  {
-                    id: "webui" as const,
-                    title: "WebUIs & Frontends",
-                    badge: "WebUI",
-                    badgeStyle:
-                      "border-sky-500/30 bg-sky-950/50 text-sky-300",
-                    items: webuiSvcs,
-                  },
-                  {
-                    id: "backend" as const,
-                    title: "Backend & REST APIs",
-                    badge: "API",
-                    badgeStyle:
-                      "border-netbird-500/30 bg-netbird-950/50 text-netbird",
-                    items: backendSvcs,
-                  },
-                  {
-                    id: "database" as const,
-                    title: "Datenbanken",
-                    badge: "DB",
-                    badgeStyle:
-                      "border-purple-500/30 bg-purple-950/50 text-purple-300",
-                    items: dbSvcs,
-                  },
-                ].filter(
-                  (g) =>
-                    (serviceCategoryFilter === "all" ||
-                      serviceCategoryFilter === g.id) &&
-                    g.items.length > 0
-                );
 
                 const activeExtUrl = activeSvc
                   ? `${gatewayUrl}/preview/${activeProject?.project_id}/${
@@ -2887,26 +2858,27 @@ export default function SynapseNetBirdControlCenter() {
                     }/${previewPort}/`;
 
                 return (
-                  <div className="mx-auto flex max-w-6xl flex-col gap-5 p-6">
-                    {/* CLEAN TOP HEADER & CATEGORY FILTER TABS (Without noisy counts) */}
-                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-nb-gray-900 pb-4">
+                  <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6">
+                    {/* COMPACT PAGE HEADER + CATEGORY FILTER */}
+                    <div className="flex flex-wrap items-center justify-between gap-4">
                       <div>
                         <h1 className="text-xl font-medium text-nb-gray-100">
-                          Projekt-Dienste &amp; Reverse-Proxy
+                          Services &amp; Reverse-Proxy Workbench
                         </h1>
                         <p className="text-xs text-nb-gray-400 mt-0.5">
-                          Wähle links einen Dienst aus, um die Live-Vorschau zu
-                          öffnen oder API- &amp; Datenbank-Abfragen zu testen.
+                          Jeder erreichbare Dienst ist oben als eigener Reiter
+                          (Tab) angelegt — klicke auf einen Reiter, um dessen
+                          Endpunkte, Inputs oder Live-Webansicht zu nutzen.
                         </p>
                       </div>
 
-                      {/* Clean Category Filter Pills */}
+                      {/* Category Filter Pills */}
                       <div className="flex flex-wrap items-center gap-1 rounded-xl border border-nb-gray-800/80 bg-nb-gray-940 p-1">
                         {[
-                          { id: "all", label: "Alle" },
-                          { id: "webui", label: "WebUI" },
-                          { id: "backend", label: "Backend API" },
-                          { id: "database", label: "Datenbank" },
+                          { id: "all", label: "Alle Reiter" },
+                          { id: "webui", label: "🌐 WebUI" },
+                          { id: "backend", label: "⚡ Backend API" },
+                          { id: "database", label: "🗄️ Datenbank" },
                         ].map((tab) => {
                           const active = serviceCategoryFilter === tab.id;
                           return (
@@ -2935,383 +2907,432 @@ export default function SynapseNetBirdControlCenter() {
                       </div>
                     </div>
 
-                    {/* MASTER-DETAIL SPLIT: LEFT CLEAN LIST (4 COLS) + RIGHT FOCUSED WORKSPACE (8 COLS) */}
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-                      {/* LEFT 4 COLUMNS: MINIMALIST SERVICE CARDS */}
-                      <div className="lg:col-span-4 space-y-5">
-                        {categoryGroups.length === 0 ? (
-                          <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-5 text-center text-xs text-nb-gray-400">
+                    {/* ═══════════════════════════════════════════════════════════
+                        UNIFIED TABBED WORKBENCH WINDOW (Browser-Style Reiter)
+                    ═══════════════════════════════════════════════════════════ */}
+                    <div className="flex flex-col overflow-hidden rounded-2xl border border-nb-gray-800 bg-nb-gray-940 shadow-2xl">
+                      {/* 1. TOP CONNECTED SERVICE TAB BAR (Echte Reiter-Leiste) */}
+                      <div className="flex items-end gap-1.5 overflow-x-auto border-b border-nb-gray-800 bg-nb-gray-950 px-3 pt-2.5">
+                        {filteredSvcs.length === 0 ? (
+                          <div className="px-4 py-2 text-xs text-nb-gray-400">
                             Keine Dienste in dieser Kategorie vorhanden.
                           </div>
                         ) : (
-                          categoryGroups.map((group) => (
-                            <div key={group.id} className="space-y-2">
-                              <div className="px-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
-                                {group.title}
-                              </div>
+                          filteredSvcs.map((svc) => {
+                            const healthy =
+                              svc.healthy !== false &&
+                              svc.health_check?.status !== "UNHEALTHY";
+                            const isSelected =
+                              activeSvc?.service_id === svc.service_id;
+                            const cat = svc.category || "backend";
 
-                              <div className="space-y-2">
-                                {group.items.map((svc) => {
-                                  const healthy =
-                                    svc.healthy !== false &&
-                                    svc.health_check?.status !== "UNHEALTHY";
-                                  const isSelected =
-                                    activeSvc?.service_id === svc.service_id;
-
-                                  return (
-                                    <div
-                                      key={svc.service_id}
-                                      onClick={() => {
-                                        setSelectedServiceId(svc.service_id);
-                                        setPreviewPort(svc.port);
-                                        setPreviewSubPath("/");
-                                        if (svc.category === "database") {
-                                          setServiceWorkspaceTab("tester");
-                                        }
-                                        if (
-                                          svc.endpoints &&
-                                          svc.endpoints.length > 0
-                                        ) {
-                                          const firstEp = svc.endpoints[0];
-                                          setServiceActionMethod(
-                                            firstEp.method
-                                          );
-                                          setServiceActionPath(firstEp.path);
-                                          setServiceActionPayload(
-                                            firstEp.sample_payload || ""
-                                          );
-                                        }
-                                      }}
-                                      className={`cursor-pointer rounded-xl border p-3.5 transition-all ${
-                                        isSelected
-                                          ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/30"
-                                          : "border-nb-gray-900 bg-nb-gray-940 hover:border-nb-gray-800"
-                                      }`}
-                                    >
-                                      <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2.5 min-w-0">
-                                          <span
-                                            className={`h-2 w-2 shrink-0 rounded-full ${
-                                              healthy
-                                                ? "bg-green-400"
-                                                : "bg-red-500 animate-pulse"
-                                            }`}
-                                          />
-                                          <span className="truncate text-xs font-semibold text-white">
-                                            {svc.name}
-                                          </span>
-                                        </div>
-                                        <span className="shrink-0 font-mono text-[11px] text-nb-gray-400">
-                                          :{svc.port}
-                                        </span>
-                                      </div>
-
-                                      <div className="mt-2 flex items-center justify-between text-[10px]">
-                                        <span
-                                          className={`rounded border px-1.5 py-0.5 font-mono ${group.badgeStyle}`}
-                                        >
-                                          {group.badge}
-                                        </span>
-                                        <span className="font-mono text-nb-gray-500">
-                                          {svc.node_id}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-
-                      {/* RIGHT 8 COLUMNS: PROGRESSIVE DISCLOSURE WORKSPACE */}
-                      <div className="lg:col-span-8 space-y-4">
-                        {activeSvc && (
-                          <div className="rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-4 space-y-3">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div className="flex items-center gap-2.5 min-w-0">
+                            return (
+                              <button
+                                key={svc.service_id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedServiceId(svc.service_id);
+                                  setPreviewPort(svc.port);
+                                  setPreviewSubPath("/");
+                                  if (serviceWorkspaceTab !== "split") {
+                                    setServiceWorkspaceTab(
+                                      svc.category === "webui"
+                                        ? "preview"
+                                        : "tester"
+                                    );
+                                  }
+                                  if (
+                                    svc.endpoints &&
+                                    svc.endpoints.length > 0
+                                  ) {
+                                    const firstEp = svc.endpoints[0];
+                                    setServiceActionMethod(firstEp.method);
+                                    setServiceActionPath(firstEp.path);
+                                    setServiceActionPayload(
+                                      firstEp.sample_payload || ""
+                                    );
+                                    handleInvokeServiceAction({
+                                      nodeId: svc.node_id,
+                                      port: svc.port,
+                                      method: firstEp.method,
+                                      path: firstEp.path,
+                                      payload: firstEp.sample_payload || "",
+                                    });
+                                  }
+                                }}
+                                className={`group relative flex shrink-0 items-center gap-2.5 rounded-t-xl px-4 py-2.5 text-left text-xs transition-colors ${
+                                  isSelected
+                                    ? "-mb-px border-x border-t-2 border-nb-gray-800 border-t-netbird bg-nb-gray-930 font-semibold text-white shadow-sm z-10"
+                                    : "border border-transparent bg-nb-gray-950/60 text-nb-gray-400 hover:bg-nb-gray-900/70 hover:text-nb-gray-200"
+                                }`}
+                              >
                                 <span
-                                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                                    activeSvc.healthy !== false &&
-                                    activeSvc.health_check?.status !==
-                                      "UNHEALTHY"
+                                  className={`h-2 w-2 shrink-0 rounded-full ${
+                                    healthy
                                       ? "bg-green-400"
                                       : "bg-red-500 animate-pulse"
                                   }`}
                                 />
-                                <h2 className="text-base font-semibold text-white truncate">
-                                  {activeSvc.name}
-                                </h2>
-                                <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[11px] text-nb-gray-300">
-                                  {activeSvc.node_id}:{activeSvc.port}
+                                <span
+                                  className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold ${
+                                    cat === "webui"
+                                      ? "bg-sky-950/80 text-sky-300 border border-sky-500/30"
+                                      : cat === "database"
+                                      ? "bg-purple-950/80 text-purple-300 border border-purple-500/30"
+                                      : "bg-netbird-950/80 text-netbird border border-netbird-500/30"
+                                  }`}
+                                >
+                                  {cat === "webui"
+                                    ? "WebUI"
+                                    : cat === "database"
+                                    ? "DB"
+                                    : "API"}
                                 </span>
-                              </div>
+                                <span className="max-w-[180px] truncate">
+                                  {svc.name}
+                                </span>
+                                <span
+                                  className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${
+                                    isSelected
+                                      ? "bg-nb-gray-950 text-netbird"
+                                      : "bg-nb-gray-900 text-nb-gray-500"
+                                  }`}
+                                >
+                                  :{svc.port}
+                                </span>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
 
-                              {/* Clean Mode Switcher: Live-Preview vs. API/DB Tester */}
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-center rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-0.5 text-[11px]">
-                                  {[
-                                    { id: "preview", label: "Live-Preview" },
-                                    {
-                                      id: "tester",
-                                      label: "API- & DB-Tester",
-                                    },
-                                    { id: "split", label: "Beides" },
-                                  ].map((mode) => (
-                                    <button
-                                      key={mode.id}
-                                      type="button"
-                                      onClick={() =>
-                                        setServiceWorkspaceTab(
-                                          mode.id as
-                                            | "split"
-                                            | "preview"
-                                            | "tester"
-                                        )
-                                      }
-                                      className={`rounded-md px-2.5 py-1 font-medium transition ${
-                                        serviceWorkspaceTab === mode.id
-                                          ? "bg-netbird text-white"
-                                          : "text-nb-gray-400 hover:text-white"
-                                      }`}
-                                    >
-                                      {mode.label}
-                                    </button>
-                                  ))}
-                                </div>
+                      {/* 2. DOCKED BROWSER / SERVICE ADDRESS & MODE TOOLBAR */}
+                      {activeSvc && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-nb-gray-800 bg-nb-gray-930 px-4 py-3">
+                          {/* Left: Connected Node Badge + Copyable Proxy URL Bar */}
+                          <div className="flex flex-1 items-center gap-2 min-w-[260px]">
+                            <span className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 font-mono text-[11px] text-nb-gray-300">
+                              {activeSvc.node_id}:{activeSvc.port}
+                            </span>
 
+                            <div className="flex flex-1 items-center justify-between gap-2 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-1.5 text-xs">
+                              <div className="flex items-center gap-2 truncate">
+                                <Globe className="h-3.5 w-3.5 shrink-0 text-netbird" />
+                                <span className="text-[11px] text-nb-gray-500 hidden sm:inline">
+                                  Reverse-Proxy:
+                                </span>
                                 <a
                                   href={activeExtUrl}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-2.5 py-1.5 text-[11px] font-medium text-nb-gray-200 hover:border-netbird hover:text-white transition"
-                                  title="Im eigenen Browser-Tab öffnen"
+                                  className="truncate font-mono text-[11px] text-nb-gray-200 hover:text-netbird hover:underline"
                                 >
-                                  <span>Browser</span>
-                                  <ExternalLink className="h-3 w-3" />
+                                  {activeExtUrl}
                                 </a>
                               </div>
-                            </div>
-
-                            {/* Compact Quick-Action Pills (Expand into Tester when clicked) */}
-                            {activeSvc.endpoints &&
-                              activeSvc.endpoints.length > 0 && (
-                                <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-nb-gray-900">
-                                  <span className="font-mono text-[10px] text-nb-gray-400 mr-1">
-                                    Schnelltest:
-                                  </span>
-                                  {activeSvc.endpoints.map((ep) => (
-                                    <button
-                                      key={ep.id}
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedServiceId(
-                                          activeSvc.service_id
-                                        );
-                                        setPreviewPort(activeSvc.port);
-                                        setServiceActionMethod(ep.method);
-                                        setServiceActionPath(ep.path);
-                                        setServiceActionPayload(
-                                          ep.sample_payload || ""
-                                        );
-                                        if (serviceWorkspaceTab === "preview") {
-                                          setServiceWorkspaceTab("tester");
-                                        }
-                                        handleInvokeServiceAction({
-                                          nodeId: activeSvc.node_id,
-                                          port: activeSvc.port,
-                                          method: ep.method,
-                                          path: ep.path,
-                                          payload: ep.sample_payload || "",
-                                        });
-                                      }}
-                                      className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-2.5 py-1 text-[11px] text-nb-gray-200 hover:border-netbird hover:text-white transition"
-                                    >
-                                      <span
-                                        className={`font-mono text-[9px] font-bold ${
-                                          ep.method === "POST"
-                                            ? "text-amber-400"
-                                            : ep.method === "SQL"
-                                            ? "text-purple-400"
-                                            : "text-emerald-400"
-                                        }`}
-                                      >
-                                        {ep.method}
-                                      </span>
-                                      <span>{ep.label}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                          </div>
-                        )}
-
-                        {/* ON-DEMAND API & SQL TESTER PANEL (Only shown when 'tester' or 'split' is active) */}
-                        {(serviceWorkspaceTab === "split" ||
-                          serviceWorkspaceTab === "tester") && (
-                          <div className="flex flex-col rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-4 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold text-white flex items-center gap-2">
-                                <Zap className="h-3.5 w-3.5 text-netbird" />
-                                API- &amp; Datenbank-Tester
-                              </span>
-                              <span className="font-mono text-[10px] text-nb-gray-400">
-                                {activeExtUrl}
-                              </span>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2 text-xs">
-                              <select
-                                value={serviceActionMethod}
-                                onChange={(e) =>
-                                  setServiceActionMethod(
-                                    e.target.value as
-                                      | "GET"
-                                      | "POST"
-                                      | "PUT"
-                                      | "DELETE"
-                                      | "SQL"
-                                  )
-                                }
-                                className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 font-mono text-xs font-semibold text-netbird"
+                              <a
+                                href={activeExtUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex shrink-0 items-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-920 px-2 py-0.5 text-[10px] font-medium text-nb-gray-200 hover:border-netbird hover:text-white transition"
                               >
-                                <option value="GET">GET</option>
-                                <option value="POST">POST</option>
-                                <option value="PUT">PUT</option>
-                                <option value="DELETE">DELETE</option>
-                                <option value="SQL">SQL</option>
-                              </select>
-
-                              <input
-                                type="text"
-                                value={serviceActionPath}
-                                onChange={(e) =>
-                                  setServiceActionPath(e.target.value)
-                                }
-                                placeholder={
-                                  serviceActionMethod === "SQL"
-                                    ? "/opt/axon/workspaces/.../pulse.db"
-                                    : "/api/events"
-                                }
-                                className="flex-1 min-w-[200px] rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 font-mono text-xs text-white"
-                              />
-
-                              <button
-                                type="button"
-                                disabled={serviceActionBusy}
-                                onClick={() => handleInvokeServiceAction()}
-                                className="flex items-center gap-1.5 rounded-lg bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-50"
-                              >
-                                <Play className="h-3 w-3" />
-                                <span>
-                                  {serviceActionBusy
-                                    ? "Läuft..."
-                                    : "Ausführen"}
-                                </span>
-                              </button>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                              <div className="space-y-1">
-                                <label className="block font-mono text-[10px] uppercase text-nb-gray-400">
-                                  {serviceActionMethod === "SQL"
-                                    ? "SQL-Abfrage:"
-                                    : "Payload / Body (optional):"}
-                                </label>
-                                <textarea
-                                  rows={4}
-                                  value={serviceActionPayload}
-                                  onChange={(e) =>
-                                    setServiceActionPayload(e.target.value)
-                                  }
-                                  placeholder={
-                                    serviceActionMethod === "SQL"
-                                      ? "SELECT * FROM events ORDER BY id DESC LIMIT 10;"
-                                      : '{"action": "ping"}'
-                                  }
-                                  className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2.5 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
-                                />
-                              </div>
-
-                              <div className="flex flex-col rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-3 font-mono text-[11px] space-y-1.5">
-                                <div className="flex items-center justify-between border-b border-nb-gray-800/80 pb-1 text-[10px]">
-                                  <span className="text-nb-gray-400">
-                                    Antwort
-                                  </span>
-                                  {serviceActionResult && (
-                                    <span
-                                      className={
-                                        serviceActionResult.ok
-                                          ? "text-green-400"
-                                          : "text-red-400"
-                                      }
-                                    >
-                                      {serviceActionResult.method} ·{" "}
-                                      {serviceActionResult.status_code} ·{" "}
-                                      {serviceActionResult.latency_ms} ms
-                                    </span>
-                                  )}
-                                </div>
-                                <pre className="max-h-32 flex-1 overflow-auto whitespace-pre-wrap text-nb-gray-200">
-                                  {serviceActionResult
-                                    ? serviceActionResult.response_text
-                                    : "Noch keine Anfrage ausgeführt."}
-                                </pre>
-                              </div>
+                                <span>Extern öffnen</span>
+                                <ExternalLink className="h-2.5 w-2.5" />
+                              </a>
                             </div>
                           </div>
-                        )}
 
-                        {/* LIVE EMBEDDED REVERSE-PROXY IFRAME (Default clean view) */}
-                        {(serviceWorkspaceTab === "split" ||
-                          serviceWorkspaceTab === "preview") && (
-                          <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-900 bg-nb-gray-940 shadow-xl">
-                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-2 text-xs">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <Globe className="h-3.5 w-3.5 text-netbird" />
-                                <span className="font-mono text-[11px] text-nb-gray-400">
-                                  :{previewPort}
-                                </span>
-                                <input
-                                  type="text"
-                                  value={previewSubPath}
-                                  onChange={(e) =>
-                                    setPreviewSubPath(e.target.value || "/")
-                                  }
-                                  className="w-40 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-white"
-                                  placeholder="/"
-                                />
-                              </div>
+                          {/* Right: View Switcher inside the Active Service Tab */}
+                          <div className="flex items-center rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-1 text-[11px]">
+                            {[
+                              {
+                                id: "tester",
+                                label: "⚡ Interaktiver Tester & Optionen",
+                              },
+                              {
+                                id: "preview",
+                                label: "🌐 Web-Vorschau (Iframe)",
+                              },
+                              { id: "split", label: "Split-Ansicht" },
+                            ].map((mode) => (
                               <button
+                                key={mode.id}
                                 type="button"
                                 onClick={() =>
-                                  setPreviewReloadNonce((n) => n + 1)
+                                  setServiceWorkspaceTab(
+                                    mode.id as "split" | "preview" | "tester"
+                                  )
                                 }
-                                className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-300 hover:text-white"
+                                className={`rounded-lg px-3 py-1 font-medium transition ${
+                                  serviceWorkspaceTab === mode.id
+                                    ? "bg-netbird text-white shadow-sm"
+                                    : "text-nb-gray-400 hover:text-white"
+                                }`}
                               >
-                                Neu laden
+                                {mode.label}
                               </button>
-                            </div>
-                            <iframe
-                              key={`${previewPort}-${previewSubPath}-${previewReloadNonce}`}
-                              title="Synapse Reverse Proxy Preview"
-                              src={`${gatewayUrl}/preview/${
-                                activeProject?.project_id
-                              }/${
-                                activeSvc?.node_id ||
-                                primaryNode ||
-                                "unassigned"
-                              }/${previewPort}${
-                                previewSubPath.startsWith("/")
-                                  ? previewSubPath
-                                  : `/${previewSubPath}`
-                              }`}
-                              className="w-full bg-white h-[480px]"
-                            />
+                            ))}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
+
+                      {/* 3. ACTIVE TAB BODY WORKSPACE */}
+                      {activeSvc && (
+                        <div className="p-5 space-y-5">
+                          {/* INTERACTIVE EXPLORER: LEFT CLICKABLE OPTIONS (4 COLS) + RIGHT REQUEST/RESPONSE CONSOLE (8 COLS) */}
+                          {(serviceWorkspaceTab === "tester" ||
+                            serviceWorkspaceTab === "split") && (
+                            <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+                              {/* Left 4 Cols: Clickable Endpoints & Presets for this Tab */}
+                              <div className="lg:col-span-4 space-y-2.5">
+                                <div className="flex items-center justify-between px-1">
+                                  <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
+                                    Klickbare Optionen &amp; Endpunkte
+                                  </span>
+                                  <span className="font-mono text-[10px] text-nb-gray-500">
+                                    {(activeSvc.endpoints || []).length} verfügbar
+                                  </span>
+                                </div>
+
+                                {(activeSvc.endpoints || []).length === 0 ? (
+                                  <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-4 text-xs text-nb-gray-400">
+                                    Nutze rechts das Eingabefeld, um beliebige
+                                    Pfade oder Payloads an{" "}
+                                    <code className="font-mono text-white">
+                                      :{activeSvc.port}
+                                    </code>{" "}
+                                    zu senden.
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {(activeSvc.endpoints || []).map((ep) => {
+                                      const isCurrentEp =
+                                        serviceActionMethod === ep.method &&
+                                        serviceActionPath === ep.path;
+                                      return (
+                                        <button
+                                          key={ep.id}
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedServiceId(
+                                              activeSvc.service_id
+                                            );
+                                            setPreviewPort(activeSvc.port);
+                                            setServiceActionMethod(ep.method);
+                                            setServiceActionPath(ep.path);
+                                            setServiceActionPayload(
+                                              ep.sample_payload || ""
+                                            );
+                                            handleInvokeServiceAction({
+                                              nodeId: activeSvc.node_id,
+                                              port: activeSvc.port,
+                                              method: ep.method,
+                                              path: ep.path,
+                                              payload:
+                                                ep.sample_payload || "",
+                                            });
+                                          }}
+                                          className={`flex w-full items-center justify-between gap-2 rounded-xl border p-3 text-left text-xs transition ${
+                                            isCurrentEp
+                                              ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/30"
+                                              : "border-nb-gray-800 bg-nb-gray-950 hover:border-nb-gray-700 hover:bg-nb-gray-930/60"
+                                          }`}
+                                        >
+                                          <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                              <span
+                                                className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold ${
+                                                  ep.method === "POST"
+                                                    ? "bg-amber-950 text-amber-300 border border-amber-500/30"
+                                                    : ep.method === "SQL"
+                                                    ? "bg-purple-950 text-purple-300 border border-purple-500/30"
+                                                    : "bg-emerald-950 text-emerald-300 border border-emerald-500/30"
+                                                }`}
+                                              >
+                                                {ep.method}
+                                              </span>
+                                              <span className="truncate font-medium text-white">
+                                                {ep.label}
+                                              </span>
+                                            </div>
+                                            <div className="mt-1 truncate font-mono text-[10px] text-nb-gray-400">
+                                              {ep.description || ep.path}
+                                            </div>
+                                          </div>
+                                          <Play className="h-3.5 w-3.5 shrink-0 text-netbird" />
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Right 8 Cols: Interactive Request Builder & Dark Formatted Response */}
+                              <div className="lg:col-span-8 flex flex-col rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-3.5">
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                  <select
+                                    value={serviceActionMethod}
+                                    onChange={(e) =>
+                                      setServiceActionMethod(
+                                        e.target.value as
+                                          | "GET"
+                                          | "POST"
+                                          | "PUT"
+                                          | "DELETE"
+                                          | "SQL"
+                                      )
+                                    }
+                                    className="rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 font-mono text-xs font-semibold text-netbird"
+                                  >
+                                    <option value="GET">GET</option>
+                                    <option value="POST">POST</option>
+                                    <option value="PUT">PUT</option>
+                                    <option value="DELETE">DELETE</option>
+                                    <option value="SQL">SQL</option>
+                                  </select>
+
+                                  <input
+                                    type="text"
+                                    value={serviceActionPath}
+                                    onChange={(e) =>
+                                      setServiceActionPath(e.target.value)
+                                    }
+                                    placeholder={
+                                      serviceActionMethod === "SQL"
+                                        ? "/opt/axon/workspaces/.../pulse.db"
+                                        : "/api/events"
+                                    }
+                                    className="flex-1 min-w-[200px] rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 font-mono text-xs text-white"
+                                  />
+
+                                  <button
+                                    type="button"
+                                    disabled={serviceActionBusy}
+                                    onClick={() => handleInvokeServiceAction()}
+                                    className="flex items-center gap-1.5 rounded-lg bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-50"
+                                  >
+                                    <Play className="h-3.5 w-3.5" />
+                                    <span>
+                                      {serviceActionBusy
+                                        ? "Läuft..."
+                                        : "Ausführen"}
+                                    </span>
+                                  </button>
+                                </div>
+
+                                {/* Optional Payload / SQL Input */}
+                                {(serviceActionMethod !== "GET" ||
+                                  serviceActionPayload.trim().length > 0) && (
+                                  <div className="space-y-1">
+                                    <label className="block font-mono text-[10px] uppercase text-nb-gray-400">
+                                      {serviceActionMethod === "SQL"
+                                        ? "SQL-Query Eingabe:"
+                                        : "JSON Request Body / Input:"}
+                                    </label>
+                                    <textarea
+                                      rows={3}
+                                      value={serviceActionPayload}
+                                      onChange={(e) =>
+                                        setServiceActionPayload(e.target.value)
+                                      }
+                                      placeholder={
+                                        serviceActionMethod === "SQL"
+                                          ? "SELECT * FROM events ORDER BY id DESC LIMIT 10;"
+                                          : '{"action": "ping"}'
+                                      }
+                                      className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-940 p-2.5 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
+                                    />
+                                  </div>
+                                )}
+
+                                {/* Dark Formatted Live Response Console */}
+                                <div className="flex flex-1 flex-col rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-3.5 font-mono text-xs space-y-2">
+                                  <div className="flex items-center justify-between border-b border-nb-gray-800 pb-2 text-[11px]">
+                                    <span className="text-nb-gray-300 font-semibold">
+                                      Live-Antwort von {activeSvc.name} (:
+                                      {activeSvc.port})
+                                    </span>
+                                    {serviceActionResult ? (
+                                      <span
+                                        className={`rounded px-2 py-0.5 text-[10px] ${
+                                          serviceActionResult.ok
+                                            ? "bg-green-950/80 text-green-400 border border-green-500/30"
+                                            : "bg-red-950/80 text-red-400 border border-red-500/30"
+                                        }`}
+                                      >
+                                        {serviceActionResult.method} · HTTP{" "}
+                                        {serviceActionResult.status_code} ·{" "}
+                                        {serviceActionResult.latency_ms} ms
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-nb-gray-500">
+                                        Bereit
+                                      </span>
+                                    )}
+                                  </div>
+                                  <pre className="max-h-60 min-h-[140px] overflow-auto whitespace-pre-wrap text-nb-gray-100 leading-relaxed">
+                                    {serviceActionResult
+                                      ? serviceActionResult.response_text
+                                      : "Klicke links auf eine der Optionen oder oben auf 'Ausführen', um die Live-Antwort direkt hier anzuzeigen."}
+                                  </pre>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* LIVE WEB IFRAME VIEW (Shown when 'preview' or 'split' is selected) */}
+                          {(serviceWorkspaceTab === "preview" ||
+                            serviceWorkspaceTab === "split") && (
+                            <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-800 bg-nb-gray-950">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-800 bg-nb-gray-930 px-4 py-2 text-xs">
+                                <div className="flex items-center gap-2">
+                                  <Globe className="h-3.5 w-3.5 text-sky-400" />
+                                  <span className="font-medium text-nb-gray-200">
+                                    Eingebettete Browser-Vorschau
+                                  </span>
+                                  <span className="font-mono text-[11px] text-nb-gray-400">
+                                    :{previewPort}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={previewSubPath}
+                                    onChange={(e) =>
+                                      setPreviewSubPath(e.target.value || "/")
+                                    }
+                                    className="w-40 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-white"
+                                    placeholder="/"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPreviewReloadNonce((n) => n + 1)
+                                  }
+                                  className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-300 hover:text-white"
+                                >
+                                  Neu laden
+                                </button>
+                              </div>
+                              <iframe
+                                key={`${previewPort}-${previewSubPath}-${previewReloadNonce}`}
+                                title="Synapse Reverse Proxy Preview"
+                                src={`${gatewayUrl}/preview/${
+                                  activeProject?.project_id
+                                }/${
+                                  activeSvc?.node_id ||
+                                  primaryNode ||
+                                  "unassigned"
+                                }/${previewPort}${
+                                  previewSubPath.startsWith("/")
+                                    ? previewSubPath
+                                    : `/${previewSubPath}`
+                                }`}
+                                className="w-full bg-white h-[420px]"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

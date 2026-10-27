@@ -426,17 +426,32 @@ export default function InteractiveControlCenterCanvas({
 
   function getEdgeCoords(fromId: string, toId: string) {
     const p1 = positions[fromId] || { x: 60, y: 120 };
-    const s1 = sizes[fromId] || { w: 240, h: 68 };
-    const p2 = positions[toId] || { x: 430, y: 120 };
-    const s2 = sizes[toId] || { w: 260, h: 96 };
+    const defaultS1 =
+      fromId === "core:hub"
+        ? { w: 265, h: 108 }
+        : fromId.startsWith("peer:")
+        ? { w: 250, h: 66 }
+        : { w: 255, h: 62 };
+    const defaultS2 =
+      toId === "core:hub"
+        ? { w: 265, h: 108 }
+        : toId.startsWith("peer:")
+        ? { w: 250, h: 66 }
+        : { w: 255, h: 62 };
 
-    const leftToRight = p1.x + s1.w / 2 <= p2.x + s2.w / 2;
+    const s1 = sizes[fromId] || defaultS1;
+    const s2 = sizes[toId] || defaultS2;
+
+    const c1CenterX = p1.x + s1.w / 2;
+    const c2CenterX = p2.x + s2.w / 2;
+    const leftToRight = c1CenterX <= c2CenterX;
+
     const x1 = leftToRight ? p1.x + s1.w : p1.x;
     const y1 = p1.y + s1.h / 2;
     const x2 = leftToRight ? p2.x : p2.x + s2.w;
     const y2 = p2.y + s2.h / 2;
 
-    const dx = Math.max(Math.abs(x2 - x1) * 0.45, 50);
+    const dx = Math.max(Math.abs(x2 - x1) * 0.45, 48);
     const c1x = leftToRight ? x1 + dx : x1 - dx;
     const c2x = leftToRight ? x2 - dx : x2 + dx;
     const d = `M ${x1} ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${x2} ${y2}`;
@@ -524,7 +539,7 @@ export default function InteractiveControlCenterCanvas({
           Erreichbare Services
         </div>
 
-        {/* CLEAN BEZIER EDGES */}
+        {/* CLEAN BEZIER EDGES (Zero-Lag Solid Base + Smooth Directional Flow) */}
         <svg
           className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
           style={{ zIndex: 1 }}
@@ -539,40 +554,62 @@ export default function InteractiveControlCenterCanvas({
               <g
                 key={edge.id}
                 style={{
-                  opacity: isHovered ? 1 : edge.active ? 0.65 : 0.25,
-                  transition: "opacity 150ms ease",
+                  opacity: isHovered ? 1 : edge.active ? 0.85 : 0.3,
                 }}
               >
+                {/* Solid underlying connection track (never jitters while dragging) */}
                 <path
                   d={d}
                   fill="none"
                   stroke={edge.color}
-                  strokeWidth={isHovered ? 2.2 : 1.5}
-                  strokeDasharray={edge.active ? "6 6" : "4 6"}
-                  className={edge.active ? "cc-animated-edge" : ""}
+                  strokeOpacity={isHovered ? 0.45 : 0.22}
+                  strokeWidth={isHovered ? 2.4 : 1.6}
                 />
+                {/* Animated directional dash stream */}
+                <path
+                  d={d}
+                  fill="none"
+                  stroke={edge.color}
+                  strokeWidth={isHovered ? 2.2 : 1.6}
+                  strokeLinecap="round"
+                  strokeDasharray="8 8"
+                  className={
+                    edge.active && !draggingNodeId ? "cc-animated-edge" : ""
+                  }
+                />
+                {/* Smooth travelling packet pulse */}
+                {edge.active && (
+                  <circle r={2.8} fill={edge.color}>
+                    <animateMotion
+                      dur="2.2s"
+                      repeatCount="indefinite"
+                      path={d}
+                    />
+                  </circle>
+                )}
+                {/* Port anchor dots */}
                 <circle
                   cx={x1}
                   cy={y1}
-                  r={3}
+                  r={3.2}
                   fill="#181a1d"
                   stroke={edge.color}
-                  strokeWidth={1.6}
+                  strokeWidth={1.8}
                 />
                 <circle
                   cx={x2}
                   cy={y2}
-                  r={3}
+                  r={3.2}
                   fill="#181a1d"
                   stroke={edge.color}
-                  strokeWidth={1.6}
+                  strokeWidth={1.8}
                 />
               </g>
             );
           })}
         </svg>
 
-        {/* 1. LEFT: MINIMALIST SERVER CARDS */}
+        {/* 1. LEFT: MINIMALIST SERVER CARDS (GPU-accelerated translate3d, zero CSS position transition lag) */}
         {peerNodesToRender.map((gn) => {
           const nodeKey =
             gn.node_id === "empty" ? "peer:empty" : `peer:${gn.node_id}`;
@@ -589,8 +626,10 @@ export default function InteractiveControlCenterCanvas({
                 nodeRefs.current[nodeKey] = el;
               }}
               style={{
-                left: pos.x,
-                top: pos.y,
+                left: 0,
+                top: 0,
+                transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
+                willChange: "transform",
                 zIndex: draggingNodeId === nodeKey ? 30 : 10,
               }}
               onPointerDown={(e) => startNodeDrag(e, nodeKey)}
@@ -605,7 +644,7 @@ export default function InteractiveControlCenterCanvas({
                   setInspected({ kind: "peer", nodeId: gn.node_id });
                 }
               }}
-              className={` absolute w-[250px] rounded-xl border bg-nb-gray-940/95 px-4 py-3.5 shadow-lg backdrop-blur transition-all ${
+              className={`absolute w-[250px] rounded-xl border bg-nb-gray-940 px-4 py-3.5 shadow-lg transition-colors duration-150 ${
                 draggingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-netbird shadow-2xl"
                   : "cursor-pointer hover:border-nb-gray-700 hover:bg-nb-gray-930"
@@ -666,8 +705,10 @@ export default function InteractiveControlCenterCanvas({
                 nodeRefs.current[nodeKey] = el;
               }}
               style={{
-                left: pos.x,
-                top: pos.y,
+                left: 0,
+                top: 0,
+                transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
+                willChange: "transform",
                 zIndex: draggingNodeId === nodeKey ? 30 : 10,
               }}
               onPointerDown={(e) => startNodeDrag(e, nodeKey)}
@@ -677,7 +718,7 @@ export default function InteractiveControlCenterCanvas({
                 e.stopPropagation();
                 setInspected({ kind: "core" });
               }}
-              className={`absolute w-[265px] rounded-2xl border bg-nb-gray-940/95 p-4 shadow-xl backdrop-blur transition-all ${
+              className={`absolute w-[265px] rounded-2xl border bg-nb-gray-940 p-4 shadow-xl transition-colors duration-150 ${
                 draggingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-netbird shadow-2xl"
                   : "cursor-pointer hover:border-netbird/70 hover:bg-nb-gray-930"
@@ -748,8 +789,10 @@ export default function InteractiveControlCenterCanvas({
                 nodeRefs.current[nodeKey] = el;
               }}
               style={{
-                left: pos.x,
-                top: pos.y,
+                left: 0,
+                top: 0,
+                transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
+                willChange: "transform",
                 zIndex: draggingNodeId === nodeKey ? 30 : 10,
               }}
               onPointerDown={(e) => startNodeDrag(e, nodeKey)}
@@ -761,7 +804,7 @@ export default function InteractiveControlCenterCanvas({
                   setInspected({ kind: "service", serviceId: svc.service_id });
                 }
               }}
-              className={`absolute w-[255px] rounded-xl border bg-nb-gray-940/95 px-4 py-3 shadow-lg backdrop-blur transition-all ${
+              className={`absolute w-[255px] rounded-xl border bg-nb-gray-940 px-4 py-3 shadow-lg transition-colors duration-150 ${
                 draggingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-sky-400 shadow-2xl"
                   : "cursor-pointer hover:border-nb-gray-700 hover:bg-nb-gray-930"

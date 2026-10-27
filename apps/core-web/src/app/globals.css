@@ -29,10 +29,10 @@ code {
   background-size: 22px 22px;
 }
 
-/* NetBird Control Center Animated Dashed Edge (period = 6 + 6 = 12px; 24px = 2 full periods for seamless loop) */
+/* Smooth directional flow along SVG curves */
 @keyframes cc-edge-dash {
   from {
-    stroke-dashoffset: 24;
+    stroke-dashoffset: 32;
   }
   to {
     stroke-dashoffset: 0;
@@ -40,8 +40,7 @@ code {
 }
 
 .cc-animated-edge {
-  animation: cc-edge-dash 0.9s linear infinite;
-  will-change: stroke-dashoffset;
+  animation: cc-edge-dash 1.3s linear infinite;
 }
 
 @keyframes slow-ping {
