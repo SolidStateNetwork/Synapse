@@ -303,9 +303,8 @@ flowchart LR
 
   if (fs.existsSync(statePath)) {
     try {
-      const existing = JSON.parse(
-        fs.readFileSync(statePath, "utf8")
-      ) as ProjectState;
+      const rawState = fs.readFileSync(statePath, "utf8").replace(/^\uFEFF/, "");
+      const existing = JSON.parse(rawState) as ProjectState;
       existing.planning_only = (existing.assigned_nodes || []).length === 0;
       return existing;
     } catch {

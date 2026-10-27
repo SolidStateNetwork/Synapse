@@ -516,7 +516,18 @@ export default function SynapseNetBirdControlCenter() {
 
   const loadWorkspace = useCallback(
     async (projectId?: string, syncAiSettings = false) => {
-      const pid = projectId || activeProject?.project_id || "synapse-cloud-demo";
+      if (projectId && typeof window !== "undefined") {
+        window.localStorage.setItem("synapse_active_project_id", projectId);
+      }
+      const savedPid =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("synapse_active_project_id")
+          : null;
+      const pid =
+        projectId ||
+        activeProject?.project_id ||
+        savedPid ||
+        "synapse-cloud-demo";
       try {
         const res = await fetch(
           `/api/projects?project_id=${encodeURIComponent(pid)}`,
