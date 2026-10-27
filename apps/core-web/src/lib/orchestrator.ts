@@ -359,10 +359,10 @@ function resolveNodeTier(
   liveNodes: GatewayNodeSummary[],
   nodeId: string
 ): AutonomyTier {
-  const live = liveNodes.find((n) => n.node_id === nodeId);
-  if (live) return live.tier;
   const assigned = state.assigned_nodes.find((n) => n.node_id === nodeId);
-  if (assigned) return assigned.tier;
+  if (assigned?.tier) return assigned.tier;
+  const live = liveNodes.find((n) => n.node_id === nodeId);
+  if (live?.tier) return live.tier;
   return "TIER_2_WORKSPACE_JAIL";
 }
 

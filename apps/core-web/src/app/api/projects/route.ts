@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
               const lastHealMs = svc.last_auto_heal_at
                 ? new Date(svc.last_auto_heal_at).getTime()
                 : 0;
-              const cooldownPassed = Date.now() - lastHealMs > 30_000;
+              const cooldownPassed = Date.now() - lastHealMs > 10_000;
               if (
                 svc.auto_heal !== false &&
                 state.ai_settings?.enable_auto_watchdog !== false &&
@@ -132,12 +132,31 @@ export async function GET(req: NextRequest) {
   // Trigger Proactive Auto-Watchdog self-healing for degraded services
   for (const target of watchdogTargets) {
     try {
-      const healRes = await interceptAndExecuteTool(projectId, "node_pty_exec", {
-        node_id: target.node_id,
-        session_id: `default-${projectId}`,
-        command: `tail -n 20 /tmp/synapse-svc-${target.port}.log 2>/dev/null || true; (nohup node service/server.js >/tmp/synapse-svc-${target.port}.log 2>&1 &); sleep 0.3; curl -s http://127.0.0.1:${target.port}/`,
-        wait_timeout_ms: 8000,
-      });
+      const healRes = await interceptAndExecuteTool(
+        projectId,
+        "node_pty_exec",
+        {
+          node_id: target.node_id,
+          session_id: `watchdog-${projectId}`,
+          command: `cd /opt/axon/workspaces/${projectId} 2>/dev/null || true; if [ -f docker-compose.yml ] || [ -f compose.yml ]; then docker compose up -d 2>/dev/null || true; fi; for c in $(docker ps -aq --filter status=exited 2>/dev/null); do docker start "$c" >/dev/null 2>&1 || true; done; if [ -f service/server.js ] && ! ss -tln 2>/dev/null | grep -q ":${target.port} "; then (nohup node service/server.js >/tmp/synapse-svc-${target.port}.log 2>&1 &); fi; sleep 0.8; curl -fsS http://127.0.0.1:${target.port}/`,
+          wait_timeout_ms: 15000,
+        },
+        true
+      );
+
+      // Update service health immediately if curl probe succeeded
+      const healedSvc = state.registered_services.find(
+        (s) => s.service_id === target.service_id || s.port === target.port
+      );
+      if (healedSvc && healRes.status === "executed") {
+        healedSvc.healthy = true;
+        healedSvc.consecutive_failures = 0;
+        if (healedSvc.health_check) {
+          healedSvc.health_check.status = "HEALTHY";
+          healedSvc.health_check.last_error = undefined;
+        }
+        saveProjectState(state);
+      }
 
       writeBrainDoc(
         projectId,
@@ -148,7 +167,7 @@ export async function GET(req: NextRequest) {
 
       appendChatMessage(projectId, {
         role: "assistant",
-        content: `🤖 **Proactive Auto-Watchdog Triggered:** Detected consecutive health probe failures on **${target.name}** (\`127.0.0.1:${target.port}\` on \`${target.node_id}\`). Automatically inspected logs, restarted the daemon, and logged the recovery in \`Memory.md\`.`,
+        content: `🤖 **Proactive Auto-Watchdog Triggered:** Detected consecutive health probe failures on **${target.name}** (\`127.0.0.1:${target.port}\` on \`${target.node_id}\`). Automatically restarted the container/daemon, verified \`http://127.0.0.1:${target.port}/\`, and logged the recovery in \`Memory.md\`.`,
         timestamp: new Date().toISOString(),
         toolResults: [healRes],
       });

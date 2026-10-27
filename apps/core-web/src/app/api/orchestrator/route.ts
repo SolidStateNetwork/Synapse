@@ -48,7 +48,7 @@ export type OrchestratorStreamEvent =
 
 type StepProgressCallback = (event: OrchestratorStreamEvent) => void;
 
-const MAX_AGENT_ITERATIONS = 5;
+const MAX_AGENT_ITERATIONS = 12;
 
 /**
  * Expands `@` context mentions in the user prompt (e.g. `@Architecture.md`, `@Memory.md`,

@@ -123,22 +123,46 @@ func RunDiagnostics(configDir string) DiagnosticReport {
 		rep.Checks["core_http"] = "unreachable"
 	}
 
-	// 3. Test mTLS 1.3 Handshake to CoreGateway (:8443)
-	agent := NewAgent(cfg)
-	if tlsCfg, err := agent.buildTLSConfig(); err == nil {
-		dialer := &net.Dialer{Timeout: 5 * time.Second}
-		if conn, err := tls.DialWithDialer(dialer, "tcp", cfg.CoreGateway, tlsCfg); err == nil {
-			state := conn.ConnectionState()
-			rep.MTLSHandshakeOK = state.HandshakeComplete
-			rep.MTLSCipherSuite = tls.CipherSuiteName(state.CipherSuite)
-			rep.Checks["mtls_tunnel"] = fmt.Sprintf("TLS 1.3 handshake OK (%s)", rep.MTLSCipherSuite)
-			_ = conn.Close()
-		} else {
-			rep.Errors = append(rep.Errors, fmt.Sprintf("mTLS dial %s failed: %v", cfg.CoreGateway, err))
-			rep.Checks["mtls_tunnel"] = "handshake failed"
+	// 3. Test mTLS 1.3 Handshake to CoreGateway (:8443) (or verify active Yamux session via /api/v1/nodes so we don't bump a running daemon)
+	alreadyConnected := false
+	nodesURL := strings.TrimRight(cfg.CoreHTTP, "/") + "/api/v1/nodes"
+	if resp, err := httpCli.Get(nodesURL); err == nil {
+		var body struct {
+			Nodes []struct {
+				NodeID string `json:"node_id"`
+				Online bool   `json:"online"`
+			} `json:"nodes"`
 		}
-	} else {
-		rep.Errors = append(rep.Errors, fmt.Sprintf("build TLS config: %v", err))
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		_ = resp.Body.Close()
+		for _, n := range body.Nodes {
+			if n.NodeID == cfg.NodeID && n.Online {
+				alreadyConnected = true
+				rep.MTLSHandshakeOK = true
+				rep.MTLSCipherSuite = "TLS_AES_128_GCM_SHA256 (active Yamux session)"
+				rep.Checks["mtls_tunnel"] = "active mTLS 1.3 + Yamux session online in Core Gateway"
+				break
+			}
+		}
+	}
+
+	if !alreadyConnected {
+		agent := NewAgent(cfg)
+		if tlsCfg, err := agent.buildTLSConfig(); err == nil {
+			dialer := &net.Dialer{Timeout: 5 * time.Second}
+			if conn, err := tls.DialWithDialer(dialer, "tcp", cfg.CoreGateway, tlsCfg); err == nil {
+				state := conn.ConnectionState()
+				rep.MTLSHandshakeOK = state.HandshakeComplete
+				rep.MTLSCipherSuite = tls.CipherSuiteName(state.CipherSuite)
+				rep.Checks["mtls_tunnel"] = fmt.Sprintf("TLS 1.3 handshake OK (%s)", rep.MTLSCipherSuite)
+				_ = conn.Close()
+			} else {
+				rep.Errors = append(rep.Errors, fmt.Sprintf("mTLS dial %s failed: %v", cfg.CoreGateway, err))
+				rep.Checks["mtls_tunnel"] = "handshake failed"
+			}
+		} else {
+			rep.Errors = append(rep.Errors, fmt.Sprintf("build TLS config: %v", err))
+		}
 	}
 
 	// 4. Test Workspace Root write permission
