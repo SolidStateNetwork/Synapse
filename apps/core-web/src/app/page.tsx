@@ -645,6 +645,28 @@ export default function SynapseNetBirdControlCenter() {
     }
   }
 
+  async function handleRemoveService(serviceId: string, nodeId?: string) {
+    if (!activeProject) return;
+    await fetch("/api/orchestrator", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_id: activeProject.project_id,
+        direct_tool: {
+          name: "core_register_service",
+          arguments: {
+            action: "remove",
+            service_id: serviceId,
+            node_id: nodeId || primaryNode,
+          },
+        },
+      }),
+    });
+    setStatusToast(`Dienst ${serviceId} entfernt`);
+    setTimeout(() => setStatusToast(""), 3000);
+    await loadWorkspace(activeProject.project_id);
+  }
+
   useEffect(() => {
     loadWorkspace("synapse-cloud-demo", true);
   }, []);
@@ -2158,17 +2180,32 @@ export default function SynapseNetBirdControlCenter() {
                   .join(" | ")}
               </span>
             </div>
-            <button
-              onClick={() =>
-                handleQuickAction(
-                  `diagnose and auto-heal service ${unhealthyServices[0].port}`
-                )
-              }
-              className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-red-500"
-            >
-              <Wrench className="h-3 w-3" />
-              <span>Ask AI to Diagnose &amp; Fix</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  handleQuickAction(
+                    `diagnose and auto-heal service ${unhealthyServices[0].port}`
+                  )
+                }
+                className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-red-500"
+              >
+                <Wrench className="h-3 w-3" />
+                <span>Ask AI to Diagnose &amp; Fix</span>
+              </button>
+              <button
+                onClick={() =>
+                  handleRemoveService(
+                    unhealthyServices[0].service_id,
+                    unhealthyServices[0].node_id
+                  )
+                }
+                className="flex items-center gap-1 rounded-md border border-red-500/50 bg-nb-gray-940 px-2.5 py-1 text-[11px] font-medium text-red-300 hover:bg-red-950"
+                title="Diesen Dienst aus dem Projekt entfernen"
+              >
+                <Trash2 className="h-3 w-3" />
+                <span>Dienst entfernen</span>
+              </button>
+            </div>
           </div>
         )}
 

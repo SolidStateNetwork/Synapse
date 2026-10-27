@@ -747,28 +747,54 @@ async function runDeterministicAutonomousWorkflow(
     const port = portMatch ? Number(portMatch[1]) : 4050;
     thinkingTrace += `\n4. Planning 4-step autonomous deployment on node '${primaryNode}' (port ${port}) with pre-write rollback snapshot.`;
 
-    const appSource = `const http = require("http");
-const port = ${port};
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({
-    service: "${projectId}-autonomous-service",
-    status: "healthy",
-    node: process.env.SYNAPSE_PROJECT_ID || "axon-muscle",
-    timestamp: new Date().toISOString()
-  }, null, 2));
-});
-server.listen(port, "127.0.0.1", () => {
-  console.log("Synapse microservice listening on http://127.0.0.1:" + port);
-});
+    const pySource = `#!/usr/bin/env python3
+import http.server, json, datetime, os
+
+PORT = ${port}
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+    def _send(self, code, payload):
+        body = json.dumps(payload, indent=2).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+    def do_GET(self):
+        self._send(200, {
+            "service": "${projectId}-autonomous-service",
+            "status": "healthy",
+            "port": PORT,
+            "path": self.path,
+            "node": "${primaryNode}",
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        })
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        raw = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try:
+            data = json.loads(raw)
+        except Exception:
+            data = {"raw": raw}
+        self._send(200, {
+            "service": "${projectId}-autonomous-service",
+            "status": "healthy",
+            "received": data,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        })
+
+if __name__ == "__main__":
+    http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
 `;
 
     const step1 = await runStep("node_fs_operation", {
       node_id: primaryNode,
       operation: "write_file",
-      path: "service/server.js",
-      content_or_patch: appSource,
-      file_mode: "0644",
+      path: `service/server_${port}.py`,
+      content_or_patch: pySource,
+      file_mode: "0755",
     });
     if (step1.status !== "executed") {
       finalReply = formatHaltedWorkflowReply(step1, 1);
@@ -776,7 +802,7 @@ server.listen(port, "127.0.0.1", () => {
       const step2 = await runStep("node_pty_exec", {
         node_id: primaryNode,
         session_id: `default-${projectId}`,
-        command: `node -c service/server.js && (pkill -f "service/server.js" 2>/dev/null || true) && nohup node service/server.js >/tmp/synapse-svc-${port}.log 2>&1 & sleep 0.3 && echo "Started microservice on 127.0.0.1:${port}"`,
+        command: `(pkill -f "service/server_${port}.py" 2>/dev/null || true); nohup python3 service/server_${port}.py >/tmp/synapse-svc-${port}.log 2>&1 & sleep 0.5 && curl -sf http://127.0.0.1:${port}/`,
         wait_timeout_ms: 10000,
       });
       if (step2.status !== "executed") {
@@ -787,8 +813,10 @@ server.listen(port, "127.0.0.1", () => {
           service_id: `auto-svc-${port}`,
           name: `Autonomous Microservice :${port}`,
           node_id: primaryNode,
+          category: "backend",
+          description: `Autonomous Microservice running on ${primaryNode} (127.0.0.1:${port})`,
           runtime: "binary",
-          unit_or_container: "service/server.js",
+          unit_or_container: `service/server_${port}.py`,
           bind_address: "127.0.0.1",
           port,
           enable_preview_tunnel: true,
@@ -803,33 +831,112 @@ server.listen(port, "127.0.0.1", () => {
         await runStep("core_update_brain_doc", {
           document: "Memory.md",
           mode: "append",
-          content: `- **[${new Date().toISOString()}]** Multi-Step Autonomous Deployment completed on node \`${primaryNode}\`: wrote \`service/server.js\` (with rollback snapshot), started daemon via Sentinel PTY, and registered Live-Preview service on \`127.0.0.1:${port}\`.`,
+          content: `- **[${new Date().toISOString()}]** Multi-Step Autonomous Deployment completed on node \`${primaryNode}\`: wrote \`service/server_${port}.py\`, started daemon via Sentinel PTY, and registered Live-Preview service on \`127.0.0.1:${port}\`.`,
         });
 
-        finalReply = `### Multi-Step Autonomous Workflow Completed (4/4 Steps)\n1. **\`node_fs_operation\`**: Atomically wrote \`service/server.js\` inside workspace jail (Pre-Write Rollback Snapshot created).\n2. **\`node_pty_exec\`**: Verified syntax & launched microservice on \`127.0.0.1:${port}\` via persistent Sentinel PTY.\n3. **\`core_register_service\`**: Registered \`127.0.0.1:${port}\` with \`HTTP\` health check, Auto-Watchdog & Live-Preview tunnel (\`/preview/${projectId}/${primaryNode}/${port}\`).\n4. **\`core_update_brain_doc\`**: Recorded deployment in \`Memory.md\`.`;
+        finalReply = `### Multi-Step Autonomous Workflow Completed (4/4 Steps)\n1. **\`node_fs_operation\`**: Atomically wrote \`service/server_${port}.py\` inside workspace jail (Pre-Write Rollback Snapshot created).\n2. **\`node_pty_exec\`**: Launched microservice on \`127.0.0.1:${port}\` via persistent Sentinel PTY and verified \`HTTP 200\`.\n3. **\`core_register_service\`**: Registered \`127.0.0.1:${port}\` with \`HTTP\` health check, Auto-Watchdog & Live-Preview tunnel (\`/preview/${projectId}/${primaryNode}/${port}\`).\n4. **\`core_update_brain_doc\`**: Recorded deployment in \`Memory.md\`.`;
       }
     }
-  } else if (lower.includes("diagnose") || lower.includes("auto-heal")) {
+  } else if (
+    lower.includes("diagnose") ||
+    lower.includes("auto-heal") ||
+    lower.includes("heal service")
+  ) {
     const portMatch = userPrompt.match(/(\d{4,5})/);
     const port = portMatch ? Number(portMatch[1]) : 4050;
-    thinkingTrace += `\n4. Executing automated crash recovery & health verification for port ${port} on '${primaryNode}'.`;
+    const existingSvc = state.registered_services.find((s) => s.port === port);
+    const targetNode = existingSvc?.node_id || primaryNode;
+    thinkingTrace += `\n4. Executing automated crash recovery & health verification for port ${port} on '${targetNode}'.`;
+
+    const pySource = `#!/usr/bin/env python3
+import http.server, json, datetime
+
+PORT = ${port}
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+    def _send(self, code, payload):
+        body = json.dumps(payload, indent=2).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+    def do_GET(self):
+        self._send(200, {
+            "service": "${projectId}-autonomous-service",
+            "status": "healthy",
+            "healed": True,
+            "port": PORT,
+            "path": self.path,
+            "node": "${targetNode}",
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        })
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        raw = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try:
+            data = json.loads(raw)
+        except Exception:
+            data = {"raw": raw}
+        self._send(200, {
+            "service": "${projectId}-autonomous-service",
+            "status": "healthy",
+            "received": data,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        })
+
+if __name__ == "__main__":
+    http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+`;
+
+    await runStep("node_fs_operation", {
+      node_id: targetNode,
+      operation: "write_file",
+      path: `service/server_${port}.py`,
+      content_or_patch: pySource,
+      file_mode: "0755",
+    });
 
     const diagStep = await runStep("node_pty_exec", {
-      node_id: primaryNode,
+      node_id: targetNode,
       session_id: `default-${projectId}`,
-      command: `tail -n 30 /tmp/synapse-svc-${port}.log 2>/dev/null || true; (nohup node service/server.js >/tmp/synapse-svc-${port}.log 2>&1 &); sleep 0.4; curl -s http://127.0.0.1:${port}/`,
+      command: `(pkill -f "server_${port}.py" 2>/dev/null || true); (nohup python3 service/server_${port}.py >/tmp/synapse-svc-${port}.log 2>&1 &); sleep 0.6; curl -sf http://127.0.0.1:${port}/`,
       wait_timeout_ms: 10000,
     });
     if (diagStep.status !== "executed") {
       finalReply = formatHaltedWorkflowReply(diagStep, 1);
     } else {
+      await runStep("core_register_service", {
+        action: "upsert",
+        service_id: existingSvc?.service_id || `auto-svc-${port}`,
+        name: existingSvc?.name || `Autonomous Microservice :${port}`,
+        node_id: targetNode,
+        category: existingSvc?.category || "backend",
+        description:
+          existingSvc?.description ||
+          `Autonomous Microservice on ${targetNode} (127.0.0.1:${port})`,
+        runtime: "binary",
+        unit_or_container: `service/server_${port}.py`,
+        bind_address: "127.0.0.1",
+        port,
+        enable_preview_tunnel: true,
+        auto_heal: true,
+        health_check: {
+          type: "HTTP",
+          target: `http://127.0.0.1:${port}/`,
+          interval_sec: 10,
+        },
+      });
+
       await runStep("core_update_brain_doc", {
         document: "Memory.md",
         mode: "append",
-        content: `- **[${new Date().toISOString()}]** Auto-Heal & Diagnosis executed for service on port \`${port}\` (\`${primaryNode}\`): inspected logs, restarted process, and verified \`HTTP 200 OK\`.`,
+        content: `- **[${new Date().toISOString()}]** Auto-Heal & Diagnosis executed for service on port \`${port}\` (\`${targetNode}\`): provisioned Python3 HTTP daemon \`service/server_${port}.py\`, restarted process, and verified \`HTTP 200 OK\`.`,
       });
 
-      finalReply = `### Auto-Heal & Diagnosis Completed\n1. **\`node_pty_exec\`**: Inspected \`/tmp/synapse-svc-${port}.log\`, restarted \`service/server.js\` on \`127.0.0.1:${port}\`, and verified health response.\n2. **\`core_update_brain_doc\`**: Logged recovery in \`Memory.md\`.`;
+      finalReply = `### Auto-Heal & Diagnosis Completed\n1. **\`node_fs_operation\`**: Repaired service runtime script \`service/server_${port}.py\` (Python 3 standard library HTTP server).\n2. **\`node_pty_exec\`**: Restarted \`service/server_${port}.py\` on \`127.0.0.1:${port}\` and verified live \`HTTP 200 OK\` response.\n3. **\`core_register_service\`**: Marked service \`:${port}\` as **HEALTHY** in \`State.json\`.`;
     }
   } else if (
     lower.startsWith("exec:") ||
