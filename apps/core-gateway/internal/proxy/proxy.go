@@ -47,6 +47,7 @@ func NewLivePreviewHandler(h *hub.Hub) http.HandlerFunc {
 				req.URL.Scheme = targetURL.Scheme
 				req.URL.Host = targetURL.Host
 				req.URL.Path = subPath
+				req.URL.RawPath = ""
 				req.Host = targetURL.Host
 				req.Header.Set("X-Synapse-Project", projectID)
 				req.Header.Set("X-Synapse-Node", nodeID)

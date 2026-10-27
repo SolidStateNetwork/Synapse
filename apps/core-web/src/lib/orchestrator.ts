@@ -720,6 +720,23 @@ export async function interceptAndExecuteTool(
         (l) => l.link_id !== linkId
       );
       saveProjectState(state);
+      try {
+        await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            node_id: sourceNodeId,
+            cmd_id: `mesh-rm-${Date.now()}`,
+            session_id: `mesh-${projectId}`,
+            project_id: projectId,
+            tier: "TIER_1_UNLEASHED",
+            command: `pkill -f "synapse-mesh-${localPort}.py" 2>/dev/null || true`,
+            wait_timeout_ms: 4000,
+          }),
+        });
+      } catch {
+        // Non-fatal if source node offline
+      }
       appendAuditLog(projectId, {
         timestamp: new Date().toISOString(),
         actor: "ai_orchestrator",
@@ -756,6 +773,62 @@ export async function interceptAndExecuteTool(
       link,
     ];
     saveProjectState(state);
+
+    // Spawn active loopback mesh relay on sourceNodeId (127.0.0.1:<localPort> -> Core Hub Yamux -> targetNodeId:<remotePort>)
+    if (localPort !== remotePort || sourceNodeId !== targetNodeId) {
+      const relayScript = `import http.server, urllib.request, sys
+TARGET_BASE = "http://127.0.0.1:8081/preview/${projectId}/${targetNodeId}/${remotePort}"
+class MeshRelay(http.server.BaseHTTPRequestHandler):
+    def log_message(self, format, *args): pass
+    def _proxy(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length) if length > 0 else None
+        url = TARGET_BASE + (self.path if self.path.startswith("/") else "/" + self.path)
+        req = urllib.request.Request(url, data=body, method=self.command)
+        for k, v in self.headers.items():
+            if k.lower() not in ("host", "content-length"):
+                req.add_header(k, v)
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = resp.read()
+                self.send_response(resp.status)
+                for hk, hv in resp.getheaders():
+                    if hk.lower() not in ("transfer-encoding", "content-length"):
+                        self.send_header(hk, hv)
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+        except Exception as e:
+            msg = str(e).encode()
+            self.send_response(502)
+            self.send_header("Content-Length", str(len(msg)))
+            self.end_headers()
+            self.wfile.write(msg)
+    def do_GET(self): self._proxy()
+    def do_POST(self): self._proxy()
+    def do_PUT(self): self._proxy()
+    def do_DELETE(self): self._proxy()
+http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_forever()
+`;
+      const b64Relay = Buffer.from(relayScript, "utf8").toString("base64");
+      try {
+        await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            node_id: sourceNodeId,
+            cmd_id: `mesh-up-${Date.now()}`,
+            session_id: `mesh-${projectId}`,
+            project_id: projectId,
+            tier: "TIER_1_UNLEASHED",
+            command: `pkill -f "synapse-mesh-${localPort}.py" 2>/dev/null || true; echo "${b64Relay}" | base64 -d > /tmp/synapse-mesh-${localPort}.py && (nohup python3 /tmp/synapse-mesh-${localPort}.py >/tmp/synapse-mesh-${localPort}.log 2>&1 &); sleep 0.3`,
+            wait_timeout_ms: 6000,
+          }),
+        });
+      } catch {
+        // Non-fatal if source node offline
+      }
+    }
 
     appendAuditLog(projectId, {
       timestamp: new Date().toISOString(),

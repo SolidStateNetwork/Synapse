@@ -49,11 +49,16 @@ func (e *Engine) ResolvePath(projectID string, tier tunnelv1.AutonomyTier, targe
 			return "", fmt.Errorf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): path %q escapes project jail %q", targetPath, jailDir)
 		}
 
-		// Check symlinks if parent exists
-		if evalParent, err := filepath.EvalSymlinks(filepath.Dir(candidate)); err == nil {
-			if evalJail, errJail := filepath.EvalSymlinks(jailDir); errJail == nil {
+		// Check symlinks on both parent directory and candidate itself (if it already exists)
+		if evalJail, errJail := filepath.EvalSymlinks(jailDir); errJail == nil {
+			if evalParent, err := filepath.EvalSymlinks(filepath.Dir(candidate)); err == nil {
 				if evalParent != evalJail && !strings.HasPrefix(evalParent, evalJail+string(filepath.Separator)) {
-					return "", fmt.Errorf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): symlink target %q escapes project jail %q", evalParent, evalJail)
+					return "", fmt.Errorf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): symlink parent %q escapes project jail %q", evalParent, evalJail)
+				}
+			}
+			if evalCand, err := filepath.EvalSymlinks(candidate); err == nil {
+				if evalCand != evalJail && !strings.HasPrefix(evalCand, evalJail+string(filepath.Separator)) {
+					return "", fmt.Errorf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): symlink target %q escapes project jail %q", evalCand, evalJail)
 				}
 			}
 		}
@@ -262,7 +267,8 @@ func applyUnifiedDiffToFile(targetPath string, diffText string, fileMode string)
 	return outBytes, nil
 }
 
-// ApplyUnifiedDiff applies a standard unified diff to original content in memory.
+// ApplyUnifiedDiff applies a standard unified diff to original content in memory,
+// with automatic fuzzy hunk locating when LLM line numbers are slightly shifted.
 func ApplyUnifiedDiff(original string, diffText string) (string, error) {
 	origLines := splitLinesPreserve(original)
 	diffLines := strings.Split(strings.ReplaceAll(diffText, "\r\n", "\n"), "\n")
@@ -280,31 +286,37 @@ func ApplyUnifiedDiff(original string, diffText string) (string, error) {
 		}
 
 		matches := hunkHeaderRegex.FindStringSubmatch(line)
-		if matches == nil {
+		isBareHunk := strings.HasPrefix(strings.TrimSpace(line), "@@")
+		if matches == nil && !isBareHunk {
 			i++
 			continue
 		}
 
 		foundHunk = true
-		oldStart, _ := strconv.Atoi(matches[1])
+		oldStart := origIdx + 1
+		if len(matches) >= 2 {
+			if parsed, err := strconv.Atoi(matches[1]); err == nil && parsed > 0 {
+				oldStart = parsed
+			}
+		}
 		targetIdx := oldStart - 1
-		if targetIdx < 0 {
-			targetIdx = 0
+		if targetIdx < origIdx {
+			targetIdx = origIdx
 		}
 		if targetIdx > len(origLines) {
-			return "", fmt.Errorf("unified diff hunk start line %d exceeds file length %d", oldStart, len(origLines))
+			targetIdx = len(origLines)
 		}
 
-		// Copy unchanged lines up to the hunk start
-		for origIdx < targetIdx {
-			result = append(result, origLines[origIdx])
-			origIdx++
-		}
-
+		// Collect hunk lines first so we can auto-locate the hunk if LLM line numbers are slightly off
 		i++
+		var hunkOps []struct {
+			prefix  byte
+			content string
+		}
+		var expectedOld []string
 		for i < len(diffLines) {
 			hline := diffLines[i]
-			if strings.HasPrefix(hline, "@@ ") || strings.HasPrefix(hline, "diff ") {
+			if strings.HasPrefix(hline, "@@") || strings.HasPrefix(hline, "diff ") || strings.HasPrefix(hline, "--- ") || strings.HasPrefix(hline, "+++ ") {
 				break
 			}
 			if hline == `\ No newline at end of file` {
@@ -315,40 +327,66 @@ func ApplyUnifiedDiff(original string, diffText string) (string, error) {
 				i++
 				break
 			}
-
 			prefix := byte(' ')
 			content := hline
 			if len(hline) > 0 {
-				prefix = hline[0]
-				content = hline[1:]
+				if hline[0] == ' ' || hline[0] == '-' || hline[0] == '+' {
+					prefix = hline[0]
+					content = hline[1:]
+				} else {
+					prefix = ' '
+					content = hline
+				}
 			}
+			hunkOps = append(hunkOps, struct {
+				prefix  byte
+				content string
+			}{prefix: prefix, content: content})
+			if prefix == ' ' || prefix == '-' {
+				expectedOld = append(expectedOld, content)
+			}
+			i++
+		}
 
-			switch prefix {
+		// Verify whether expectedOld matches at targetIdx; if not, fuzzy-search from origIdx
+		if len(expectedOld) > 0 && !matchesAt(origLines, targetIdx, expectedOld, false) {
+			if foundIdx := findHunkMatch(origLines, origIdx, targetIdx, expectedOld); foundIdx >= 0 {
+				targetIdx = foundIdx
+			}
+		}
+
+		// Copy unchanged lines up to targetIdx
+		for origIdx < targetIdx && origIdx < len(origLines) {
+			result = append(result, origLines[origIdx])
+			origIdx++
+		}
+
+		for _, op := range hunkOps {
+			switch op.prefix {
 			case ' ':
-				if origIdx >= len(origLines) || origLines[origIdx] != content {
+				if origIdx >= len(origLines) || !linesMatch(origLines[origIdx], op.content) {
 					actual := "<EOF>"
 					if origIdx < len(origLines) {
 						actual = origLines[origIdx]
 					}
-					return "", fmt.Errorf("unified diff context mismatch at line %d: expected %q, got %q", origIdx+1, content, actual)
+					return "", fmt.Errorf("unified diff context mismatch at line %d: expected %q, got %q", origIdx+1, op.content, actual)
 				}
 				result = append(result, origLines[origIdx])
 				origIdx++
 			case '-':
-				if origIdx >= len(origLines) || origLines[origIdx] != content {
+				if origIdx >= len(origLines) || !linesMatch(origLines[origIdx], op.content) {
 					actual := "<EOF>"
 					if origIdx < len(origLines) {
 						actual = origLines[origIdx]
 					}
-					return "", fmt.Errorf("unified diff removal mismatch at line %d: expected %q, got %q", origIdx+1, content, actual)
+					return "", fmt.Errorf("unified diff removal mismatch at line %d: expected %q, got %q", origIdx+1, op.content, actual)
 				}
 				origIdx++
 			case '+':
-				result = append(result, content)
+				result = append(result, op.content)
 			default:
-				return "", fmt.Errorf("invalid unified diff line prefix %q in line %q", string(prefix), hline)
+				return "", fmt.Errorf("invalid unified diff line prefix %q", string(op.prefix))
 			}
-			i++
 		}
 	}
 
@@ -366,6 +404,54 @@ func ApplyUnifiedDiff(original string, diffText string) (string, error) {
 		joined += "\n"
 	}
 	return joined, nil
+}
+
+func linesMatch(a, b string) bool {
+	if a == b {
+		return true
+	}
+	return strings.TrimRight(a, " \t\r") == strings.TrimRight(b, " \t\r")
+}
+
+func matchesAt(origLines []string, startIdx int, expected []string, allowTrim bool) bool {
+	if startIdx < 0 || startIdx+len(expected) > len(origLines) {
+		return false
+	}
+	for j, exp := range expected {
+		orig := origLines[startIdx+j]
+		if allowTrim {
+			if !linesMatch(orig, exp) {
+				return false
+			}
+		} else if orig != exp {
+			return false
+		}
+	}
+	return true
+}
+
+func findHunkMatch(origLines []string, minIdx int, hintIdx int, expected []string) int {
+	// Pass 1: exact match closest to hintIdx
+	for delta := 0; delta <= len(origLines); delta++ {
+		for _, cand := range []int{hintIdx - delta, hintIdx + delta} {
+			if cand >= minIdx && cand+len(expected) <= len(origLines) {
+				if matchesAt(origLines, cand, expected, false) {
+					return cand
+				}
+			}
+		}
+	}
+	// Pass 2: trailing-whitespace tolerant match closest to hintIdx
+	for delta := 0; delta <= len(origLines); delta++ {
+		for _, cand := range []int{hintIdx - delta, hintIdx + delta} {
+			if cand >= minIdx && cand+len(expected) <= len(origLines) {
+				if matchesAt(origLines, cand, expected, true) {
+					return cand
+				}
+			}
+		}
+	}
+	return -1
 }
 
 func splitLinesPreserve(s string) []string {

@@ -248,6 +248,7 @@ func (h *Hub) handleNodeInitiatedStream(node *ConnectedNode, stream net.Conn) {
 	node.mu.Unlock()
 
 	h.RecordEvent("telemetry", node.NodeID, "StreamTypeTelemetry opened by Muscle node", 0, nil)
+	go h.syncHealthTargetsFromVaultsToNode(node.NodeID)
 
 	for {
 		var beat tunnelv1.NodeHeartbeat
@@ -496,7 +497,9 @@ func (h *Hub) syncTelemetryToProjectVaults(nodeID string, beat *tunnelv1.NodeHea
 			if m, ok := item.(map[string]any); ok && m["node_id"] == nodeID {
 				isAssigned = true
 				m["online"] = true
-				m["tier"] = string(beat.Tier)
+				if existingTier, ok := m["tier"].(string); !ok || strings.TrimSpace(existingTier) == "" {
+					m["tier"] = string(beat.Tier)
+				}
 				m["hostname"] = beat.Hostname
 				m["os_arch"] = beat.OSArch
 				m["last_seen_unix"] = beat.TimestampUnix
@@ -518,5 +521,84 @@ func (h *Hub) syncTelemetryToProjectVaults(nodeID string, beat *tunnelv1.NodeHea
 		if updatedBytes, err := json.MarshalIndent(state, "", "  "); err == nil {
 			atomicWriteStateFile(statePath, updatedBytes)
 		}
+	}
+}
+
+// syncHealthTargetsFromVaultsToNode scans all Project Brain Vaults on connect/reconnect
+// and automatically pushes all registered ServiceHealthTargets for nodeID so service probes resume immediately.
+func (h *Hub) syncHealthTargetsFromVaultsToNode(nodeID string) {
+	if h.VaultRoot == "" || nodeID == "" {
+		return
+	}
+	entries, err := os.ReadDir(h.VaultRoot)
+	if err != nil {
+		return
+	}
+	var targets []tunnelv1.ServiceHealthTarget
+	seen := make(map[string]bool)
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		statePath := filepath.Join(h.VaultRoot, entry.Name(), "State.json")
+		raw, err := os.ReadFile(statePath)
+		if err != nil {
+			continue
+		}
+		var state struct {
+			RegisteredServices []struct {
+				ServiceID string `json:"service_id"`
+				Name      string `json:"name"`
+				NodeID    string `json:"node_id"`
+				Protocol  string `json:"protocol"`
+				Port      uint32 `json:"port"`
+				Path      string `json:"path"`
+				HealthCheck *struct {
+					Type   string `json:"type"`
+					Target string `json:"target"`
+				} `json:"health_check"`
+			} `json:"registered_services"`
+		}
+		if err := json.Unmarshal(raw, &state); err != nil {
+			continue
+		}
+		for _, svc := range state.RegisteredServices {
+			if svc.NodeID != nodeID || svc.Port == 0 {
+				continue
+			}
+			key := fmt.Sprintf("%s:%d", svc.ServiceID, svc.Port)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			proto := strings.ToLower(svc.Protocol)
+			target := ""
+			if svc.HealthCheck != nil {
+				if svc.HealthCheck.Type != "" {
+					proto = strings.ToLower(svc.HealthCheck.Type)
+				}
+				target = svc.HealthCheck.Target
+			}
+			if proto == "" {
+				proto = "http"
+			}
+			path := svc.Path
+			if path == "" {
+				path = "/"
+			}
+			targets = append(targets, tunnelv1.ServiceHealthTarget{
+				ServiceID: svc.ServiceID,
+				Name:      svc.Name,
+				Protocol:  proto,
+				Port:      svc.Port,
+				Path:      path,
+				Target:    target,
+			})
+		}
+	}
+
+	if len(targets) > 0 {
+		_ = h.PushHealthTargets(nodeID, targets)
 	}
 }

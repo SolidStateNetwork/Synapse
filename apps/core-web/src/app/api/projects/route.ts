@@ -5,6 +5,7 @@ import {
   clearChatHistory,
   deleteSecret,
   ensureProjectVault,
+  getDecryptedSecrets,
   listProjects,
   listSecretKeys,
   readAuditLogs,
@@ -24,6 +25,7 @@ import {
   CORE_GATEWAY_URL,
   fetchGatewayNodes,
   interceptAndExecuteTool,
+  pushNodeHealthTargets,
 } from "@/lib/orchestrator";
 
 export async function GET(req: NextRequest) {
@@ -197,11 +199,26 @@ export async function POST(req: NextRequest) {
   const projectId = String(body.project_id || "synapse-cloud-demo");
 
   if (action === "create_project") {
+    const newId = String(body.new_project_id || `project-${Date.now()}`);
     const created = ensureProjectVault(
-      String(body.new_project_id || `project-${Date.now()}`),
+      newId,
       String(body.name || ""),
       String(body.description || "")
     );
+
+    // Automatically inherit configured AI endpoint & API key from the source project (or synapse-cloud-demo)
+    const templateState = ensureProjectVault(projectId);
+    if (templateState.ai_settings) {
+      created.ai_settings = { ...templateState.ai_settings };
+      saveProjectState(created);
+      const secretKeyName =
+        templateState.ai_settings.api_key_secret_name || "LLM_API_KEY";
+      const srcSecrets = getDecryptedSecrets(projectId);
+      if (srcSecrets[secretKeyName]) {
+        setSecret(created.project_id, secretKeyName, srcSecrets[secretKeyName]);
+      }
+    }
+
     return NextResponse.json({ project: created });
   }
 
