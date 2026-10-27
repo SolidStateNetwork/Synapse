@@ -6,8 +6,20 @@ echo "  Synapse Core ('The Brain') — One-Command Docker Deployment"
 echo "=================================================================="
 
 if ! command -v docker >/dev/null 2>&1; then
-  echo "[error] Docker is not installed. Please install Docker first: https://docs.docker.com/engine/install/"
-  exit 1
+  echo "[synapse] Docker not found — installing Docker & Compose automatically..."
+  if command -v apt-get >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y -qq
+    apt-get install -y -qq curl ca-certificates git docker.io docker-compose-v2 2>/dev/null || \
+      apt-get install -y -qq curl ca-certificates git docker.io docker-compose
+    systemctl enable --now docker >/dev/null 2>&1 || true
+  elif command -v curl >/dev/null 2>&1; then
+    curl -fsSL https://get.docker.com | sh
+    systemctl enable --now docker >/dev/null 2>&1 || true
+  else
+    echo "[error] Docker is not installed and automatic installation failed."
+    exit 1
+  fi
 fi
 
 DEPLOY_DIR="${SYNAPSE_DEPLOY_DIR:-$HOME/synapse-core}"
@@ -22,6 +34,7 @@ if [ ! -f .env ]; then
   fi
   cat >.env <<EOF
 SYNAPSE_MASTER_KEY=${MASTER_KEY}
+SYNAPSE_DEBUG=${SYNAPSE_DEBUG:-1}
 OPENAI_API_KEY=${OPENAI_API_KEY:-}
 ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
 EOF
@@ -34,6 +47,8 @@ services:
     image: ghcr.io/solidstatenetwork/synapse-core-gateway:latest
     container_name: synapse-core-gateway
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       - SYNAPSE_DATA_DIR=/var/lib/synapse
       - SYNAPSE_TUNNEL_PORT=8443
@@ -60,6 +75,7 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      - CORE_GATEWAY_INTERNAL_URL=http://core-gateway:8081
       - CORE_GATEWAY_URL=http://core-gateway:8081
       - SYNAPSE_VAULT_DIR=/var/lib/synapse/projects
       - SYNAPSE_CARTRIDGES_DIR=/app/cartridges
@@ -73,8 +89,8 @@ volumes:
 EOF
 
 echo "[synapse] Pulling prebuilt Docker images from GitHub Container Registry (GHCR)..."
-if docker compose pull; then
-  docker compose up -d
+if docker compose pull 2>/dev/null || docker-compose pull 2>/dev/null; then
+  docker compose up -d 2>/dev/null || docker-compose up -d
 else
   echo "[synapse] GHCR pull unavailable; building images from GitHub repository source..."
   if [ ! -d src ]; then
@@ -82,7 +98,7 @@ else
   fi
   cd src
   cp "$DEPLOY_DIR/.env" .env
-  docker compose up --build -d
+  docker compose up --build -d 2>/dev/null || docker-compose up --build -d
 fi
 
 echo "[synapse] Waiting for Core Gateway (:8081) and mTLS Hub (:8443) to become ready..."
@@ -105,7 +121,7 @@ echo ""
 echo "=================================================================="
 echo "  ✔ Synapse Core is ONLINE!"
 echo "=================================================================="
-echo "  • Studio WebUI:      http://${PUBLIC_IP}:3000"
+echo "  • Control Center UI: http://${PUBLIC_IP}:3000"
 echo "  • Core Gateway API:  http://${PUBLIC_IP}:8081"
 echo "  • mTLS Yamux Tunnel: ${PUBLIC_IP}:8443"
 echo ""
