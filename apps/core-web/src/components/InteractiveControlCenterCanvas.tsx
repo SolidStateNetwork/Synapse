@@ -549,24 +549,25 @@ export default function InteractiveControlCenterCanvas({
                   strokeOpacity={isHovered ? 0.45 : 0.22}
                   strokeWidth={isHovered ? 2.4 : 1.6}
                 />
-                {/* Animated directional dash stream */}
+                {/* Clean dashed guide line */}
                 <path
                   d={d}
                   fill="none"
                   stroke={edge.color}
+                  strokeOpacity={isHovered ? 0.85 : 0.55}
                   strokeWidth={isHovered ? 2.2 : 1.6}
                   strokeLinecap="round"
-                  strokeDasharray="8 8"
-                  className={
-                    edge.active && !draggingNodeId ? "cc-animated-edge" : ""
-                  }
+                  strokeDasharray="6 6"
                 />
-                {/* Smooth travelling packet pulse */}
+                {/* Smooth ping-pong travelling packet pulse (forward 0->1, then back 1->0, repeating infinitely) */}
                 {edge.active && (
-                  <circle r={2.8} fill={edge.color}>
+                  <circle r={3.2} fill={edge.color}>
                     <animateMotion
-                      dur="2.2s"
+                      dur="3.4s"
                       repeatCount="indefinite"
+                      keyPoints="0;1;0"
+                      keyTimes="0;0.5;1"
+                      calcMode="linear"
                       path={d}
                     />
                   </circle>
