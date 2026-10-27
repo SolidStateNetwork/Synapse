@@ -186,6 +186,14 @@ interface ProjectState {
     last_run_at?: string;
     last_status?: "ok" | "error";
   }>;
+  mcp_api_keys?: Array<{
+    key_id: string;
+    name: string;
+    token_prefix: string;
+    scopes: Array<"read" | "execute" | "admin">;
+    created_at: string;
+    last_used_at?: string;
+  }>;
 }
 
 interface StackBlueprint {
@@ -324,8 +332,17 @@ export default function SynapseNetBirdControlCenter() {
   );
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(true);
   const [settingsTab, setSettingsTab] = useState<
-    "setup-keys" | "secrets-vault" | "ai-providers" | "debug-console"
+    | "setup-keys"
+    | "secrets-vault"
+    | "ai-providers"
+    | "mcp-server"
+    | "debug-console"
   >("setup-keys");
+  const [mcpKeyName, setMcpKeyName] = useState("External AI Agent (MCP)");
+  const [mcpKeyScopeMode, setMcpKeyScopeMode] = useState<"read-exec" | "read-only">("read-exec");
+  const [issuedMcpToken, setIssuedMcpToken] = useState<string | null>(null);
+  const [copiedMcpToken, setCopiedMcpToken] = useState(false);
+  const [mcpTestOutput, setMcpTestOutput] = useState<string>("");
   const [debugModeEnabled, setDebugModeEnabled] = useState(false);
   const [debugSnapshot, setDebugSnapshot] = useState<Record<string, unknown> | null>(null);
   const [selfTestChecks, setSelfTestChecks] = useState<
@@ -1499,6 +1516,76 @@ export default function SynapseNetBirdControlCenter() {
     } finally {
       setRunningSelfTest(false);
     }
+  }
+
+  async function handleCreateMcpKey(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activeProject) return;
+    const scopes =
+      mcpKeyScopeMode === "read-only" ? ["read"] : ["read", "execute", "admin"];
+    const res = await fetch("/api/mcp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_id: activeProject.project_id,
+        action: "create_key",
+        name: mcpKeyName.trim() || "External AI Agent (MCP)",
+        scopes,
+      }),
+    });
+    const data = await res.json();
+    if (data.plaintext_token) {
+      setIssuedMcpToken(data.plaintext_token);
+      setStatusToast("Generated External AI / MCP API Token");
+      setTimeout(() => setStatusToast(""), 3000);
+      await loadWorkspace(activeProject.project_id);
+    }
+  }
+
+  async function handleRevokeMcpKey(keyId: string) {
+    if (!activeProject) return;
+    await fetch("/api/mcp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_id: activeProject.project_id,
+        action: "revoke_key",
+        key_id: keyId,
+      }),
+    });
+    await loadWorkspace(activeProject.project_id);
+  }
+
+  async function handleTestMcpEndpoint(method: "tools/list" | "resources/list" | "call_state") {
+    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    const payload =
+      method === "call_state"
+        ? {
+            jsonrpc: "2.0",
+            id: 1,
+            project_id: pid,
+            internal_ui_test: true,
+            method: "tools/call",
+            params: {
+              name: "synapse_get_project_state",
+              arguments: { project_id: pid },
+            },
+          }
+        : {
+            jsonrpc: "2.0",
+            id: 1,
+            project_id: pid,
+            internal_ui_test: true,
+            method,
+          };
+
+    const res = await fetch("/api/mcp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    setMcpTestOutput(JSON.stringify(data, null, 2));
   }
 
   const sidebarItems: Array<{
@@ -3311,6 +3398,13 @@ export default function SynapseNetBirdControlCenter() {
                       icon: Bot,
                     },
                     {
+                      id: "mcp-server",
+                      label: `External AI / MCP API (${
+                        (activeProject?.mcp_api_keys || []).length
+                      })`,
+                      icon: Sparkles,
+                    },
+                    {
                       id: "debug-console",
                       label: `Debug & Self-Test (${
                         debugModeEnabled ? "ON" : "OFF"
@@ -3579,6 +3673,207 @@ export default function SynapseNetBirdControlCenter() {
                         Save AI Provider
                       </button>
                     </form>
+                  </div>
+                )}
+
+                {settingsTab === "mcp-server" && (
+                  <div className="space-y-5">
+                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-6 space-y-4">
+                      <div>
+                        <h2 className="text-base font-medium text-white flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-netbird" />
+                          External AI Access &amp; Model Context Protocol (MCP) Server (`/api/mcp`)
+                        </h2>
+                        <p className="text-xs text-nb-gray-400 mt-0.5">
+                          Allow external AI agents (Claude Desktop, Cursor, Windsurf, Antigravity, OpenCode, or custom REST/JSON-RPC bots) to control your Synapse Core &amp; Muscle peers securely via an MCP API Token.
+                        </p>
+                      </div>
+
+                      <form
+                        onSubmit={handleCreateMcpKey}
+                        className="flex flex-wrap items-center gap-2.5 text-xs"
+                      >
+                        <input
+                          type="text"
+                          value={mcpKeyName}
+                          onChange={(e) => setMcpKeyName(e.target.value)}
+                          placeholder="Client name (e.g. Claude Desktop / Cursor)"
+                          className="flex-1 min-w-[220px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
+                        />
+                        <select
+                          value={mcpKeyScopeMode}
+                          onChange={(e) =>
+                            setMcpKeyScopeMode(
+                              e.target.value as "read-exec" | "read-only"
+                            )
+                          }
+                          className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
+                        >
+                          <option value="read-exec">
+                            Full Access (Read + Execute PTY/FS + Admin)
+                          </option>
+                          <option value="read-only">
+                            Read-Only (Inspect Peers, Files &amp; Brain Docs)
+                          </option>
+                        </select>
+                        <button
+                          type="submit"
+                          className="rounded-md bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+                        >
+                          + Generate MCP API Key
+                        </button>
+                      </form>
+
+                      {issuedMcpToken && (
+                        <div className="rounded-lg border border-green-500/50 bg-green-950/20 p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-green-400">
+                              ✔ New MCP API Key Generated (copy now — stored as SHA-256 hash):
+                            </span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(issuedMcpToken);
+                                setCopiedMcpToken(true);
+                                setTimeout(() => setCopiedMcpToken(false), 2500);
+                              }}
+                              className="rounded bg-green-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-green-500"
+                            >
+                              {copiedMcpToken ? "✔ Copied Token!" : "Copy Token"}
+                            </button>
+                          </div>
+                          <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-xs text-green-300">
+                            {issuedMcpToken}
+                          </pre>
+                        </div>
+                      )}
+
+                      {/* Active MCP API Keys List */}
+                      <div className="space-y-2">
+                        <div className="text-xs font-semibold text-nb-gray-300">
+                          Active External AI / MCP Tokens
+                        </div>
+                        {(activeProject?.mcp_api_keys || []).length === 0 ? (
+                          <div className="rounded border border-nb-gray-800 bg-nb-gray-950 p-3 text-xs text-nb-gray-400">
+                            No MCP API tokens created yet. Click &ldquo;+ Generate MCP API Key&rdquo; above to issue one.
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {(activeProject?.mcp_api_keys || []).map((k) => (
+                              <div
+                                key={k.key_id}
+                                className="flex items-center justify-between rounded border border-nb-gray-800 bg-nb-gray-950 px-3.5 py-2 text-xs"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="font-semibold text-white">
+                                    {k.name}
+                                  </span>
+                                  <span className="font-mono text-[11px] text-netbird">
+                                    {k.token_prefix}
+                                  </span>
+                                  <span className="rounded border border-nb-gray-700 bg-nb-gray-900 px-2 py-0.5 font-mono text-[10px] text-nb-gray-300">
+                                    {k.scopes.join(", ")}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => handleRevokeMcpKey(k.key_id)}
+                                  className="text-xs text-red-400 hover:underline"
+                                >
+                                  Revoke
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* MCP Client Config & REST Examples */}
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 pt-2">
+                        <div className="rounded-md border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
+                          <div className="text-xs font-semibold text-sky-400">
+                            1. MCP Client Config (`mcp_config.json` — Claude / Cursor / Antigravity)
+                          </div>
+                          <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
+{`{
+  "mcpServers": {
+    "synapse-core": {
+      "url": "${
+        typeof window !== "undefined"
+          ? window.location.origin
+          : "http://localhost:3000"
+      }/api/mcp?project_id=${activeProject?.project_id || "synapse-cloud-demo"}",
+      "headers": {
+        "Authorization": "Bearer ${issuedMcpToken || "syn_mcp_<YOUR_TOKEN>"}"
+      }
+    }
+  }
+}`}
+                          </pre>
+                        </div>
+
+                        <div className="rounded-md border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
+                          <div className="text-xs font-semibold text-emerald-400">
+                            2. Direct REST / JSON-RPC Tool Call (`curl` / Custom AI Agent)
+                          </div>
+                          <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
+{`# Execute any tool directly via REST or JSON-RPC 2.0:
+curl -X POST ${
+  typeof window !== "undefined"
+    ? window.location.origin
+    : "http://localhost:3000"
+}/api/mcp \\
+  -H "Authorization: Bearer ${issuedMcpToken || "syn_mcp_<YOUR_TOKEN>"}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "tool": "node_pty_exec",
+    "arguments": {
+      "node_id": "${primaryNode || "node-01"}",
+      "session_id": "mcp-shell",
+      "command": "uname -a && uptime"
+    }
+  }'`}
+                          </pre>
+                        </div>
+                      </div>
+
+                      {/* Interactive Live MCP Tester */}
+                      <div className="space-y-2 pt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-nb-gray-300">
+                            Live MCP Protocol Tester (`JSON-RPC 2.0`)
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleTestMcpEndpoint("tools/list")}
+                              className="rounded border border-netbird-500/40 bg-netbird-950 px-3 py-1 font-mono text-[11px] text-netbird hover:bg-netbird hover:text-white"
+                            >
+                              Test `tools/list` (10 Tools)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleTestMcpEndpoint("resources/list")
+                              }
+                              className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-1 font-mono text-[11px] text-nb-gray-200 hover:text-white"
+                            >
+                              Test `resources/list`
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleTestMcpEndpoint("call_state")}
+                              className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-1 font-mono text-[11px] text-nb-gray-200 hover:text-white"
+                            >
+                              Call `synapse_get_project_state`
+                            </button>
+                          </div>
+                        </div>
+                        {mcpTestOutput && (
+                          <pre className="max-h-72 overflow-auto rounded-md border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-green-400">
+                            {mcpTestOutput}
+                          </pre>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
 

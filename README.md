@@ -81,6 +81,12 @@ Synapse is completely model-agnostic and streams live reasoning traces (`<think>
 - **100% Local & Private:** Connect **Ollama** or **vLLM** (`llama3.1`, `qwen2.5-coder`, `deepseek-r1`, `llama3.2-vision`) so neither your code nor your server logs ever leave your own hardware.
 - **Built-in Deterministic Engine:** Test workflows and policy locks out-of-the-box even before adding an API key.
 
+### 7. Built-in Model Context Protocol (MCP) Server for External AI Agents (`/api/mcp`)
+Want to control your Synapse Core and Muscle servers directly from **Claude Desktop, Cursor, Windsurf, Antigravity, or your own external AI agents**?
+Synapse Core includes a native **MCP JSON-RPC 2.0 & REST Tool Gateway** (`/api/mcp`) protected by scoped `syn_mcp_...` API tokens (`read` vs `execute`):
+- Exposes **10 MCP Tools** (`node_pty_exec`, `node_fs_operation`, `core_register_service`, `core_manage_secret`, `core_update_brain_doc`, `core_link_peers`, `synapse_list_peers`, `synapse_get_project_state`, `synapse_create_join_token`, `synapse_rollback_snapshot`).
+- Exposes **Brain Vault Resources** (`Architecture.md`, `Memory.md`, `State.json`, `Audit.jsonl`) and **Stack Blueprint Prompts** via standard MCP `resources/list` & `prompts/list`.
+
 ---
 
 ## ⚡ Visual AI Control Center
