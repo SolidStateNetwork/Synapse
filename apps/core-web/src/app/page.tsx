@@ -379,8 +379,7 @@ export default function SynapseNetBirdControlCenter() {
     "Architecture.md" | "Memory.md"
   >("Architecture.md");
   const [isEditingMarkdown, setIsEditingMarkdown] = useState(false);
-  const [selectedCartridgeId, setSelectedCartridgeId] =
-    useState<string>("docker-first");
+  const [selectedCartridgeId, setSelectedCartridgeId] = useState<string>("");
 
   // Bottom Live PTY Drawer & Modals
   const [terminalDrawerOpen, setTerminalDrawerOpen] = useState(false);
@@ -475,7 +474,7 @@ export default function SynapseNetBirdControlCenter() {
   >("all");
   const [serviceWorkspaceTab, setServiceWorkspaceTab] = useState<
     "split" | "preview" | "tester"
-  >("split");
+  >("preview");
   const [peersSubTab, setPeersSubTab] = useState<
     "nodes" | "mesh" | "blueprints" | "playbooks"
   >("nodes");
@@ -1730,49 +1729,45 @@ export default function SynapseNetBirdControlCenter() {
     {
       id: "control-center",
       section: "Übersicht & Dienste",
-      label: "Projekt-Übersicht",
+      label: "Übersicht",
       icon: Network,
     },
     {
       id: "reverse-proxy",
       section: "Übersicht & Dienste",
-      label: "Services & Live-Preview",
+      label: "Services",
       icon: Globe,
       badge:
         unhealthyServices.length > 0
           ? `${unhealthyServices.length} !`
-          : activeProject?.registered_services?.length || undefined,
-      badgeColor: unhealthyServices.length > 0 ? "red" : "green",
+          : undefined,
+      badgeColor: unhealthyServices.length > 0 ? "red" : undefined,
     },
     {
       id: "peers",
       section: "Übersicht & Dienste",
-      label: "Peers & Cluster",
+      label: "Server & Mesh",
       icon: MonitorSmartphone,
-      badge: gatewayNodes.length,
-      badgeColor: gatewayNodes.length > 0 ? "green" : undefined,
     },
     {
       id: "brain-vault",
       section: "Projekt & Dateien",
-      label: "Brain Vault (Doku)",
+      label: "Brain Vault",
       icon: BookOpen,
     },
     {
       id: "workspace",
       section: "Projekt & Dateien",
-      label: "Remote Files (Code)",
+      label: "Dateien",
       icon: Code2,
     },
     {
       id: "access-control",
       section: "Sicherheit & System",
-      label: "Regeln & Freigaben",
+      label: "Regeln",
       icon: Shield,
       badge:
-        pendingApprovals.length > 0
-          ? pendingApprovals.length
-          : activeProject?.active_cartridges?.length || 0,
+        pendingApprovals.length > 0 ? pendingApprovals.length : undefined,
       badgeColor: pendingApprovals.length > 0 ? "orange" : undefined,
     },
     {
@@ -1780,12 +1775,11 @@ export default function SynapseNetBirdControlCenter() {
       section: "Sicherheit & System",
       label: "Audit-Log",
       icon: Activity,
-      badge: auditLogs.length || undefined,
     },
     {
       id: "settings",
       section: "Sicherheit & System",
-      label: "Einstellungen & Debug",
+      label: "Einstellungen",
       icon: Settings,
     },
   ];
@@ -1793,11 +1787,11 @@ export default function SynapseNetBirdControlCenter() {
   return (
     <div className="dark flex h-screen w-screen overflow-hidden bg-nb-gray-950 text-nb-gray-100">
       {/* ═══════════════════════════════════════════════════════════════════════
-          1:1 NETBIRD LEFT VERTICAL SIDEBAR NAVIGATION
+          CLEAN LEFT VERTICAL SIDEBAR NAVIGATION
       ═══════════════════════════════════════════════════════════════════════ */}
       <aside
         className={`flex shrink-0 flex-col justify-between border-r border-nb-gray-900 bg-nb-gray-950 transition-all duration-200 ${
-          sidebarCollapsed ? "w-[68px]" : "w-[238px]"
+          sidebarCollapsed ? "w-[68px]" : "w-[228px]"
         }`}
       >
         {/* Top Brand + Project Switcher */}
@@ -1830,7 +1824,7 @@ export default function SynapseNetBirdControlCenter() {
             <button
               onClick={() => setSidebarCollapsed((v) => !v)}
               className="rounded-md p-1.5 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
-              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={sidebarCollapsed ? "Sidebar ausklappen" : "Sidebar einklappen"}
             >
               {sidebarCollapsed ? (
                 <PanelLeftOpen className="h-4 w-4" />
@@ -1864,7 +1858,7 @@ export default function SynapseNetBirdControlCenter() {
               <button
                 onClick={() => setNewProjectModal(true)}
                 className="rounded-md border border-nb-gray-800/80 bg-nb-gray-930 p-1.5 text-nb-gray-300 hover:bg-nb-gray-900 hover:text-white"
-                title="Create New Project Vault"
+                title="Neues Projekt anlegen"
               >
                 <Plus className="h-3.5 w-3.5" />
               </button>
@@ -1915,8 +1909,6 @@ export default function SynapseNetBirdControlCenter() {
                               ? "border-netbird-500 bg-netbird-950 text-netbird"
                               : item.badgeColor === "red"
                               ? "border-red-500 bg-red-950/60 text-red-400 animate-pulse"
-                              : item.badgeColor === "green"
-                              ? "border-green-500/60 bg-green-950 text-green-400"
                               : "border-nb-gray-800 bg-nb-gray-930 text-nb-gray-300"
                           }`}
                         >
@@ -1931,74 +1923,34 @@ export default function SynapseNetBirdControlCenter() {
           </ul>
         </div>
 
-        {/* Bottom Sidebar NavigationUsageInfo Card (NetBird Style) */}
-        <div className="p-3.5 space-y-2.5">
-          {!sidebarCollapsed ? (
-            <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-3 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-nb-gray-200 flex items-center gap-1.5">
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      activeProject?.planning_only
-                        ? "bg-amber-400"
-                        : "bg-green-400"
-                    }`}
-                  />
-                  {activeProject?.planning_only
-                    ? "Planning-Only"
-                    : "mTLS 1.3 Mesh"}
-                </span>
-                <span className="font-mono text-[10px] text-nb-gray-400">
-                  :8443 Yamux
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-nb-gray-400">
-                <span>Connected Peers</span>
-                <span className="font-mono text-nb-gray-200">
-                  {gatewayNodes.filter((n) => n.online).length} /{" "}
-                  {gatewayNodes.length || 1}
-                </span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-nb-gray-900">
-                <div
-                  className="h-full rounded-full bg-netbird transition-all"
-                  style={{
-                    width:
-                      gatewayNodes.length > 0 ? "100%" : "20%",
-                  }}
+        {/* Minimalist Bottom Mesh Status Pill */}
+        <div className="p-3.5">
+          {!sidebarCollapsed && (
+            <div className="flex items-center justify-between rounded-lg border border-nb-gray-900 bg-nb-gray-940/70 px-3 py-2 text-[11px] text-nb-gray-400">
+              <span className="flex items-center gap-2 text-nb-gray-200">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    activeProject?.planning_only
+                      ? "bg-amber-400"
+                      : "bg-green-400"
+                  }`}
                 />
-              </div>
-              <button
-                onClick={() => {
-                  setAddPeerModalOpen(true);
-                  if (!issuedToken) handleGenerateJoinToken();
-                }}
-                className="w-full rounded-md border border-netbird-500/40 bg-netbird-950/70 py-1.5 text-center text-xs font-medium text-netbird hover:bg-netbird hover:text-white transition-colors"
-              >
-                + Add Muscle Peer
-              </button>
+                {activeProject?.planning_only ? "Planning-Only" : "mTLS 1.3 Mesh"}
+              </span>
+              <span className="font-mono text-[10px] text-nb-gray-400">
+                {gatewayNodes.filter((n) => n.online).length} online
+              </span>
             </div>
-          ) : (
-            <button
-              onClick={() => {
-                setAddPeerModalOpen(true);
-                if (!issuedToken) handleGenerateJoinToken();
-              }}
-              className="flex w-full items-center justify-center rounded-md bg-netbird p-2 text-white hover:bg-netbird-500"
-              title="Add Peer"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
           )}
         </div>
       </aside>
 
       {/* ═══════════════════════════════════════════════════════════════════════
-          MAIN WORKSPACE COLUMN (Top NetBird ControlCenterHeader + Content + PTY)
+          MAIN WORKSPACE COLUMN (Clean Top Header + Content + PTY)
       ═══════════════════════════════════════════════════════════════════════ */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* TOP NETBIRD HEADER BAR (`ControlCenterHeader` + `FlowSelector`) */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-nb-gray-900 bg-nb-gray-950 px-5">
+        {/* CLEAN TOP HEADER BAR (No duplicate segmented tabs or clutter) */}
+        <header className="flex h-13 shrink-0 items-center justify-between border-b border-nb-gray-900 bg-nb-gray-950 px-5">
           {/* Left: Breadcrumbs + Active Peer Status */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 text-sm">
@@ -2014,9 +1966,10 @@ export default function SynapseNetBirdControlCenter() {
             {primaryNode ? (
               <div
                 onClick={() => setActiveNav("peers")}
-                className="hidden md:flex cursor-pointer items-center gap-1.5 rounded-md border border-green-500/40 bg-green-950/70 px-2.5 py-1 text-[11px] text-green-400 hover:bg-green-950"
+                className="hidden md:flex cursor-pointer items-center gap-1.5 rounded-full border border-green-500/30 bg-green-950/50 px-2.5 py-0.5 text-[11px] text-green-400 hover:bg-green-950 transition"
+                title="Verbundenen Server anzeigen"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+                <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
                 <span className="font-mono">{primaryNode}</span>
               </div>
             ) : (
@@ -2025,60 +1978,15 @@ export default function SynapseNetBirdControlCenter() {
                   setAddPeerModalOpen(true);
                   handleGenerateJoinToken();
                 }}
-                className="hidden md:flex items-center gap-1.5 rounded-md border border-amber-500/50 bg-yellow-950/70 px-2.5 py-1 text-[11px] text-yellow-400 hover:bg-yellow-950"
+                className="hidden md:flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-yellow-950/50 px-2.5 py-0.5 text-[11px] text-yellow-400 hover:bg-yellow-950"
               >
                 <Lock className="h-3 w-3" />
-                <span>Planning-Only · Add Peer</span>
+                <span>Planning-Only</span>
               </button>
             )}
           </div>
 
-          {/* Center: NetBird `FlowSelector` SegmentedTabs (when in Control Center) */}
-          {activeNav === "control-center" && (
-            <div className="hidden lg:flex items-center rounded-lg border border-nb-gray-800/80 bg-nb-gray-930 p-1">
-              {[
-                {
-                  id: "peers",
-                  label: "Peer",
-                  icon: MonitorSmartphone,
-                },
-                {
-                  id: "ai-agent",
-                  label: "AI Agent",
-                  icon: Bot,
-                },
-                {
-                  id: "groups",
-                  label: "Vault & Groups",
-                  icon: FolderGit2,
-                },
-                {
-                  id: "networks",
-                  label: "Networks & Services",
-                  icon: Network,
-                },
-              ].map((tab) => {
-                const Icon = tab.icon;
-                const active = flowView === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setFlowView(tab.id as FlowView)}
-                    className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                      active
-                        ? "bg-nb-gray-900 text-white shadow-sm border border-nb-gray-800"
-                        : "text-nb-gray-400 hover:text-nb-gray-200"
-                    }`}
-                  >
-                    <Icon size={12} className={active ? "text-netbird" : ""} />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Right: Unhealthy Alert + Search (Ctrl+K) + AI Model Pill + Copilot Toggle + Add Peer */}
+          {/* Right: Essential Global Controls Only (Search, Copilot, + Server) */}
           <div className="flex items-center gap-2">
             {statusToast && (
               <span className="hidden xl:inline-block rounded-md border border-green-500/40 bg-green-950 px-2.5 py-1 font-mono text-[11px] text-green-400">
@@ -2086,64 +1994,24 @@ export default function SynapseNetBirdControlCenter() {
               </span>
             )}
 
-            {unhealthyServices.length > 0 && (
-              <button
-                onClick={() =>
-                  handleQuickAction(
-                    `diagnose and auto-heal service ${unhealthyServices[0].port}`
-                  )
-                }
-                className="flex items-center gap-1.5 rounded-md border border-red-500 bg-red-950/60 px-2.5 py-1 text-xs font-medium text-red-400 hover:bg-red-900/50 animate-pulse"
-              >
-                <AlertTriangle className="h-3.5 w-3.5" />
-                <span>Heal :{unhealthyServices[0].port}</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => {
-                setActiveNav("settings");
-                setSettingsTab("debug-console");
-                fetchDebugSnapshot();
-              }}
-              className={`hidden sm:flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[11px] transition-colors ${
-                debugModeEnabled
-                  ? "border-amber-500/60 bg-amber-950/60 text-amber-300"
-                  : "border-nb-gray-800/80 bg-nb-gray-920 text-nb-gray-300 hover:text-white"
-              }`}
-              title="Open Core & Muscle Debug Mode & Self-Test Inspector"
-            >
-              <Activity className="h-3.5 w-3.5 text-amber-400" />
-              <span>{debugModeEnabled ? "DEBUG: ON" : "Debug"}</span>
-            </button>
-
             <button
               onClick={() => {
                 setCommandPaletteOpen(true);
                 setCommandQuery("");
               }}
-              className="hidden sm:flex items-center gap-2 rounded-md border border-nb-gray-800/80 bg-nb-gray-920 px-2.5 py-1.5 text-xs text-nb-gray-300 hover:bg-nb-gray-910 hover:text-white"
-              title="Command Palette (Ctrl+K)"
+              className="hidden sm:flex items-center gap-2 rounded-lg border border-nb-gray-800/80 bg-nb-gray-930 px-2.5 py-1.5 text-xs text-nb-gray-300 hover:bg-nb-gray-900 hover:text-white transition"
+              title="Schnellsuche & Befehle (Ctrl+K)"
             >
               <Search className="h-3.5 w-3.5 text-nb-gray-400" />
               <span className="font-mono text-[11px]">Ctrl+K</span>
             </button>
 
             <button
-              onClick={() => setAiEndpointModalOpen(true)}
-              className="hidden md:flex items-center gap-1.5 rounded-md border border-nb-gray-800/80 bg-nb-gray-920 px-3 py-1.5 text-xs text-nb-gray-200 hover:bg-nb-gray-910 hover:text-white"
-              title="Configure AI Provider & Custom Base URL"
-            >
-              <Settings2 className="h-3.5 w-3.5 text-netbird" />
-              <span className="font-mono text-[11px]">{modelName}</span>
-            </button>
-
-            <button
               onClick={() => setCopilotDrawerOpen((v) => !v)}
-              className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                 copilotDrawerOpen
                   ? "border-netbird-500/60 bg-netbird-950 text-netbird"
-                  : "border-nb-gray-800/80 bg-nb-gray-920 text-nb-gray-300 hover:text-white"
+                  : "border-nb-gray-800/80 bg-nb-gray-930 text-nb-gray-300 hover:text-white"
               }`}
             >
               <Sparkles className="h-3.5 w-3.5" />
@@ -2155,10 +2023,10 @@ export default function SynapseNetBirdControlCenter() {
                 setAddPeerModalOpen(true);
                 if (!issuedToken) handleGenerateJoinToken();
               }}
-              className="flex items-center gap-1.5 rounded-md bg-netbird px-3.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-netbird-500 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg bg-netbird px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-netbird-500 transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>Add Peer</span>
+              <span>Server</span>
             </button>
           </div>
         </header>
@@ -2295,26 +2163,22 @@ export default function SynapseNetBirdControlCenter() {
                   {[
                     {
                       id: "nodes",
-                      label: `Muscle-Server (${gatewayNodes.length})`,
+                      label: "Server",
                       icon: Server,
                     },
                     {
                       id: "mesh",
-                      label: `P2P Mesh-Links (${
-                        (activeProject?.peer_mesh_links || []).length
-                      })`,
+                      label: "P2P Mesh-Links",
                       icon: Network,
                     },
                     {
                       id: "blueprints",
-                      label: `1-Click Stack Blueprints (${blueprints.length})`,
+                      label: "Stack-Blueprints",
                       icon: Sparkles,
                     },
                     {
                       id: "playbooks",
-                      label: `Cron-Playbooks (${
-                        (activeProject?.scheduled_playbooks || []).length
-                      })`,
+                      label: "Cron-Playbooks",
                       icon: Activity,
                     },
                   ].map((tab) => {
@@ -2882,9 +2746,9 @@ export default function SynapseNetBirdControlCenter() {
                   </div>
                 )}
 
-                {/* Pluggable Rule Cartridges Grid + Inspector */}
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-                  <div className="lg:col-span-5 space-y-3">
+                {/* Pluggable Rule Cartridges Grid with On-Demand Markdown Inspector */}
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {cartridges.map((c) => {
                       const enabled =
                         activeProject?.active_cartridges?.includes(c.id);
@@ -2892,39 +2756,46 @@ export default function SynapseNetBirdControlCenter() {
                       return (
                         <div
                           key={c.id}
-                          onClick={() => setSelectedCartridgeId(c.id)}
-                          className={`cursor-pointer rounded-lg border p-4 transition-all ${
+                          onClick={() =>
+                            setSelectedCartridgeId(selected ? "" : c.id)
+                          }
+                          className={`cursor-pointer rounded-xl border p-4 transition-all ${
                             selected
-                              ? "border-netbird bg-nb-gray-930"
-                              : "border-nb-gray-900 bg-nb-gray-940 hover:bg-nb-gray-930/60"
+                              ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/30"
+                              : "border-nb-gray-900 bg-nb-gray-940 hover:border-nb-gray-800"
                           }`}
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
                               <span
-                                className={`h-2.5 w-2.5 rounded-full ${
+                                className={`h-2 w-2 shrink-0 rounded-full ${
                                   enabled ? "bg-green-400" : "bg-nb-gray-500"
                                 }`}
                               />
-                              <span className="text-sm font-semibold text-white">
+                              <span className="truncate text-sm font-semibold text-white">
                                 {c.name}
                               </span>
                             </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleCartridge(c.id);
-                              }}
-                              className={`rounded-md border px-2.5 py-1 font-mono text-[10px] font-medium transition ${
-                                enabled
-                                  ? "border-green-500 bg-green-950 text-green-400"
-                                  : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400 hover:text-white"
-                              }`}
-                            >
-                              {enabled ? "ENABLED" : "DISABLED"}
-                            </button>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[11px] text-nb-gray-400 hover:text-white">
+                                {selected ? "Ausblenden" : "Details"}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleCartridge(c.id);
+                                }}
+                                className={`rounded-md border px-2.5 py-1 font-mono text-[10px] font-medium transition ${
+                                  enabled
+                                    ? "border-green-500/50 bg-green-950/70 text-green-400"
+                                    : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400 hover:text-white"
+                                }`}
+                              >
+                                {enabled ? "AKTIV" : "AUS"}
+                              </button>
+                            </div>
                           </div>
-                          <p className="mt-1.5 text-xs text-nb-gray-400">
+                          <p className="mt-1.5 text-xs text-nb-gray-400 line-clamp-1">
                             {c.description}
                           </p>
                         </div>
@@ -2932,19 +2803,34 @@ export default function SynapseNetBirdControlCenter() {
                     })}
                   </div>
 
-                  <div className="lg:col-span-7 rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-6">
-                    {currentCartridge && (
+                  {/* On-Demand Cartridge Specification Drawer */}
+                  {selectedCartridgeId && currentCartridge && (
+                    <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-5 space-y-3">
+                      <div className="flex items-center justify-between border-b border-nb-gray-800 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Shield className="h-4 w-4 text-netbird" />
+                          <span className="text-sm font-semibold text-white">
+                            {currentCartridge.name} — Regel-Spezifikation
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setSelectedCartridgeId("")}
+                          className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
                       <RichMarkdownDocument
                         markdown={currentCartridge.content}
                       />
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
             {/* ═══════════════════════════════════════════════════════════════
-                VIEW 4: SORTED SERVICES, REVERSE PROXY & LIVE PREVIEW (`reverse-proxy`)
+                VIEW 4: CLEAN SERVICES, REVERSE PROXY & ON-DEMAND TESTER (`reverse-proxy`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "reverse-proxy" &&
               (() => {
@@ -2963,26 +2849,26 @@ export default function SynapseNetBirdControlCenter() {
                 const categoryGroups = [
                   {
                     id: "webui" as const,
-                    title: "🌐 WebUIs & Frontends",
-                    badge: "🌐 WebUI",
+                    title: "WebUIs & Frontends",
+                    badge: "WebUI",
                     badgeStyle:
-                      "border-sky-500/40 bg-sky-950/60 text-sky-300",
+                      "border-sky-500/30 bg-sky-950/50 text-sky-300",
                     items: webuiSvcs,
                   },
                   {
                     id: "backend" as const,
-                    title: "⚡ Backend & REST APIs",
-                    badge: "⚡ Backend API",
+                    title: "Backend & REST APIs",
+                    badge: "API",
                     badgeStyle:
-                      "border-netbird-500/40 bg-netbird-950/60 text-netbird",
+                      "border-netbird-500/30 bg-netbird-950/50 text-netbird",
                     items: backendSvcs,
                   },
                   {
                     id: "database" as const,
-                    title: "🗄️ Datenbanken",
-                    badge: "🗄️ Database",
+                    title: "Datenbanken",
+                    badge: "DB",
                     badgeStyle:
-                      "border-purple-500/40 bg-purple-950/60 text-purple-300",
+                      "border-purple-500/30 bg-purple-950/50 text-purple-300",
                     items: dbSvcs,
                   },
                 ].filter(
@@ -3002,38 +2888,25 @@ export default function SynapseNetBirdControlCenter() {
 
                 return (
                   <div className="mx-auto flex max-w-6xl flex-col gap-5 p-6">
-                    {/* TOP HEADER & CATEGORY FILTER TABS */}
+                    {/* CLEAN TOP HEADER & CATEGORY FILTER TABS (Without noisy counts) */}
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-nb-gray-900 pb-4">
                       <div>
                         <h1 className="text-xl font-medium text-nb-gray-100">
-                          Erreichbare Projekt-Dienste, Reverse-Proxy &amp; Live-Preview
+                          Projekt-Dienste &amp; Reverse-Proxy
                         </h1>
                         <p className="text-xs text-nb-gray-400 mt-0.5">
-                          Alle von der KI angelegten WebUIs, Backend-APIs und
-                          Datenbanken sauber nach Kategorie sortiert — links
-                          auswählen, rechts live testen.
+                          Wähle links einen Dienst aus, um die Live-Vorschau zu
+                          öffnen oder API- &amp; Datenbank-Abfragen zu testen.
                         </p>
                       </div>
 
-                      {/* Category Filter Pills */}
-                      <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-1">
+                      {/* Clean Category Filter Pills */}
+                      <div className="flex flex-wrap items-center gap-1 rounded-xl border border-nb-gray-800/80 bg-nb-gray-940 p-1">
                         {[
-                          {
-                            id: "all",
-                            label: `Alle (${allSvcs.length})`,
-                          },
-                          {
-                            id: "webui",
-                            label: `🌐 WebUI (${webuiSvcs.length})`,
-                          },
-                          {
-                            id: "backend",
-                            label: `⚡ Backend API (${backendSvcs.length})`,
-                          },
-                          {
-                            id: "database",
-                            label: `🗄️ Datenbank (${dbSvcs.length})`,
-                          },
+                          { id: "all", label: "Alle" },
+                          { id: "webui", label: "WebUI" },
+                          { id: "backend", label: "Backend API" },
+                          { id: "database", label: "Datenbank" },
                         ].map((tab) => {
                           const active = serviceCategoryFilter === tab.id;
                           return (
@@ -3051,7 +2924,7 @@ export default function SynapseNetBirdControlCenter() {
                               }
                               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                                 active
-                                  ? "bg-netbird text-white shadow-sm"
+                                  ? "bg-nb-gray-900 text-white shadow-sm border border-nb-gray-800"
                                   : "text-nb-gray-400 hover:text-white"
                               }`}
                             >
@@ -3062,27 +2935,22 @@ export default function SynapseNetBirdControlCenter() {
                       </div>
                     </div>
 
-                    {/* MASTER-DETAIL SPLIT: LEFT SORTED DIRECTORY (4 COLS) + RIGHT WORKSPACE (8 COLS) */}
+                    {/* MASTER-DETAIL SPLIT: LEFT CLEAN LIST (4 COLS) + RIGHT FOCUSED WORKSPACE (8 COLS) */}
                     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-                      {/* LEFT 4 COLUMNS: SORTED SERVICE DIRECTORY BY CATEGORY */}
+                      {/* LEFT 4 COLUMNS: MINIMALIST SERVICE CARDS */}
                       <div className="lg:col-span-4 space-y-5">
                         {categoryGroups.length === 0 ? (
                           <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-5 text-center text-xs text-nb-gray-400">
-                            Keine Dienste in dieser Kategorie gefunden.
+                            Keine Dienste in dieser Kategorie vorhanden.
                           </div>
                         ) : (
                           categoryGroups.map((group) => (
-                            <div key={group.id} className="space-y-2.5">
-                              <div className="flex items-center justify-between border-b border-nb-gray-800/80 pb-1.5">
-                                <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-nb-gray-300">
-                                  {group.title}
-                                </span>
-                                <span className="rounded bg-nb-gray-900 px-1.5 py-0.5 font-mono text-[10px] text-nb-gray-400">
-                                  {group.items.length}
-                                </span>
+                            <div key={group.id} className="space-y-2">
+                              <div className="px-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
+                                {group.title}
                               </div>
 
-                              <div className="space-y-2.5">
+                              <div className="space-y-2">
                                 {group.items.map((svc) => {
                                   const healthy =
                                     svc.healthy !== false &&
@@ -3097,6 +2965,9 @@ export default function SynapseNetBirdControlCenter() {
                                         setSelectedServiceId(svc.service_id);
                                         setPreviewPort(svc.port);
                                         setPreviewSubPath("/");
+                                        if (svc.category === "database") {
+                                          setServiceWorkspaceTab("tester");
+                                        }
                                         if (
                                           svc.endpoints &&
                                           svc.endpoints.length > 0
@@ -3111,14 +2982,14 @@ export default function SynapseNetBirdControlCenter() {
                                           );
                                         }
                                       }}
-                                      className={`cursor-pointer rounded-xl border p-3.5 transition-all space-y-2 ${
+                                      className={`cursor-pointer rounded-xl border p-3.5 transition-all ${
                                         isSelected
-                                          ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/40 shadow-md"
-                                          : "border-nb-gray-800 bg-nb-gray-940 hover:border-nb-gray-700"
+                                          ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/30"
+                                          : "border-nb-gray-900 bg-nb-gray-940 hover:border-nb-gray-800"
                                       }`}
                                     >
                                       <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2 min-w-0">
+                                        <div className="flex items-center gap-2.5 min-w-0">
                                           <span
                                             className={`h-2 w-2 shrink-0 rounded-full ${
                                               healthy
@@ -3130,25 +3001,19 @@ export default function SynapseNetBirdControlCenter() {
                                             {svc.name}
                                           </span>
                                         </div>
-                                        <span className="shrink-0 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[10px] text-nb-gray-300">
-                                          {svc.node_id}:{svc.port}
+                                        <span className="shrink-0 font-mono text-[11px] text-nb-gray-400">
+                                          :{svc.port}
                                         </span>
                                       </div>
 
-                                      <p className="text-[11px] text-nb-gray-400 line-clamp-2">
-                                        {svc.description ||
-                                          "Von außen erreichbar über den Reverse-Proxy."}
-                                      </p>
-
-                                      <div className="flex items-center justify-between pt-0.5 text-[10px]">
+                                      <div className="mt-2 flex items-center justify-between text-[10px]">
                                         <span
                                           className={`rounded border px-1.5 py-0.5 font-mono ${group.badgeStyle}`}
                                         >
                                           {group.badge}
                                         </span>
-                                        <span className="font-mono text-nb-gray-400">
-                                          {(svc.endpoints || []).length}{" "}
-                                          Option(en) →
+                                        <span className="font-mono text-nb-gray-500">
+                                          {svc.node_id}
                                         </span>
                                       </div>
                                     </div>
@@ -3160,180 +3025,140 @@ export default function SynapseNetBirdControlCenter() {
                         )}
                       </div>
 
-                      {/* RIGHT 8 COLUMNS: FOCUSED DETAIL WORKSPACE FOR SELECTED SERVICE */}
+                      {/* RIGHT 8 COLUMNS: PROGRESSIVE DISCLOSURE WORKSPACE */}
                       <div className="lg:col-span-8 space-y-4">
-                        {/* STEP 1: SELECTED SERVICE HEADER & EXTERNAL REACHABILITY BOX */}
                         {activeSvc && (
-                          <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-4 space-y-3.5 shadow-lg">
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span
-                                    className={`rounded border px-2 py-0.5 font-mono text-[10px] font-semibold ${
-                                      activeSvc.category === "webui"
-                                        ? "border-sky-500/40 bg-sky-950/60 text-sky-300"
-                                        : activeSvc.category === "database"
-                                        ? "border-purple-500/40 bg-purple-950/60 text-purple-300"
-                                        : "border-netbird-500/40 bg-netbird-950/60 text-netbird"
-                                    }`}
-                                  >
-                                    {activeSvc.category === "webui"
-                                      ? "🌐 WebUI / Frontend"
-                                      : activeSvc.category === "database"
-                                      ? "🗄️ Database Engine"
-                                      : "⚡ Backend REST API"}
-                                  </span>
-                                  <h2 className="text-base font-semibold text-white">
-                                    {activeSvc.name}
-                                  </h2>
-                                  <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[11px] text-nb-gray-300">
-                                    {activeSvc.node_id}:{activeSvc.port}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-nb-gray-400">
-                                  {activeSvc.description ||
-                                    "Von außen erreichbar über den Synapse Reverse-Proxy Tunnel."}
-                                </p>
-                              </div>
-
-                              {/* Workspace View Switcher (Split / Only Preview / Only Tester) */}
-                              <div className="flex items-center rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-0.5 text-[11px]">
-                                {[
-                                  { id: "split", label: "Split-Ansicht" },
-                                  { id: "preview", label: "Live-Preview" },
-                                  { id: "tester", label: "Input-Tester" },
-                                ].map((mode) => (
-                                  <button
-                                    key={mode.id}
-                                    type="button"
-                                    onClick={() =>
-                                      setServiceWorkspaceTab(
-                                        mode.id as
-                                          | "split"
-                                          | "preview"
-                                          | "tester"
-                                      )
-                                    }
-                                    className={`rounded-md px-2.5 py-1 font-medium transition ${
-                                      serviceWorkspaceTab === mode.id
-                                        ? "bg-netbird text-white"
-                                        : "text-nb-gray-400 hover:text-white"
-                                    }`}
-                                  >
-                                    {mode.label}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* External Reverse-Proxy URL Banner */}
-                            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3.5 py-2 text-xs">
-                              <div className="flex items-center gap-2 truncate">
-                                <Globe className="h-3.5 w-3.5 shrink-0 text-netbird" />
-                                <span className="text-nb-gray-400">
-                                  Von außen erreichbar:
+                          <div className="rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-4 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span
+                                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                                    activeSvc.healthy !== false &&
+                                    activeSvc.health_check?.status !==
+                                      "UNHEALTHY"
+                                      ? "bg-green-400"
+                                      : "bg-red-500 animate-pulse"
+                                  }`}
+                                />
+                                <h2 className="text-base font-semibold text-white truncate">
+                                  {activeSvc.name}
+                                </h2>
+                                <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[11px] text-nb-gray-300">
+                                  {activeSvc.node_id}:{activeSvc.port}
                                 </span>
+                              </div>
+
+                              {/* Clean Mode Switcher: Live-Preview vs. API/DB Tester */}
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-0.5 text-[11px]">
+                                  {[
+                                    { id: "preview", label: "Live-Preview" },
+                                    {
+                                      id: "tester",
+                                      label: "API- & DB-Tester",
+                                    },
+                                    { id: "split", label: "Beides" },
+                                  ].map((mode) => (
+                                    <button
+                                      key={mode.id}
+                                      type="button"
+                                      onClick={() =>
+                                        setServiceWorkspaceTab(
+                                          mode.id as
+                                            | "split"
+                                            | "preview"
+                                            | "tester"
+                                        )
+                                      }
+                                      className={`rounded-md px-2.5 py-1 font-medium transition ${
+                                        serviceWorkspaceTab === mode.id
+                                          ? "bg-netbird text-white"
+                                          : "text-nb-gray-400 hover:text-white"
+                                      }`}
+                                    >
+                                      {mode.label}
+                                    </button>
+                                  ))}
+                                </div>
+
                                 <a
                                   href={activeExtUrl}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="truncate font-mono text-netbird hover:underline"
+                                  className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-2.5 py-1.5 text-[11px] font-medium text-nb-gray-200 hover:border-netbird hover:text-white transition"
+                                  title="Im eigenen Browser-Tab öffnen"
                                 >
-                                  {activeExtUrl}
+                                  <span>Browser</span>
+                                  <ExternalLink className="h-3 w-3" />
                                 </a>
                               </div>
-                              <a
-                                href={activeExtUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] font-medium text-white hover:border-netbird"
-                              >
-                                <span>Im Browser öffnen</span>
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
                             </div>
 
-                            {/* STEP 2: SORTED CLICKABLE OPTIONS FOR THE SELECTED SERVICE */}
+                            {/* Compact Quick-Action Pills (Expand into Tester when clicked) */}
                             {activeSvc.endpoints &&
                               activeSvc.endpoints.length > 0 && (
-                                <div className="space-y-2 pt-1">
-                                  <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
-                                    Klickbare Optionen &amp; vordefinierte
-                                    Test-Inputs ({activeSvc.endpoints.length}):
-                                  </div>
-                                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                    {activeSvc.endpoints.map((ep) => (
-                                      <button
-                                        key={ep.id}
-                                        type="button"
-                                        onClick={() => {
-                                          setSelectedServiceId(
-                                            activeSvc.service_id
-                                          );
-                                          setPreviewPort(activeSvc.port);
-                                          setServiceActionMethod(ep.method);
-                                          setServiceActionPath(ep.path);
-                                          setServiceActionPayload(
-                                            ep.sample_payload || ""
-                                          );
-                                          handleInvokeServiceAction({
-                                            nodeId: activeSvc.node_id,
-                                            port: activeSvc.port,
-                                            method: ep.method,
-                                            path: ep.path,
-                                            payload: ep.sample_payload || "",
-                                          });
-                                        }}
-                                        className="flex items-center justify-between gap-2 rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 text-left text-xs hover:border-netbird hover:bg-nb-gray-900 transition"
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-nb-gray-900">
+                                  <span className="font-mono text-[10px] text-nb-gray-400 mr-1">
+                                    Schnelltest:
+                                  </span>
+                                  {activeSvc.endpoints.map((ep) => (
+                                    <button
+                                      key={ep.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedServiceId(
+                                          activeSvc.service_id
+                                        );
+                                        setPreviewPort(activeSvc.port);
+                                        setServiceActionMethod(ep.method);
+                                        setServiceActionPath(ep.path);
+                                        setServiceActionPayload(
+                                          ep.sample_payload || ""
+                                        );
+                                        if (serviceWorkspaceTab === "preview") {
+                                          setServiceWorkspaceTab("tester");
+                                        }
+                                        handleInvokeServiceAction({
+                                          nodeId: activeSvc.node_id,
+                                          port: activeSvc.port,
+                                          method: ep.method,
+                                          path: ep.path,
+                                          payload: ep.sample_payload || "",
+                                        });
+                                      }}
+                                      className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-2.5 py-1 text-[11px] text-nb-gray-200 hover:border-netbird hover:text-white transition"
+                                    >
+                                      <span
+                                        className={`font-mono text-[9px] font-bold ${
+                                          ep.method === "POST"
+                                            ? "text-amber-400"
+                                            : ep.method === "SQL"
+                                            ? "text-purple-400"
+                                            : "text-emerald-400"
+                                        }`}
                                       >
-                                        <div className="min-w-0">
-                                          <div className="flex items-center gap-2">
-                                            <span
-                                              className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold ${
-                                                ep.method === "POST"
-                                                  ? "bg-amber-950 text-amber-300 border border-amber-500/30"
-                                                  : ep.method === "SQL"
-                                                  ? "bg-purple-950 text-purple-300 border border-purple-500/30"
-                                                  : "bg-emerald-950 text-emerald-300 border border-emerald-500/30"
-                                              }`}
-                                            >
-                                              {ep.method}
-                                            </span>
-                                            <span className="truncate font-medium text-white">
-                                              {ep.label}
-                                            </span>
-                                          </div>
-                                          {ep.description && (
-                                            <div className="mt-0.5 truncate text-[10px] text-nb-gray-400">
-                                              {ep.description}
-                                            </div>
-                                          )}
-                                        </div>
-                                        <Play className="h-3 w-3 shrink-0 text-netbird" />
-                                      </button>
-                                    ))}
-                                  </div>
+                                        {ep.method}
+                                      </span>
+                                      <span>{ep.label}</span>
+                                    </button>
+                                  ))}
                                 </div>
                               )}
                           </div>
                         )}
 
-                        {/* STEP 3: INTERACTIVE INPUT TESTER BOX (SHOWN IN 'split' OR 'tester' MODE) */}
+                        {/* ON-DEMAND API & SQL TESTER PANEL (Only shown when 'tester' or 'split' is active) */}
                         {(serviceWorkspaceTab === "split" ||
                           serviceWorkspaceTab === "tester") && (
-                          <div className="flex flex-col rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-4 space-y-3 shadow-lg">
-                            <div className="flex items-center justify-between border-b border-nb-gray-800 pb-2.5">
-                              <div>
-                                <h3 className="text-xs font-semibold text-white flex items-center gap-2">
-                                  <Zap className="h-3.5 w-3.5 text-netbird" />
-                                  Interaktive Input- &amp; Datenbank-Box (Live
-                                  Request / SQL Tester)
-                                </h3>
-                                <p className="text-[11px] text-nb-gray-400">
-                                  Bearbeite Methode, Pfad oder Payload und
-                                  klicke auf &bdquo;Ausführen&ldquo;.
-                                </p>
-                              </div>
+                          <div className="flex flex-col rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-white flex items-center gap-2">
+                                <Zap className="h-3.5 w-3.5 text-netbird" />
+                                API- &amp; Datenbank-Tester
+                              </span>
+                              <span className="font-mono text-[10px] text-nb-gray-400">
+                                {activeExtUrl}
+                              </span>
                             </div>
 
                             <div className="flex flex-wrap gap-2 text-xs">
@@ -3349,7 +3174,7 @@ export default function SynapseNetBirdControlCenter() {
                                       | "SQL"
                                   )
                                 }
-                                className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 font-mono text-xs font-semibold text-netbird"
+                                className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 font-mono text-xs font-semibold text-netbird"
                               >
                                 <option value="GET">GET</option>
                                 <option value="POST">POST</option>
@@ -3369,14 +3194,14 @@ export default function SynapseNetBirdControlCenter() {
                                     ? "/opt/axon/workspaces/.../pulse.db"
                                     : "/api/events"
                                 }
-                                className="flex-1 min-w-[200px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 font-mono text-xs text-white"
+                                className="flex-1 min-w-[200px] rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 font-mono text-xs text-white"
                               />
 
                               <button
                                 type="button"
                                 disabled={serviceActionBusy}
                                 onClick={() => handleInvokeServiceAction()}
-                                className="flex items-center gap-1.5 rounded-md bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-50"
+                                className="flex items-center gap-1.5 rounded-lg bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-50"
                               >
                                 <Play className="h-3 w-3" />
                                 <span>
@@ -3391,11 +3216,11 @@ export default function SynapseNetBirdControlCenter() {
                               <div className="space-y-1">
                                 <label className="block font-mono text-[10px] uppercase text-nb-gray-400">
                                   {serviceActionMethod === "SQL"
-                                    ? "SQL Query Input (SQLite / DB):"
-                                    : "Request Body / JSON Input (optional bei GET):"}
+                                    ? "SQL-Abfrage:"
+                                    : "Payload / Body (optional):"}
                                 </label>
                                 <textarea
-                                  rows={5}
+                                  rows={4}
                                   value={serviceActionPayload}
                                   onChange={(e) =>
                                     setServiceActionPayload(e.target.value)
@@ -3403,16 +3228,16 @@ export default function SynapseNetBirdControlCenter() {
                                   placeholder={
                                     serviceActionMethod === "SQL"
                                       ? "SELECT * FROM events ORDER BY id DESC LIMIT 10;"
-                                      : '{"action": "ping", "message": "Test"}'
+                                      : '{"action": "ping"}'
                                   }
-                                  className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-950 p-2.5 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
+                                  className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2.5 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
                                 />
                               </div>
 
                               <div className="flex flex-col rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-3 font-mono text-[11px] space-y-1.5">
                                 <div className="flex items-center justify-between border-b border-nb-gray-800/80 pb-1 text-[10px]">
                                   <span className="text-nb-gray-400">
-                                    Live Response Output
+                                    Antwort
                                   </span>
                                   {serviceActionResult && (
                                     <span
@@ -3422,83 +3247,51 @@ export default function SynapseNetBirdControlCenter() {
                                           : "text-red-400"
                                       }
                                     >
-                                      {serviceActionResult.method} · Status{" "}
+                                      {serviceActionResult.method} ·{" "}
                                       {serviceActionResult.status_code} ·{" "}
                                       {serviceActionResult.latency_ms} ms
                                     </span>
                                   )}
                                 </div>
-                                <pre className="max-h-36 flex-1 overflow-auto whitespace-pre-wrap text-nb-gray-200">
+                                <pre className="max-h-32 flex-1 overflow-auto whitespace-pre-wrap text-nb-gray-200">
                                   {serviceActionResult
                                     ? serviceActionResult.response_text
-                                    : "Wähle oben eine Option oder klicke auf 'Ausführen', um die Live-Antwort zu sehen."}
+                                    : "Noch keine Anfrage ausgeführt."}
                                 </pre>
                               </div>
                             </div>
                           </div>
                         )}
 
-                        {/* STEP 4: LIVE EMBEDDED REVERSE-PROXY IFRAME (SHOWN IN 'split' OR 'preview' MODE) */}
+                        {/* LIVE EMBEDDED REVERSE-PROXY IFRAME (Default clean view) */}
                         {(serviceWorkspaceTab === "split" ||
                           serviceWorkspaceTab === "preview") && (
-                          <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-800 bg-nb-gray-940 shadow-xl">
-                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-2.5 text-xs">
+                          <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-900 bg-nb-gray-940 shadow-xl">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-2 text-xs">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <Globe className="h-3.5 w-3.5 text-netbird" />
-                                <span className="font-semibold text-white mr-1">
-                                  Live-Preview:
+                                <span className="font-mono text-[11px] text-nb-gray-400">
+                                  :{previewPort}
                                 </span>
-                                <span className="font-mono text-nb-gray-300">
-                                  {gatewayUrl}/preview/
-                                  {activeProject?.project_id}/
-                                  {activeSvc?.node_id || primaryNode || "node"}/
-                                </span>
-                                <input
-                                  type="number"
-                                  value={previewPort}
-                                  onChange={(e) =>
-                                    setPreviewPort(
-                                      Number(e.target.value) || 3000
-                                    )
-                                  }
-                                  className="w-20 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-netbird"
-                                />
                                 <input
                                   type="text"
                                   value={previewSubPath}
                                   onChange={(e) =>
                                     setPreviewSubPath(e.target.value || "/")
                                   }
-                                  className="w-36 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-white"
+                                  className="w-40 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-white"
                                   placeholder="/"
                                 />
                               </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setPreviewReloadNonce((n) => n + 1)
-                                  }
-                                  className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-300 hover:text-white"
-                                >
-                                  Neu laden
-                                </button>
-                                <a
-                                  href={`${gatewayUrl}/preview/${
-                                    activeProject?.project_id
-                                  }/${activeSvc?.node_id || primaryNode}/${previewPort}${
-                                    previewSubPath.startsWith("/")
-                                      ? previewSubPath
-                                      : `/${previewSubPath}`
-                                  }`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="flex items-center gap-1.5 text-nb-gray-300 hover:text-white"
-                                >
-                                  <span>Neuer Tab</span>
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                </a>
-                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPreviewReloadNonce((n) => n + 1)
+                                }
+                                className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-300 hover:text-white"
+                              >
+                                Neu laden
+                              </button>
                             </div>
                             <iframe
                               key={`${previewPort}-${previewSubPath}-${previewReloadNonce}`}
@@ -3514,7 +3307,7 @@ export default function SynapseNetBirdControlCenter() {
                                   ? previewSubPath
                                   : `/${previewSubPath}`
                               }`}
-                              className="w-full bg-white h-[440px]"
+                              className="w-full bg-white h-[480px]"
                             />
                           </div>
                         )}
@@ -3525,351 +3318,117 @@ export default function SynapseNetBirdControlCenter() {
               })()}
 
             {/* ═══════════════════════════════════════════════════════════════
-                VIEW 5: BRAIN VAULT DOCUMENTS (`brain-vault`)
+                VIEW 5: FOCUSED BRAIN VAULT DOCUMENTS (`brain-vault`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "brain-vault" && (
-              <div className="mx-auto max-w-6xl p-6 space-y-6">
-                {/* NetBird Page Header */}
-                <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="mx-auto max-w-5xl p-6 space-y-5">
+                {/* Clean Header + Document Switcher */}
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-nb-gray-900 pb-4">
                   <div>
                     <h1 className="text-xl font-medium text-nb-gray-100">
-                      Project Brain Vault
+                      Brain Vault
                     </h1>
                     <p className="text-xs text-nb-gray-400 mt-0.5">
-                      Persistent cognitive state (
-                      <code className="font-mono text-nb-gray-200">
-                        /projects/{activeProject?.project_id || "synapse-cloud-demo"}/
-                      </code>
-                      ), Mermaid architecture specs, engineering journal, and
-                      AES-256-GCM secrets.
+                      Persistente Architektur-Spezifikation und technisches
+                      Projekt-Gedächtnis für den KI-Orchestrator.
                     </p>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => setActiveNav("control-center")}
-                      className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-930 px-3 py-1.5 text-xs text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
-                    >
-                      <Network className="h-3.5 w-3.5 text-netbird" />
-                      <span>View on Canvas</span>
-                    </button>
+                    {/* 2-Tab Document Switcher */}
+                    <div className="flex items-center rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-1 text-xs">
+                      {(["Architecture.md", "Memory.md"] as const).map(
+                        (doc) => {
+                          const active = brainDocTab === doc;
+                          return (
+                            <button
+                              key={doc}
+                              onClick={() => {
+                                setBrainDocTab(doc);
+                                setIsEditingMarkdown(false);
+                              }}
+                              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-xs font-medium transition ${
+                                active
+                                  ? "bg-nb-gray-900 text-white border border-nb-gray-800"
+                                  : "text-nb-gray-400 hover:text-white"
+                              }`}
+                            >
+                              <FileText className="h-3.5 w-3.5 text-netbird" />
+                              <span>{doc}</span>
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+
                     <button
                       onClick={() => setIsEditingMarkdown((v) => !v)}
-                      className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-1.5 text-xs font-medium text-nb-gray-100 hover:bg-nb-gray-900 hover:text-white transition"
+                      className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-3 py-1.5 text-xs font-medium text-nb-gray-200 hover:text-white transition"
                     >
                       <Code2 className="h-3.5 w-3.5 text-netbird" />
                       <span>
-                        {isEditingMarkdown ? "Reader View" : "Edit Raw Markdown"}
+                        {isEditingMarkdown ? "Leseansicht" : "Bearbeiten"}
                       </span>
                     </button>
+
                     {isEditingMarkdown && (
                       <button
                         onClick={() => handleSaveBrainDoc(brainDocTab)}
-                        className="flex items-center gap-1.5 rounded-md bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 transition"
+                        className="flex items-center gap-1.5 rounded-lg bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 transition"
                       >
                         <Save className="h-3.5 w-3.5" />
-                        <span>Save {brainDocTab}</span>
+                        <span>Speichern</span>
                       </button>
                     )}
                   </div>
                 </div>
 
-                {/* 4-Card NetBird Vault Artifact Selector Bar */}
-                <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-                  <button
-                    onClick={() => {
-                      setBrainDocTab("Architecture.md");
-                      setIsEditingMarkdown(false);
-                    }}
-                    className={`flex flex-col justify-between rounded-lg border p-4 text-left transition ${
-                      brainDocTab === "Architecture.md"
-                        ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/30"
-                        : "border-nb-gray-900 bg-nb-gray-940 hover:border-nb-gray-800 hover:bg-nb-gray-930/60"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
-                          <FileText className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <div className="font-mono text-xs font-semibold text-white">
-                            Architecture.md
-                          </div>
-                          <div className="text-[11px] text-nb-gray-400">
-                            Mermaid &amp; File Specs
-                          </div>
-                        </div>
-                      </div>
-                      <span className="rounded border border-netbird-500/40 bg-netbird-950 px-2 py-0.5 font-mono text-[10px] text-netbird">
-                        ACTIVE
+                {/* Focused Document Reader / Editor */}
+                <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-900 bg-nb-gray-940">
+                  <div className="flex items-center justify-between border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <FolderGit2 className="h-4 w-4 text-netbird" />
+                      <span className="font-mono text-xs font-medium text-white">
+                        /projects/{activeProject?.project_id || "synapse-cloud-demo"}/
+                        {brainDocTab}
                       </span>
                     </div>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setBrainDocTab("Memory.md");
-                      setIsEditingMarkdown(false);
-                    }}
-                    className={`flex flex-col justify-between rounded-lg border p-4 text-left transition ${
-                      brainDocTab === "Memory.md"
-                        ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/30"
-                        : "border-nb-gray-900 bg-nb-gray-940 hover:border-nb-gray-800 hover:bg-nb-gray-930/60"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-sky-500/40 bg-sky-950/60 text-sky-400">
-                          <BookOpen className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <div className="font-mono text-xs font-semibold text-white">
-                            Memory.md
-                          </div>
-                          <div className="text-[11px] text-nb-gray-400">
-                            Engineering Journal
-                          </div>
-                        </div>
-                      </div>
-                      <span className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2 py-0.5 font-mono text-[10px] text-nb-gray-300">
-                        LOG
-                      </span>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveNav("peers")}
-                    className="flex flex-col justify-between rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-4 text-left transition hover:border-nb-gray-800 hover:bg-nb-gray-930/60"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-green-500/40 bg-green-950 text-green-400">
-                          <Server className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <div className="font-mono text-xs font-semibold text-white">
-                            State.json
-                          </div>
-                          <div className="text-[11px] text-nb-gray-400">
-                            {gatewayNodes.length} Peer(s) ·{" "}
-                            {(activeProject?.registered_services || []).length}{" "}
-                            Service(s)
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-nb-gray-400" />
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setSettingsTab("secrets-vault");
-                      setActiveNav("settings");
-                    }}
-                    className="flex flex-col justify-between rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-4 text-left transition hover:border-nb-gray-800 hover:bg-nb-gray-930/60"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-yellow-500/40 bg-yellow-950/60 text-yellow-400">
-                          <KeyRound className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <div className="font-mono text-xs font-semibold text-white">
-                            Secrets.enc
-                          </div>
-                          <div className="text-[11px] text-nb-gray-400">
-                            {secretKeys.length} AES-256-GCM Key(s)
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-nb-gray-400" />
-                    </div>
-                  </button>
-                </div>
-
-                {/* Main 12-Column NetBird Document + State Inspector Grid */}
-                <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-                  {/* Left 8 Columns: Active Vault Document */}
-                  <div className="lg:col-span-8 flex flex-col overflow-hidden rounded-lg border border-nb-gray-900 bg-nb-gray-940">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <FolderGit2 className="h-4 w-4 text-netbird" />
-                        <span className="font-mono text-xs font-medium text-white">
-                          /projects/{activeProject?.project_id || "synapse-cloud-demo"}/
-                          {brainDocTab}
-                        </span>
-                      </div>
-                      <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[10px] text-nb-gray-400">
-                        {brainDocTab === "Architecture.md"
-                          ? "System Prompt Context: Always Injected"
-                          : "Chronological Audit & Learnings"}
-                      </span>
-                    </div>
-
-                    <div className="p-5">
-                      {isEditingMarkdown ? (
-                        <textarea
-                          value={
-                            brainDocTab === "Architecture.md"
-                              ? architectureMd
-                              : memoryMd
-                          }
-                          onChange={(e) =>
-                            brainDocTab === "Architecture.md"
-                              ? setArchitectureMd(e.target.value)
-                              : setMemoryMd(e.target.value)
-                          }
-                          className="h-[520px] w-full rounded-md border border-nb-gray-800 bg-nb-gray-960 p-4 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
-                        />
-                      ) : (
-                        <RichMarkdownDocument
-                          variant={
-                            brainDocTab === "Memory.md"
-                              ? "memory"
-                              : "architecture"
-                          }
-                          markdown={
-                            brainDocTab === "Architecture.md"
-                              ? architectureMd
-                              : memoryMd
-                          }
-                        />
-                      )}
-                    </div>
+                    <span className="font-mono text-[10px] text-nb-gray-400">
+                      {brainDocTab === "Architecture.md"
+                        ? "System-Architektur & Komponenten"
+                        : "Chronologisches Engineering-Log"}
+                    </span>
                   </div>
 
-                  {/* Right 4 Columns: Live State.json & Policy Context */}
-                  <div className="lg:col-span-4 space-y-4">
-                    {/* Card 1: Enrolled Muscle Peers */}
-                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-nb-gray-100 flex items-center gap-2">
-                          <Server className="h-3.5 w-3.5 text-netbird" />
-                          Assigned Muscle Peers
-                        </span>
-                        <span className="font-mono text-[10px] text-green-400">
-                          {gatewayNodes.length} ONLINE
-                        </span>
-                      </div>
-
-                      {gatewayNodes.length > 0 ? (
-                        <div className="space-y-2">
-                          {gatewayNodes.map((gn) => (
-                            <div
-                              key={gn.node_id}
-                              className="flex items-center justify-between rounded-md border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 text-xs"
-                            >
-                              <div className="flex items-center gap-2 truncate">
-                                <span className="h-2 w-2 rounded-full bg-green-400 shrink-0" />
-                                <span className="font-mono font-medium text-white truncate">
-                                  {gn.node_id}
-                                </span>
-                              </div>
-                              <span className="rounded border border-netbird-500/40 bg-netbird-950 px-1.5 py-0.5 font-mono text-[10px] text-netbird">
-                                {gn.tier.replace("TIER_", "T")}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="rounded-md border border-nb-gray-800/70 bg-nb-gray-930/60 p-3 text-xs text-nb-gray-400">
-                          No Muscle Peers enrolled yet.
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Card 2: Active Rule Cartridges */}
-                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-nb-gray-100 flex items-center gap-2">
-                          <Shield className="h-3.5 w-3.5 text-green-400" />
-                          Active Rule Cartridges
-                        </span>
-                        <button
-                          onClick={() => setActiveNav("access-control")}
-                          className="text-[11px] text-netbird hover:underline"
-                        >
-                          Configure →
-                        </button>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        {cartridges.map((c) => {
-                          const enabled =
-                            activeProject?.active_cartridges?.includes(c.id);
-                          return (
-                            <div
-                              key={c.id}
-                              onClick={() => handleToggleCartridge(c.id)}
-                              className="flex cursor-pointer items-center justify-between rounded-md border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 text-xs hover:border-nb-gray-700"
-                            >
-                              <div className="flex items-center gap-2 truncate">
-                                <span
-                                  className={`h-2 w-2 rounded-full ${
-                                    enabled ? "bg-green-400" : "bg-nb-gray-500"
-                                  }`}
-                                />
-                                <span className="text-nb-gray-200 truncate">
-                                  {c.name}
-                                </span>
-                              </div>
-                              <span
-                                className={`font-mono text-[10px] ${
-                                  enabled ? "text-green-400" : "text-nb-gray-500"
-                                }`}
-                              >
-                                {enabled ? "ON" : "OFF"}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Card 3: Registered Loopback Services */}
-                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-nb-gray-100 flex items-center gap-2">
-                          <Globe className="h-3.5 w-3.5 text-sky-400" />
-                          Loopback Tunnels (`State.json`)
-                        </span>
-                        <button
-                          onClick={() => setActiveNav("reverse-proxy")}
-                          className="text-[11px] text-netbird hover:underline"
-                        >
-                          Proxy →
-                        </button>
-                      </div>
-
-                      {(activeProject?.registered_services || []).length > 0 ? (
-                        <div className="space-y-1.5">
-                          {(activeProject?.registered_services || []).map(
-                            (svc) => (
-                              <div
-                                key={svc.service_id}
-                                onClick={() => {
-                                  setPreviewPort(svc.port);
-                                  setActiveNav("reverse-proxy");
-                                }}
-                                className="flex cursor-pointer items-center justify-between rounded-md border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 text-xs hover:bg-nb-gray-900"
-                              >
-                                <span className="font-medium text-white">
-                                  {svc.name}
-                                </span>
-                                <span className="font-mono text-[11px] text-nb-gray-300">
-                                  127.0.0.1:{svc.port}
-                                </span>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      ) : (
-                        <div className="rounded-md border border-nb-gray-800/70 bg-nb-gray-930/60 p-3 text-xs text-nb-gray-400">
-                          No loopback services registered yet.
-                        </div>
-                      )}
-                    </div>
+                  <div className="p-6">
+                    {isEditingMarkdown ? (
+                      <textarea
+                        value={
+                          brainDocTab === "Architecture.md"
+                            ? architectureMd
+                            : memoryMd
+                        }
+                        onChange={(e) =>
+                          brainDocTab === "Architecture.md"
+                            ? setArchitectureMd(e.target.value)
+                            : setMemoryMd(e.target.value)
+                        }
+                        className="h-[540px] w-full rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-4 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
+                      />
+                    ) : (
+                      <RichMarkdownDocument
+                        variant={
+                          brainDocTab === "Memory.md"
+                            ? "memory"
+                            : "architecture"
+                        }
+                        markdown={
+                          brainDocTab === "Architecture.md"
+                            ? architectureMd
+                            : memoryMd
+                        }
+                      />
+                    )}
                   </div>
                 </div>
               </div>
