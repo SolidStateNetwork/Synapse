@@ -1,12 +1,56 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import MermaidTopologyView from "./MermaidTopologyView";
-import { Clock, Terminal, FolderTree, Sparkles } from "lucide-react";
+import { Clock, Terminal, FolderTree, Sparkles, Copy, Check } from "lucide-react";
 
 interface RichMarkdownDocumentProps {
   markdown: string;
   variant?: "architecture" | "memory" | "cartridge" | "chat";
+}
+
+function CodeBlockWithCopy({
+  lang,
+  content,
+}: {
+  lang: string;
+  content: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="min-w-0 overflow-hidden rounded-lg border border-nb-gray-800 bg-nb-gray-960 shadow-sm">
+      <div className="flex items-center justify-between border-b border-nb-gray-900 bg-nb-gray-940 px-3 py-1.5 font-mono text-[11px] text-nb-gray-400">
+        <span className="flex items-center gap-1.5">
+          <Terminal className="h-3 w-3 text-netbird" />
+          {lang}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard.writeText(content);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1800);
+          }}
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-nb-gray-400 transition hover:bg-nb-gray-900 hover:text-white"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3 w-3 text-green-400" />
+              <span className="text-green-400">Kopiert</span>
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3" />
+              <span>Kopieren</span>
+            </>
+          )}
+        </button>
+      </div>
+      <pre className="overflow-x-auto whitespace-pre-wrap break-all p-3 font-mono text-xs leading-relaxed text-nb-gray-100">
+        {content}
+      </pre>
+    </div>
+  );
 }
 
 /**
@@ -19,7 +63,7 @@ export default function RichMarkdownDocument({
 }: RichMarkdownDocumentProps) {
   if (!markdown || !markdown.trim()) {
     return (
-      <div className="text-xs text-nb-gray-400 italic py-3">
+      <div className="py-3 text-xs italic text-nb-gray-400">
         No content documented yet.
       </div>
     );
@@ -60,11 +104,11 @@ export default function RichMarkdownDocument({
   }
 
   return (
-    <div className="space-y-4 text-nb-gray-200 leading-relaxed">
+    <div className="min-w-0 space-y-3 break-words leading-relaxed text-nb-gray-200">
       {segments.map((seg, idx) => {
         if (seg.type === "mermaid") {
           return (
-            <div key={idx} className="my-3">
+            <div key={idx} className="my-3 overflow-x-auto">
               <MermaidTopologyView
                 markdown={`\`\`\`mermaid\n${seg.content}\n\`\`\``}
               />
@@ -74,26 +118,15 @@ export default function RichMarkdownDocument({
 
         if (seg.type === "code") {
           return (
-            <div
+            <CodeBlockWithCopy
               key={idx}
-              className="overflow-hidden rounded-lg border border-nb-gray-800 bg-nb-gray-960 shadow-sm"
-            >
-              <div className="flex items-center justify-between border-b border-nb-gray-900 bg-nb-gray-940 px-3.5 py-1.5 text-[11px] font-mono text-nb-gray-400">
-                <span className="flex items-center gap-1.5">
-                  <Terminal className="h-3 w-3 text-netbird" />
-                  {seg.lang}
-                </span>
-              </div>
-              <pre className="overflow-x-auto p-3.5 font-mono text-xs leading-relaxed text-nb-gray-100">
-                {seg.content}
-              </pre>
-            </div>
+              lang={seg.lang || "text"}
+              content={seg.content}
+            />
           );
         }
 
-        return (
-          <ProseSegment key={idx} text={seg.content} variant={variant} />
-        );
+        return <ProseSegment key={idx} text={seg.content} variant={variant} />;
       })}
     </div>
   );
@@ -119,7 +152,7 @@ function ProseSegment({
       elements.push(
         <div
           key={`${keyPrefix}-timeline`}
-          className="relative space-y-2.5 border-l-2 border-netbird/40 pl-4 ml-1.5 my-2.5"
+          className="relative my-2.5 ml-1.5 space-y-2.5 border-l-2 border-netbird/40 pl-4"
         >
           {currentItems.map((item, i) => {
             const tsMatch = item.match(/^\*\*\[([^\]]+)\]\*\*\s*([\s\S]*)$/);
@@ -134,10 +167,12 @@ function ProseSegment({
                 {timestamp && (
                   <div className="mb-1 flex items-center gap-1.5 font-mono text-[10px] text-netbird">
                     <Clock className="h-3 w-3" />
-                    <span>{timestamp.replace("T", " ").replace("Z", " UTC")}</span>
+                    <span>
+                      {timestamp.replace("T", " ").replace("Z", " UTC")}
+                    </span>
                   </div>
                 )}
-                <div className="text-xs text-nb-gray-200">
+                <div className="min-w-0 break-words text-xs text-nb-gray-200">
                   {renderInlineFormatting(bodyText)}
                 </div>
               </div>
@@ -148,15 +183,36 @@ function ProseSegment({
       return;
     }
 
+    if (variant === "chat") {
+      elements.push(
+        <ul key={`${keyPrefix}-ul`} className="my-1.5 space-y-1.5">
+          {currentItems.map((item, i) => (
+            <li
+              key={i}
+              className="flex min-w-0 items-start gap-2 text-xs leading-relaxed text-nb-gray-200"
+            >
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-netbird" />
+              <div className="min-w-0 flex-1 break-words">
+                {renderInlineFormatting(item)}
+              </div>
+            </li>
+          ))}
+        </ul>
+      );
+      return;
+    }
+
     elements.push(
-      <ul key={`${keyPrefix}-ul`} className="space-y-2 my-2">
+      <ul key={`${keyPrefix}-ul`} className="my-2 space-y-2">
         {currentItems.map((item, i) => (
           <li
             key={i}
-            className="flex items-start gap-2.5 rounded-lg border border-nb-gray-800 bg-nb-gray-930/80 px-3.5 py-2.5 text-xs text-nb-gray-200"
+            className="flex min-w-0 items-start gap-2.5 rounded-lg border border-nb-gray-800 bg-nb-gray-930/80 px-3.5 py-2.5 text-xs text-nb-gray-200"
           >
-            <FolderTree className="h-3.5 w-3.5 shrink-0 text-netbird mt-0.5" />
-            <div className="flex-1">{renderInlineFormatting(item)}</div>
+            <FolderTree className="mt-0.5 h-3.5 w-3.5 shrink-0 text-netbird" />
+            <div className="min-w-0 flex-1 break-words">
+              {renderInlineFormatting(item)}
+            </div>
           </li>
         ))}
       </ul>
@@ -175,7 +231,7 @@ function ProseSegment({
       elements.push(
         <h1
           key={`h1-${idx}`}
-          className="text-base font-medium tracking-tight text-nb-gray-100 border-b border-nb-gray-800/80 pb-2.5 pt-0.5"
+          className="border-b border-nb-gray-800/80 pb-2 pt-0.5 text-sm font-semibold tracking-tight text-nb-gray-100 break-words"
         >
           {renderInlineFormatting(line.slice(2))}
         </h1>
@@ -188,10 +244,12 @@ function ProseSegment({
       elements.push(
         <h2
           key={`h2-${idx}`}
-          className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-nb-gray-300 pt-2"
+          className="flex items-center gap-2 pt-2 text-xs font-semibold uppercase tracking-wider text-nb-gray-300 break-words"
         >
-          <Sparkles className="h-3.5 w-3.5 text-netbird" />
-          <span>{renderInlineFormatting(line.slice(3))}</span>
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-netbird" />
+          <span className="min-w-0 break-words">
+            {renderInlineFormatting(line.slice(3))}
+          </span>
         </h2>
       );
       return;
@@ -202,7 +260,7 @@ function ProseSegment({
       elements.push(
         <h3
           key={`h3-${idx}`}
-          className="text-xs font-semibold text-nb-gray-100 pt-1"
+          className="pt-1 text-xs font-semibold text-nb-gray-100 break-words"
         >
           {renderInlineFormatting(line.slice(4))}
         </h3>
@@ -223,7 +281,10 @@ function ProseSegment({
 
     flushList(`p-${idx}`);
     elements.push(
-      <p key={`p-${idx}`} className="text-xs text-nb-gray-200 leading-relaxed">
+      <p
+        key={`p-${idx}`}
+        className="min-w-0 break-words text-xs leading-relaxed text-nb-gray-200"
+      >
         {renderInlineFormatting(line)}
       </p>
     );
@@ -231,11 +292,10 @@ function ProseSegment({
 
   flushList("final");
 
-  return <div className="space-y-2">{elements}</div>;
+  return <div className="min-w-0 space-y-2 break-words">{elements}</div>;
 }
 
 function renderInlineFormatting(text: string): React.ReactNode {
-  // First split by bold **...**, then recursively parse inline code `...` inside or outside bold
   const boldTokens = text.split(/(\*\*[^*]+\*\*)/g);
   return boldTokens.map((segment, i) => {
     if (
@@ -245,12 +305,16 @@ function renderInlineFormatting(text: string): React.ReactNode {
     ) {
       const inner = segment.slice(2, -2);
       return (
-        <strong key={i} className="font-semibold text-white">
+        <strong key={i} className="font-semibold text-white break-words">
           {renderCodeTokens(inner, `b-${i}`)}
         </strong>
       );
     }
-    return <React.Fragment key={i}>{renderCodeTokens(segment, `t-${i}`)}</React.Fragment>;
+    return (
+      <React.Fragment key={i}>
+        {renderCodeTokens(segment, `t-${i}`)}
+      </React.Fragment>
+    );
   });
 }
 
@@ -261,12 +325,16 @@ function renderCodeTokens(text: string, keyPrefix: string): React.ReactNode {
       return (
         <code
           key={`${keyPrefix}-${j}`}
-          className="rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[11px] text-netbird"
+          className="inline-block max-w-full break-all rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[11px] text-netbird"
         >
           {tok.slice(1, -1)}
         </code>
       );
     }
-    return <span key={`${keyPrefix}-${j}`}>{tok}</span>;
+    return (
+      <span key={`${keyPrefix}-${j}`} className="break-words">
+        {tok}
+      </span>
+    );
   });
 }

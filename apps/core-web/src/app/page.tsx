@@ -470,6 +470,9 @@ export default function SynapseNetBirdControlCenter() {
   const [previewReloadNonce, setPreviewReloadNonce] = useState<number>(0);
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [selectedEndpointId, setSelectedEndpointId] = useState<string>("");
+  const [copilotWide, setCopilotWide] = useState<boolean>(false);
+  const [systemScanBusy, setSystemScanBusy] = useState<boolean>(false);
+  const [opsecScanBusy, setOpsecScanBusy] = useState<boolean>(false);
   const [serviceCategoryFilter, setServiceCategoryFilter] = useState<
     "all" | "webui" | "backend" | "database"
   >("all");
@@ -1660,6 +1663,70 @@ export default function SynapseNetBirdControlCenter() {
     }
   }
 
+  async function handleRunSystemScan() {
+    if (systemScanBusy || chatBusy) return;
+    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    setCopilotDrawerOpen(true);
+    setSystemScanBusy(true);
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id: pid,
+          action: "run_system_scan",
+        }),
+      });
+      const data = await res.json();
+      if (Array.isArray(data.chat_history)) {
+        setChatHistory(data.chat_history);
+      } else {
+        await loadWorkspace(pid);
+      }
+      setStatusToast("System-Check abgeschlossen");
+      setTimeout(() => setStatusToast(""), 3000);
+      setTimeout(() => {
+        if (chatScrollRef.current) {
+          chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+        }
+      }, 80);
+    } finally {
+      setSystemScanBusy(false);
+    }
+  }
+
+  async function handleRunOpsecScan() {
+    if (opsecScanBusy || chatBusy) return;
+    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    setCopilotDrawerOpen(true);
+    setOpsecScanBusy(true);
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id: pid,
+          action: "run_opsec_scan",
+        }),
+      });
+      const data = await res.json();
+      if (Array.isArray(data.chat_history)) {
+        setChatHistory(data.chat_history);
+      } else {
+        await loadWorkspace(pid);
+      }
+      setStatusToast(`CheckOpsec abgeschlossen (Score: ${data.score ?? 100}/100)`);
+      setTimeout(() => setStatusToast(""), 3000);
+      setTimeout(() => {
+        if (chatScrollRef.current) {
+          chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+        }
+      }, 80);
+    } finally {
+      setOpsecScanBusy(false);
+    }
+  }
+
   async function handleCreateMcpKey(e: React.FormEvent) {
     e.preventDefault();
     if (!activeProject) return;
@@ -2036,7 +2103,7 @@ export default function SynapseNetBirdControlCenter() {
             )}
           </div>
 
-          {/* Right: Essential Global Controls Only (Search, Copilot, + Server) */}
+          {/* Right: Global Controls (Search, System-Check, CheckOpsec, Copilot, + Server) */}
           <div className="flex items-center gap-2">
             {statusToast && (
               <span className="hidden xl:inline-block rounded-md border border-green-500/40 bg-green-950 px-2.5 py-1 font-mono text-[11px] text-green-400">
@@ -2054,6 +2121,34 @@ export default function SynapseNetBirdControlCenter() {
             >
               <Search className="h-3.5 w-3.5 text-nb-gray-400" />
               <span className="font-mono text-[11px]">Ctrl+K</span>
+            </button>
+
+            <button
+              onClick={handleRunSystemScan}
+              disabled={systemScanBusy}
+              className="hidden md:flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/30 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:border-emerald-500/60 hover:bg-emerald-950/60 hover:text-white disabled:opacity-50 transition-colors"
+              title="Komplettes System (Backends, Muscle, Vault & Konfiguration) scannen & Verbesserungen vorschlagen"
+            >
+              {systemScanBusy ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+              ) : (
+                <Activity className="h-3.5 w-3.5 text-emerald-400" />
+              )}
+              <span>{systemScanBusy ? "Prüfe..." : "System-Check"}</span>
+            </button>
+
+            <button
+              onClick={handleRunOpsecScan}
+              disabled={opsecScanBusy}
+              className="hidden md:flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-300 hover:border-sky-500/60 hover:bg-sky-950/60 hover:text-white disabled:opacity-50 transition-colors"
+              title="Cybersecurity, offene Ports, Loopback-Isolierung, SSH, Firewall & Zero-Trust prüfen"
+            >
+              {opsecScanBusy ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin text-sky-400" />
+              ) : (
+                <Shield className="h-3.5 w-3.5 text-sky-400" />
+              )}
+              <span>{opsecScanBusy ? "Scanne..." : "CheckOpsec"}</span>
             </button>
 
             <button
@@ -4297,7 +4392,9 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   processDroppedOrSelectedFiles(e.dataTransfer.files);
                 }
               }}
-              className="relative flex w-[400px] shrink-0 flex-col border-l border-nb-gray-900 bg-nb-gray-940"
+              className={`relative flex shrink-0 flex-col border-l border-nb-gray-900 bg-nb-gray-940 transition-all duration-200 ${
+                copilotWide ? "w-[580px]" : "w-[410px]"
+              }`}
             >
               {/* Drag & Drop Vision Overlay */}
               {isDraggingOverChat && (
@@ -4328,6 +4425,17 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setCopilotWide((w) => !w)}
+                      className="rounded px-2 py-0.5 text-[10px] text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
+                      title={
+                        copilotWide
+                          ? "Auf Standardbreite verkleinern"
+                          : "Chat-Fenster verbreitern"
+                      }
+                    >
+                      {copilotWide ? "Kompakt" : "Breiter"}
+                    </button>
                     <button
                       onClick={handleClearChat}
                       className="rounded px-2 py-0.5 text-[10px] text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
@@ -4378,7 +4486,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   return (
                     <div
                       key={idx}
-                      className={`rounded-lg p-3.5 text-xs ${
+                      className={`min-w-0 overflow-hidden break-words rounded-lg p-3.5 text-xs ${
                         msg.role === "user"
                           ? "ml-5 border border-netbird-500/40 bg-netbird-950/50 text-white"
                           : "border border-nb-gray-800/80 bg-nb-gray-930 text-nb-gray-100"
@@ -4439,7 +4547,10 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         </div>
                       )}
 
-                      <RichMarkdownDocument markdown={msg.content} />
+                      <RichMarkdownDocument
+                        markdown={msg.content}
+                        variant="chat"
+                      />
 
                       {/* Per-Turn Cache Savings Footer */}
                       {msg.cacheMetrics && (
@@ -4743,19 +4854,55 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                     )}
 
                     {streamingReplyText && (
-                      <div className="border-t border-nb-gray-800 pt-2 text-nb-gray-100">
-                        <RichMarkdownDocument markdown={streamingReplyText} />
+                      <div className="border-t border-nb-gray-800 pt-2 text-nb-gray-100 min-w-0 break-words">
+                        <RichMarkdownDocument
+                          markdown={streamingReplyText}
+                          variant="chat"
+                        />
                       </div>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* Multimodal Prompt Input Box with Thumbnail Strip, @-Mentions & Drag-and-Drop */}
+              {/* Multimodal Prompt Input Box with Quick-Action Chips, Thumbnail Strip, @-Mentions & Drag-and-Drop */}
               <form
                 onSubmit={handleSendPrompt}
                 className="relative border-t border-nb-gray-900 bg-nb-gray-950 p-3 space-y-2"
               >
+                {/* 1-Click Quick-Action Chips */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={systemScanBusy || chatBusy}
+                    onClick={handleRunSystemScan}
+                    className="flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-950/30 px-2 py-1 text-[10px] font-medium text-emerald-300 hover:border-emerald-500/60 hover:text-white disabled:opacity-50 transition"
+                  >
+                    <Activity className="h-3 w-3 text-emerald-400" />
+                    <span>System-Check</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={opsecScanBusy || chatBusy}
+                    onClick={handleRunOpsecScan}
+                    className="flex items-center gap-1 rounded-md border border-sky-500/30 bg-sky-950/30 px-2 py-1 text-[10px] font-medium text-sky-300 hover:border-sky-500/60 hover:text-white disabled:opacity-50 transition"
+                  >
+                    <Shield className="h-3 w-3 text-sky-400" />
+                    <span>CheckOpsec</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={chatBusy}
+                    onClick={() =>
+                      handleChatInputChange(
+                        `Prüfe auf @${primaryNode || "vps2-muscle"} alle laufenden Ports, Docker-Container und Logfiles auf Fehler.`
+                      )
+                    }
+                    className="rounded-md border border-nb-gray-800 bg-nb-gray-930 px-2 py-1 text-[10px] text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
+                  >
+                    ⚡ Logs &amp; Ports
+                  </button>
+                </div>
                 {/* @-Context Mention Autocomplete Popover */}
                 {mentionMenuOpen && mentionCandidates.length > 0 && (
                   <div className="absolute bottom-full left-3 right-3 mb-1.5 max-h-48 overflow-y-auto rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-1.5 shadow-2xl z-30">
