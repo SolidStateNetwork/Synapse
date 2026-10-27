@@ -559,16 +559,23 @@ export default function InteractiveControlCenterCanvas({
                   strokeLinecap="round"
                   strokeDasharray="6 6"
                 />
-                {/* Smooth ping-pong travelling packet pulse (forward 0->1, then back 1->0, repeating infinitely) */}
+                {/* Smooth ping-pong travelling packet pulse with 1.6s pause (hidden) at each end */}
                 {edge.active && (
                   <circle r={3.2} fill={edge.color}>
                     <animateMotion
-                      dur="3.4s"
+                      dur="6.8s"
                       repeatCount="indefinite"
-                      keyPoints="0;1;0"
-                      keyTimes="0;0.5;1"
+                      keyPoints="0;1;1;0;0"
+                      keyTimes="0;0.26;0.5;0.76;1"
                       calcMode="linear"
                       path={d}
+                    />
+                    <animate
+                      attributeName="opacity"
+                      values="0;1;1;0;0;1;1;0;0"
+                      keyTimes="0;0.03;0.24;0.26;0.5;0.53;0.74;0.76;1"
+                      dur="6.8s"
+                      repeatCount="indefinite"
                     />
                   </circle>
                 )}
@@ -601,8 +608,7 @@ export default function InteractiveControlCenterCanvas({
           const pos = positions[nodeKey] || { x: 60, y: 120 };
           const hb = gn.last_heartbeat;
           const isSelected =
-            (inspected?.kind === "peer" && inspected.nodeId === gn.node_id) ||
-            primaryNode === gn.node_id;
+            inspected?.kind === "peer" && inspected.nodeId === gn.node_id;
 
           return (
             <div

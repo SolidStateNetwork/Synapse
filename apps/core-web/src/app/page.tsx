@@ -431,8 +431,9 @@ export default function SynapseNetBirdControlCenter() {
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [selectedChatSkill, setSelectedChatSkill] = useState<
-    "CheckSystem" | "CheckOpsec" | null
+    "CheckSystem" | "CheckOpsec" | "SkillSearch" | null
   >(null);
+  const [skillMenuOpen, setSkillMenuOpen] = useState<boolean>(false);
   const [chatBusy, setChatBusy] = useState(false);
   const [liveSteps, setLiveSteps] = useState<
     Array<{
@@ -1274,7 +1275,34 @@ export default function SynapseNetBirdControlCenter() {
     setChatInput("");
     setChatAttachments([]);
     setSelectedChatSkill(null);
+    setSkillMenuOpen(false);
     setMentionMenuOpen(false);
+
+    if (activeSkill === "SkillSearch") {
+      const searchQuery =
+        text || "Gib mir eine Übersicht, wo ich welche Funktionen im Synapse Control Center finde.";
+      const aiSearchPrompt = [
+        `Du führst jetzt den Skill **SkillSearch** (KI-Wegweiser & Funktionssuche im Synapse Control Center) für das Projekt \`${activeProject.project_id}\` aus.`,
+        `SUCHANFRAGE DES NUTZERS: "${searchQuery}"`,
+        ``,
+        `Hier ist die komplette Sitemap der Synapse Core UI, damit du dem Nutzer präzise sagen kannst, wo er was findet:`,
+        `- **Linke Sidebar -> Übersicht (Control Center Canvas):** Interaktive Topologie-Karte mit Server-Knoten (links), Synapse Core Hub (Mitte) und erreichbaren Services (rechts). Ein Klick auf ein Element öffnet rechts das Detail-Menü.`,
+        `- **Linke Sidebar -> Services (Reverse Proxy & DB-Tester):** Obere Reiter für jeden registrierten Dienst (WebUI, Backend API, SQLite DB). Bietet links klickbare Endpunkt-/SQL-Optionen und rechts den Live-Request-Tester sowie den Umschalter zur **Web-Vorschau**.`,
+        `- **Linke Sidebar -> Server & Mesh:** Enthält 4 Unter-Tabs: **Server** (Autonomy Tier ändern, Terminal öffnen, Server verbinden), **P2P Mesh-Links** (Direkt-Tunnel zwischen zwei Servern), **Stack-Blueprints** (1-Klick Vorlagen) und **Cron-Playbooks** (Geplante KI-Aufgaben).`,
+        `- **Linke Sidebar -> Brain Vault:** Enthält \`Architecture.md\` (Systemarchitektur & Mermaid-Graph), \`Memory.md\` (Technisches Logbuch) und \`Secrets.enc\` (AES-256-GCM verschlüsselter Key-Tresor).`,
+        `- **Linke Sidebar -> Dateien:** Remote-Dateimanager & Code-Editor direkt auf dem verbundenen Muscle-Server (\`/opt/axon/workspaces/...\`) inkl. Snapshot-Rollback.`,
+        `- **Linke Sidebar -> Regeln:** Sicherheits-Cartridges (\`docker-first\`, \`zero-trust-networking\`, \`strict-security-telemetry-headers\`), eigene Policy-Cartridges anlegen sowie Freigabe-Warteschlange für \`TIER_3_SUPERVISED\`-Befehle.`,
+        `- **Linke Sidebar -> Audit-Log:** Chronologisches Protokoll aller KI- und Benutzer-Aktionen.`,
+        `- **Linke Sidebar -> Einstellungen:** KI-Provider/Modell & API-Key konfigurieren, Prompt-Caching & Auto-Watchdog schalten, externe **MCP-Server API-Keys** erstellen sowie Debug-Selbsttest.`,
+        `- **Untere Leiste -> Live Peer PTY Shell:** Ausklappbares Echtzeit-Linux-Terminal direkt auf dem Muscle-Server.`,
+        ``,
+        `Falls der Nutzer nach einer bestimmten Datei, einem Port oder Dienst auf dem Server sucht, kannst du zusätzlich deine Tools (\`node_fs_read\`, \`node_pty_exec\`) nutzen. Antworte klar und präzise auf Deutsch, wo genau man die gesuchte Funktion in der Oberfläche oder auf dem Server findet und wie man sie bedient.`,
+      ].join("\n");
+
+      const displayMsg = `🧭 **[Skill: SkillSearch]** ${searchQuery}`;
+      await runStreamingPrompt(aiSearchPrompt, undefined, atts, displayMsg);
+      return;
+    }
 
     if (activeSkill === "CheckSystem") {
       const node = primaryNode || "vps2-muscle";
@@ -2166,61 +2194,13 @@ export default function SynapseNetBirdControlCenter() {
             )}
           </div>
 
-          {/* Right: Global Controls (Search, System-Check, CheckOpsec, Copilot, + Server) */}
+          {/* Right: Essential Global Controls (Copilot + Server) */}
           <div className="flex items-center gap-2">
             {statusToast && (
               <span className="hidden xl:inline-block rounded-md border border-green-500/40 bg-green-950 px-2.5 py-1 font-mono text-[11px] text-green-400">
                 {statusToast}
               </span>
             )}
-
-            <button
-              onClick={() => {
-                setCommandPaletteOpen(true);
-                setCommandQuery("");
-              }}
-              className="hidden sm:flex items-center gap-2 rounded-lg border border-nb-gray-800/80 bg-nb-gray-930 px-2.5 py-1.5 text-xs text-nb-gray-300 hover:bg-nb-gray-900 hover:text-white transition"
-              title="Schnellsuche & Befehle (Ctrl+K)"
-            >
-              <Search className="h-3.5 w-3.5 text-nb-gray-400" />
-              <span className="font-mono text-[11px]">Ctrl+K</span>
-            </button>
-
-            <button
-              onClick={handleRunSystemScan}
-              disabled={systemScanBusy || chatBusy}
-              className={`hidden md:flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-50 transition-colors ${
-                selectedChatSkill === "CheckSystem"
-                  ? "border-emerald-400 bg-emerald-950/80 text-white ring-1 ring-emerald-400/40"
-                  : "border-emerald-500/30 bg-emerald-950/30 text-emerald-300 hover:border-emerald-500/60 hover:bg-emerald-950/60 hover:text-white"
-              }`}
-              title="CheckSystem-Skill im Chat auswählen (optional Text ergänzen & mit Enter starten)"
-            >
-              {systemScanBusy ? (
-                <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-400" />
-              ) : (
-                <Activity className="h-3.5 w-3.5 text-emerald-400" />
-              )}
-              <span>{systemScanBusy ? "Prüfe..." : "CheckSystem"}</span>
-            </button>
-
-            <button
-              onClick={handleRunOpsecScan}
-              disabled={opsecScanBusy || chatBusy}
-              className={`hidden md:flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-50 transition-colors ${
-                selectedChatSkill === "CheckOpsec"
-                  ? "border-sky-400 bg-sky-950/80 text-white ring-1 ring-sky-400/40"
-                  : "border-sky-500/30 bg-sky-950/30 text-sky-300 hover:border-sky-500/60 hover:bg-sky-950/60 hover:text-white"
-              }`}
-              title="CheckOpsec-Skill im Chat auswählen (optional Text ergänzen & mit Enter starten)"
-            >
-              {opsecScanBusy ? (
-                <RefreshCw className="h-3.5 w-3.5 animate-spin text-sky-400" />
-              ) : (
-                <Shield className="h-3.5 w-3.5 text-sky-400" />
-              )}
-              <span>{opsecScanBusy ? "Scanne..." : "CheckOpsec"}</span>
-            </button>
 
             <button
               onClick={() => setCopilotDrawerOpen((v) => !v)}
@@ -4948,31 +4928,34 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 onSubmit={handleSendPrompt}
                 className="relative border-t border-nb-gray-900 bg-nb-gray-950 p-3 space-y-2"
               >
-                {/* Selected Skill Card (Appears when CheckSystem or CheckOpsec is clicked; runs on Enter) */}
+                {/* Selected Skill Card (Appears when CheckSystem, CheckOpsec, or SkillSearch is clicked) */}
                 {selectedChatSkill && (
                   <div
                     className={`flex items-start justify-between gap-2.5 rounded-lg border p-2.5 text-xs ${
                       selectedChatSkill === "CheckSystem"
                         ? "border-emerald-500/40 bg-emerald-950/30 text-emerald-100"
-                        : "border-sky-500/40 bg-sky-950/30 text-sky-100"
+                        : selectedChatSkill === "CheckOpsec"
+                        ? "border-sky-500/40 bg-sky-950/30 text-sky-100"
+                        : "border-amber-500/40 bg-amber-950/30 text-amber-100"
                     }`}
                   >
                     <div className="min-w-0 space-y-0.5">
                       <div className="flex items-center gap-1.5 font-semibold text-white">
                         {selectedChatSkill === "CheckSystem" ? (
                           <Activity className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-                        ) : (
+                        ) : selectedChatSkill === "CheckOpsec" ? (
                           <Shield className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+                        ) : (
+                          <Search className="h-3.5 w-3.5 shrink-0 text-amber-400" />
                         )}
                         <span>Skill ausgewählt: {selectedChatSkill}</span>
-                        <span className="rounded border border-white/15 bg-black/30 px-1.5 py-0.2 font-mono text-[9px] text-nb-gray-300">
-                          Enter zum Starten ↵
-                        </span>
                       </div>
                       <p className="text-[11px] text-nb-gray-300 leading-snug">
                         {selectedChatSkill === "CheckSystem"
                           ? "KI geht System für System (Muscle, Backends, Datenbanken, Logs & Konfiguration) durch und schlägt Verbesserungen vor."
-                          : "KI prüft System für System auf Cybersecurity & Zero-Trust (offene Ports, SSH, Firewall, Prozesse & Policies)."}
+                          : selectedChatSkill === "CheckOpsec"
+                          ? "KI prüft System für System auf Cybersecurity & Zero-Trust (offene Ports, SSH, Firewall, Prozesse & Policies)."
+                          : "KI durchsucht das gesamte Synapse Control Center & Live-System und zeigt dir genau, wo du gesuchte Funktionen, Einstellungen oder Dateien findest."}
                       </p>
                     </div>
                     <button
@@ -4982,6 +4965,90 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       title="Skill abwählen"
                     >
                       <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* AI Skills Selector Popover */}
+                {skillMenuOpen && (
+                  <div className="absolute bottom-full left-3 right-3 mb-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-2 shadow-2xl z-30 space-y-1">
+                    <div className="flex items-center justify-between px-2 py-1">
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-nb-gray-400">
+                        AI Skills & System-Checks
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSkillMenuOpen(false)}
+                        className="rounded p-0.5 text-nb-gray-400 hover:text-white"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedChatSkill("CheckSystem");
+                        setSkillMenuOpen(false);
+                        setTimeout(() => chatInputRef.current?.focus(), 50);
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-nb-gray-900 transition"
+                    >
+                      <Activity className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 font-semibold text-xs text-emerald-300">
+                          <span>CheckSystem</span>
+                          <span className="rounded border border-emerald-500/30 bg-emerald-950/40 px-1.5 py-0.2 font-mono text-[9px] text-emerald-300">
+                            Deep Audit
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-nb-gray-400 leading-snug">
+                          Geht System für System (Backends, Muscle, DBs, Konfigurationen) durch & empfiehlt Verbesserungen.
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedChatSkill("CheckOpsec");
+                        setSkillMenuOpen(false);
+                        setTimeout(() => chatInputRef.current?.focus(), 50);
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-nb-gray-900 transition"
+                    >
+                      <Shield className="mt-0.5 h-4 w-4 shrink-0 text-sky-400" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 font-semibold text-xs text-sky-300">
+                          <span>CheckOpsec</span>
+                          <span className="rounded border border-sky-500/30 bg-sky-950/40 px-1.5 py-0.2 font-mono text-[9px] text-sky-300">
+                            Cybersecurity
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-nb-gray-400 leading-snug">
+                          Tiefgreifender Zero-Trust-, Port-, SSH-, Prozess- & Firewall-Sicherheitscheck durch die KI.
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedChatSkill("SkillSearch");
+                        setSkillMenuOpen(false);
+                        setTimeout(() => chatInputRef.current?.focus(), 50);
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-nb-gray-900 transition"
+                    >
+                      <Search className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 font-semibold text-xs text-amber-300">
+                          <span>SkillSearch</span>
+                          <span className="rounded border border-amber-500/30 bg-amber-950/40 px-1.5 py-0.2 font-mono text-[9px] text-amber-300">
+                            KI-Navigator
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-nb-gray-400 leading-snug">
+                          Frag die KI, wo du eine Funktion, Einstellung, Datenbank oder Datei im System findest.
+                        </p>
+                      </div>
                     </button>
                   </div>
                 )}
@@ -5070,7 +5137,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     title="Attach image, screenshot, diagram, or log file (or Drag & Drop / Ctrl+V)"
-                    className="flex h-[46px] w-[42px] shrink-0 items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white transition"
+                    className="flex h-[46px] w-[38px] shrink-0 items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white transition"
                   >
                     <Paperclip className="h-3.5 w-3.5" />
                   </button>
@@ -5086,9 +5153,23 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       handleChatInputChange(next);
                     }}
                     title="Mention a Peer, Service, or Brain Vault Doc (@)"
-                    className="flex h-[46px] w-[42px] shrink-0 items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white transition"
+                    className="flex h-[46px] w-[38px] shrink-0 items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white transition"
                   >
                     <AtSign className="h-3.5 w-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSkillMenuOpen((v) => !v)}
+                    title="AI Skills auswählen (CheckSystem, CheckOpsec, SkillSearch)"
+                    className={`flex h-[46px] shrink-0 items-center gap-1 rounded-md border px-2.5 text-[11px] font-medium transition ${
+                      skillMenuOpen || selectedChatSkill
+                        ? "border-netbird bg-netbird/15 text-netbird"
+                        : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white"
+                    }`}
+                  >
+                    <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                    <span>Skills</span>
                   </button>
 
                   <textarea
@@ -5104,8 +5185,10 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       }
                     }}
                     placeholder={
-                      selectedChatSkill
-                        ? `Optional: Eigenen Fokus für ${selectedChatSkill} ergänzen oder direkt Enter drücken...`
+                      selectedChatSkill === "SkillSearch"
+                        ? "Wonach suchst du im System? (z.B. Firewall, SQL, SSH Keys, Logs)..."
+                        : selectedChatSkill
+                        ? `Optional: Eigenen Fokus für ${selectedChatSkill} ergänzen...`
                         : "Ask Synapse AI, type @ to mention, or drop/paste images..."
                     }
                     className="h-[46px] flex-1 resize-none rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 text-xs leading-4 text-white placeholder:text-nb-gray-400 focus:border-netbird focus:outline-none"
