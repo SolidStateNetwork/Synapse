@@ -32,10 +32,23 @@ export interface ServiceHealthCheckSpec {
   last_error?: string;
 }
 
+export interface ServiceEndpointAction {
+  id: string;
+  label: string;
+  method: "GET" | "POST" | "PUT" | "DELETE" | "SQL";
+  path: string;
+  description?: string;
+  sample_payload?: string;
+}
+
 export interface RegisteredService {
   service_id: string;
   name: string;
   node_id: string;
+  category?: "webui" | "backend" | "database" | "worker";
+  description?: string;
+  db_path?: string;
+  endpoints?: ServiceEndpointAction[];
   runtime?: "docker" | "systemd" | "pm2" | "binary";
   unit_or_container?: string;
   bind_address?: string;

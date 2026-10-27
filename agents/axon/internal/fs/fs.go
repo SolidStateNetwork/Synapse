@@ -51,9 +51,11 @@ func (e *Engine) ResolvePath(projectID string, tier tunnelv1.AutonomyTier, targe
 
 		// Check symlinks on both parent directory and candidate itself (if it already exists)
 		if evalJail, errJail := filepath.EvalSymlinks(jailDir); errJail == nil {
-			if evalParent, err := filepath.EvalSymlinks(filepath.Dir(candidate)); err == nil {
-				if evalParent != evalJail && !strings.HasPrefix(evalParent, evalJail+string(filepath.Separator)) {
-					return "", fmt.Errorf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): symlink parent %q escapes project jail %q", evalParent, evalJail)
+			if candidate != jailDir {
+				if evalParent, err := filepath.EvalSymlinks(filepath.Dir(candidate)); err == nil {
+					if evalParent != evalJail && !strings.HasPrefix(evalParent, evalJail+string(filepath.Separator)) {
+						return "", fmt.Errorf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): symlink parent %q escapes project jail %q", evalParent, evalJail)
+					}
 				}
 			}
 			if evalCand, err := filepath.EvalSymlinks(candidate); err == nil {

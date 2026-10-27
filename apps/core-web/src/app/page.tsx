@@ -150,6 +150,17 @@ interface ProjectState {
     service_id: string;
     node_id: string;
     name: string;
+    category?: "webui" | "backend" | "database" | "worker";
+    description?: string;
+    db_path?: string;
+    endpoints?: Array<{
+      id: string;
+      label: string;
+      method: "GET" | "POST" | "PUT" | "DELETE" | "SQL";
+      path: string;
+      description?: string;
+      sample_payload?: string;
+    }>;
     port: number;
     protocol: "http" | "tcp";
     path?: string;
@@ -456,6 +467,23 @@ export default function SynapseNetBirdControlCenter() {
   const [newSecretKey, setNewSecretKey] = useState("");
   const [newSecretVal, setNewSecretVal] = useState("");
   const [previewPort, setPreviewPort] = useState<number>(3000);
+  const [previewSubPath, setPreviewSubPath] = useState<string>("/");
+  const [previewReloadNonce, setPreviewReloadNonce] = useState<number>(0);
+  const [selectedServiceId, setSelectedServiceId] = useState<string>("");
+  const [serviceActionMethod, setServiceActionMethod] = useState<
+    "GET" | "POST" | "PUT" | "DELETE" | "SQL"
+  >("GET");
+  const [serviceActionPath, setServiceActionPath] = useState<string>("/");
+  const [serviceActionPayload, setServiceActionPayload] = useState<string>("");
+  const [serviceActionBusy, setServiceActionBusy] = useState<boolean>(false);
+  const [serviceActionResult, setServiceActionResult] = useState<{
+    ok: boolean;
+    status_code: number;
+    latency_ms: number;
+    method: string;
+    proxy_url: string;
+    response_text: string;
+  } | null>(null);
 
   // Wave 2 Expansion State: Blueprints, Custom Cartridges, Playbooks & Mesh Links
   const [blueprints, setBlueprints] = useState<StackBlueprint[]>([]);
@@ -529,12 +557,81 @@ export default function SynapseNetBirdControlCenter() {
           data.gateway_nodes?.[0]?.node_id ||
           "";
         setSelectedNodeId((prev) => prev || firstNode);
+
+        const svcs = data.active_project?.registered_services || [];
+        if (svcs.length > 0) {
+          setSelectedServiceId((prev) => {
+            const exists = svcs.some(
+              (s: { service_id: string }) => s.service_id === prev
+            );
+            return exists ? prev : svcs[0].service_id;
+          });
+          setPreviewPort((prev) => {
+            const exists = svcs.some((s: { port: number }) => s.port === prev);
+            return exists ? prev : svcs[0].port;
+          });
+        }
       } catch {
         // ignore transient network error
       }
     },
     [activeProject?.project_id]
   );
+
+  async function handleInvokeServiceAction(override?: {
+    nodeId?: string;
+    port?: number;
+    method?: "GET" | "POST" | "PUT" | "DELETE" | "SQL";
+    path?: string;
+    payload?: string;
+  }) {
+    if (!activeProject) return;
+    const activeSvc =
+      (activeProject.registered_services || []).find(
+        (s) => s.service_id === selectedServiceId
+      ) || (activeProject.registered_services || [])[0];
+    const targetNode =
+      override?.nodeId || activeSvc?.node_id || primaryNode || "";
+    const targetPort = override?.port || activeSvc?.port || previewPort || 3000;
+    const method = override?.method || serviceActionMethod;
+    const path = override?.path || serviceActionPath || "/";
+    const payload =
+      override?.payload !== undefined ? override.payload : serviceActionPayload;
+
+    setServiceActionBusy(true);
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "invoke_service_action",
+          project_id: activeProject.project_id,
+          node_id: targetNode,
+          port: targetPort,
+          method,
+          path,
+          payload,
+        }),
+      });
+      const data = await res.json();
+      setServiceActionResult(data);
+      if (method === "GET" && path.startsWith("/")) {
+        setPreviewSubPath(path);
+      }
+      setPreviewReloadNonce((n) => n + 1);
+    } catch (err) {
+      setServiceActionResult({
+        ok: false,
+        status_code: 500,
+        latency_ms: 0,
+        method,
+        proxy_url: "",
+        response_text: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setServiceActionBusy(false);
+    }
+  }
 
   useEffect(() => {
     loadWorkspace("synapse-cloud-demo", true);
@@ -2713,83 +2810,370 @@ export default function SynapseNetBirdControlCenter() {
                 VIEW 4: NETBIRD REVERSE PROXY & LIVE PREVIEW (`reverse-proxy`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "reverse-proxy" && (
-              <div className="flex h-full flex-col p-6 gap-4 max-w-6xl mx-auto">
+              <div className="flex flex-col p-6 gap-5 max-w-6xl mx-auto">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <h1 className="text-xl font-medium text-nb-gray-100">
-                      Reverse Proxy &amp; Loopback Tunnels
+                      Reverse Proxy, Reachable Services &amp; Live Preview
                     </h1>
                     <p className="text-xs text-nb-gray-400 mt-0.5">
-                      Zero-firewall HTTP/TCP port-forwarding over Yamux Stream 3
-                      (`127.0.0.1:&lt;port&gt;` → Core Gateway).
+                      Interactive Explorer Boxes for every AI-created WebUI,
+                      Backend API, and Database reachable from outside via Yamux
+                      Stream 3 (`127.0.0.1:&lt;port&gt;` → Core Gateway).
                     </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {(activeProject?.registered_services || []).map((svc) => {
-                      const healthy =
-                        svc.healthy !== false &&
-                        svc.health_check?.status !== "UNHEALTHY";
-                      return (
-                        <button
-                          key={svc.service_id}
-                          onClick={() => setPreviewPort(svc.port)}
-                          className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition ${
-                            previewPort === svc.port
-                              ? "border-netbird bg-netbird-950 text-white"
-                              : "border-nb-gray-800 bg-nb-gray-930 text-nb-gray-300"
-                          }`}
-                        >
-                          <span
-                            className={`h-2 w-2 rounded-full ${
-                              healthy
-                                ? "bg-green-400"
-                                : "bg-red-500 animate-pulse"
-                            }`}
-                          />
-                          <span>{svc.name}</span>
-                          <span className="font-mono text-[11px] text-nb-gray-400">
-                            :{svc.port}
-                          </span>
-                        </button>
-                      );
-                    })}
                   </div>
                 </div>
 
-                <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-nb-gray-900 bg-nb-gray-940 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-2.5 text-xs">
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-3.5 w-3.5 text-netbird" />
-                      <span className="font-mono text-nb-gray-300">
-                        {gatewayUrl}/preview/{activeProject?.project_id}/
-                        {primaryNode || "node"}/
-                      </span>
-                      <input
-                        type="number"
-                        value={previewPort}
-                        onChange={(e) =>
-                          setPreviewPort(Number(e.target.value) || 3000)
-                        }
-                        className="w-20 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-netbird"
-                      />
+                {/* REACHABLE SERVICE BOXES (WebUI / Backend API / Database) */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {(activeProject?.registered_services || []).map((svc) => {
+                    const healthy =
+                      svc.healthy !== false &&
+                      svc.health_check?.status !== "UNHEALTHY";
+                    const isSelected =
+                      selectedServiceId === svc.service_id ||
+                      previewPort === svc.port;
+                    const cat = svc.category || "backend";
+                    const catLabel =
+                      cat === "webui"
+                        ? "🌐 WebUI / Frontend"
+                        : cat === "database"
+                        ? "🗄️ Database Engine"
+                        : "⚡ Backend REST API";
+                    const catBadgeStyle =
+                      cat === "webui"
+                        ? "border-sky-500/40 bg-sky-950/60 text-sky-300"
+                        : cat === "database"
+                        ? "border-purple-500/40 bg-purple-950/60 text-purple-300"
+                        : "border-netbird-500/40 bg-netbird-950/60 text-netbird";
+                    const extUrl = `${gatewayUrl}/preview/${
+                      activeProject?.project_id
+                    }/${svc.node_id || primaryNode}/${svc.port}/`;
+
+                    return (
+                      <div
+                        key={svc.service_id}
+                        onClick={() => {
+                          setSelectedServiceId(svc.service_id);
+                          setPreviewPort(svc.port);
+                          if (svc.endpoints && svc.endpoints.length > 0) {
+                            const firstEp = svc.endpoints[0];
+                            setServiceActionMethod(firstEp.method);
+                            setServiceActionPath(firstEp.path);
+                            setServiceActionPayload(
+                              firstEp.sample_payload || ""
+                            );
+                          }
+                        }}
+                        className={`cursor-pointer rounded-xl border p-4 transition-all space-y-3 ${
+                          isSelected
+                            ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/40 shadow-lg"
+                            : "border-nb-gray-800 bg-nb-gray-940 hover:border-nb-gray-700"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className={`rounded border px-2 py-0.5 font-mono text-[10px] font-semibold ${catBadgeStyle}`}
+                              >
+                                {catLabel}
+                              </span>
+                              <span className="text-sm font-semibold text-white">
+                                {svc.name}
+                              </span>
+                              <span className="rounded bg-nb-gray-950 border border-nb-gray-800 px-1.5 py-0.5 font-mono text-[10px] text-nb-gray-300">
+                                {svc.node_id}:{svc.port}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-nb-gray-400">
+                              {svc.description ||
+                                "Reachable from outside through the Synapse Core Reverse Proxy tunnel."}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span
+                              className={`h-2.5 w-2.5 rounded-full ${
+                                healthy
+                                  ? "bg-green-400"
+                                  : "bg-red-500 animate-pulse"
+                              }`}
+                            />
+                            <span
+                              className={`font-mono text-[10px] ${
+                                healthy ? "text-green-400" : "text-red-400"
+                              }`}
+                            >
+                              {healthy ? "ONLINE" : "DEGRADED"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* External Reachable Reverse-Proxy Box Banner */}
+                        <div className="flex items-center justify-between gap-2 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 text-[11px]">
+                          <div className="truncate">
+                            <span className="text-nb-gray-400 mr-1.5">
+                              Extern erreichbar:
+                            </span>
+                            <a
+                              href={extUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="font-mono text-netbird hover:underline"
+                            >
+                              {extUrl}
+                            </a>
+                          </div>
+                          <a
+                            href={extUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-920 px-2 py-1 text-[10px] text-white hover:border-netbird shrink-0"
+                          >
+                            <span>Open</span>
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+
+                        {/* Clickable Options / Endpoints inside the Service Box */}
+                        {svc.endpoints && svc.endpoints.length > 0 && (
+                          <div className="space-y-1.5">
+                            <div className="font-mono text-[10px] uppercase tracking-wider text-nb-gray-400">
+                              Klickbare Optionen &amp; Test-Inputs:
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {svc.endpoints.map((ep) => (
+                                <button
+                                  key={ep.id}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedServiceId(svc.service_id);
+                                    setPreviewPort(svc.port);
+                                    setServiceActionMethod(ep.method);
+                                    setServiceActionPath(ep.path);
+                                    setServiceActionPayload(
+                                      ep.sample_payload || ""
+                                    );
+                                    handleInvokeServiceAction({
+                                      nodeId: svc.node_id,
+                                      port: svc.port,
+                                      method: ep.method,
+                                      path: ep.path,
+                                      payload: ep.sample_payload || "",
+                                    });
+                                  }}
+                                  className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-200 hover:border-netbird hover:bg-netbird-950 hover:text-white transition"
+                                  title={ep.description || ep.label}
+                                >
+                                  <span
+                                    className={`font-mono text-[9px] font-bold px-1 rounded ${
+                                      ep.method === "POST"
+                                        ? "bg-amber-950 text-amber-300"
+                                        : ep.method === "SQL"
+                                        ? "bg-purple-950 text-purple-300"
+                                        : "bg-emerald-950 text-emerald-300"
+                                    }`}
+                                  >
+                                    {ep.method}
+                                  </span>
+                                  <span>{ep.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* INTERACTIVE INPUT & ACTION PLAYGROUND BOX + LIVE PREVIEW SPLIT */}
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                  {/* Left 5 Columns: Interactive Input & Endpoint/DB Tester Box */}
+                  <div className="lg:col-span-5 flex flex-col rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-4 space-y-3 shadow-lg">
+                    <div className="flex items-center justify-between border-b border-nb-gray-800 pb-2.5">
+                      <div>
+                        <h3 className="text-xs font-semibold text-white flex items-center gap-2">
+                          <Zap className="h-3.5 w-3.5 text-netbird" />
+                          Interaktive Service- &amp; Datenbank-Box (Live Input)
+                        </h3>
+                        <p className="text-[11px] text-nb-gray-400">
+                          Wähle oben eine Option oder gib eigene Parameter /
+                          JSON-Payloads / SQL-Abfragen ein.
+                        </p>
+                      </div>
                     </div>
-                    <a
-                      href={`${gatewayUrl}/preview/${activeProject?.project_id}/${primaryNode}/${previewPort}/`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1.5 text-nb-gray-300 hover:text-white"
-                    >
-                      <span>Open in New Tab</span>
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
+
+                    <div className="flex gap-2 text-xs">
+                      <select
+                        value={serviceActionMethod}
+                        onChange={(e) =>
+                          setServiceActionMethod(
+                            e.target.value as
+                              | "GET"
+                              | "POST"
+                              | "PUT"
+                              | "DELETE"
+                              | "SQL"
+                          )
+                        }
+                        className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 font-mono text-xs font-semibold text-netbird"
+                      >
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                        <option value="SQL">SQL</option>
+                      </select>
+
+                      <input
+                        type="text"
+                        value={serviceActionPath}
+                        onChange={(e) => setServiceActionPath(e.target.value)}
+                        placeholder={
+                          serviceActionMethod === "SQL"
+                            ? "/opt/axon/workspaces/.../pulse.db"
+                            : "/api/events"
+                        }
+                        className="flex-1 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 font-mono text-xs text-white"
+                      />
+
+                      <button
+                        type="button"
+                        disabled={serviceActionBusy}
+                        onClick={() => handleInvokeServiceAction()}
+                        className="flex items-center gap-1.5 rounded-md bg-netbird px-3.5 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-50"
+                      >
+                        <Play className="h-3 w-3" />
+                        <span>
+                          {serviceActionBusy ? "Läuft..." : "Ausführen"}
+                        </span>
+                      </button>
+                    </div>
+
+                    {(serviceActionMethod === "POST" ||
+                      serviceActionMethod === "PUT" ||
+                      serviceActionMethod === "SQL" ||
+                      serviceActionPayload.trim() !== "") && (
+                      <div className="space-y-1">
+                        <label className="block font-mono text-[10px] uppercase text-nb-gray-400">
+                          {serviceActionMethod === "SQL"
+                            ? "SQL Query Input (SQLite / DB):"
+                            : "Request Body / JSON Input:"}
+                        </label>
+                        <textarea
+                          rows={4}
+                          value={serviceActionPayload}
+                          onChange={(e) =>
+                            setServiceActionPayload(e.target.value)
+                          }
+                          placeholder={
+                            serviceActionMethod === "SQL"
+                              ? "SELECT * FROM events ORDER BY id DESC LIMIT 10;"
+                              : '{"event": "user_action", "source": "core_ui"}'
+                          }
+                          className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-950 p-2.5 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
+                        />
+                      </div>
+                    )}
+
+                    {/* Live Response Output Box */}
+                    <div className="flex-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-3 font-mono text-[11px] space-y-2">
+                      <div className="flex items-center justify-between border-b border-nb-gray-800/80 pb-1.5 text-[10px]">
+                        <span className="text-nb-gray-400">
+                          Live Reverse-Proxy / DB Response
+                        </span>
+                        {serviceActionResult && (
+                          <span
+                            className={
+                              serviceActionResult.ok
+                                ? "text-green-400"
+                                : "text-red-400"
+                            }
+                          >
+                            {serviceActionResult.method} · Status{" "}
+                            {serviceActionResult.status_code} ·{" "}
+                            {serviceActionResult.latency_ms} ms
+                          </span>
+                        )}
+                      </div>
+                      <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-nb-gray-200">
+                        {serviceActionResult
+                          ? serviceActionResult.response_text
+                          : "Klicke oben in einer Service-Box auf eine Option (z. B. GET /, POST /api/events oder SQL) oder auf 'Ausführen', um den Service live zu testen."}
+                      </pre>
+                    </div>
                   </div>
-                  <iframe
-                    title="Synapse Reverse Proxy Preview"
-                    src={`${gatewayUrl}/preview/${activeProject?.project_id}/${
-                      primaryNode || "unassigned"
-                    }/${previewPort}/`}
-                    className="flex-1 w-full bg-white min-h-[480px]"
-                  />
+
+                  {/* Right 7 Columns: Live Embedded Reverse-Proxy Iframe Box */}
+                  <div className="lg:col-span-7 flex flex-col overflow-hidden rounded-xl border border-nb-gray-800 bg-nb-gray-940 shadow-xl">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-2.5 text-xs">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Globe className="h-3.5 w-3.5 text-netbird" />
+                        <span className="font-mono text-nb-gray-300">
+                          {gatewayUrl}/preview/{activeProject?.project_id}/
+                          {primaryNode || "node"}/
+                        </span>
+                        <input
+                          type="number"
+                          value={previewPort}
+                          onChange={(e) =>
+                            setPreviewPort(Number(e.target.value) || 3000)
+                          }
+                          className="w-20 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-netbird"
+                        />
+                        <input
+                          type="text"
+                          value={previewSubPath}
+                          onChange={(e) =>
+                            setPreviewSubPath(e.target.value || "/")
+                          }
+                          className="w-36 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-white"
+                          placeholder="/api/events"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewReloadNonce((n) => n + 1)}
+                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2 py-1 text-[11px] text-nb-gray-300 hover:text-white"
+                        >
+                          Refresh
+                        </button>
+                        <a
+                          href={`${gatewayUrl}/preview/${
+                            activeProject?.project_id
+                          }/${primaryNode}/${previewPort}${
+                            previewSubPath.startsWith("/")
+                              ? previewSubPath
+                              : `/${previewSubPath}`
+                          }`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 text-nb-gray-300 hover:text-white"
+                        >
+                          <span>Open in New Tab</span>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      </div>
+                    </div>
+                    <iframe
+                      key={`${previewPort}-${previewSubPath}-${previewReloadNonce}`}
+                      title="Synapse Reverse Proxy Preview"
+                      src={`${gatewayUrl}/preview/${
+                        activeProject?.project_id
+                      }/${primaryNode || "unassigned"}/${previewPort}${
+                        previewSubPath.startsWith("/")
+                          ? previewSubPath
+                          : `/${previewSubPath}`
+                      }`}
+                      className="flex-1 w-full bg-white min-h-[420px]"
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -4245,6 +4629,137 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                     {JSON.stringify(tr.output, null, 2)}
                                   </pre>
                                 )}
+
+                                {tr.tool_name === "core_register_service" &&
+                                  Boolean(
+                                    (tr.output as Record<string, unknown>)
+                                      ?.registered
+                                  ) && (() => {
+                                    const reg = (
+                                      tr.output as {
+                                        registered: {
+                                          service_id: string;
+                                          name: string;
+                                          node_id: string;
+                                          port: number;
+                                          category?: string;
+                                          description?: string;
+                                          endpoints?: Array<{
+                                            id: string;
+                                            label: string;
+                                            method:
+                                              | "GET"
+                                              | "POST"
+                                              | "PUT"
+                                              | "DELETE"
+                                              | "SQL";
+                                            path: string;
+                                            sample_payload?: string;
+                                          }>;
+                                        };
+                                      }
+                                    ).registered;
+                                    const liveSvc =
+                                      (
+                                        activeProject?.registered_services || []
+                                      ).find(
+                                        (s) =>
+                                          s.service_id === reg.service_id ||
+                                          s.port === reg.port
+                                      ) || reg;
+                                    const eps =
+                                      liveSvc.endpoints || reg.endpoints || [];
+                                    const extUrl = `${gatewayUrl}/preview/${
+                                      activeProject?.project_id
+                                    }/${reg.node_id || primaryNode}/${
+                                      reg.port
+                                    }/`;
+
+                                    return (
+                                      <div className="mt-2 rounded-lg border border-netbird-500/40 bg-nb-gray-930 p-2.5 font-sans text-xs space-y-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="flex items-center gap-1.5">
+                                            <Globe className="h-3.5 w-3.5 text-netbird" />
+                                            <span className="font-semibold text-white">
+                                              {liveSvc.name || reg.service_id}
+                                            </span>
+                                            <span className="rounded bg-nb-gray-950 border border-nb-gray-800 px-1.5 py-0.5 font-mono text-[10px] text-netbird">
+                                              :{reg.port}
+                                            </span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedServiceId(
+                                                reg.service_id
+                                              );
+                                              setPreviewPort(reg.port);
+                                              setActiveNav("reverse-proxy");
+                                            }}
+                                            className="rounded bg-netbird px-2 py-0.5 text-[10px] font-medium text-white hover:bg-netbird-500"
+                                          >
+                                            Im Live-Preview öffnen →
+                                          </button>
+                                        </div>
+
+                                        <p className="text-[11px] text-nb-gray-300">
+                                          {liveSvc.description ||
+                                            "Von außen erreichbar über Synapse Reverse-Proxy mit folgenden Optionen & Inputs:"}
+                                        </p>
+
+                                        <div className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-1 font-mono text-[10px] text-nb-gray-300 truncate">
+                                          URL:{" "}
+                                          <a
+                                            href={extUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-netbird hover:underline"
+                                          >
+                                            {extUrl}
+                                          </a>
+                                        </div>
+
+                                        {eps.length > 0 && (
+                                          <div className="flex flex-wrap gap-1 pt-0.5">
+                                            {eps.map((ep) => (
+                                              <button
+                                                key={ep.id}
+                                                type="button"
+                                                onClick={() => {
+                                                  setSelectedServiceId(
+                                                    reg.service_id
+                                                  );
+                                                  setPreviewPort(reg.port);
+                                                  setServiceActionMethod(
+                                                    ep.method
+                                                  );
+                                                  setServiceActionPath(ep.path);
+                                                  setServiceActionPayload(
+                                                    ep.sample_payload || ""
+                                                  );
+                                                  setActiveNav("reverse-proxy");
+                                                  handleInvokeServiceAction({
+                                                    nodeId: reg.node_id,
+                                                    port: reg.port,
+                                                    method: ep.method,
+                                                    path: ep.path,
+                                                    payload:
+                                                      ep.sample_payload || "",
+                                                  });
+                                                }}
+                                                className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2 py-0.5 font-mono text-[10px] text-nb-gray-200 hover:border-netbird hover:text-white"
+                                              >
+                                                <strong className="text-netbird">
+                                                  {ep.method}
+                                                </strong>{" "}
+                                                {ep.label}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                               </div>
                             );
                           })}

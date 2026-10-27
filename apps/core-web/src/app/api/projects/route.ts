@@ -22,6 +22,7 @@ import {
   saveCustomCartridge,
 } from "@/lib/cartridges";
 import {
+  buildDefaultServiceEndpoints,
   CORE_GATEWAY_URL,
   fetchGatewayNodes,
   interceptAndExecuteTool,
@@ -127,6 +128,39 @@ export async function GET(req: NextRequest) {
       }
     }
   }
+  for (const svc of state.registered_services) {
+    if (!svc.category) {
+      if (/db|sqlite|postgres|mysql|redis|mongo|sql/i.test(`${svc.service_id} ${svc.name}`)) {
+        svc.category = "database";
+      } else if (/web|ui|frontend|dashboard|portal|app/i.test(`${svc.service_id} ${svc.name}`)) {
+        svc.category = "webui";
+      } else {
+        svc.category = "backend";
+      }
+      stateChanged = true;
+    }
+    if (!svc.description) {
+      svc.description =
+        svc.category === "webui"
+          ? `Interactive WebUI reachable from outside via Synapse Reverse Proxy (127.0.0.1:${svc.port})`
+          : svc.category === "database"
+          ? `Interactive Database & Storage Engine on ${svc.node_id} (127.0.0.1:${svc.port})`
+          : `Reachable Backend REST API via Synapse Reverse Proxy (127.0.0.1:${svc.port})`;
+      stateChanged = true;
+    }
+    if (!Array.isArray(svc.endpoints) || svc.endpoints.length === 0) {
+      svc.endpoints = buildDefaultServiceEndpoints(
+        projectId,
+        svc.service_id,
+        svc.name,
+        svc.category,
+        svc.path || "/",
+        svc.db_path
+      );
+      stateChanged = true;
+    }
+  }
+
   if (stateChanged) {
     saveProjectState(state);
   }
@@ -541,6 +575,119 @@ export async function POST(req: NextRequest) {
       approval: target,
       execution: execResult,
     });
+  }
+
+  if (action === "invoke_service_action") {
+    const nodeId = String(
+      body.node_id || state.assigned_nodes[0]?.node_id || ""
+    );
+    const port = Number(body.port || 3000);
+    const method = String(body.method || "GET").toUpperCase();
+    const rawPath = String(body.path || "/");
+    const payload =
+      body.payload !== undefined && body.payload !== null
+        ? String(body.payload)
+        : "";
+    const startMs = Date.now();
+
+    if (method === "SQL") {
+      const dbPath =
+        rawPath.endsWith(".db") || rawPath.startsWith("/")
+          ? rawPath
+          : `/opt/axon/workspaces/${projectId}/pulse.db`;
+      const sqlQuery =
+        payload.trim() || "SELECT name, type FROM sqlite_master WHERE type='table';";
+      const pyScript = `import sqlite3, json, sys
+db_path = ${JSON.stringify(dbPath)}
+query = ${JSON.stringify(sqlQuery)}
+conn = sqlite3.connect(db_path)
+conn.row_factory = sqlite3.Row
+cur = conn.cursor()
+statements = [s.strip() for s in query.split(";") if s.strip()]
+rows = []
+for stmt in statements:
+    cur.execute(stmt)
+    if cur.description:
+        rows = [dict(r) for r in cur.fetchall()]
+conn.commit()
+print(json.dumps({"db_path": db_path, "rows_count": len(rows), "rows": rows}, default=str))
+`;
+      const b64Py = Buffer.from(pyScript, "utf8").toString("base64");
+      const ptyRes = await interceptAndExecuteTool(
+        projectId,
+        "node_pty_exec",
+        {
+          node_id: nodeId,
+          session_id: `db-explorer-${projectId}`,
+          command: `python3 -c "$(echo '${b64Py}' | base64 -d)"`,
+          wait_timeout_ms: 8000,
+        },
+        true
+      );
+      const outObj = (ptyRes.output || {}) as Record<string, unknown>;
+      const rawOut = String(outObj.output || "").trim();
+      let parsedJson: unknown = null;
+      try {
+        parsedJson = JSON.parse(rawOut);
+      } catch {
+        parsedJson = null;
+      }
+      return NextResponse.json({
+        ok: ptyRes.status === "executed" && Number(outObj.exit_code ?? 0) === 0,
+        status_code: Number(outObj.exit_code ?? 0) === 0 ? 200 : 500,
+        latency_ms: Date.now() - startMs,
+        method: "SQL",
+        proxy_url: `sqlite://${nodeId}:${dbPath}`,
+        response_text: parsedJson
+          ? JSON.stringify(parsedJson, null, 2)
+          : rawOut,
+        response_json: parsedJson,
+      });
+    }
+
+    const cleanSubPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+    const proxyUrl = `${CORE_GATEWAY_URL}/preview/${projectId}/${nodeId}/${port}${cleanSubPath}`;
+    try {
+      const fetchInit: RequestInit = {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json, text/html, */*",
+        },
+      };
+      if (method !== "GET" && method !== "HEAD" && payload.trim() !== "") {
+        fetchInit.body = payload;
+      }
+      const proxyRes = await fetch(proxyUrl, fetchInit);
+      const text = await proxyRes.text();
+      let parsedJson: unknown = null;
+      try {
+        parsedJson = JSON.parse(text);
+      } catch {
+        parsedJson = null;
+      }
+      return NextResponse.json({
+        ok: proxyRes.ok,
+        status_code: proxyRes.status,
+        latency_ms: Date.now() - startMs,
+        method,
+        proxy_url: proxyUrl,
+        response_text: parsedJson
+          ? JSON.stringify(parsedJson, null, 2)
+          : text.slice(0, 8192),
+        response_json: parsedJson,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({
+        ok: false,
+        status_code: 502,
+        latency_ms: Date.now() - startMs,
+        method,
+        proxy_url: proxyUrl,
+        response_text: `Reverse Proxy Error: ${msg}`,
+      });
+    }
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });

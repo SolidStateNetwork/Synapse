@@ -22,6 +22,7 @@ import {
   type FileRollbackSnapshot,
   type ProjectState,
   type RegisteredService,
+  type ServiceEndpointAction,
 } from "./vault";
 import { listCartridges } from "./cartridges";
 
@@ -138,6 +139,49 @@ export const SYNAPSE_TOOL_SCHEMAS = [
             description: "ID of the Connector where the service runs.",
           },
           name: { type: "string" },
+          category: {
+            type: "string",
+            enum: ["webui", "backend", "database", "worker"],
+            description:
+              "Component type so the Core UI renders an interactive WebUI, Backend API, or Database Explorer Box in Reverse-Proxy & Live-Preview.",
+          },
+          description: {
+            type: "string",
+            description:
+              "Plain-language explanation of what this component does and how the user can interact with it from the outside via Reverse Proxy.",
+          },
+          db_path: {
+            type: "string",
+            description:
+              "Optional SQLite file path or database target (e.g. /opt/axon/workspaces/<project>/app.db) for interactive SQL queries in the UI.",
+          },
+          endpoints: {
+            type: "array",
+            description:
+              "Interactive clickable routes, API endpoints, or SQL queries with sample input payloads shown inside the Reverse-Proxy & Live-Preview Box.",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                label: { type: "string" },
+                method: {
+                  type: "string",
+                  enum: ["GET", "POST", "PUT", "DELETE", "SQL"],
+                },
+                path: {
+                  type: "string",
+                  description: "HTTP path (e.g. /api/events) or SQL target.",
+                },
+                description: { type: "string" },
+                sample_payload: {
+                  type: "string",
+                  description:
+                    "Editable default JSON payload (for POST/PUT) or SQL query (for SQL) pre-filled in the UI input box.",
+                },
+              },
+              required: ["label", "method", "path"],
+            },
+          },
           runtime: {
             type: "string",
             enum: ["docker", "systemd", "pm2", "binary"],
@@ -382,6 +426,154 @@ function isWriteOrExecTool(
   return false;
 }
 
+export function buildDefaultServiceEndpoints(
+  projectId: string,
+  serviceId: string,
+  name: string,
+  category: RegisteredService["category"],
+  basePath = "/",
+  dbPath?: string
+): ServiceEndpointAction[] {
+  const combined = `${serviceId} ${name} ${projectId}`.toLowerCase();
+
+  if (category === "database") {
+    return [
+      {
+        id: "sql-tables",
+        label: "Show Tables (SQLite)",
+        method: "SQL",
+        path: dbPath || `/opt/axon/workspaces/${projectId}/pulse.db`,
+        description: "List all database tables and schemas.",
+        sample_payload:
+          "SELECT name, type, sql FROM sqlite_master WHERE type='table';",
+      },
+      {
+        id: "sql-select",
+        label: "Query Latest Rows",
+        method: "SQL",
+        path: dbPath || `/opt/axon/workspaces/${projectId}/pulse.db`,
+        description: "Inspect recent records stored in the database.",
+        sample_payload: "SELECT * FROM events ORDER BY id DESC LIMIT 15;",
+      },
+      {
+        id: "sql-insert",
+        label: "Insert Test Row (SQL)",
+        method: "SQL",
+        path: dbPath || `/opt/axon/workspaces/${projectId}/pulse.db`,
+        description: "Insert a new record directly into the database.",
+        sample_payload:
+          "INSERT INTO events (event, source) VALUES ('manual_db_test', 'core_ui_box'); SELECT * FROM events ORDER BY id DESC LIMIT 5;",
+      },
+      {
+        id: "db-http-probe",
+        label: "GET /query (Mesh Probe)",
+        method: "GET",
+        path: "/query",
+        description: "Probe HTTP/JSON database endpoint via Reverse Proxy.",
+      },
+    ];
+  }
+
+  if (combined.includes("pulse") || combined.includes("event") || combined.includes("analytics")) {
+    return [
+      {
+        id: "get-root",
+        label: "GET / (Service Status)",
+        method: "GET",
+        path: "/",
+        description: "Check microservice status via Reverse Proxy.",
+      },
+      {
+        id: "get-events",
+        label: "GET /api/events",
+        method: "GET",
+        path: "/api/events",
+        description: "Fetch all stored analytics events from SQLite.",
+      },
+      {
+        id: "post-events",
+        label: "POST /api/events (Add Event)",
+        method: "POST",
+        path: "/api/events",
+        description: "Submit a new JSON analytics event from the UI box.",
+        sample_payload: JSON.stringify(
+          { event: "user_clicked_box", source: "synapse-core-ui" },
+          null,
+          2
+        ),
+      },
+      {
+        id: "sql-events",
+        label: "SQL: Inspect pulse.db",
+        method: "SQL",
+        path: dbPath || `/opt/axon/workspaces/${projectId}/pulse.db`,
+        description: "Run an interactive SQL query against pulse.db on the Muscle node.",
+        sample_payload: "SELECT * FROM events ORDER BY id DESC LIMIT 10;",
+      },
+    ];
+  }
+
+  if (category === "webui") {
+    return [
+      {
+        id: "webui-home",
+        label: "GET / (Open WebUI)",
+        method: "GET",
+        path: basePath || "/",
+        description: "Load the main interactive WebUI in the Reverse Proxy.",
+      },
+      {
+        id: "webui-api",
+        label: "GET /api/status",
+        method: "GET",
+        path: "/api/status",
+        description: "Inspect WebUI backend status JSON.",
+      },
+      {
+        id: "webui-post",
+        label: "POST /api/action (Send Input)",
+        method: "POST",
+        path: "/api/action",
+        description: "Send interactive form/JSON input to the WebUI backend.",
+        sample_payload: JSON.stringify(
+          { action: "refresh_dashboard", actor: "operator" },
+          null,
+          2
+        ),
+      },
+    ];
+  }
+
+  return [
+    {
+      id: "api-root",
+      label: `GET ${basePath || "/"} (Overview)`,
+      method: "GET",
+      path: basePath || "/",
+      description: "Call the root endpoint through the Yamux Reverse Proxy.",
+    },
+    {
+      id: "api-health",
+      label: "GET /health",
+      method: "GET",
+      path: "/health",
+      description: "Probe service health and telemetry.",
+    },
+    {
+      id: "api-post",
+      label: "POST / (Send JSON Input)",
+      method: "POST",
+      path: basePath || "/",
+      description: "Send a custom JSON payload to the service via Reverse Proxy.",
+      sample_payload: JSON.stringify(
+        { action: "ping", message: "Hello from Synapse Core UI" },
+        null,
+        2
+      ),
+    },
+  ];
+}
+
 export async function pushNodeHealthTargets(
   state: ProjectState,
   nodeId: string
@@ -593,10 +785,74 @@ export async function interceptAndExecuteTool(
       (s) => s.service_id === serviceId
     );
 
+    const rawName = String(args.name || existingSvc?.name || serviceId);
+    const rawCat = String(args.category || existingSvc?.category || "").toLowerCase();
+    let category: RegisteredService["category"] = "backend";
+    if (
+      rawCat === "webui" ||
+      rawCat === "backend" ||
+      rawCat === "database" ||
+      rawCat === "worker"
+    ) {
+      category = rawCat;
+    } else if (/db|sqlite|postgres|mysql|redis|mongo|sql/i.test(`${serviceId} ${rawName}`)) {
+      category = "database";
+    } else if (/web|ui|frontend|dashboard|portal|app|next|vite/i.test(`${serviceId} ${rawName}`)) {
+      category = "webui";
+    }
+
+    const dbPath = args.db_path
+      ? String(args.db_path)
+      : existingSvc?.db_path ||
+        (category === "database" || /pulse|sqlite/i.test(`${serviceId} ${rawName}`)
+          ? `/opt/axon/workspaces/${projectId}/pulse.db`
+          : undefined);
+
+    let endpoints: ServiceEndpointAction[] = [];
+    if (Array.isArray(args.endpoints) && args.endpoints.length > 0) {
+      endpoints = args.endpoints.map((ep: Record<string, unknown>, idx: number) => ({
+        id: String(ep.id || `ep-${idx + 1}`),
+        label: String(ep.label || `${ep.method || "GET"} ${ep.path || "/"}`),
+        method: (["GET", "POST", "PUT", "DELETE", "SQL"].includes(
+          String(ep.method || "GET").toUpperCase()
+        )
+          ? String(ep.method || "GET").toUpperCase()
+          : "GET") as ServiceEndpointAction["method"],
+        path: String(ep.path || "/"),
+        description: ep.description ? String(ep.description) : undefined,
+        sample_payload:
+          ep.sample_payload !== undefined ? String(ep.sample_payload) : undefined,
+      }));
+    } else if (existingSvc?.endpoints && existingSvc.endpoints.length > 0) {
+      endpoints = existingSvc.endpoints;
+    } else {
+      endpoints = buildDefaultServiceEndpoints(
+        projectId,
+        serviceId,
+        rawName,
+        category,
+        pathStr,
+        dbPath
+      );
+    }
+
+    const description = args.description
+      ? String(args.description)
+      : existingSvc?.description ||
+        (category === "webui"
+          ? `Interactive WebUI reachable from outside via Synapse Reverse Proxy (127.0.0.1:${port})`
+          : category === "database"
+          ? `Interactive Database & Storage Engine on ${nodeId} (127.0.0.1:${port})`
+          : `Reachable Backend REST API via Synapse Reverse Proxy (127.0.0.1:${port})`);
+
     const svc: RegisteredService = {
       service_id: serviceId,
-      name: String(args.name || serviceId),
+      name: rawName,
       node_id: nodeId,
+      category,
+      description,
+      db_path: dbPath,
+      endpoints,
       runtime: (args.runtime as RegisteredService["runtime"]) || "binary",
       unit_or_container: args.unit_or_container
         ? String(args.unit_or_container)
@@ -1213,7 +1469,12 @@ ${memDoc}
 <!-- ===================================================================== -->
 <!-- LAYER 5: EXECUTION PROTOCOL                                           -->
 <!-- ===================================================================== -->
-When developing web applications on any node, always bind dev servers to \`127.0.0.1:<port>\` (or container port mapped to \`127.0.0.1:<port>\`) and call \`core_register_service\` with \`enable_preview_tunnel: true\` so the user can immediately view the live application inside the Core WebUI preview iframe.`;
+When developing web applications, backend APIs, or databases on any node, always bind dev servers to \`127.0.0.1:<port>\` (or container port mapped to \`127.0.0.1:<port>\`) and call \`core_register_service\` with:
+- \`enable_preview_tunnel: true\`
+- \`category\`: \`"webui"\`, \`"backend"\`, or \`"database"\`
+- \`description\`: Clear summary of how the user can reach and use this component via the Reverse Proxy
+- \`db_path\`: Path to the SQLite file (when SQLite is used)
+- \`endpoints\`: Clickable interactive options (\`GET\`, \`POST\`, \`PUT\`, \`DELETE\`, or \`SQL\`) with pre-filled \`sample_payload\` inputs so the user gets an interactive clickable Reverse-Proxy & Live-Preview Explorer Box right in the Core WebUI.`;
 
   const assignedNodesMap: Record<string, unknown> = {};
   for (const n of state.assigned_nodes) {
