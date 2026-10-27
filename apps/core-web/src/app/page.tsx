@@ -470,6 +470,18 @@ export default function SynapseNetBirdControlCenter() {
   const [previewSubPath, setPreviewSubPath] = useState<string>("/");
   const [previewReloadNonce, setPreviewReloadNonce] = useState<number>(0);
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
+  const [serviceCategoryFilter, setServiceCategoryFilter] = useState<
+    "all" | "webui" | "backend" | "database"
+  >("all");
+  const [serviceWorkspaceTab, setServiceWorkspaceTab] = useState<
+    "split" | "preview" | "tester"
+  >("split");
+  const [peersSubTab, setPeersSubTab] = useState<
+    "nodes" | "mesh" | "blueprints" | "playbooks"
+  >("nodes");
+  const [expandedTurnTools, setExpandedTurnTools] = useState<
+    Record<number, boolean>
+  >({});
   const [serviceActionMethod, setServiceActionMethod] = useState<
     "GET" | "POST" | "PUT" | "DELETE" | "SQL"
   >("GET");
@@ -1687,6 +1699,7 @@ export default function SynapseNetBirdControlCenter() {
 
   const sidebarItems: Array<{
     id: NavSection;
+    section: string;
     label: string;
     icon: React.ComponentType<{ className?: string; size?: number }>;
     badge?: string | number;
@@ -1694,29 +1707,14 @@ export default function SynapseNetBirdControlCenter() {
   }> = [
     {
       id: "control-center",
-      label: "Control Center",
+      section: "Übersicht & Dienste",
+      label: "Projekt-Übersicht",
       icon: Network,
     },
     {
-      id: "peers",
-      label: "Peers",
-      icon: MonitorSmartphone,
-      badge: gatewayNodes.length,
-      badgeColor: gatewayNodes.length > 0 ? "green" : undefined,
-    },
-    {
-      id: "access-control",
-      label: "Access Control",
-      icon: Shield,
-      badge:
-        pendingApprovals.length > 0
-          ? pendingApprovals.length
-          : activeProject?.active_cartridges?.length || 0,
-      badgeColor: pendingApprovals.length > 0 ? "orange" : undefined,
-    },
-    {
       id: "reverse-proxy",
-      label: "Reverse Proxy",
+      section: "Übersicht & Dienste",
+      label: "Services & Live-Preview",
       icon: Globe,
       badge:
         unhealthyServices.length > 0
@@ -1725,24 +1723,47 @@ export default function SynapseNetBirdControlCenter() {
       badgeColor: unhealthyServices.length > 0 ? "red" : "green",
     },
     {
+      id: "peers",
+      section: "Übersicht & Dienste",
+      label: "Peers & Cluster",
+      icon: MonitorSmartphone,
+      badge: gatewayNodes.length,
+      badgeColor: gatewayNodes.length > 0 ? "green" : undefined,
+    },
+    {
       id: "brain-vault",
-      label: "Brain Vault",
+      section: "Projekt & Dateien",
+      label: "Brain Vault (Doku)",
       icon: BookOpen,
     },
     {
       id: "workspace",
-      label: "Remote Files",
+      section: "Projekt & Dateien",
+      label: "Remote Files (Code)",
       icon: Code2,
     },
     {
+      id: "access-control",
+      section: "Sicherheit & System",
+      label: "Regeln & Freigaben",
+      icon: Shield,
+      badge:
+        pendingApprovals.length > 0
+          ? pendingApprovals.length
+          : activeProject?.active_cartridges?.length || 0,
+      badgeColor: pendingApprovals.length > 0 ? "orange" : undefined,
+    },
+    {
       id: "activity",
-      label: "Activity",
+      section: "Sicherheit & System",
+      label: "Audit-Log",
       icon: Activity,
       badge: auditLogs.length || undefined,
     },
     {
       id: "settings",
-      label: "Settings",
+      section: "Sicherheit & System",
+      label: "Einstellungen & Debug",
       icon: Settings,
     },
   ];
@@ -1828,49 +1849,61 @@ export default function SynapseNetBirdControlCenter() {
             </div>
           )}
 
-          {/* NetBird Navigation List (`SidebarItem.tsx` exact styling) */}
+          {/* Categorized Navigation List */}
           <ul className="space-y-1 pt-1">
-            {sidebarItems.map((item) => {
+            {sidebarItems.map((item, idx) => {
               const Icon = item.icon;
               const isActive = activeNav === item.id;
+              const showSectionHeader =
+                !sidebarCollapsed &&
+                (idx === 0 || sidebarItems[idx - 1].section !== item.section);
               return (
-                <li key={item.id} className="list-none">
-                  <button
-                    onClick={() => setActiveNav(item.id)}
-                    className={`flex w-full items-center justify-between rounded-lg px-3 py-[0.48rem] text-[0.86rem] font-normal transition-colors ${
-                      isActive
-                        ? "bg-nb-gray-900 text-white"
-                        : "text-nb-gray-400 hover:bg-nb-gray-900/50 hover:text-nb-gray-200"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon
-                        size={17}
-                        className={`shrink-0 ${
-                          isActive ? "text-netbird" : "text-nb-gray-400"
-                        }`}
-                      />
-                      {!sidebarCollapsed && (
-                        <span className="whitespace-nowrap">{item.label}</span>
+                <React.Fragment key={item.id}>
+                  {showSectionHeader && (
+                    <li className="list-none px-2.5 pt-2.5 pb-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-500">
+                      {item.section}
+                    </li>
+                  )}
+                  <li className="list-none">
+                    <button
+                      onClick={() => setActiveNav(item.id)}
+                      className={`flex w-full items-center justify-between rounded-lg px-3 py-[0.46rem] text-[0.84rem] font-normal transition-colors ${
+                        isActive
+                          ? "bg-nb-gray-900 text-white"
+                          : "text-nb-gray-400 hover:bg-nb-gray-900/50 hover:text-nb-gray-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon
+                          size={16}
+                          className={`shrink-0 ${
+                            isActive ? "text-netbird" : "text-nb-gray-400"
+                          }`}
+                        />
+                        {!sidebarCollapsed && (
+                          <span className="whitespace-nowrap">
+                            {item.label}
+                          </span>
+                        )}
+                      </div>
+                      {!sidebarCollapsed && item.badge !== undefined && (
+                        <span
+                          className={`rounded-md border px-1.5 py-0.5 font-mono text-[10px] leading-none ${
+                            item.badgeColor === "orange"
+                              ? "border-netbird-500 bg-netbird-950 text-netbird"
+                              : item.badgeColor === "red"
+                              ? "border-red-500 bg-red-950/60 text-red-400 animate-pulse"
+                              : item.badgeColor === "green"
+                              ? "border-green-500/60 bg-green-950 text-green-400"
+                              : "border-nb-gray-800 bg-nb-gray-930 text-nb-gray-300"
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
                       )}
-                    </div>
-                    {!sidebarCollapsed && item.badge !== undefined && (
-                      <span
-                        className={`rounded-md border px-1.5 py-0.5 font-mono text-[10px] leading-none ${
-                          item.badgeColor === "orange"
-                            ? "border-netbird-500 bg-netbird-950 text-netbird"
-                            : item.badgeColor === "red"
-                            ? "border-red-500 bg-red-950/60 text-red-400 animate-pulse"
-                            : item.badgeColor === "green"
-                            ? "border-green-500/60 bg-green-950 text-green-400"
-                            : "border-nb-gray-800 bg-nb-gray-930 text-nb-gray-300"
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
-                  </button>
-                </li>
+                    </button>
+                  </li>
+                </React.Fragment>
               );
             })}
           </ul>
@@ -2194,18 +2227,18 @@ export default function SynapseNetBirdControlCenter() {
             )}
 
             {/* ═══════════════════════════════════════════════════════════════
-                VIEW 2: NETBIRD PEERS TABLE VIEW (`peers`)
+                VIEW 2: NETBIRD PEERS & CLUSTER VIEW (`peers`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "peers" && (
-              <div className="mx-auto max-w-6xl p-6 space-y-6">
+              <div className="mx-auto max-w-6xl p-6 space-y-5">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <h1 className="text-xl font-medium text-nb-gray-100">
-                      Peers (Muscle Nodes)
+                      Peers, Cluster-Mesh &amp; Stack-Blueprints
                     </h1>
                     <p className="text-xs text-nb-gray-400 mt-0.5">
-                      Manage enrolled remote execution servers connected via
-                      outbound mTLS 1.3 + Yamux reverse tunnel.
+                      Übersichtlich sortiert nach verbundenen Muscle-Servern,
+                      Peer-to-Peer Mesh-Tunnels, 1-Click Stacks und Cron-Jobs.
                     </p>
                   </div>
                   <button
@@ -2216,172 +2249,317 @@ export default function SynapseNetBirdControlCenter() {
                     className="flex items-center gap-2 rounded-md bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500"
                   >
                     <Plus className="h-4 w-4" />
-                    <span>Add Peer</span>
+                    <span>+ Server hinzufügen</span>
                   </button>
                 </div>
 
-                {/* NetBird Chip Filter Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-3">
-                  <div className="flex flex-1 items-center gap-2 min-w-[240px]">
-                    <Search className="h-4 w-4 text-nb-gray-400 ml-1" />
-                    <input
-                      type="text"
-                      value={peerSearch}
-                      onChange={(e) => setPeerSearch(e.target.value)}
-                      placeholder="Filter peers by name, hostname, or IP..."
-                      className="flex-1 bg-transparent text-xs text-white placeholder:text-nb-gray-400 focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {[
-                      "ALL",
-                      "TIER_1_UNLEASHED",
-                      "TIER_2_WORKSPACE_JAIL",
-                      "TIER_3_SUPERVISED",
-                    ].map((tierOpt) => (
+                {/* Clean 4-Tab Sub-Navigation for Peers & Cluster */}
+                <div className="flex flex-wrap items-center gap-2 border-b border-nb-gray-900 pb-3">
+                  {[
+                    {
+                      id: "nodes",
+                      label: `Muscle-Server (${gatewayNodes.length})`,
+                      icon: Server,
+                    },
+                    {
+                      id: "mesh",
+                      label: `P2P Mesh-Links (${
+                        (activeProject?.peer_mesh_links || []).length
+                      })`,
+                      icon: Network,
+                    },
+                    {
+                      id: "blueprints",
+                      label: `1-Click Stack Blueprints (${blueprints.length})`,
+                      icon: Sparkles,
+                    },
+                    {
+                      id: "playbooks",
+                      label: `Cron-Playbooks (${
+                        (activeProject?.scheduled_playbooks || []).length
+                      })`,
+                      icon: Activity,
+                    },
+                  ].map((tab) => {
+                    const Icon = tab.icon;
+                    const active = peersSubTab === tab.id;
+                    return (
                       <button
-                        key={tierOpt}
-                        onClick={() => setPeerTierFilter(tierOpt)}
-                        className={`rounded-md border px-2.5 py-1 font-mono text-[10px] transition ${
-                          peerTierFilter === tierOpt
-                            ? "border-netbird-500 bg-netbird-950 text-netbird"
-                            : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:bg-nb-gray-900"
+                        key={tab.id}
+                        type="button"
+                        onClick={() =>
+                          setPeersSubTab(
+                            tab.id as
+                              | "nodes"
+                              | "mesh"
+                              | "blueprints"
+                              | "playbooks"
+                          )
+                        }
+                        className={`flex items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-medium transition ${
+                          active
+                            ? "border-netbird bg-nb-gray-900 text-white"
+                            : "border-nb-gray-800/80 bg-nb-gray-940 text-nb-gray-400 hover:text-white"
                         }`}
                       >
-                        {tierOpt === "ALL" ? "All Tiers" : tierOpt}
+                        <Icon
+                          className={`h-3.5 w-3.5 ${
+                            active ? "text-netbird" : ""
+                          }`}
+                        />
+                        <span>{tab.label}</span>
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
 
-                {/* NetBird Data Table */}
-                <div className="overflow-hidden rounded-lg border border-nb-gray-900 bg-nb-gray-940">
-                  <table className="w-full text-left text-xs">
-                    <thead className="border-b border-nb-gray-900 bg-nb-gray-930/70 text-[11px] font-medium uppercase text-nb-gray-400">
-                      <tr>
-                        <th className="py-3 px-4">Peer Name / Status</th>
-                        <th className="py-3 px-4">Autonomy Tier</th>
-                        <th className="py-3 px-4">Address (IPv4)</th>
-                        <th className="py-3 px-4">OS / Arch</th>
-                        <th className="py-3 px-4">Hardware Load</th>
-                        <th className="py-3 px-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-nb-gray-900">
-                      {filteredPeers.map((gn) => {
-                        const hb = gn.last_heartbeat;
-                        const isAssigned = activeProject?.assigned_nodes.some(
-                          (a) => a.node_id === gn.node_id
-                        );
-                        return (
-                          <tr
-                            key={gn.node_id}
-                            className="hover:bg-nb-gray-930/50 transition-colors"
+                {/* SUB-TAB 1: MUSCLE NODES TABLE */}
+                {peersSubTab === "nodes" && (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-3">
+                      <div className="flex flex-1 items-center gap-2 min-w-[240px]">
+                        <Search className="h-4 w-4 text-nb-gray-400 ml-1" />
+                        <input
+                          type="text"
+                          value={peerSearch}
+                          onChange={(e) => setPeerSearch(e.target.value)}
+                          placeholder="Server nach Name, Hostname oder IP filtern..."
+                          className="flex-1 bg-transparent text-xs text-white placeholder:text-nb-gray-400 focus:outline-none"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {[
+                          "ALL",
+                          "TIER_1_UNLEASHED",
+                          "TIER_2_WORKSPACE_JAIL",
+                          "TIER_3_SUPERVISED",
+                        ].map((tierOpt) => (
+                          <button
+                            key={tierOpt}
+                            onClick={() => setPeerTierFilter(tierOpt)}
+                            className={`rounded-md border px-2.5 py-1 font-mono text-[10px] transition ${
+                              peerTierFilter === tierOpt
+                                ? "border-netbird-500 bg-netbird-950 text-netbird"
+                                : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:bg-nb-gray-900"
+                            }`}
                           >
-                            <td className="py-3.5 px-4">
-                              <div className="flex items-center gap-3">
-                                <span
-                                  className={`h-2.5 w-2.5 rounded-full ${
-                                    gn.online
-                                      ? "bg-green-400"
-                                      : "bg-nb-gray-500"
-                                  }`}
-                                />
-                                <div>
-                                  <div className="font-mono font-semibold text-white">
-                                    {gn.node_id}
-                                  </div>
-                                  <div className="text-[11px] text-nb-gray-400">
-                                    {hb?.hostname || gn.remote_addr}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-3.5 px-4">
-                              <span className="rounded-md border border-netbird-500/50 bg-netbird-950 px-2.5 py-1 font-mono text-[10px] text-netbird">
-                                {gn.tier}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4 font-mono text-nb-gray-200">
-                              {hb?.private_ipv4 || "127.0.0.1"}
-                            </td>
-                            <td className="py-3.5 px-4 font-mono text-nb-gray-300">
-                              {hb?.os_info || hb?.os_arch || "linux/amd64"}
-                            </td>
-                            <td className="py-3.5 px-4">
-                              {hb ? (
-                                <div className="flex items-center gap-3 font-mono text-[11px] text-nb-gray-300">
-                                  <span>CPU {hb.cpu_percent.toFixed(1)}%</span>
-                                  <span>RAM {hb.ram_percent.toFixed(1)}%</span>
-                                  <span>DSK {hb.disk_percent.toFixed(1)}%</span>
-                                </div>
-                              ) : (
-                                <span className="text-nb-gray-500">—</span>
-                              )}
-                            </td>
-                            <td className="py-3.5 px-4 text-right space-x-2">
-                              <button
-                                onClick={() => {
-                                  setSelectedNodeId(gn.node_id);
-                                  setTerminalDrawerOpen(true);
-                                }}
-                                className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white"
-                              >
-                                Terminal
-                              </button>
-                              <button
-                                onClick={() =>
-                                  isAssigned
-                                    ? handleUnassignNode(gn.node_id)
-                                    : handleAssignNode(gn.node_id, gn.tier)
-                                }
-                                className={`rounded-md px-2.5 py-1 text-[11px] font-medium ${
-                                  isAssigned
-                                    ? "border border-red-500/40 bg-red-950/40 text-red-400 hover:bg-red-950"
-                                    : "bg-netbird text-white hover:bg-netbird-500"
-                                }`}
-                              >
-                                {isAssigned ? "Unassign" : "Assign"}
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Wave 2 Expansion: 1-Click Stack Blueprints, P2P Mesh Links & Scheduled AI Playbooks */}
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                  {/* Card A: 1-Click Stack Blueprints */}
-                  <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-3.5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-netbird" />
-                          1-Click AI Stack Blueprints
-                        </h2>
-                        <p className="text-[11px] text-nb-gray-400">
-                          Deploy pre-hardened infrastructure stacks autonomously via the AI Orchestrator.
-                        </p>
+                            {tierOpt === "ALL" ? "Alle Tiers" : tierOpt}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+
+                    <div className="overflow-hidden rounded-lg border border-nb-gray-900 bg-nb-gray-940">
+                      <table className="w-full text-left text-xs">
+                        <thead className="border-b border-nb-gray-900 bg-nb-gray-930/70 text-[11px] font-medium uppercase text-nb-gray-400">
+                          <tr>
+                            <th className="py-3 px-4">Server / Status</th>
+                            <th className="py-3 px-4">Autonomy Tier</th>
+                            <th className="py-3 px-4">Adresse (IPv4)</th>
+                            <th className="py-3 px-4">OS / Arch</th>
+                            <th className="py-3 px-4">Auslastung</th>
+                            <th className="py-3 px-4 text-right">Aktionen</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-nb-gray-900">
+                          {filteredPeers.map((gn) => {
+                            const hb = gn.last_heartbeat;
+                            const isAssigned =
+                              activeProject?.assigned_nodes.some(
+                                (a) => a.node_id === gn.node_id
+                              );
+                            return (
+                              <tr
+                                key={gn.node_id}
+                                className="hover:bg-nb-gray-930/50 transition-colors"
+                              >
+                                <td className="py-3.5 px-4">
+                                  <div className="flex items-center gap-3">
+                                    <span
+                                      className={`h-2.5 w-2.5 rounded-full ${
+                                        gn.online
+                                          ? "bg-green-400"
+                                          : "bg-nb-gray-500"
+                                      }`}
+                                    />
+                                    <div>
+                                      <div className="font-mono font-semibold text-white">
+                                        {gn.node_id}
+                                      </div>
+                                      <div className="text-[11px] text-nb-gray-400">
+                                        {hb?.hostname || gn.remote_addr}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="rounded-md border border-netbird-500/50 bg-netbird-950 px-2.5 py-1 font-mono text-[10px] text-netbird">
+                                    {gn.tier}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 font-mono text-nb-gray-200">
+                                  {hb?.private_ipv4 || "127.0.0.1"}
+                                </td>
+                                <td className="py-3.5 px-4 font-mono text-nb-gray-300">
+                                  {hb?.os_info || hb?.os_arch || "linux/amd64"}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  {hb ? (
+                                    <div className="flex items-center gap-3 font-mono text-[11px] text-nb-gray-300">
+                                      <span>
+                                        CPU {hb.cpu_percent.toFixed(1)}%
+                                      </span>
+                                      <span>
+                                        RAM {hb.ram_percent.toFixed(1)}%
+                                      </span>
+                                      <span>
+                                        DSK {hb.disk_percent.toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-nb-gray-500">—</span>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-4 text-right space-x-2">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedNodeId(gn.node_id);
+                                      setTerminalDrawerOpen(true);
+                                    }}
+                                    className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white"
+                                  >
+                                    Terminal
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      isAssigned
+                                        ? handleUnassignNode(gn.node_id)
+                                        : handleAssignNode(gn.node_id, gn.tier)
+                                    }
+                                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium ${
+                                      isAssigned
+                                        ? "border border-red-500/40 bg-red-950/40 text-red-400 hover:bg-red-950"
+                                        : "bg-netbird text-white hover:bg-netbird-500"
+                                    }`}
+                                  >
+                                    {isAssigned ? "Unassign" : "Assign"}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* SUB-TAB 2: PEER-TO-PEER MESH LINKS (`core_link_peers`) */}
+                {peersSubTab === "mesh" && (
+                  <div className="rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-4">
+                    <div>
+                      <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                        <Network className="h-4 w-4 text-sky-400" />
+                        Multi-Server Peer-to-Peer Mesh Links (`core_link_peers`)
+                      </h2>
+                      <p className="text-xs text-nb-gray-400 mt-0.5">
+                        Verbinde Dienste zwischen verschiedenen Muscle-Servern
+                        über verschlüsselte mTLS-Loopback-Tunnels.
+                      </p>
+                    </div>
+                    <form
+                      onSubmit={handleAddMeshLink}
+                      className="grid grid-cols-1 gap-2.5 sm:grid-cols-4 text-xs"
+                    >
+                      <input
+                        type="text"
+                        value={meshSourceNode}
+                        onChange={(e) => setMeshSourceNode(e.target.value)}
+                        placeholder="Source peer (z.B. vps2-muscle)"
+                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                      />
+                      <input
+                        type="text"
+                        value={meshTargetNode}
+                        onChange={(e) => setMeshTargetNode(e.target.value)}
+                        placeholder="Target peer (z.B. vps2-db-node)"
+                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                      />
+                      <input
+                        type="number"
+                        value={meshTargetPort}
+                        onChange={(e) =>
+                          setMeshTargetPort(Number(e.target.value) || 5432)
+                        }
+                        placeholder="Port (5432)"
+                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
+                      />
+                      <button
+                        type="submit"
+                        className="rounded bg-netbird px-3 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+                      >
+                        + Mesh-Link anlegen
+                      </button>
+                    </form>
+                    <div className="space-y-2">
+                      {(activeProject?.peer_mesh_links || []).map((lnk) => (
+                        <div
+                          key={lnk.link_id}
+                          className="flex items-center justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-4 py-2.5 font-mono text-xs"
+                        >
+                          <span className="text-nb-gray-200">
+                            <strong className="text-white">
+                              {lnk.source_node_id}
+                            </strong>{" "}
+                            ⇄{" "}
+                            <strong className="text-sky-400">
+                              {lnk.target_node_id}:{lnk.target_port}
+                            </strong>{" "}
+                            <span className="text-nb-gray-400">
+                              ({lnk.alias_env})
+                            </span>
+                          </span>
+                          <button
+                            onClick={() => handleRemoveMeshLink(lnk.link_id)}
+                            className="text-nb-gray-500 hover:text-red-400"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* SUB-TAB 3: 1-CLICK AI STACK BLUEPRINTS */}
+                {peersSubTab === "blueprints" && (
+                  <div className="rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-4">
+                    <div>
+                      <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-netbird" />
+                        1-Click AI Stack Blueprints
+                      </h2>
+                      <p className="text-xs text-nb-gray-400 mt-0.5">
+                        Fertige Infrastruktur-Stacks mit einem Klick autonom
+                        über den KI-Orchestrator bereitstellen.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       {blueprints.map((bp) => (
                         <div
                           key={bp.id}
-                          className="flex flex-col justify-between rounded-md border border-nb-gray-800 bg-nb-gray-930 p-3 space-y-2"
+                          className="flex flex-col justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-4 space-y-3"
                         >
                           <div>
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-semibold text-white">
                                 {bp.name}
                               </span>
-                              <span className="rounded border border-netbird-500/40 bg-netbird-950 px-1.5 py-0.5 font-mono text-[9px] text-netbird">
+                              <span className="rounded border border-netbird-500/40 bg-netbird-950 px-2 py-0.5 font-mono text-[9px] text-netbird">
                                 {bp.category}
                               </span>
                             </div>
-                            <p className="mt-1 text-[11px] text-nb-gray-400 leading-snug">
+                            <p className="mt-1.5 text-xs text-nb-gray-400 leading-relaxed">
                               {bp.description}
                             </p>
                           </div>
@@ -2390,192 +2568,114 @@ export default function SynapseNetBirdControlCenter() {
                               setCopilotDrawerOpen(true);
                               runStreamingPrompt(bp.prompt);
                             }}
-                            className="w-full rounded bg-netbird/90 py-1.5 text-[11px] font-medium text-white hover:bg-netbird"
+                            className="w-full rounded-md bg-netbird/90 py-2 text-xs font-medium text-white hover:bg-netbird"
                           >
-                            Deploy Stack via AI →
+                            Stack per KI bereitstellen →
                           </button>
                         </div>
                       ))}
                     </div>
                   </div>
+                )}
 
-                  {/* Card B: Multi-Server Peer-to-Peer Mesh Links & Scheduled Playbooks */}
-                  <div className="space-y-4">
-                    {/* P2P Mesh Links (`core_link_peers`) */}
-                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-3">
-                      <div>
-                        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                          <Network className="h-4 w-4 text-sky-400" />
-                          Multi-Server Peer-to-Peer Mesh Links (`core_link_peers`)
-                        </h2>
-                        <p className="text-[11px] text-nb-gray-400">
-                          Connect services across different Muscle peers over encrypted mTLS loopback tunnels.
-                        </p>
-                      </div>
-                      <form
-                        onSubmit={handleAddMeshLink}
-                        className="grid grid-cols-1 gap-2 sm:grid-cols-4 text-xs"
-                      >
-                        <input
-                          type="text"
-                          value={meshSourceNode}
-                          onChange={(e) => setMeshSourceNode(e.target.value)}
-                          placeholder="Source peer (e.g. web-01)"
-                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 font-mono text-xs text-white"
-                        />
-                        <input
-                          type="text"
-                          value={meshTargetNode}
-                          onChange={(e) => setMeshTargetNode(e.target.value)}
-                          placeholder="Target peer (e.g. db-01)"
-                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 font-mono text-xs text-white"
-                        />
-                        <input
-                          type="number"
-                          value={meshTargetPort}
-                          onChange={(e) =>
-                            setMeshTargetPort(Number(e.target.value) || 5432)
-                          }
-                          placeholder="Port (5432)"
-                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 font-mono text-xs text-netbird"
-                        />
-                        <button
-                          type="submit"
-                          className="rounded bg-netbird px-3 py-1.5 text-xs font-medium text-white hover:bg-netbird-500"
+                {/* SUB-TAB 4: SCHEDULED AI PLAYBOOKS (CRON) */}
+                {peersSubTab === "playbooks" && (
+                  <div className="rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-4">
+                    <div>
+                      <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                        <Activity className="h-4 w-4 text-emerald-400" />
+                        Scheduled AI Playbooks (Cron-Wartung)
+                      </h2>
+                      <p className="text-xs text-nb-gray-400 mt-0.5">
+                        Wiederkehrende autonome Health-Checks, Log-Bereinigungen
+                        und Sicherheits-Audits.
+                      </p>
+                    </div>
+                    <div className="space-y-2.5">
+                      {(activeProject?.scheduled_playbooks || []).map((pb) => (
+                        <div
+                          key={pb.playbook_id}
+                          className="flex items-center justify-between gap-3 rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-3.5 text-xs"
                         >
-                          + Link Peers
-                        </button>
-                      </form>
-                      <div className="space-y-1.5">
-                        {(activeProject?.peer_mesh_links || []).map((lnk) => (
-                          <div
-                            key={lnk.link_id}
-                            className="flex items-center justify-between rounded border border-nb-gray-800 bg-nb-gray-930 px-3 py-1.5 font-mono text-[11px]"
-                          >
-                            <span className="text-nb-gray-200">
-                              <strong className="text-white">
-                                {lnk.source_node_id}
-                              </strong>{" "}
-                              ⇄{" "}
-                              <strong className="text-sky-400">
-                                {lnk.target_node_id}:{lnk.target_port}
-                              </strong>{" "}
-                              <span className="text-nb-gray-400">
-                                ({lnk.alias_env})
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-white truncate">
+                                {pb.name}
                               </span>
-                            </span>
+                              <span className="rounded border border-nb-gray-700 bg-nb-gray-950 px-2 py-0.5 font-mono text-[10px] text-netbird">
+                                {pb.cron}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-nb-gray-400 truncate mt-1">
+                              {pb.prompt}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
                             <button
-                              onClick={() => handleRemoveMeshLink(lnk.link_id)}
-                              className="text-nb-gray-500 hover:text-red-400"
+                              onClick={() => {
+                                setCopilotDrawerOpen(true);
+                                runStreamingPrompt(pb.prompt);
+                              }}
+                              className="rounded border border-netbird-500/40 bg-netbird-950 px-2.5 py-1 font-mono text-[10px] text-netbird hover:bg-netbird hover:text-white"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              Jetzt ausführen
+                            </button>
+                            <button
+                              onClick={() => handleTogglePlaybook(pb)}
+                              className={`rounded border px-2.5 py-1 font-mono text-[10px] ${
+                                pb.enabled
+                                  ? "border-green-500/40 bg-green-950 text-green-400"
+                                  : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400"
+                              }`}
+                            >
+                              {pb.enabled ? "ON" : "OFF"}
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDeletePlaybook(pb.playbook_id)
+                              }
+                              className="text-nb-gray-500 hover:text-red-400 p-1"
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Scheduled AI Playbooks (Cron) */}
-                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                            <Activity className="h-4 w-4 text-emerald-400" />
-                            Scheduled AI Playbooks (Cron Maintenance)
-                          </h2>
-                          <p className="text-[11px] text-nb-gray-400">
-                            Recurring autonomous health audits, log cleanups &amp; security checks.
-                          </p>
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        {(activeProject?.scheduled_playbooks || []).map(
-                          (pb) => (
-                            <div
-                              key={pb.playbook_id}
-                              className="flex items-center justify-between gap-2 rounded border border-nb-gray-800 bg-nb-gray-930 p-2.5 text-xs"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-semibold text-white truncate">
-                                    {pb.name}
-                                  </span>
-                                  <span className="rounded border border-nb-gray-700 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[10px] text-netbird">
-                                    {pb.cron}
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-nb-gray-400 truncate mt-0.5">
-                                  {pb.prompt}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <button
-                                  onClick={() => {
-                                    setCopilotDrawerOpen(true);
-                                    runStreamingPrompt(pb.prompt);
-                                  }}
-                                  className="rounded border border-netbird-500/40 bg-netbird-950 px-2 py-1 font-mono text-[10px] text-netbird hover:bg-netbird hover:text-white"
-                                >
-                                  Run Now
-                                </button>
-                                <button
-                                  onClick={() => handleTogglePlaybook(pb)}
-                                  className={`rounded border px-2 py-1 font-mono text-[10px] ${
-                                    pb.enabled
-                                      ? "border-green-500/40 bg-green-950 text-green-400"
-                                      : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400"
-                                  }`}
-                                >
-                                  {pb.enabled ? "ON" : "OFF"}
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleDeletePlaybook(pb.playbook_id)
-                                  }
-                                  className="text-nb-gray-500 hover:text-red-400 p-1"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          )
-                        )}
-                      </div>
-                      <form
-                        onSubmit={handleAddPlaybook}
-                        className="grid grid-cols-1 gap-2 sm:grid-cols-4 pt-1 text-xs"
-                      >
-                        <input
-                          type="text"
-                          value={playbookName}
-                          onChange={(e) => setPlaybookName(e.target.value)}
-                          placeholder="Playbook name..."
-                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 text-xs text-white"
-                        />
-                        <input
-                          type="text"
-                          value={playbookCron}
-                          onChange={(e) => setPlaybookCron(e.target.value)}
-                          placeholder="0 */6 * * *"
-                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 font-mono text-xs text-netbird"
-                        />
-                        <input
-                          type="text"
-                          value={playbookPrompt}
-                          onChange={(e) => setPlaybookPrompt(e.target.value)}
-                          placeholder="AI instruction prompt..."
-                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 text-xs text-white"
-                        />
-                        <button
-                          type="submit"
-                          className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500"
-                        >
-                          + Add Cron
-                        </button>
-                      </form>
+                      ))}
                     </div>
+                    <form
+                      onSubmit={handleAddPlaybook}
+                      className="grid grid-cols-1 gap-2.5 sm:grid-cols-4 pt-2 text-xs"
+                    >
+                      <input
+                        type="text"
+                        value={playbookName}
+                        onChange={(e) => setPlaybookName(e.target.value)}
+                        placeholder="Playbook-Name..."
+                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
+                      />
+                      <input
+                        type="text"
+                        value={playbookCron}
+                        onChange={(e) => setPlaybookCron(e.target.value)}
+                        placeholder="0 */6 * * *"
+                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
+                      />
+                      <input
+                        type="text"
+                        value={playbookPrompt}
+                        onChange={(e) => setPlaybookPrompt(e.target.value)}
+                        placeholder="KI-Anweisung..."
+                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
+                      />
+                      <button
+                        type="submit"
+                        className="rounded bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-500"
+                      >
+                        + Cron hinzufügen
+                      </button>
+                    </form>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -2807,376 +2907,585 @@ export default function SynapseNetBirdControlCenter() {
             )}
 
             {/* ═══════════════════════════════════════════════════════════════
-                VIEW 4: NETBIRD REVERSE PROXY & LIVE PREVIEW (`reverse-proxy`)
+                VIEW 4: SORTED SERVICES, REVERSE PROXY & LIVE PREVIEW (`reverse-proxy`)
             ═══════════════════════════════════════════════════════════════ */}
-            {activeNav === "reverse-proxy" && (
-              <div className="flex flex-col p-6 gap-5 max-w-6xl mx-auto">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h1 className="text-xl font-medium text-nb-gray-100">
-                      Reverse Proxy, Reachable Services &amp; Live Preview
-                    </h1>
-                    <p className="text-xs text-nb-gray-400 mt-0.5">
-                      Interactive Explorer Boxes for every AI-created WebUI,
-                      Backend API, and Database reachable from outside via Yamux
-                      Stream 3 (`127.0.0.1:&lt;port&gt;` → Core Gateway).
-                    </p>
-                  </div>
-                </div>
+            {activeNav === "reverse-proxy" &&
+              (() => {
+                const allSvcs = activeProject?.registered_services || [];
+                const webuiSvcs = allSvcs.filter((s) => s.category === "webui");
+                const dbSvcs = allSvcs.filter((s) => s.category === "database");
+                const backendSvcs = allSvcs.filter(
+                  (s) => s.category !== "webui" && s.category !== "database"
+                );
 
-                {/* REACHABLE SERVICE BOXES (WebUI / Backend API / Database) */}
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {(activeProject?.registered_services || []).map((svc) => {
-                    const healthy =
-                      svc.healthy !== false &&
-                      svc.health_check?.status !== "UNHEALTHY";
-                    const isSelected =
-                      selectedServiceId === svc.service_id ||
-                      previewPort === svc.port;
-                    const cat = svc.category || "backend";
-                    const catLabel =
-                      cat === "webui"
-                        ? "🌐 WebUI / Frontend"
-                        : cat === "database"
-                        ? "🗄️ Database Engine"
-                        : "⚡ Backend REST API";
-                    const catBadgeStyle =
-                      cat === "webui"
-                        ? "border-sky-500/40 bg-sky-950/60 text-sky-300"
-                        : cat === "database"
-                        ? "border-purple-500/40 bg-purple-950/60 text-purple-300"
-                        : "border-netbird-500/40 bg-netbird-950/60 text-netbird";
-                    const extUrl = `${gatewayUrl}/preview/${
-                      activeProject?.project_id
-                    }/${svc.node_id || primaryNode}/${svc.port}/`;
+                const activeSvc =
+                  allSvcs.find((s) => s.service_id === selectedServiceId) ||
+                  allSvcs.find((s) => s.port === previewPort) ||
+                  allSvcs[0];
 
-                    return (
-                      <div
-                        key={svc.service_id}
-                        onClick={() => {
-                          setSelectedServiceId(svc.service_id);
-                          setPreviewPort(svc.port);
-                          if (svc.endpoints && svc.endpoints.length > 0) {
-                            const firstEp = svc.endpoints[0];
-                            setServiceActionMethod(firstEp.method);
-                            setServiceActionPath(firstEp.path);
-                            setServiceActionPayload(
-                              firstEp.sample_payload || ""
-                            );
-                          }
-                        }}
-                        className={`cursor-pointer rounded-xl border p-4 transition-all space-y-3 ${
-                          isSelected
-                            ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/40 shadow-lg"
-                            : "border-nb-gray-800 bg-nb-gray-940 hover:border-nb-gray-700"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span
-                                className={`rounded border px-2 py-0.5 font-mono text-[10px] font-semibold ${catBadgeStyle}`}
-                              >
-                                {catLabel}
-                              </span>
-                              <span className="text-sm font-semibold text-white">
-                                {svc.name}
-                              </span>
-                              <span className="rounded bg-nb-gray-950 border border-nb-gray-800 px-1.5 py-0.5 font-mono text-[10px] text-nb-gray-300">
-                                {svc.node_id}:{svc.port}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-nb-gray-400">
-                              {svc.description ||
-                                "Reachable from outside through the Synapse Core Reverse Proxy tunnel."}
-                            </p>
-                          </div>
+                const categoryGroups = [
+                  {
+                    id: "webui" as const,
+                    title: "🌐 WebUIs & Frontends",
+                    badge: "🌐 WebUI",
+                    badgeStyle:
+                      "border-sky-500/40 bg-sky-950/60 text-sky-300",
+                    items: webuiSvcs,
+                  },
+                  {
+                    id: "backend" as const,
+                    title: "⚡ Backend & REST APIs",
+                    badge: "⚡ Backend API",
+                    badgeStyle:
+                      "border-netbird-500/40 bg-netbird-950/60 text-netbird",
+                    items: backendSvcs,
+                  },
+                  {
+                    id: "database" as const,
+                    title: "🗄️ Datenbanken",
+                    badge: "🗄️ Database",
+                    badgeStyle:
+                      "border-purple-500/40 bg-purple-950/60 text-purple-300",
+                    items: dbSvcs,
+                  },
+                ].filter(
+                  (g) =>
+                    (serviceCategoryFilter === "all" ||
+                      serviceCategoryFilter === g.id) &&
+                    g.items.length > 0
+                );
 
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span
-                              className={`h-2.5 w-2.5 rounded-full ${
-                                healthy
-                                  ? "bg-green-400"
-                                  : "bg-red-500 animate-pulse"
-                              }`}
-                            />
-                            <span
-                              className={`font-mono text-[10px] ${
-                                healthy ? "text-green-400" : "text-red-400"
-                              }`}
-                            >
-                              {healthy ? "ONLINE" : "DEGRADED"}
-                            </span>
-                          </div>
-                        </div>
+                const activeExtUrl = activeSvc
+                  ? `${gatewayUrl}/preview/${activeProject?.project_id}/${
+                      activeSvc.node_id || primaryNode
+                    }/${activeSvc.port}/`
+                  : `${gatewayUrl}/preview/${activeProject?.project_id}/${
+                      primaryNode || "node"
+                    }/${previewPort}/`;
 
-                        {/* External Reachable Reverse-Proxy Box Banner */}
-                        <div className="flex items-center justify-between gap-2 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 text-[11px]">
-                          <div className="truncate">
-                            <span className="text-nb-gray-400 mr-1.5">
-                              Extern erreichbar:
-                            </span>
-                            <a
-                              href={extUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="font-mono text-netbird hover:underline"
-                            >
-                              {extUrl}
-                            </a>
-                          </div>
-                          <a
-                            href={extUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex items-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-920 px-2 py-1 text-[10px] text-white hover:border-netbird shrink-0"
-                          >
-                            <span>Open</span>
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </div>
-
-                        {/* Clickable Options / Endpoints inside the Service Box */}
-                        {svc.endpoints && svc.endpoints.length > 0 && (
-                          <div className="space-y-1.5">
-                            <div className="font-mono text-[10px] uppercase tracking-wider text-nb-gray-400">
-                              Klickbare Optionen &amp; Test-Inputs:
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {svc.endpoints.map((ep) => (
-                                <button
-                                  key={ep.id}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedServiceId(svc.service_id);
-                                    setPreviewPort(svc.port);
-                                    setServiceActionMethod(ep.method);
-                                    setServiceActionPath(ep.path);
-                                    setServiceActionPayload(
-                                      ep.sample_payload || ""
-                                    );
-                                    handleInvokeServiceAction({
-                                      nodeId: svc.node_id,
-                                      port: svc.port,
-                                      method: ep.method,
-                                      path: ep.path,
-                                      payload: ep.sample_payload || "",
-                                    });
-                                  }}
-                                  className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-200 hover:border-netbird hover:bg-netbird-950 hover:text-white transition"
-                                  title={ep.description || ep.label}
-                                >
-                                  <span
-                                    className={`font-mono text-[9px] font-bold px-1 rounded ${
-                                      ep.method === "POST"
-                                        ? "bg-amber-950 text-amber-300"
-                                        : ep.method === "SQL"
-                                        ? "bg-purple-950 text-purple-300"
-                                        : "bg-emerald-950 text-emerald-300"
-                                    }`}
-                                  >
-                                    {ep.method}
-                                  </span>
-                                  <span>{ep.label}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* INTERACTIVE INPUT & ACTION PLAYGROUND BOX + LIVE PREVIEW SPLIT */}
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-                  {/* Left 5 Columns: Interactive Input & Endpoint/DB Tester Box */}
-                  <div className="lg:col-span-5 flex flex-col rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-4 space-y-3 shadow-lg">
-                    <div className="flex items-center justify-between border-b border-nb-gray-800 pb-2.5">
+                return (
+                  <div className="mx-auto flex max-w-6xl flex-col gap-5 p-6">
+                    {/* TOP HEADER & CATEGORY FILTER TABS */}
+                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-nb-gray-900 pb-4">
                       <div>
-                        <h3 className="text-xs font-semibold text-white flex items-center gap-2">
-                          <Zap className="h-3.5 w-3.5 text-netbird" />
-                          Interaktive Service- &amp; Datenbank-Box (Live Input)
-                        </h3>
-                        <p className="text-[11px] text-nb-gray-400">
-                          Wähle oben eine Option oder gib eigene Parameter /
-                          JSON-Payloads / SQL-Abfragen ein.
+                        <h1 className="text-xl font-medium text-nb-gray-100">
+                          Erreichbare Projekt-Dienste, Reverse-Proxy &amp; Live-Preview
+                        </h1>
+                        <p className="text-xs text-nb-gray-400 mt-0.5">
+                          Alle von der KI angelegten WebUIs, Backend-APIs und
+                          Datenbanken sauber nach Kategorie sortiert — links
+                          auswählen, rechts live testen.
                         </p>
                       </div>
-                    </div>
 
-                    <div className="flex gap-2 text-xs">
-                      <select
-                        value={serviceActionMethod}
-                        onChange={(e) =>
-                          setServiceActionMethod(
-                            e.target.value as
-                              | "GET"
-                              | "POST"
-                              | "PUT"
-                              | "DELETE"
-                              | "SQL"
-                          )
-                        }
-                        className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1.5 font-mono text-xs font-semibold text-netbird"
-                      >
-                        <option value="GET">GET</option>
-                        <option value="POST">POST</option>
-                        <option value="PUT">PUT</option>
-                        <option value="DELETE">DELETE</option>
-                        <option value="SQL">SQL</option>
-                      </select>
-
-                      <input
-                        type="text"
-                        value={serviceActionPath}
-                        onChange={(e) => setServiceActionPath(e.target.value)}
-                        placeholder={
-                          serviceActionMethod === "SQL"
-                            ? "/opt/axon/workspaces/.../pulse.db"
-                            : "/api/events"
-                        }
-                        className="flex-1 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 font-mono text-xs text-white"
-                      />
-
-                      <button
-                        type="button"
-                        disabled={serviceActionBusy}
-                        onClick={() => handleInvokeServiceAction()}
-                        className="flex items-center gap-1.5 rounded-md bg-netbird px-3.5 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-50"
-                      >
-                        <Play className="h-3 w-3" />
-                        <span>
-                          {serviceActionBusy ? "Läuft..." : "Ausführen"}
-                        </span>
-                      </button>
-                    </div>
-
-                    {(serviceActionMethod === "POST" ||
-                      serviceActionMethod === "PUT" ||
-                      serviceActionMethod === "SQL" ||
-                      serviceActionPayload.trim() !== "") && (
-                      <div className="space-y-1">
-                        <label className="block font-mono text-[10px] uppercase text-nb-gray-400">
-                          {serviceActionMethod === "SQL"
-                            ? "SQL Query Input (SQLite / DB):"
-                            : "Request Body / JSON Input:"}
-                        </label>
-                        <textarea
-                          rows={4}
-                          value={serviceActionPayload}
-                          onChange={(e) =>
-                            setServiceActionPayload(e.target.value)
-                          }
-                          placeholder={
-                            serviceActionMethod === "SQL"
-                              ? "SELECT * FROM events ORDER BY id DESC LIMIT 10;"
-                              : '{"event": "user_action", "source": "core_ui"}'
-                          }
-                          className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-950 p-2.5 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
-                        />
+                      {/* Category Filter Pills */}
+                      <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-1">
+                        {[
+                          {
+                            id: "all",
+                            label: `Alle (${allSvcs.length})`,
+                          },
+                          {
+                            id: "webui",
+                            label: `🌐 WebUI (${webuiSvcs.length})`,
+                          },
+                          {
+                            id: "backend",
+                            label: `⚡ Backend API (${backendSvcs.length})`,
+                          },
+                          {
+                            id: "database",
+                            label: `🗄️ Datenbank (${dbSvcs.length})`,
+                          },
+                        ].map((tab) => {
+                          const active = serviceCategoryFilter === tab.id;
+                          return (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() =>
+                                setServiceCategoryFilter(
+                                  tab.id as
+                                    | "all"
+                                    | "webui"
+                                    | "backend"
+                                    | "database"
+                                )
+                              }
+                              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                                active
+                                  ? "bg-netbird text-white shadow-sm"
+                                  : "text-nb-gray-400 hover:text-white"
+                              }`}
+                            >
+                              {tab.label}
+                            </button>
+                          );
+                        })}
                       </div>
-                    )}
+                    </div>
 
-                    {/* Live Response Output Box */}
-                    <div className="flex-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-3 font-mono text-[11px] space-y-2">
-                      <div className="flex items-center justify-between border-b border-nb-gray-800/80 pb-1.5 text-[10px]">
-                        <span className="text-nb-gray-400">
-                          Live Reverse-Proxy / DB Response
-                        </span>
-                        {serviceActionResult && (
-                          <span
-                            className={
-                              serviceActionResult.ok
-                                ? "text-green-400"
-                                : "text-red-400"
-                            }
-                          >
-                            {serviceActionResult.method} · Status{" "}
-                            {serviceActionResult.status_code} ·{" "}
-                            {serviceActionResult.latency_ms} ms
-                          </span>
+                    {/* MASTER-DETAIL SPLIT: LEFT SORTED DIRECTORY (4 COLS) + RIGHT WORKSPACE (8 COLS) */}
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+                      {/* LEFT 4 COLUMNS: SORTED SERVICE DIRECTORY BY CATEGORY */}
+                      <div className="lg:col-span-4 space-y-5">
+                        {categoryGroups.length === 0 ? (
+                          <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-5 text-center text-xs text-nb-gray-400">
+                            Keine Dienste in dieser Kategorie gefunden.
+                          </div>
+                        ) : (
+                          categoryGroups.map((group) => (
+                            <div key={group.id} className="space-y-2.5">
+                              <div className="flex items-center justify-between border-b border-nb-gray-800/80 pb-1.5">
+                                <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-nb-gray-300">
+                                  {group.title}
+                                </span>
+                                <span className="rounded bg-nb-gray-900 px-1.5 py-0.5 font-mono text-[10px] text-nb-gray-400">
+                                  {group.items.length}
+                                </span>
+                              </div>
+
+                              <div className="space-y-2.5">
+                                {group.items.map((svc) => {
+                                  const healthy =
+                                    svc.healthy !== false &&
+                                    svc.health_check?.status !== "UNHEALTHY";
+                                  const isSelected =
+                                    activeSvc?.service_id === svc.service_id;
+
+                                  return (
+                                    <div
+                                      key={svc.service_id}
+                                      onClick={() => {
+                                        setSelectedServiceId(svc.service_id);
+                                        setPreviewPort(svc.port);
+                                        setPreviewSubPath("/");
+                                        if (
+                                          svc.endpoints &&
+                                          svc.endpoints.length > 0
+                                        ) {
+                                          const firstEp = svc.endpoints[0];
+                                          setServiceActionMethod(
+                                            firstEp.method
+                                          );
+                                          setServiceActionPath(firstEp.path);
+                                          setServiceActionPayload(
+                                            firstEp.sample_payload || ""
+                                          );
+                                        }
+                                      }}
+                                      className={`cursor-pointer rounded-xl border p-3.5 transition-all space-y-2 ${
+                                        isSelected
+                                          ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/40 shadow-md"
+                                          : "border-nb-gray-800 bg-nb-gray-940 hover:border-nb-gray-700"
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <span
+                                            className={`h-2 w-2 shrink-0 rounded-full ${
+                                              healthy
+                                                ? "bg-green-400"
+                                                : "bg-red-500 animate-pulse"
+                                            }`}
+                                          />
+                                          <span className="truncate text-xs font-semibold text-white">
+                                            {svc.name}
+                                          </span>
+                                        </div>
+                                        <span className="shrink-0 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[10px] text-nb-gray-300">
+                                          {svc.node_id}:{svc.port}
+                                        </span>
+                                      </div>
+
+                                      <p className="text-[11px] text-nb-gray-400 line-clamp-2">
+                                        {svc.description ||
+                                          "Von außen erreichbar über den Reverse-Proxy."}
+                                      </p>
+
+                                      <div className="flex items-center justify-between pt-0.5 text-[10px]">
+                                        <span
+                                          className={`rounded border px-1.5 py-0.5 font-mono ${group.badgeStyle}`}
+                                        >
+                                          {group.badge}
+                                        </span>
+                                        <span className="font-mono text-nb-gray-400">
+                                          {(svc.endpoints || []).length}{" "}
+                                          Option(en) →
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))
                         )}
                       </div>
-                      <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-nb-gray-200">
-                        {serviceActionResult
-                          ? serviceActionResult.response_text
-                          : "Klicke oben in einer Service-Box auf eine Option (z. B. GET /, POST /api/events oder SQL) oder auf 'Ausführen', um den Service live zu testen."}
-                      </pre>
-                    </div>
-                  </div>
 
-                  {/* Right 7 Columns: Live Embedded Reverse-Proxy Iframe Box */}
-                  <div className="lg:col-span-7 flex flex-col overflow-hidden rounded-xl border border-nb-gray-800 bg-nb-gray-940 shadow-xl">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-2.5 text-xs">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <Globe className="h-3.5 w-3.5 text-netbird" />
-                        <span className="font-mono text-nb-gray-300">
-                          {gatewayUrl}/preview/{activeProject?.project_id}/
-                          {primaryNode || "node"}/
-                        </span>
-                        <input
-                          type="number"
-                          value={previewPort}
-                          onChange={(e) =>
-                            setPreviewPort(Number(e.target.value) || 3000)
-                          }
-                          className="w-20 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-netbird"
-                        />
-                        <input
-                          type="text"
-                          value={previewSubPath}
-                          onChange={(e) =>
-                            setPreviewSubPath(e.target.value || "/")
-                          }
-                          className="w-36 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-white"
-                          placeholder="/api/events"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setPreviewReloadNonce((n) => n + 1)}
-                          className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2 py-1 text-[11px] text-nb-gray-300 hover:text-white"
-                        >
-                          Refresh
-                        </button>
-                        <a
-                          href={`${gatewayUrl}/preview/${
-                            activeProject?.project_id
-                          }/${primaryNode}/${previewPort}${
-                            previewSubPath.startsWith("/")
-                              ? previewSubPath
-                              : `/${previewSubPath}`
-                          }`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-1.5 text-nb-gray-300 hover:text-white"
-                        >
-                          <span>Open in New Tab</span>
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
+                      {/* RIGHT 8 COLUMNS: FOCUSED DETAIL WORKSPACE FOR SELECTED SERVICE */}
+                      <div className="lg:col-span-8 space-y-4">
+                        {/* STEP 1: SELECTED SERVICE HEADER & EXTERNAL REACHABILITY BOX */}
+                        {activeSvc && (
+                          <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-4 space-y-3.5 shadow-lg">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span
+                                    className={`rounded border px-2 py-0.5 font-mono text-[10px] font-semibold ${
+                                      activeSvc.category === "webui"
+                                        ? "border-sky-500/40 bg-sky-950/60 text-sky-300"
+                                        : activeSvc.category === "database"
+                                        ? "border-purple-500/40 bg-purple-950/60 text-purple-300"
+                                        : "border-netbird-500/40 bg-netbird-950/60 text-netbird"
+                                    }`}
+                                  >
+                                    {activeSvc.category === "webui"
+                                      ? "🌐 WebUI / Frontend"
+                                      : activeSvc.category === "database"
+                                      ? "🗄️ Database Engine"
+                                      : "⚡ Backend REST API"}
+                                  </span>
+                                  <h2 className="text-base font-semibold text-white">
+                                    {activeSvc.name}
+                                  </h2>
+                                  <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[11px] text-nb-gray-300">
+                                    {activeSvc.node_id}:{activeSvc.port}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-nb-gray-400">
+                                  {activeSvc.description ||
+                                    "Von außen erreichbar über den Synapse Reverse-Proxy Tunnel."}
+                                </p>
+                              </div>
+
+                              {/* Workspace View Switcher (Split / Only Preview / Only Tester) */}
+                              <div className="flex items-center rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-0.5 text-[11px]">
+                                {[
+                                  { id: "split", label: "Split-Ansicht" },
+                                  { id: "preview", label: "Live-Preview" },
+                                  { id: "tester", label: "Input-Tester" },
+                                ].map((mode) => (
+                                  <button
+                                    key={mode.id}
+                                    type="button"
+                                    onClick={() =>
+                                      setServiceWorkspaceTab(
+                                        mode.id as
+                                          | "split"
+                                          | "preview"
+                                          | "tester"
+                                      )
+                                    }
+                                    className={`rounded-md px-2.5 py-1 font-medium transition ${
+                                      serviceWorkspaceTab === mode.id
+                                        ? "bg-netbird text-white"
+                                        : "text-nb-gray-400 hover:text-white"
+                                    }`}
+                                  >
+                                    {mode.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* External Reverse-Proxy URL Banner */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3.5 py-2 text-xs">
+                              <div className="flex items-center gap-2 truncate">
+                                <Globe className="h-3.5 w-3.5 shrink-0 text-netbird" />
+                                <span className="text-nb-gray-400">
+                                  Von außen erreichbar:
+                                </span>
+                                <a
+                                  href={activeExtUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="truncate font-mono text-netbird hover:underline"
+                                >
+                                  {activeExtUrl}
+                                </a>
+                              </div>
+                              <a
+                                href={activeExtUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] font-medium text-white hover:border-netbird"
+                              >
+                                <span>Im Browser öffnen</span>
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </div>
+
+                            {/* STEP 2: SORTED CLICKABLE OPTIONS FOR THE SELECTED SERVICE */}
+                            {activeSvc.endpoints &&
+                              activeSvc.endpoints.length > 0 && (
+                                <div className="space-y-2 pt-1">
+                                  <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
+                                    Klickbare Optionen &amp; vordefinierte
+                                    Test-Inputs ({activeSvc.endpoints.length}):
+                                  </div>
+                                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    {activeSvc.endpoints.map((ep) => (
+                                      <button
+                                        key={ep.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedServiceId(
+                                            activeSvc.service_id
+                                          );
+                                          setPreviewPort(activeSvc.port);
+                                          setServiceActionMethod(ep.method);
+                                          setServiceActionPath(ep.path);
+                                          setServiceActionPayload(
+                                            ep.sample_payload || ""
+                                          );
+                                          handleInvokeServiceAction({
+                                            nodeId: activeSvc.node_id,
+                                            port: activeSvc.port,
+                                            method: ep.method,
+                                            path: ep.path,
+                                            payload: ep.sample_payload || "",
+                                          });
+                                        }}
+                                        className="flex items-center justify-between gap-2 rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 text-left text-xs hover:border-netbird hover:bg-nb-gray-900 transition"
+                                      >
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-2">
+                                            <span
+                                              className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold ${
+                                                ep.method === "POST"
+                                                  ? "bg-amber-950 text-amber-300 border border-amber-500/30"
+                                                  : ep.method === "SQL"
+                                                  ? "bg-purple-950 text-purple-300 border border-purple-500/30"
+                                                  : "bg-emerald-950 text-emerald-300 border border-emerald-500/30"
+                                              }`}
+                                            >
+                                              {ep.method}
+                                            </span>
+                                            <span className="truncate font-medium text-white">
+                                              {ep.label}
+                                            </span>
+                                          </div>
+                                          {ep.description && (
+                                            <div className="mt-0.5 truncate text-[10px] text-nb-gray-400">
+                                              {ep.description}
+                                            </div>
+                                          )}
+                                        </div>
+                                        <Play className="h-3 w-3 shrink-0 text-netbird" />
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                          </div>
+                        )}
+
+                        {/* STEP 3: INTERACTIVE INPUT TESTER BOX (SHOWN IN 'split' OR 'tester' MODE) */}
+                        {(serviceWorkspaceTab === "split" ||
+                          serviceWorkspaceTab === "tester") && (
+                          <div className="flex flex-col rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-4 space-y-3 shadow-lg">
+                            <div className="flex items-center justify-between border-b border-nb-gray-800 pb-2.5">
+                              <div>
+                                <h3 className="text-xs font-semibold text-white flex items-center gap-2">
+                                  <Zap className="h-3.5 w-3.5 text-netbird" />
+                                  Interaktive Input- &amp; Datenbank-Box (Live
+                                  Request / SQL Tester)
+                                </h3>
+                                <p className="text-[11px] text-nb-gray-400">
+                                  Bearbeite Methode, Pfad oder Payload und
+                                  klicke auf &bdquo;Ausführen&ldquo;.
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              <select
+                                value={serviceActionMethod}
+                                onChange={(e) =>
+                                  setServiceActionMethod(
+                                    e.target.value as
+                                      | "GET"
+                                      | "POST"
+                                      | "PUT"
+                                      | "DELETE"
+                                      | "SQL"
+                                  )
+                                }
+                                className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 font-mono text-xs font-semibold text-netbird"
+                              >
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="DELETE">DELETE</option>
+                                <option value="SQL">SQL</option>
+                              </select>
+
+                              <input
+                                type="text"
+                                value={serviceActionPath}
+                                onChange={(e) =>
+                                  setServiceActionPath(e.target.value)
+                                }
+                                placeholder={
+                                  serviceActionMethod === "SQL"
+                                    ? "/opt/axon/workspaces/.../pulse.db"
+                                    : "/api/events"
+                                }
+                                className="flex-1 min-w-[200px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 font-mono text-xs text-white"
+                              />
+
+                              <button
+                                type="button"
+                                disabled={serviceActionBusy}
+                                onClick={() => handleInvokeServiceAction()}
+                                className="flex items-center gap-1.5 rounded-md bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-50"
+                              >
+                                <Play className="h-3 w-3" />
+                                <span>
+                                  {serviceActionBusy
+                                    ? "Läuft..."
+                                    : "Ausführen"}
+                                </span>
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                              <div className="space-y-1">
+                                <label className="block font-mono text-[10px] uppercase text-nb-gray-400">
+                                  {serviceActionMethod === "SQL"
+                                    ? "SQL Query Input (SQLite / DB):"
+                                    : "Request Body / JSON Input (optional bei GET):"}
+                                </label>
+                                <textarea
+                                  rows={5}
+                                  value={serviceActionPayload}
+                                  onChange={(e) =>
+                                    setServiceActionPayload(e.target.value)
+                                  }
+                                  placeholder={
+                                    serviceActionMethod === "SQL"
+                                      ? "SELECT * FROM events ORDER BY id DESC LIMIT 10;"
+                                      : '{"action": "ping", "message": "Test"}'
+                                  }
+                                  className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-950 p-2.5 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="flex flex-col rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-3 font-mono text-[11px] space-y-1.5">
+                                <div className="flex items-center justify-between border-b border-nb-gray-800/80 pb-1 text-[10px]">
+                                  <span className="text-nb-gray-400">
+                                    Live Response Output
+                                  </span>
+                                  {serviceActionResult && (
+                                    <span
+                                      className={
+                                        serviceActionResult.ok
+                                          ? "text-green-400"
+                                          : "text-red-400"
+                                      }
+                                    >
+                                      {serviceActionResult.method} · Status{" "}
+                                      {serviceActionResult.status_code} ·{" "}
+                                      {serviceActionResult.latency_ms} ms
+                                    </span>
+                                  )}
+                                </div>
+                                <pre className="max-h-36 flex-1 overflow-auto whitespace-pre-wrap text-nb-gray-200">
+                                  {serviceActionResult
+                                    ? serviceActionResult.response_text
+                                    : "Wähle oben eine Option oder klicke auf 'Ausführen', um die Live-Antwort zu sehen."}
+                                </pre>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* STEP 4: LIVE EMBEDDED REVERSE-PROXY IFRAME (SHOWN IN 'split' OR 'preview' MODE) */}
+                        {(serviceWorkspaceTab === "split" ||
+                          serviceWorkspaceTab === "preview") && (
+                          <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-800 bg-nb-gray-940 shadow-xl">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-2.5 text-xs">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Globe className="h-3.5 w-3.5 text-netbird" />
+                                <span className="font-semibold text-white mr-1">
+                                  Live-Preview:
+                                </span>
+                                <span className="font-mono text-nb-gray-300">
+                                  {gatewayUrl}/preview/
+                                  {activeProject?.project_id}/
+                                  {activeSvc?.node_id || primaryNode || "node"}/
+                                </span>
+                                <input
+                                  type="number"
+                                  value={previewPort}
+                                  onChange={(e) =>
+                                    setPreviewPort(
+                                      Number(e.target.value) || 3000
+                                    )
+                                  }
+                                  className="w-20 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-netbird"
+                                />
+                                <input
+                                  type="text"
+                                  value={previewSubPath}
+                                  onChange={(e) =>
+                                    setPreviewSubPath(e.target.value || "/")
+                                  }
+                                  className="w-36 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-xs text-white"
+                                  placeholder="/"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPreviewReloadNonce((n) => n + 1)
+                                  }
+                                  className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-300 hover:text-white"
+                                >
+                                  Neu laden
+                                </button>
+                                <a
+                                  href={`${gatewayUrl}/preview/${
+                                    activeProject?.project_id
+                                  }/${activeSvc?.node_id || primaryNode}/${previewPort}${
+                                    previewSubPath.startsWith("/")
+                                      ? previewSubPath
+                                      : `/${previewSubPath}`
+                                  }`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-center gap-1.5 text-nb-gray-300 hover:text-white"
+                                >
+                                  <span>Neuer Tab</span>
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              </div>
+                            </div>
+                            <iframe
+                              key={`${previewPort}-${previewSubPath}-${previewReloadNonce}`}
+                              title="Synapse Reverse Proxy Preview"
+                              src={`${gatewayUrl}/preview/${
+                                activeProject?.project_id
+                              }/${
+                                activeSvc?.node_id ||
+                                primaryNode ||
+                                "unassigned"
+                              }/${previewPort}${
+                                previewSubPath.startsWith("/")
+                                  ? previewSubPath
+                                  : `/${previewSubPath}`
+                              }`}
+                              className="w-full bg-white h-[440px]"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <iframe
-                      key={`${previewPort}-${previewSubPath}-${previewReloadNonce}`}
-                      title="Synapse Reverse Proxy Preview"
-                      src={`${gatewayUrl}/preview/${
-                        activeProject?.project_id
-                      }/${primaryNode || "unassigned"}/${previewPort}${
-                        previewSubPath.startsWith("/")
-                          ? previewSubPath
-                          : `/${previewSubPath}`
-                      }`}
-                      className="flex-1 w-full bg-white min-h-[420px]"
-                    />
                   </div>
-                </div>
-              </div>
-            )}
+                );
+              })()}
 
             {/* ═══════════════════════════════════════════════════════════════
                 VIEW 5: BRAIN VAULT DOCUMENTS (`brain-vault`)
@@ -4570,201 +4879,241 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         </div>
                       )}
 
-                      {/* Executed Tool Calls + Cache Badge + 1-Click Rollback */}
-                      {msg.toolResults && msg.toolResults.length > 0 && (
-                        <div className="mt-2.5 space-y-1.5 border-t border-nb-gray-800 pt-2">
-                          {msg.toolResults.map((tr, tIdx) => {
-                            const key = `${idx}-${tIdx}`;
-                            const open = expandedTools[key];
-                            return (
-                              <div
-                                key={key}
-                                className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 font-mono text-[11px]"
-                              >
-                                <div className="flex items-center justify-between gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setExpandedTools((prev) => ({
-                                        ...prev,
-                                        [key]: !prev[key],
-                                      }))
-                                    }
-                                    className="flex flex-1 items-center justify-between text-left"
-                                  >
-                                    <span className="flex items-center gap-1.5 text-netbird">
-                                      <span>{tr.tool_name}</span>
-                                      {tr.cached && (
-                                        <span className="rounded bg-emerald-950 px-1.5 py-0.2 text-[9px] text-emerald-300 border border-emerald-500/30">
-                                          CACHED
-                                        </span>
-                                      )}
-                                    </span>
-                                    <span className="text-[10px] uppercase text-green-400">
-                                      {tr.status}
-                                    </span>
-                                  </button>
+                      {/* Cleanly Sorted Tool Calls Summary + Dedicated Registered Service Cards */}
+                      {msg.toolResults && msg.toolResults.length > 0 && (() => {
+                        const registeredTurnServices = msg.toolResults
+                          .filter(
+                            (tr) =>
+                              tr.tool_name === "core_register_service" &&
+                              Boolean(
+                                (tr.output as Record<string, unknown>)
+                                  ?.registered
+                              )
+                          )
+                          .map(
+                            (tr) =>
+                              (
+                                tr.output as {
+                                  registered: {
+                                    service_id: string;
+                                    name: string;
+                                    node_id: string;
+                                    port: number;
+                                    category?: string;
+                                    description?: string;
+                                    endpoints?: Array<{
+                                      id: string;
+                                      label: string;
+                                      method:
+                                        | "GET"
+                                        | "POST"
+                                        | "PUT"
+                                        | "DELETE"
+                                        | "SQL";
+                                      path: string;
+                                      sample_payload?: string;
+                                    }>;
+                                  };
+                                }
+                              ).registered
+                          );
 
-                                  {tr.rollback_snapshot_id && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleRollbackSnapshot(
-                                          tr.rollback_snapshot_id!,
-                                          tr.rollback_path
-                                        )
-                                      }
-                                      title={`Rollback ${
-                                        tr.rollback_path || "file"
-                                      } to pre-write snapshot`}
-                                      className="flex items-center gap-1 rounded border border-amber-500/40 bg-amber-950/50 px-1.5 py-0.5 text-[9px] text-amber-300 hover:bg-amber-900/60 hover:text-white"
-                                    >
-                                      <RotateCcw className="h-2.5 w-2.5" />
-                                      <span>Rollback</span>
-                                    </button>
-                                  )}
+                        const turnToolsExpanded = Boolean(
+                          expandedTurnTools[idx]
+                        );
+
+                        return (
+                          <div className="mt-2.5 space-y-2 border-t border-nb-gray-800 pt-2">
+                            {/* 1. Dedicated Highlight Boxes for Newly Registered Services (WebUI / Backend / DB) */}
+                            {registeredTurnServices.length > 0 && (
+                              <div className="space-y-2">
+                                <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
+                                  Von außen erreichbare Dienste (
+                                  {registeredTurnServices.length}):
                                 </div>
-                                {open && (
-                                  <pre className="mt-1.5 max-h-36 overflow-auto text-[10px] text-nb-gray-300">
-                                    {JSON.stringify(tr.output, null, 2)}
-                                  </pre>
-                                )}
+                                {registeredTurnServices.map((reg) => {
+                                  const liveSvc =
+                                    (
+                                      activeProject?.registered_services || []
+                                    ).find(
+                                      (s) =>
+                                        s.service_id === reg.service_id ||
+                                        s.port === reg.port
+                                    ) || reg;
+                                  const eps =
+                                    liveSvc.endpoints || reg.endpoints || [];
+                                  const cat = liveSvc.category || "backend";
+                                  const catBadge =
+                                    cat === "webui"
+                                      ? "🌐 WebUI"
+                                      : cat === "database"
+                                      ? "🗄️ DB"
+                                      : "⚡ API";
 
-                                {tr.tool_name === "core_register_service" &&
-                                  Boolean(
-                                    (tr.output as Record<string, unknown>)
-                                      ?.registered
-                                  ) && (() => {
-                                    const reg = (
-                                      tr.output as {
-                                        registered: {
-                                          service_id: string;
-                                          name: string;
-                                          node_id: string;
-                                          port: number;
-                                          category?: string;
-                                          description?: string;
-                                          endpoints?: Array<{
-                                            id: string;
-                                            label: string;
-                                            method:
-                                              | "GET"
-                                              | "POST"
-                                              | "PUT"
-                                              | "DELETE"
-                                              | "SQL";
-                                            path: string;
-                                            sample_payload?: string;
-                                          }>;
-                                        };
-                                      }
-                                    ).registered;
-                                    const liveSvc =
-                                      (
-                                        activeProject?.registered_services || []
-                                      ).find(
-                                        (s) =>
-                                          s.service_id === reg.service_id ||
-                                          s.port === reg.port
-                                      ) || reg;
-                                    const eps =
-                                      liveSvc.endpoints || reg.endpoints || [];
-                                    const extUrl = `${gatewayUrl}/preview/${
-                                      activeProject?.project_id
-                                    }/${reg.node_id || primaryNode}/${
-                                      reg.port
-                                    }/`;
+                                  return (
+                                    <div
+                                      key={reg.service_id}
+                                      className="rounded-lg border border-netbird-500/40 bg-nb-gray-940 p-2.5 font-sans text-xs space-y-2"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                          <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[10px] text-netbird shrink-0">
+                                            {catBadge}
+                                          </span>
+                                          <span className="truncate font-semibold text-white">
+                                            {liveSvc.name || reg.service_id}
+                                          </span>
+                                          <span className="font-mono text-[10px] text-nb-gray-400 shrink-0">
+                                            :{reg.port}
+                                          </span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedServiceId(
+                                              reg.service_id
+                                            );
+                                            setPreviewPort(reg.port);
+                                            setActiveNav("reverse-proxy");
+                                          }}
+                                          className="shrink-0 rounded bg-netbird px-2 py-0.5 text-[10px] font-medium text-white hover:bg-netbird-500"
+                                        >
+                                          Öffnen →
+                                        </button>
+                                      </div>
 
-                                    return (
-                                      <div className="mt-2 rounded-lg border border-netbird-500/40 bg-nb-gray-930 p-2.5 font-sans text-xs space-y-2">
-                                        <div className="flex items-center justify-between gap-2">
-                                          <div className="flex items-center gap-1.5">
-                                            <Globe className="h-3.5 w-3.5 text-netbird" />
-                                            <span className="font-semibold text-white">
-                                              {liveSvc.name || reg.service_id}
-                                            </span>
-                                            <span className="rounded bg-nb-gray-950 border border-nb-gray-800 px-1.5 py-0.5 font-mono text-[10px] text-netbird">
-                                              :{reg.port}
-                                            </span>
-                                          </div>
+                                      {eps.length > 0 && (
+                                        <div className="flex flex-wrap gap-1">
+                                          {eps.map((ep) => (
+                                            <button
+                                              key={ep.id}
+                                              type="button"
+                                              onClick={() => {
+                                                setSelectedServiceId(
+                                                  reg.service_id
+                                                );
+                                                setPreviewPort(reg.port);
+                                                setServiceActionMethod(
+                                                  ep.method
+                                                );
+                                                setServiceActionPath(ep.path);
+                                                setServiceActionPayload(
+                                                  ep.sample_payload || ""
+                                                );
+                                                setActiveNav("reverse-proxy");
+                                                handleInvokeServiceAction({
+                                                  nodeId: reg.node_id,
+                                                  port: reg.port,
+                                                  method: ep.method,
+                                                  path: ep.path,
+                                                  payload:
+                                                    ep.sample_payload || "",
+                                                });
+                                              }}
+                                              className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2 py-0.5 font-mono text-[10px] text-nb-gray-200 hover:border-netbird hover:text-white"
+                                            >
+                                              <strong className="text-netbird">
+                                                {ep.method}
+                                              </strong>{" "}
+                                              {ep.label}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* 2. Collapsible Technical Tool Execution Log */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedTurnTools((prev) => ({
+                                  ...prev,
+                                  [idx]: !prev[idx],
+                                }))
+                              }
+                              className="flex w-full items-center justify-between rounded border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 font-mono text-[10px] text-nb-gray-300 hover:border-nb-gray-700 hover:text-white"
+                            >
+                              <span>
+                                🛠️ {msg.toolResults.length} ausgeführte
+                                Tool-Schritte
+                              </span>
+                              <span className="text-netbird">
+                                {turnToolsExpanded
+                                  ? "Ausblenden ▲"
+                                  : "Details anzeigen ▼"}
+                              </span>
+                            </button>
+
+                            {turnToolsExpanded && (
+                              <div className="space-y-1.5 pl-1">
+                                {msg.toolResults.map((tr, tIdx) => {
+                                  const key = `${idx}-${tIdx}`;
+                                  const open = expandedTools[key];
+                                  return (
+                                    <div
+                                      key={key}
+                                      className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 font-mono text-[11px]"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setExpandedTools((prev) => ({
+                                              ...prev,
+                                              [key]: !prev[key],
+                                            }))
+                                          }
+                                          className="flex flex-1 items-center justify-between text-left"
+                                        >
+                                          <span className="flex items-center gap-1.5 text-netbird">
+                                            <span>{tr.tool_name}</span>
+                                            {tr.cached && (
+                                              <span className="rounded bg-emerald-950 px-1.5 py-0.2 text-[9px] text-emerald-300 border border-emerald-500/30">
+                                                CACHED
+                                              </span>
+                                            )}
+                                          </span>
+                                          <span className="text-[10px] uppercase text-green-400">
+                                            {tr.status}
+                                          </span>
+                                        </button>
+
+                                        {tr.rollback_snapshot_id && (
                                           <button
                                             type="button"
-                                            onClick={() => {
-                                              setSelectedServiceId(
-                                                reg.service_id
-                                              );
-                                              setPreviewPort(reg.port);
-                                              setActiveNav("reverse-proxy");
-                                            }}
-                                            className="rounded bg-netbird px-2 py-0.5 text-[10px] font-medium text-white hover:bg-netbird-500"
+                                            onClick={() =>
+                                              handleRollbackSnapshot(
+                                                tr.rollback_snapshot_id!,
+                                                tr.rollback_path
+                                              )
+                                            }
+                                            title={`Rollback ${
+                                              tr.rollback_path || "file"
+                                            } to pre-write snapshot`}
+                                            className="flex items-center gap-1 rounded border border-amber-500/40 bg-amber-950/50 px-1.5 py-0.5 text-[9px] text-amber-300 hover:bg-amber-900/60 hover:text-white"
                                           >
-                                            Im Live-Preview öffnen →
+                                            <RotateCcw className="h-2.5 w-2.5" />
+                                            <span>Rollback</span>
                                           </button>
-                                        </div>
-
-                                        <p className="text-[11px] text-nb-gray-300">
-                                          {liveSvc.description ||
-                                            "Von außen erreichbar über Synapse Reverse-Proxy mit folgenden Optionen & Inputs:"}
-                                        </p>
-
-                                        <div className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-1 font-mono text-[10px] text-nb-gray-300 truncate">
-                                          URL:{" "}
-                                          <a
-                                            href={extUrl}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="text-netbird hover:underline"
-                                          >
-                                            {extUrl}
-                                          </a>
-                                        </div>
-
-                                        {eps.length > 0 && (
-                                          <div className="flex flex-wrap gap-1 pt-0.5">
-                                            {eps.map((ep) => (
-                                              <button
-                                                key={ep.id}
-                                                type="button"
-                                                onClick={() => {
-                                                  setSelectedServiceId(
-                                                    reg.service_id
-                                                  );
-                                                  setPreviewPort(reg.port);
-                                                  setServiceActionMethod(
-                                                    ep.method
-                                                  );
-                                                  setServiceActionPath(ep.path);
-                                                  setServiceActionPayload(
-                                                    ep.sample_payload || ""
-                                                  );
-                                                  setActiveNav("reverse-proxy");
-                                                  handleInvokeServiceAction({
-                                                    nodeId: reg.node_id,
-                                                    port: reg.port,
-                                                    method: ep.method,
-                                                    path: ep.path,
-                                                    payload:
-                                                      ep.sample_payload || "",
-                                                  });
-                                                }}
-                                                className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2 py-0.5 font-mono text-[10px] text-nb-gray-200 hover:border-netbird hover:text-white"
-                                              >
-                                                <strong className="text-netbird">
-                                                  {ep.method}
-                                                </strong>{" "}
-                                                {ep.label}
-                                              </button>
-                                            ))}
-                                          </div>
                                         )}
                                       </div>
-                                    );
-                                  })()}
+                                      {open && (
+                                        <pre className="mt-1.5 max-h-36 overflow-auto text-[10px] text-nb-gray-300">
+                                          {JSON.stringify(tr.output, null, 2)}
+                                        </pre>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
