@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -27,24 +28,55 @@ var (
 	commit  = "HEAD"
 )
 
+func enableDebugLogging(enable bool) {
+	if !enable && !tunnel.DebugEnabled {
+		return
+	}
+	tunnel.DebugEnabled = true
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
+	debugLogPath := filepath.Join(os.TempDir(), "axon-debug.log")
+	if f, err := os.OpenFile(debugLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
+		log.SetOutput(io.MultiWriter(os.Stderr, f))
+		log.Printf("[axon:DEBUG] Verbose Debug Mode ENABLED (mirroring logs to %s)", debugLogPath)
+	} else {
+		log.Printf("[axon:DEBUG] Verbose Debug Mode ENABLED (stderr)")
+	}
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
 	}
 
-	subcmd := os.Args[1]
+	// Check if global --debug or -d flag was passed before or after subcommand
+	filteredArgs := make([]string, 0, len(os.Args))
+	for i, arg := range os.Args {
+		if i > 0 && (arg == "--debug" || arg == "-d") {
+			enableDebugLogging(true)
+			continue
+		}
+		filteredArgs = append(filteredArgs, arg)
+	}
+	if len(filteredArgs) < 2 {
+		printUsage()
+		os.Exit(1)
+	}
+
+	subcmd := filteredArgs[1]
 	switch subcmd {
 	case "join":
-		runJoin(os.Args[2:])
+		runJoin(filteredArgs[2:])
 	case "switch", "rebind", "connect":
-		runSwitchCore(os.Args[2:])
+		runSwitchCore(filteredArgs[2:])
 	case "profiles", "list-cores":
-		runProfiles(os.Args[2:])
+		runProfiles(filteredArgs[2:])
 	case "run":
-		runDaemon(os.Args[2:])
+		runDaemon(filteredArgs[2:])
 	case "status":
-		runStatus(os.Args[2:])
+		runStatus(filteredArgs[2:])
+	case "debug", "doctor", "diag":
+		runDebugDoctor(filteredArgs[2:])
 	case "version", "--version", "-v":
 		fmt.Printf("axon %s (%s) [%s/%s] — Synapse Muscle Single-Binary Agent\n", version, commit, runtime.GOOS, runtime.GOARCH)
 	default:
@@ -139,7 +171,9 @@ func runJoin(args []string) {
 	workspaceRoot := fsFlags.String("workspace-root", "/opt/axon/workspaces", "Workspace root directory for TIER_2_WORKSPACE_JAIL")
 	profileName := fsFlags.String("profile", "", "Optional profile alias to save this Core identity under")
 	autoRun := fsFlags.Bool("run", false, "Immediately start the tunnel daemon after bootstrapping")
+	debugFlag := fsFlags.Bool("debug", false, "Enable verbose debug logging")
 	_ = fsFlags.Parse(args)
+	enableDebugLogging(*debugFlag)
 
 	token := strings.TrimSpace(*tokenFlag)
 	remaining := fsFlags.Args()
@@ -178,7 +212,9 @@ func runSwitchCore(args []string) {
 	workspaceRoot := fsFlags.String("workspace-root", "/opt/axon/workspaces", "Workspace root directory")
 	restartDaemon := fsFlags.Bool("restart", true, "Automatically restart systemd axon.service if active")
 	runForeground := fsFlags.Bool("run", false, "Immediately run the tunnel in foreground after switching")
+	debugFlag := fsFlags.Bool("debug", false, "Enable verbose debug logging")
 	_ = fsFlags.Parse(args)
+	enableDebugLogging(*debugFlag)
 
 	remaining := fsFlags.Args()
 	token := strings.TrimSpace(*tokenFlag)
@@ -297,7 +333,9 @@ func runDaemon(args []string) {
 	tierOverride := fsFlags.String("tier", string(tunnelv1.Tier2WorkspaceJail), "Autonomy tier when bootstrapping via --token")
 	nodeIDOverride := fsFlags.String("node-id", "", "Node ID when bootstrapping via --token")
 	workspaceRoot := fsFlags.String("workspace-root", "/opt/axon/workspaces", "Workspace root directory")
+	debugFlag := fsFlags.Bool("debug", false, "Enable verbose debug logging")
 	_ = fsFlags.Parse(args)
+	enableDebugLogging(*debugFlag)
 
 	// Allow one-shot `axon run --core http://<NEW_CORE>:8081 --token <NEW_TOKEN>` directly from the shell!
 	if strings.TrimSpace(*tokenOverride) != "" {
@@ -318,6 +356,9 @@ func runDaemon(args []string) {
 	if err != nil {
 		log.Fatalf("[axon run] failed to load identity from %s: %v (run 'axon join <token>' or 'axon switch --core <url> --token <token>' first)", *configDir, err)
 	}
+	if cfg.Debug {
+		enableDebugLogging(true)
+	}
 
 	startAgentLoop(cfg)
 }
@@ -327,7 +368,7 @@ func startAgentLoop(cfg *tunnel.IdentityConfig) {
 	defer stop()
 
 	agent := tunnel.NewAgent(cfg)
-	log.Printf("[axon] starting agent %q -> %s (tier=%s, pid=%d)", cfg.NodeID, cfg.CoreGateway, cfg.Tier, os.Getpid())
+	log.Printf("[axon] starting agent %q -> %s (tier=%s, pid=%d, debug=%v)", cfg.NodeID, cfg.CoreGateway, cfg.Tier, os.Getpid(), tunnel.DebugEnabled)
 	if err := agent.RunForever(ctx); err != nil && err != context.Canceled {
 		log.Fatalf("[axon] fatal error: %v", err)
 	}
@@ -354,26 +395,52 @@ func runStatus(args []string) {
 	snap := col.Collect(nil)
 
 	report := map[string]any{
-		"agent":         fmt.Sprintf("axon %s (%s)", version, commit),
-		"pid":           os.Getpid(),
-		"core_http":     coreHTTP,
-		"core_gateway":  coreEndpoint,
-		"config_dir":    *configDir,
-		"telemetry":     snap,
+		"agent":        fmt.Sprintf("axon %s (%s)", version, commit),
+		"pid":          os.Getpid(),
+		"debug_mode":   tunnel.DebugEnabled,
+		"core_http":    coreHTTP,
+		"core_gateway": coreEndpoint,
+		"config_dir":   *configDir,
+		"telemetry":    snap,
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(report)
 }
 
+func runDebugDoctor(args []string) {
+	fsFlags := flag.NewFlagSet("debug", flag.ExitOnError)
+	configDir := fsFlags.String("config-dir", defaultConfigDir, "Directory containing config.json")
+	enablePersist := fsFlags.Bool("enable", false, "Persist debug=true in config.json")
+	disablePersist := fsFlags.Bool("disable", false, "Persist debug=false in config.json")
+	_ = fsFlags.Parse(args)
+
+	enableDebugLogging(true)
+
+	if *enablePersist || *disablePersist {
+		if cfg, err := tunnel.LoadIdentity(*configDir); err == nil {
+			cfg.Debug = *enablePersist && !*disablePersist
+			b, _ := json.MarshalIndent(cfg, "", "  ")
+			_ = os.WriteFile(filepath.Join(*configDir, "config.json"), b, 0o600)
+			fmt.Printf("[axon debug] Updated persistent debug=%v in %s/config.json\n", cfg.Debug, *configDir)
+		}
+	}
+
+	rep := tunnel.RunDiagnostics(*configDir)
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(rep)
+}
+
 func printUsage() {
 	fmt.Println(`Synapse Axon Agent ("The Muscle")
 Usage:
-  axon join [flags] <token>                  Bootstrap mTLS certificate via one-time CSR token
-  axon switch --core <url> --token <token>   Rebind this Muscle to a different Core server & token
-  axon switch --profile <name>               Switch back to a previously saved Core profile
-  axon profiles                              List active & saved Core server profiles
-  axon run [--core <url> --token <token>]    Start outbound mTLS + Yamux reverse tunnel (with optional inline rebind)
-  axon status [flags]                        Print local hardware telemetry and mTLS enrollment status
-  axon version                               Print agent version`)
+  axon join [--debug] [flags] <token>                  Bootstrap mTLS certificate via one-time CSR token
+  axon switch [--debug] --core <url> --token <token>   Rebind this Muscle to a different Core server & token
+  axon switch --profile <name>                         Switch back to a previously saved Core profile
+  axon profiles                                        List active & saved Core server profiles
+  axon run [--debug] [--core <url> --token <token>]    Start outbound mTLS + Yamux reverse tunnel
+  axon debug [--config-dir <dir>] [--enable|--disable] Run 5-step mTLS/HTTP/FS diagnostic doctor & toggle debug mode
+  axon status [flags]                                  Print local hardware telemetry and mTLS enrollment status
+  axon version                                         Print agent version`)
 }

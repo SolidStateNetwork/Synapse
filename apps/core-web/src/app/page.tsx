@@ -324,8 +324,20 @@ export default function SynapseNetBirdControlCenter() {
   );
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(true);
   const [settingsTab, setSettingsTab] = useState<
-    "setup-keys" | "secrets-vault" | "ai-providers"
+    "setup-keys" | "secrets-vault" | "ai-providers" | "debug-console"
   >("setup-keys");
+  const [debugModeEnabled, setDebugModeEnabled] = useState(false);
+  const [debugSnapshot, setDebugSnapshot] = useState<Record<string, unknown> | null>(null);
+  const [selfTestChecks, setSelfTestChecks] = useState<
+    Array<{
+      id: string;
+      name: string;
+      status: "PASS" | "WARN" | "FAIL";
+      latency_ms: number;
+      detail: string;
+    }>
+  >([]);
+  const [runningSelfTest, setRunningSelfTest] = useState(false);
 
   // Peer & Activity Filters (NetBird Chip Filter bar)
   const [peerSearch, setPeerSearch] = useState("");
@@ -1425,6 +1437,70 @@ export default function SynapseNetBirdControlCenter() {
     await loadWorkspace(activeProject.project_id);
   }
 
+  const fetchDebugSnapshot = useCallback(async () => {
+    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    try {
+      const res = await fetch(
+        `/api/debug?project_id=${encodeURIComponent(pid)}`,
+        { cache: "no-store" }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      setDebugSnapshot(data);
+      const cw = data.core_web as Record<string, unknown> | undefined;
+      const gw = data.gateway as Record<string, unknown> | undefined;
+      setDebugModeEnabled(
+        Boolean(cw?.debug_enabled || gw?.debug_enabled)
+      );
+    } catch {
+      // ignore
+    }
+  }, [activeProject?.project_id]);
+
+  async function handleToggleDebugMode() {
+    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    const next = !debugModeEnabled;
+    setDebugModeEnabled(next);
+    await fetch("/api/debug", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_id: pid,
+        action: "toggle_debug",
+        enabled: next,
+      }),
+    });
+    setStatusToast(
+      next
+        ? "Debug Mode ENABLED (Core + Gateway + Muscle traces)"
+        : "Debug Mode DISABLED"
+    );
+    setTimeout(() => setStatusToast(""), 3000);
+    await fetchDebugSnapshot();
+  }
+
+  async function handleRunSelfTest() {
+    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    setRunningSelfTest(true);
+    try {
+      const res = await fetch("/api/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id: pid,
+          action: "run_self_test",
+        }),
+      });
+      const data = await res.json();
+      if (Array.isArray(data.checks)) {
+        setSelfTestChecks(data.checks);
+      }
+      await fetchDebugSnapshot();
+    } finally {
+      setRunningSelfTest(false);
+    }
+  }
+
   const sidebarItems: Array<{
     id: NavSection;
     label: string;
@@ -1784,6 +1860,23 @@ export default function SynapseNetBirdControlCenter() {
                 <span>Heal :{unhealthyServices[0].port}</span>
               </button>
             )}
+
+            <button
+              onClick={() => {
+                setActiveNav("settings");
+                setSettingsTab("debug-console");
+                fetchDebugSnapshot();
+              }}
+              className={`hidden sm:flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-[11px] transition-colors ${
+                debugModeEnabled
+                  ? "border-amber-500/60 bg-amber-950/60 text-amber-300"
+                  : "border-nb-gray-800/80 bg-nb-gray-920 text-nb-gray-300 hover:text-white"
+              }`}
+              title="Open Core & Muscle Debug Mode & Self-Test Inspector"
+            >
+              <Activity className="h-3.5 w-3.5 text-amber-400" />
+              <span>{debugModeEnabled ? "DEBUG: ON" : "Debug"}</span>
+            </button>
 
             <button
               onClick={() => {
@@ -3217,15 +3310,23 @@ export default function SynapseNetBirdControlCenter() {
                       label: "AI Providers & Base URL",
                       icon: Bot,
                     },
+                    {
+                      id: "debug-console",
+                      label: `Debug & Self-Test (${
+                        debugModeEnabled ? "ON" : "OFF"
+                      })`,
+                      icon: Activity,
+                    },
                   ].map((t) => {
                     const Icon = t.icon;
                     const active = settingsTab === t.id;
                     return (
                       <button
                         key={t.id}
-                        onClick={() =>
-                          setSettingsTab(t.id as typeof settingsTab)
-                        }
+                        onClick={() => {
+                          setSettingsTab(t.id as typeof settingsTab);
+                          if (t.id === "debug-console") fetchDebugSnapshot();
+                        }}
                         className={`flex items-center gap-2 rounded-md px-3.5 py-2 text-xs font-medium transition ${
                           active
                             ? "bg-nb-gray-900 text-white border border-nb-gray-800"
@@ -3478,6 +3579,124 @@ export default function SynapseNetBirdControlCenter() {
                         Save AI Provider
                       </button>
                     </form>
+                  </div>
+                )}
+
+                {settingsTab === "debug-console" && (
+                  <div className="space-y-5">
+                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-6 space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h2 className="text-base font-medium text-white flex items-center gap-2">
+                            <Activity className="h-4 w-4 text-amber-400" />
+                            Core &amp; Muscle Debug Mode + End-to-End Self-Test
+                          </h2>
+                          <p className="text-xs text-nb-gray-400 mt-0.5">
+                            Inspect live mTLS 1.3 + Yamux stream traces, verify AES-256-GCM Vault integrity, and run diagnostic checks on both Core and Muscle.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleToggleDebugMode}
+                            className={`rounded-md border px-3.5 py-2 font-mono text-xs font-medium transition ${
+                              debugModeEnabled
+                                ? "border-amber-500 bg-amber-950 text-amber-300"
+                                : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:text-white"
+                            }`}
+                          >
+                            {debugModeEnabled
+                              ? "● Debug Mode: ENABLED"
+                              : "○ Enable Debug Mode"}
+                          </button>
+                          <button
+                            onClick={handleRunSelfTest}
+                            disabled={runningSelfTest}
+                            className="rounded-md bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-50"
+                          >
+                            {runningSelfTest
+                              ? "Running Self-Test..."
+                              : "▶ Run 5-Step Self-Test"}
+                          </button>
+                          <button
+                            onClick={fetchDebugSnapshot}
+                            className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-nb-gray-300 hover:text-white"
+                          >
+                            Refresh
+                          </button>
+                        </div>
+                      </div>
+
+                      {selfTestChecks.length > 0 && (
+                        <div className="space-y-2 pt-2">
+                          <div className="text-xs font-semibold uppercase tracking-wider text-nb-gray-300">
+                            End-to-End Diagnostic Checks
+                          </div>
+                          <div className="grid grid-cols-1 gap-2">
+                            {selfTestChecks.map((chk) => (
+                              <div
+                                key={chk.id}
+                                className="flex items-center justify-between gap-3 rounded-md border border-nb-gray-800 bg-nb-gray-950 p-3 text-xs"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={`rounded px-2 py-0.5 font-mono text-[10px] font-semibold ${
+                                        chk.status === "PASS"
+                                          ? "bg-green-950 text-green-400 border border-green-500/40"
+                                          : chk.status === "WARN"
+                                          ? "bg-amber-950 text-amber-300 border border-amber-500/40"
+                                          : "bg-red-950 text-red-400 border border-red-500/40"
+                                      }`}
+                                    >
+                                      {chk.status}
+                                    </span>
+                                    <span className="font-semibold text-white">
+                                      {chk.name}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 font-mono text-[11px] text-nb-gray-300 break-all">
+                                    {chk.detail}
+                                  </p>
+                                </div>
+                                <span className="shrink-0 font-mono text-[11px] text-nb-gray-400">
+                                  {chk.latency_ms} ms
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* CLI Debug Commands Reference */}
+                      <div className="rounded-md border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
+                        <div className="text-xs font-semibold text-sky-400">
+                          CLI Debug Commands for Core &amp; Muscle (`axon debug` / `--debug`)
+                        </div>
+                        <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
+{`# 1. Run 5-step Muscle diagnostic doctor (checks X.509 cert, Core HTTP latency, mTLS 1.3 handshake & FS permissions)
+sudo axon debug
+
+# 2. Persist Debug Mode on the Muscle agent and run with live microsecond Yamux & PTY stream logs
+sudo axon debug --enable
+axon run --debug --core ${gatewayUrl.replace(/\/$/, "")}${issuedToken ? ` --token ${issuedToken}` : " --token <JOIN_TOKEN>"}
+
+# 3. Start Core Gateway with verbose mTLS / Yamux / RPC debug trace logging
+SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
+                        </pre>
+                      </div>
+
+                      {/* Live JSON Snapshot of Core Web + Core Gateway Ring Buffer */}
+                      <div className="space-y-1.5">
+                        <div className="text-xs font-semibold text-nb-gray-300">
+                          Live Core Web &amp; Gateway Diagnostic Snapshot (`/api/debug`)
+                        </div>
+                        <pre className="max-h-80 overflow-auto rounded-md border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-green-400">
+                          {debugSnapshot
+                            ? JSON.stringify(debugSnapshot, null, 2)
+                            : "Click 'Refresh' or 'Run 5-Step Self-Test' to inspect live Core & Gateway state."}
+                        </pre>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

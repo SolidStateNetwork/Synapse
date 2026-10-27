@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,12 +16,22 @@ import (
 	"github.com/hashicorp/yamux"
 )
 
+// DebugEvent represents a structured diagnostic trace entry in the Core Gateway ring buffer.
+type DebugEvent struct {
+	Timestamp  string         `json:"timestamp"`
+	Category   string         `json:"category"` // mtls | yamux | rpc_fs | rpc_pty | telemetry | bootstrap | http
+	NodeID     string         `json:"node_id,omitempty"`
+	Summary    string         `json:"summary"`
+	DurationMs int64          `json:"duration_ms,omitempty"`
+	Details    map[string]any `json:"details,omitempty"`
+}
+
 // ConnectedNode represents an active mTLS + Yamux session from an Axon node.
 type ConnectedNode struct {
-	NodeID        string                `json:"node_id"`
-	Tier          tunnelv1.AutonomyTier `json:"tier"`
-	RemoteAddr    string                `json:"remote_addr"`
-	ConnectedAt   time.Time             `json:"connected_at"`
+	NodeID        string                  `json:"node_id"`
+	Tier          tunnelv1.AutonomyTier   `json:"tier"`
+	RemoteAddr    string                  `json:"remote_addr"`
+	ConnectedAt   time.Time               `json:"connected_at"`
 	LastHeartbeat *tunnelv1.NodeHeartbeat `json:"last_heartbeat,omitempty"`
 
 	session       *yamux.Session
@@ -35,22 +46,89 @@ type NodeSummary struct {
 	RemoteAddr    string                  `json:"remote_addr"`
 	ConnectedAt   string                  `json:"connected_at"`
 	Online        bool                    `json:"online"`
+	ActiveStreams int                     `json:"active_streams,omitempty"`
 	LastHeartbeat *tunnelv1.NodeHeartbeat `json:"last_heartbeat,omitempty"`
 }
 
 // Hub manages all active mTLS Yamux node sessions and synchronizes telemetry into Project Brain Vaults.
 type Hub struct {
-	VaultRoot string
-	mu        sync.RWMutex
-	nodes     map[string]*ConnectedNode
+	VaultRoot    string
+	mu           sync.RWMutex
+	nodes        map[string]*ConnectedNode
+	debugEnabled bool
+	debugEvents  []DebugEvent
 }
 
 // NewHub creates a Yamux Hub backed by the given VaultRoot (/var/lib/synapse/projects).
 func NewHub(vaultRoot string) *Hub {
+	dbg := os.Getenv("SYNAPSE_DEBUG") == "1" || strings.EqualFold(os.Getenv("SYNAPSE_DEBUG"), "true")
 	return &Hub{
-		VaultRoot: vaultRoot,
-		nodes:     make(map[string]*ConnectedNode),
+		VaultRoot:    vaultRoot,
+		nodes:        make(map[string]*ConnectedNode),
+		debugEnabled: dbg,
+		debugEvents:  make([]DebugEvent, 0, 256),
 	}
+}
+
+// SetDebugEnabled toggles verbose debug logging and trace capture at runtime.
+func (h *Hub) SetDebugEnabled(enabled bool) {
+	h.mu.Lock()
+	h.debugEnabled = enabled
+	h.mu.Unlock()
+	h.RecordEvent("system", "", fmt.Sprintf("Gateway Debug Mode set to %v", enabled), 0, nil)
+}
+
+// IsDebugEnabled returns whether debug mode is active on the Hub.
+func (h *Hub) IsDebugEnabled() bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.debugEnabled
+}
+
+// ClearDebugEvents clears the in-memory diagnostic ring buffer.
+func (h *Hub) ClearDebugEvents() {
+	h.mu.Lock()
+	h.debugEvents = h.debugEvents[:0]
+	h.mu.Unlock()
+}
+
+// RecordEvent appends a structured diagnostic event to the ring buffer (max 250 items) and logs it when DebugMode is on.
+func (h *Hub) RecordEvent(category, nodeID, summary string, durationMs int64, details map[string]any) {
+	evt := DebugEvent{
+		Timestamp:  time.Now().UTC().Format(time.RFC3339Nano),
+		Category:   category,
+		NodeID:     nodeID,
+		Summary:    summary,
+		DurationMs: durationMs,
+		Details:    details,
+	}
+	h.mu.Lock()
+	dbg := h.debugEnabled
+	if len(h.debugEvents) >= 250 {
+		h.debugEvents = append(h.debugEvents[1:], evt)
+	} else {
+		h.debugEvents = append(h.debugEvents, evt)
+	}
+	h.mu.Unlock()
+
+	if dbg {
+		if nodeID != "" {
+			log.Printf("[core-gateway:DEBUG] [%s] node=%s %s (%dms)", category, nodeID, summary, durationMs)
+		} else {
+			log.Printf("[core-gateway:DEBUG] [%s] %s (%dms)", category, summary, durationMs)
+		}
+	}
+}
+
+// GetDebugEvents returns the most recent debug events (newest first).
+func (h *Hub) GetDebugEvents() []DebugEvent {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	out := make([]DebugEvent, len(h.debugEvents))
+	for i := range h.debugEvents {
+		out[len(h.debugEvents)-1-i] = h.debugEvents[i]
+	}
+	return out
 }
 
 // ServeMTLS accepts incoming mTLS connections from Axon nodes and multiplexes them via hashicorp/yamux.
@@ -65,6 +143,7 @@ func (h *Hub) ServeMTLS(listener net.Listener) error {
 }
 
 func (h *Hub) handleConnection(rawConn net.Conn) {
+	start := time.Now()
 	tlsConn, ok := rawConn.(*tls.Conn)
 	if !ok {
 		_ = rawConn.Close()
@@ -72,6 +151,7 @@ func (h *Hub) handleConnection(rawConn net.Conn) {
 	}
 	if err := tlsConn.Handshake(); err != nil {
 		log.Printf("[core-gateway] mTLS handshake failed from %s: %v", rawConn.RemoteAddr(), err)
+		h.RecordEvent("mtls", "", fmt.Sprintf("mTLS handshake failed from %s: %v", rawConn.RemoteAddr(), err), time.Since(start).Milliseconds(), nil)
 		_ = rawConn.Close()
 		return
 	}
@@ -124,6 +204,11 @@ func (h *Hub) handleConnection(rawConn net.Conn) {
 	h.mu.Unlock()
 
 	log.Printf("[core-gateway] Axon node %q connected via mTLS+Yamux from %s (tier=%s)", nodeID, node.RemoteAddr, tier)
+	h.RecordEvent("mtls", nodeID, fmt.Sprintf("Connected via mTLS 1.3 + Yamux from %s (tier=%s, cipher=%s)", node.RemoteAddr, tier, tls.CipherSuiteName(state.CipherSuite)), time.Since(start).Milliseconds(), map[string]any{
+		"remote_addr": node.RemoteAddr,
+		"tier":        tier,
+		"project_id":  projectID,
+	})
 
 	defer func() {
 		_ = session.Close()
@@ -133,6 +218,7 @@ func (h *Hub) handleConnection(rawConn net.Conn) {
 		}
 		h.mu.Unlock()
 		log.Printf("[core-gateway] Axon node %q disconnected", nodeID)
+		h.RecordEvent("mtls", nodeID, "Axon node session closed / disconnected", 0, nil)
 	}()
 
 	// Accept streams initiated by Axon (specifically StreamTypeTelemetry)
@@ -161,6 +247,8 @@ func (h *Hub) handleNodeInitiatedStream(node *ConnectedNode, stream net.Conn) {
 	node.telemetryConn = stream
 	node.mu.Unlock()
 
+	h.RecordEvent("telemetry", node.NodeID, "StreamTypeTelemetry opened by Muscle node", 0, nil)
+
 	for {
 		var beat tunnelv1.NodeHeartbeat
 		if err := tunnelv1.ReadFrame(stream, &beat); err != nil {
@@ -170,6 +258,10 @@ func (h *Hub) handleNodeInitiatedStream(node *ConnectedNode, stream net.Conn) {
 		beatCopy := beat
 		node.LastHeartbeat = &beatCopy
 		node.mu.Unlock()
+
+		if h.IsDebugEnabled() {
+			h.RecordEvent("telemetry", node.NodeID, fmt.Sprintf("Heartbeat CPU=%.1f%% RAM=%.1f%% DSK=%.1f%% PTY=%d", beatCopy.CPUPercent, beatCopy.RAMPercent, beatCopy.DiskPercent, len(beatCopy.ActivePtySessions)), 0, nil)
+		}
 
 		h.syncTelemetryToProjectVaults(node.NodeID, &beatCopy)
 	}
@@ -198,11 +290,13 @@ func (h *Hub) OpenStream(nodeID string, hdr tunnelv1.StreamHeader) (net.Conn, *C
 
 // ExecFs dispatches an atomic filesystem operation (StreamTypeRpcFs) to the target node.
 func (h *Hub) ExecFs(nodeID string, req tunnelv1.FsRequest) (tunnelv1.FsResponse, error) {
+	start := time.Now()
 	stream, node, err := h.OpenStream(nodeID, tunnelv1.StreamHeader{
 		StreamType: tunnelv1.StreamTypeRpcFs,
 		ProjectID:  req.ProjectID,
 	})
 	if err != nil {
+		h.RecordEvent("rpc_fs", nodeID, fmt.Sprintf("FS %s %q failed to open stream: %v", req.Operation, req.Path, err), time.Since(start).Milliseconds(), nil)
 		return tunnelv1.FsResponse{}, err
 	}
 	defer stream.Close()
@@ -217,17 +311,25 @@ func (h *Hub) ExecFs(nodeID string, req tunnelv1.FsRequest) (tunnelv1.FsResponse
 	if err := tunnelv1.ReadFrame(stream, &resp); err != nil {
 		return tunnelv1.FsResponse{}, err
 	}
+	h.RecordEvent("rpc_fs", nodeID, fmt.Sprintf("FS %s %q -> success=%v", req.Operation, req.Path, resp.Success), time.Since(start).Milliseconds(), map[string]any{
+		"operation": req.Operation,
+		"path":      req.Path,
+		"success":   resp.Success,
+		"error":     resp.Error,
+	})
 	return resp, nil
 }
 
 // ExecPty dispatches a persistent stateful PTY command with sentinel framing (StreamTypePty) to the target node.
 func (h *Hub) ExecPty(nodeID string, req tunnelv1.PtyExecRequest) (tunnelv1.PtyExecResponse, error) {
+	start := time.Now()
 	stream, node, err := h.OpenStream(nodeID, tunnelv1.StreamHeader{
 		StreamType: tunnelv1.StreamTypePty,
 		ProjectID:  req.ProjectID,
 		SessionID:  req.SessionID,
 	})
 	if err != nil {
+		h.RecordEvent("rpc_pty", nodeID, fmt.Sprintf("PTY %q failed to open stream: %v", req.Command, err), time.Since(start).Milliseconds(), nil)
 		return tunnelv1.PtyExecResponse{}, err
 	}
 	defer stream.Close()
@@ -242,6 +344,13 @@ func (h *Hub) ExecPty(nodeID string, req tunnelv1.PtyExecRequest) (tunnelv1.PtyE
 	if err := tunnelv1.ReadFrame(stream, &resp); err != nil {
 		return tunnelv1.PtyExecResponse{}, err
 	}
+	h.RecordEvent("rpc_pty", nodeID, fmt.Sprintf("PTY [%s] %q -> exit=%d cwd=%s", req.SessionID, req.Command, resp.ExitCode, resp.CurrentCwd), time.Since(start).Milliseconds(), map[string]any{
+		"session_id": req.SessionID,
+		"command":    req.Command,
+		"exit_code":  resp.ExitCode,
+		"cwd":        resp.CurrentCwd,
+		"blocked":    resp.BlockedByGuard,
+	})
 	return resp, nil
 }
 
@@ -259,6 +368,7 @@ func (h *Hub) PushHealthTargets(nodeID string, targets []tunnelv1.ServiceHealthT
 	if conn == nil {
 		return fmt.Errorf("telemetry stream not active for node %q", nodeID)
 	}
+	h.RecordEvent("telemetry", nodeID, fmt.Sprintf("Pushed %d ServiceHealthTarget(s)", len(targets)), 0, nil)
 	return tunnelv1.WriteFrame(conn, targets)
 }
 
@@ -271,12 +381,17 @@ func (h *Hub) ListNodes() []NodeSummary {
 		n.mu.RLock()
 		hb := n.LastHeartbeat
 		n.mu.RUnlock()
+		activeStreams := 0
+		if n.session != nil && !n.session.IsClosed() {
+			activeStreams = n.session.NumStreams()
+		}
 		out = append(out, NodeSummary{
 			NodeID:        n.NodeID,
 			Tier:          n.Tier,
 			RemoteAddr:    n.RemoteAddr,
 			ConnectedAt:   n.ConnectedAt.Format(time.RFC3339),
-			Online:        !n.session.IsClosed(),
+			Online:        n.session != nil && !n.session.IsClosed(),
+			ActiveStreams: activeStreams,
 			LastHeartbeat: hb,
 		})
 	}

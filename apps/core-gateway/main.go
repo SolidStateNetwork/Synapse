@@ -4,12 +4,14 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/SolidStateNetwork/Synapse/apps/core-gateway/internal/hub"
@@ -19,6 +21,16 @@ import (
 )
 
 func main() {
+	debugFlag := flag.Bool("debug", false, "Enable verbose debug trace logging and HTTP request inspection")
+	flag.Parse()
+
+	debugEnv := os.Getenv("SYNAPSE_DEBUG") == "1" || strings.EqualFold(os.Getenv("SYNAPSE_DEBUG"), "true")
+	debugMode := *debugFlag || debugEnv
+	if debugMode {
+		log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
+		log.Printf("[core-gateway:DEBUG] Verbose Debug Mode ENABLED")
+	}
+
 	dataDir := getEnv("SYNAPSE_DATA_DIR", "/var/lib/synapse")
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		dataDir = filepath.Join(os.TempDir(), "synapse-data")
@@ -40,6 +52,9 @@ func main() {
 	}
 
 	nodeHub := hub.NewHub(vaultRoot)
+	if debugMode {
+		nodeHub.SetDebugEnabled(true)
+	}
 
 	// Start mTLS + Yamux Listener for Axon Muscle Nodes
 	go func() {
@@ -48,7 +63,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("[core-gateway] failed to listen on mTLS port %s: %v", listenAddr, err)
 		}
-		log.Printf("[core-gateway] mTLS + Yamux Reverse Tunnel Server listening on %s", listenAddr)
+		log.Printf("[core-gateway] mTLS + Yamux Reverse Tunnel Server listening on %s (debug=%v)", listenAddr, nodeHub.IsDebugEnabled())
 		if err := nodeHub.ServeMTLS(tlsListener); err != nil {
 			log.Fatalf("[core-gateway] mTLS server error: %v", err)
 		}
@@ -62,7 +77,77 @@ func main() {
 			"status":          "ok",
 			"service":         "synapse-core-gateway",
 			"tunnel_port":     tunnelPort,
+			"debug_enabled":   nodeHub.IsDebugEnabled(),
 			"connected_nodes": len(nodeHub.ListNodes()),
+		})
+	})
+
+	// Debug & Self-Test Endpoint (/api/v1/debug)
+	mux.HandleFunc("/api/v1/debug", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			var body struct {
+				Action  string `json:"action"` // set_debug | clear_events | ping_nodes
+				Enabled *bool  `json:"enabled"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			switch body.Action {
+			case "set_debug", "toggle":
+				next := !nodeHub.IsDebugEnabled()
+				if body.Enabled != nil {
+					next = *body.Enabled
+				}
+				nodeHub.SetDebugEnabled(next)
+			case "clear_events":
+				nodeHub.ClearDebugEvents()
+			case "ping_nodes":
+				nodes := nodeHub.ListNodes()
+				pingResults := make([]map[string]any, 0, len(nodes))
+				for _, n := range nodes {
+					start := time.Now()
+					fsResp, fsErr := nodeHub.ExecFs(n.NodeID, tunnelv1.FsRequest{
+						RequestID: fmt.Sprintf("dbg-fs-%d", time.Now().UnixNano()),
+						ProjectID: "synapse-cloud-demo",
+						Tier:      n.Tier,
+						Operation: tunnelv1.FsOpListDir,
+						Path:      ".",
+					})
+					ptyResp, ptyErr := nodeHub.ExecPty(n.NodeID, tunnelv1.PtyExecRequest{
+						CmdID:         fmt.Sprintf("dbg-pty-%d", time.Now().UnixNano()),
+						SessionID:     "debug-self-test",
+						ProjectID:     "synapse-cloud-demo",
+						Tier:          n.Tier,
+						Command:       "echo SYNAPSE_DEBUG_PING_OK && uname -a",
+						WaitTimeoutMs: 5000,
+					})
+					pingResults = append(pingResults, map[string]any{
+						"node_id":     n.NodeID,
+						"latency_ms":  time.Since(start).Milliseconds(),
+						"fs_ok":       fsErr == nil && fsResp.Success,
+						"fs_entries":  len(fsResp.Entries),
+						"pty_ok":      ptyErr == nil && ptyResp.ExitCode == 0,
+						"pty_output":  strings.TrimSpace(ptyResp.Output),
+						"current_cwd": ptyResp.CurrentCwd,
+					})
+				}
+				writeJSON(w, http.StatusOK, map[string]any{
+					"debug_enabled": nodeHub.IsDebugEnabled(),
+					"ping_results":  pingResults,
+					"events":        nodeHub.GetDebugEvents(),
+				})
+				return
+			}
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"service":         "synapse-core-gateway",
+			"debug_enabled":   nodeHub.IsDebugEnabled(),
+			"data_dir":        dataDir,
+			"vault_root":      vaultRoot,
+			"tunnel_port":     tunnelPort,
+			"http_addr":       httpAddr,
+			"active_tokens":   len(authority.ListTokens()),
+			"connected_nodes": nodeHub.ListNodes(),
+			"events":          nodeHub.GetDebugEvents(),
 		})
 	})
 
@@ -84,15 +169,17 @@ func main() {
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		ttl := time.Duration(body.TTLMinutes) * time.Minute
 		tok := authority.CreateJoinToken(body.ProjectID, body.Tier, ttl)
+		nodeHub.RecordEvent("bootstrap", "", fmt.Sprintf("Issued join token for project=%s tier=%s", body.ProjectID, tok.Tier), 0, nil)
 		writeJSON(w, http.StatusCreated, tok)
 	})
 
-	// 2. CSR Bootstrap Endpoint called by `axon join <token>`
+	// 2. CSR Bootstrap Endpoint called by `axon join <token>` or `axon switch`
 	mux.HandleFunc("/api/v1/bootstrap/csr", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		start := time.Now()
 		var req tunnelv1.CSRBootstrapRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, tunnelv1.CSRBootstrapResponse{
@@ -103,6 +190,7 @@ func main() {
 		}
 		certPEM, tier, projectID, err := authority.SignNodeCSR(req)
 		if err != nil {
+			nodeHub.RecordEvent("bootstrap", req.NodeID, fmt.Sprintf("CSR bootstrap rejected: %v", err), time.Since(start).Milliseconds(), nil)
 			writeJSON(w, http.StatusUnauthorized, tunnelv1.CSRBootstrapResponse{
 				Success: false,
 				Error:   err.Error(),
@@ -113,6 +201,7 @@ func main() {
 			nodeHub.EnsureNodeAssignedToProject(projectID, req.NodeID, tier)
 		}
 		log.Printf("[core-gateway] signed X.509 mTLS certificate for node %q (tier=%s, project=%s)", req.NodeID, tier, projectID)
+		nodeHub.RecordEvent("bootstrap", req.NodeID, fmt.Sprintf("Signed X.509 mTLS cert (tier=%s, project=%s)", tier, projectID), time.Since(start).Milliseconds(), nil)
 		writeJSON(w, http.StatusOK, tunnelv1.CSRBootstrapResponse{
 			Success:    true,
 			NodeID:     req.NodeID,
@@ -181,11 +270,11 @@ func main() {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
-			"request_id":   resp.RequestID,
-			"success":      resp.Success,
-			"error":        resp.Error,
-			"content":      string(resp.Content),
-			"entries":      resp.Entries,
+			"request_id": resp.RequestID,
+			"success":    resp.Success,
+			"error":      resp.Error,
+			"content":    string(resp.Content),
+			"entries":    resp.Entries,
 		})
 	})
 
@@ -381,6 +470,7 @@ CORE_URL="%s"
 TOKEN=""
 TIER="TIER_2_WORKSPACE_JAIL"
 NODE_ID=""
+DEBUG_FLAG=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -400,6 +490,10 @@ while [ "$#" -gt 0 ]; do
       NODE_ID="$2"
       shift 2
       ;;
+    --debug|-d)
+      DEBUG_FLAG="--debug"
+      shift
+      ;;
     *)
       if [ -z "$TOKEN" ]; then
         TOKEN="$1"
@@ -414,7 +508,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ -z "$TOKEN" ]; then
-  echo "Usage: curl -fsSL $CORE_URL/install.sh | sudo sh -s -- <join_token> [TIER_1_UNLEASHED|TIER_2_WORKSPACE_JAIL|TIER_3_SUPERVISED] [node_id]"
+  echo "Usage: curl -fsSL $CORE_URL/install.sh | sudo sh -s -- <join_token> [TIER_1_UNLEASHED|TIER_2_WORKSPACE_JAIL|TIER_3_SUPERVISED] [node_id] [--debug]"
   exit 1
 fi
 
@@ -446,9 +540,9 @@ chmod +x "$INSTALL_DIR/axon"
 
 echo "[synapse] Authenticating one-time token & bootstrapping mTLS 1.3 CSR with Core ($CORE_URL)..."
 if [ -n "$NODE_ID" ]; then
-  "$INSTALL_DIR/axon" join --core "$CORE_URL" --tier "$TIER" --node-id "$NODE_ID" --config-dir "$CONFIG_DIR" --workspace-root "$WORKSPACE_DIR" "$TOKEN"
+  "$INSTALL_DIR/axon" join $DEBUG_FLAG --core "$CORE_URL" --tier "$TIER" --node-id "$NODE_ID" --config-dir "$CONFIG_DIR" --workspace-root "$WORKSPACE_DIR" "$TOKEN"
 else
-  "$INSTALL_DIR/axon" join --core "$CORE_URL" --tier "$TIER" --config-dir "$CONFIG_DIR" --workspace-root "$WORKSPACE_DIR" "$TOKEN"
+  "$INSTALL_DIR/axon" join $DEBUG_FLAG --core "$CORE_URL" --tier "$TIER" --config-dir "$CONFIG_DIR" --workspace-root "$WORKSPACE_DIR" "$TOKEN"
 fi
 
 if [ "$(id -u)" -eq 0 ] && command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
@@ -460,7 +554,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/axon run --config-dir $CONFIG_DIR
+ExecStart=$INSTALL_DIR/axon run $DEBUG_FLAG --config-dir $CONFIG_DIR
 Restart=always
 RestartSec=3s
 LimitNOFILE=65535
@@ -472,15 +566,15 @@ EOF
   systemctl enable --now axon.service
   echo "[synapse] ✔ axon.service enabled and started via systemd (mTLS + Yamux Reverse Tunnel active)."
 else
-  pkill -f "$INSTALL_DIR/axon run --config-dir $CONFIG_DIR" 2>/dev/null || true
-  nohup "$INSTALL_DIR/axon" run --config-dir "$CONFIG_DIR" >/tmp/axon-agent.log 2>&1 &
+  pkill -f "$INSTALL_DIR/axon run" 2>/dev/null || true
+  nohup "$INSTALL_DIR/axon" run $DEBUG_FLAG --config-dir "$CONFIG_DIR" >/tmp/axon-agent.log 2>&1 &
   echo "[synapse] ✔ Axon daemon started in background (PID $!, logs at /tmp/axon-agent.log)."
 fi
 `, coreBaseURL)
 		_, _ = w.Write([]byte(script))
 	})
 
-	log.Printf("[core-gateway] HTTP Control & Live-Preview Reverse Proxy listening on %s (VaultRoot=%s)", httpAddr, vaultRoot)
+	log.Printf("[core-gateway] HTTP Control & Live-Preview Reverse Proxy listening on %s (VaultRoot=%s, Debug=%v)", httpAddr, vaultRoot, nodeHub.IsDebugEnabled())
 	if err := http.ListenAndServe(httpAddr, corsMiddleware(mux)); err != nil {
 		log.Fatalf("[core-gateway] HTTP server error: %v", err)
 	}
