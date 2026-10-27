@@ -126,7 +126,7 @@ func main() {
 						"fs_entries":  len(fsResp.Entries),
 						"pty_ok":      ptyErr == nil && ptyResp.ExitCode == 0,
 						"pty_output":  strings.TrimSpace(ptyResp.Output),
-						"current_cwd": ptyResp.CurrentCwd,
+						"current_cwd": ptyResp.Cwd,
 					})
 				}
 				writeJSON(w, http.StatusOK, map[string]any{

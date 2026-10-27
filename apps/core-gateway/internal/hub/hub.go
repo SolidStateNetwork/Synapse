@@ -344,12 +344,12 @@ func (h *Hub) ExecPty(nodeID string, req tunnelv1.PtyExecRequest) (tunnelv1.PtyE
 	if err := tunnelv1.ReadFrame(stream, &resp); err != nil {
 		return tunnelv1.PtyExecResponse{}, err
 	}
-	h.RecordEvent("rpc_pty", nodeID, fmt.Sprintf("PTY [%s] %q -> exit=%d cwd=%s", req.SessionID, req.Command, resp.ExitCode, resp.CurrentCwd), time.Since(start).Milliseconds(), map[string]any{
+	h.RecordEvent("rpc_pty", nodeID, fmt.Sprintf("PTY [%s] %q -> exit=%d cwd=%s", req.SessionID, req.Command, resp.ExitCode, resp.Cwd), time.Since(start).Milliseconds(), map[string]any{
 		"session_id": req.SessionID,
 		"command":    req.Command,
 		"exit_code":  resp.ExitCode,
-		"cwd":        resp.CurrentCwd,
-		"blocked":    resp.BlockedByGuard,
+		"cwd":        resp.Cwd,
+		"blocked":    resp.BlockedByGuardrail,
 	})
 	return resp, nil
 }

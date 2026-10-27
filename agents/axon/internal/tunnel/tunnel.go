@@ -546,7 +546,7 @@ func (a *Agent) handlePtyStream(stream net.Conn, hdr tunnelv1.StreamHeader) {
 	debugLog("PTY EXEC start: session=%s cmd=%q timeoutMs=%d", req.SessionID, req.Command, req.WaitTimeoutMs)
 	resp := a.PtyMgr.Execute(req)
 	debugLog("PTY EXEC done: session=%s exitCode=%d cwd=%q blocked=%v (%s)",
-		req.SessionID, resp.ExitCode, resp.CurrentCwd, resp.BlockedByGuard, time.Since(start).Round(time.Millisecond))
+		req.SessionID, resp.ExitCode, resp.Cwd, resp.BlockedByGuardrail, time.Since(start).Round(time.Millisecond))
 	_ = tunnelv1.WriteFrame(stream, resp)
 }
 
