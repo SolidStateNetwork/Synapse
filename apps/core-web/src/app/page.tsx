@@ -3358,12 +3358,12 @@ export default function SynapseNetBirdControlCenter() {
                   }}
                 />
 
-                <div className="flex items-end gap-1.5">
+                <div className="flex items-stretch gap-1.5">
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     title="Attach image, screenshot, diagram, or log file (or Drag & Drop / Ctrl+V)"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white"
+                    className="flex h-[46px] w-[42px] shrink-0 items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white transition"
                   >
                     <Paperclip className="h-3.5 w-3.5" />
                   </button>
@@ -3379,7 +3379,7 @@ export default function SynapseNetBirdControlCenter() {
                       handleChatInputChange(next);
                     }}
                     title="Mention a Peer, Service, or Brain Vault Doc (@)"
-                    className="flex h-9 w-8 shrink-0 items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white"
+                    className="flex h-[46px] w-[42px] shrink-0 items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white transition"
                   >
                     <AtSign className="h-3.5 w-3.5" />
                   </button>
@@ -3396,13 +3396,13 @@ export default function SynapseNetBirdControlCenter() {
                       }
                     }}
                     placeholder="Ask Synapse AI, type @ to mention, or drop/paste images..."
-                    className="flex-1 resize-none rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 text-xs text-white placeholder:text-nb-gray-400 focus:border-netbird focus:outline-none"
+                    className="h-[46px] flex-1 resize-none rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 text-xs leading-4 text-white placeholder:text-nb-gray-400 focus:border-netbird focus:outline-none"
                   />
 
                   <button
                     type="submit"
                     disabled={chatBusy}
-                    className="flex h-9 items-center justify-center rounded-md bg-netbird px-3.5 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-40"
+                    className="flex h-[46px] w-[42px] shrink-0 items-center justify-center rounded-md bg-netbird text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-40 transition"
                   >
                     <Send className="h-3.5 w-3.5" />
                   </button>
