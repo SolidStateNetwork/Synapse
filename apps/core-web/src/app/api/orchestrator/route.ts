@@ -26,11 +26,13 @@ export type OrchestratorStreamEvent =
       type: "step_start";
       step: number;
       tool_name: string;
+      detail?: string;
     }
   | {
       type: "step_done";
       step: number;
       tool_name: string;
+      detail?: string;
       result: ToolDispatchResult;
     }
   | {
@@ -45,6 +47,29 @@ export type OrchestratorStreamEvent =
       type: "cache_metrics";
       metrics: PromptCacheMetrics;
     };
+
+function summarizeToolCallDetail(
+  fnName: string,
+  fnArgs: Record<string, unknown>
+): string {
+  if (fnName === "node_pty_exec") {
+    const cmd = String(fnArgs.command || "").trim().replace(/\s+/g, " ");
+    const node = String(fnArgs.node_id || "");
+    return `${node ? `${node}: ` : ""}${cmd.slice(0, 72)}${cmd.length > 72 ? "…" : ""}`;
+  }
+  if (fnName === "node_fs_read" || fnName === "node_fs_write") {
+    const op = String(fnArgs.operation || "read_file");
+    const p = String(fnArgs.path || "");
+    return `${op} ${p}`;
+  }
+  if (fnName === "core_register_service") {
+    return `${fnArgs.name || fnArgs.service_id || "service"} :${fnArgs.port || ""}`;
+  }
+  if (fnName === "core_update_brain_doc") {
+    return `${fnArgs.document || "Doc"} (${fnArgs.mode || "update"})`;
+  }
+  return "";
+}
 
 type StepProgressCallback = (event: OrchestratorStreamEvent) => void;
 
@@ -310,6 +335,14 @@ async function runOpenAICompatibleAgentLoop(
   let toolCacheHits = 0;
 
   for (let step = 0; step < MAX_AGENT_ITERATIONS; step++) {
+    onProgress?.({
+      type: "thinking_delta",
+      delta:
+        step === 0
+          ? "KI analysiert Systemkontext & plant Prüfschritte...\n"
+          : `Runde ${step + 1}: KI wertet Ergebnisse aus & prüft nächstes Teilsystem...\n`,
+    });
+
     const llmRes = await fetch(endpoint, {
       method: "POST",
       headers,
@@ -346,8 +379,15 @@ async function runOpenAICompatibleAgentLoop(
     }
 
     if (choice.reasoning_content) {
-      accumulatedThinking += String(choice.reasoning_content) + "\n";
+      const rText = String(choice.reasoning_content).trim();
+      if (rText) {
+        accumulatedThinking += rText + "\n";
+        onProgress?.({ type: "thinking_delta", delta: rText + "\n" });
+      }
     }
+
+    const toolCalls = choice.tool_calls;
+    const hasToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
 
     if (choice.content) {
       const { thinking, cleanReply } = splitReasoningFromReply(
@@ -355,12 +395,20 @@ async function runOpenAICompatibleAgentLoop(
       );
       if (thinking) {
         accumulatedThinking += thinking + "\n";
+        onProgress?.({ type: "thinking_delta", delta: thinking + "\n" });
       }
-      finalReply = cleanReply;
+      if (hasToolCalls && cleanReply.trim()) {
+        accumulatedThinking += cleanReply.trim() + "\n";
+        onProgress?.({
+          type: "thinking_delta",
+          delta: cleanReply.trim() + "\n",
+        });
+      } else if (!hasToolCalls) {
+        finalReply = cleanReply;
+      }
     }
 
-    const toolCalls = choice.tool_calls;
-    if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+    if (!hasToolCalls) {
       break;
     }
 
@@ -376,10 +424,12 @@ async function runOpenAICompatibleAgentLoop(
         fnArgs = {};
       }
 
+      const stepDetail = summarizeToolCallDetail(fnName, fnArgs);
       onProgress?.({
         type: "step_start",
         step: allToolResults.length + 1,
         tool_name: fnName,
+        detail: stepDetail,
       });
 
       const dispatched = await interceptAndExecuteTool(
@@ -396,6 +446,7 @@ async function runOpenAICompatibleAgentLoop(
         type: "step_done",
         step: allToolResults.length,
         tool_name: fnName,
+        detail: stepDetail,
         result: dispatched,
       });
 
@@ -442,7 +493,7 @@ async function runOpenAICompatibleAgentLoop(
 
   await emitProgressiveTokens(
     resolvedReply,
-    accumulatedThinking.trim(),
+    "",
     onProgress
   );
 
@@ -646,7 +697,7 @@ async function runAnthropicAgentLoop(
 
   await emitProgressiveTokens(
     resolvedReply,
-    accumulatedThinking.trim(),
+    "",
     onProgress
   );
 
