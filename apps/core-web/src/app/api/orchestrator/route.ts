@@ -1142,7 +1142,7 @@ export async function POST(req: NextRequest) {
   if (lastUserMsg || (lastAttachments && lastAttachments.length > 0)) {
     appendChatMessage(projectId, {
       role: "user",
-      content: lastUserMsg,
+      content: String(body.display_user_message || lastUserMsg),
       attachments: lastAttachments,
       timestamp: new Date().toISOString(),
     });

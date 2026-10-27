@@ -1091,7 +1091,8 @@ export default function SynapseNetBirdControlCenter() {
   async function runStreamingPrompt(
     promptText: string,
     overrideProvider?: string,
-    attachmentsToSend?: ChatAttachment[]
+    attachmentsToSend?: ChatAttachment[],
+    displayUserMessage?: string
   ) {
     if (
       !activeProject ||
@@ -1102,6 +1103,7 @@ export default function SynapseNetBirdControlCenter() {
     const userMsg: ChatItem = {
       role: "user",
       content:
+        displayUserMessage ||
         promptText.trim() ||
         `Attached ${attachmentsToSend?.length || 1} visual file(s)`,
       attachments:
@@ -1116,6 +1118,21 @@ export default function SynapseNetBirdControlCenter() {
     setStreamingReplyText("");
     setStreamingThinkingText("");
 
+    const messagesForAi = [
+      ...chatHistory.map((m) => ({
+        role: m.role,
+        content: m.content,
+        attachments: m.attachments,
+      })),
+      {
+        role: "user" as const,
+        content:
+          promptText.trim() ||
+          `Attached ${attachmentsToSend?.length || 1} visual file(s)`,
+        attachments: userMsg.attachments,
+      },
+    ];
+
     try {
       const res = await fetch("/api/orchestrator", {
         method: "POST",
@@ -1127,11 +1144,8 @@ export default function SynapseNetBirdControlCenter() {
           model: modelName,
           api_key: apiKeyInput,
           stream: true,
-          messages: nextHistory.map((m) => ({
-            role: m.role,
-            content: m.content,
-            attachments: m.attachments,
-          })),
+          display_user_message: displayUserMessage,
+          messages: messagesForAi,
         }),
       });
 
@@ -1664,64 +1678,71 @@ export default function SynapseNetBirdControlCenter() {
   }
 
   async function handleRunSystemScan() {
-    if (systemScanBusy || chatBusy) return;
-    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    if (systemScanBusy || opsecScanBusy || chatBusy || !activeProject) return;
+    const node = primaryNode || "vps2-muscle";
+    const svcsList =
+      (activeProject.registered_services || [])
+        .map(
+          (s) =>
+            `${s.name} (${s.category || "backend"} auf ${s.node_id}:${s.port}, Pfad: ${s.path || "/"}, DB: ${s.db_path || "keine"})`
+        )
+        .join("; ") || "keine registrierten Services";
+
+    const aiMissionPrompt = [
+      `Du führst jetzt die Funktion **CheckSystem** für das Projekt \`${activeProject.project_id}\` aus.`,
+      `WICHTIG: Das ist KEIN statischer Standardtest. Du sollst als autonome KI **System für System und Dienst für Dienst** selbstständig mit deinen Tools (\`node_pty_exec\`, \`node_fs_read\`) tiefgreifend untersuchen und eigene weiterführende Checks ableiten:`,
+      ``,
+      `1. **Basis- & Host-Check auf \`@${node}\`:** Prüfe Systemlast, RAM, Disk-Platz, laufende Prozesse, systemd-Units und Docker-Container.`,
+      `2. **Tiefgreifender Check jedes einzelnen Subsystems:**`,
+      `   - Registrierte Dienste im Projekt: ${svcsList}.`,
+      `   - Prüfe jeden Dienst einzeln live (HTTP-Antworten, Header, Antwortverhalten, Prozess-Persistenz bei Server-Reboot).`,
+      `   - Untersuche die Arbeitsverzeichnisse unter \`/opt/axon/workspaces/\` sowie vorhandene Logdateien (\`*.log\`) und SQLite-Datenbanken (\`PRAGMA integrity_check;\`, Tabellen, Datensätze) auf Fehler, Warnungen oder Engpässe.`,
+      `3. **Konfiguration & Brain Vault (\`@Architecture.md\`, \`@Memory.md\`):** Prüfe, ob die Dokumentation und Konfiguration exakt zum realen Zustand auf dem Server passen.`,
+      `4. **Dein Abschlussbericht (auf Deutsch):** Fasse System für System zusammen, ob alles **i.O.** ist (mit echten Befunden aus deinen ausgeführten Befehlen) und gib konkrete, technisch fundierte **Verbesserungsempfehlungen**.`,
+    ].join("\n");
+
     setCopilotDrawerOpen(true);
     setSystemScanBusy(true);
     try {
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project_id: pid,
-          action: "run_system_scan",
-        }),
-      });
-      const data = await res.json();
-      if (Array.isArray(data.chat_history)) {
-        setChatHistory(data.chat_history);
-      } else {
-        await loadWorkspace(pid);
-      }
-      setStatusToast("System-Check abgeschlossen");
-      setTimeout(() => setStatusToast(""), 3000);
-      setTimeout(() => {
-        if (chatScrollRef.current) {
-          chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-        }
-      }, 80);
+      await runStreamingPrompt(
+        aiMissionPrompt,
+        undefined,
+        undefined,
+        `🔍 **CheckSystem** — Autonomer KI-Tiefenscan über alle Systeme, Backends, Datenbanken, Logs & Konfigurationen auf \`@${node}\``
+      );
     } finally {
       setSystemScanBusy(false);
     }
   }
 
   async function handleRunOpsecScan() {
-    if (opsecScanBusy || chatBusy) return;
-    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    if (opsecScanBusy || systemScanBusy || chatBusy || !activeProject) return;
+    const node = primaryNode || "vps2-muscle";
+    const currentTier =
+      activeProject.assigned_nodes[0]?.tier || "TIER_1_UNLEASHED";
+    const activeCarts =
+      (activeProject.active_cartridges || []).join(", ") || "keine";
+
+    const aiOpsecPrompt = [
+      `Du führst jetzt die Funktion **CheckOpsec** (Tiefgreifender KI-Cybersecurity- & Zero-Trust-Audit) für \`${activeProject.project_id}\` auf \`@${node}\` aus.`,
+      `WICHTIG: Arbeite als eigenständiger Security-Auditor. Nutze deine Tools (\`node_pty_exec\`, \`node_fs_read\`), um **System für System** tiefgreifend auf Sicherheitslücken, Fehlkonfigurationen und OpSec-Risiken zu prüfen:`,
+      ``,
+      `1. **Netzwerk- & Port-Exposition (\`ss -tlnp\`, \`ip addr\`):** Prüfe jeden lauschenden Port auf \`@${node}\`. Welche Dienste lauschen öffentlich auf \`0.0.0.0\` / \`::\` und sind alle internen App-/DB-Services (\`:4050\`, \`:4070\`, \`:4085\`, \`:4090\` etc.) strikt auf \`127.0.0.1\` isoliert?`,
+      `2. **SSH-, Firewall- & Host-Härtung:** Untersuche \`/etc/ssh/sshd_config\` (\`PermitRootLogin\`, \`PasswordAuthentication\`), aktive Firewall-Regeln (\`ufw\`, \`nftables\`, \`iptables\`), offene System-Accounts und letzte Auth-/Security-Events.`,
+      `3. **Applikations-, Container- & Dateisystem-OpSec:** Prüfe in \`/opt/axon/workspaces/\` die Dateiberechtigungen (z. B. von \`.db\`-Dateien und Skripten), prüfe ob Prozesse/Container unnötig als \`root\` laufen, ob Geheimnisse im Klartext im Code/Env liegen und ob HTTP-Security-Header gesetzt sind.`,
+      `4. **Synapse Governance:** Bewerte das aktuelle Autonomy-Tier (\`${currentTier}\`), die aktiven Sicherheits-Cartridges (\`${activeCarts}\`) und die Vault-Konfiguration.`,
+      `5. **Dein OpSec-Bericht (auf Deutsch):** Erstelle nach deinen mehrstufigen Live-Untersuchungen einen detaillierten Cybersecurity-Bericht (System für System), bewerte das Sicherheitsniveau (inkl. OpSec-Score \`0-100\`) und liste priorisierte **Härtungsmaßnahmen** auf.`,
+    ].join("\n");
+
     setCopilotDrawerOpen(true);
     setOpsecScanBusy(true);
     try {
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project_id: pid,
-          action: "run_opsec_scan",
-        }),
-      });
-      const data = await res.json();
-      if (Array.isArray(data.chat_history)) {
-        setChatHistory(data.chat_history);
-      } else {
-        await loadWorkspace(pid);
-      }
-      setStatusToast(`CheckOpsec abgeschlossen (Score: ${data.score ?? 100}/100)`);
-      setTimeout(() => setStatusToast(""), 3000);
-      setTimeout(() => {
-        if (chatScrollRef.current) {
-          chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-        }
-      }, 80);
+      await runStreamingPrompt(
+        aiOpsecPrompt,
+        undefined,
+        undefined,
+        `🛡️ **CheckOpsec** — Autonomer KI-Cybersecurity- & Zero-Trust-Audit über Netzwerk, SSH, Firewall, Prozesse & Policies auf \`@${node}\``
+      );
     } finally {
       setOpsecScanBusy(false);
     }
@@ -2125,23 +2146,23 @@ export default function SynapseNetBirdControlCenter() {
 
             <button
               onClick={handleRunSystemScan}
-              disabled={systemScanBusy}
+              disabled={systemScanBusy || chatBusy}
               className="hidden md:flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/30 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:border-emerald-500/60 hover:bg-emerald-950/60 hover:text-white disabled:opacity-50 transition-colors"
-              title="Komplettes System (Backends, Muscle, Vault & Konfiguration) scannen & Verbesserungen vorschlagen"
+              title="KI prüft System für System (Muscle, Backends, Datenbanken, Logs & Konfigurationen) und schlägt Verbesserungen vor"
             >
               {systemScanBusy ? (
                 <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-400" />
               ) : (
                 <Activity className="h-3.5 w-3.5 text-emerald-400" />
               )}
-              <span>{systemScanBusy ? "Prüfe..." : "System-Check"}</span>
+              <span>{systemScanBusy ? "Prüfe..." : "CheckSystem"}</span>
             </button>
 
             <button
               onClick={handleRunOpsecScan}
-              disabled={opsecScanBusy}
+              disabled={opsecScanBusy || chatBusy}
               className="hidden md:flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-300 hover:border-sky-500/60 hover:bg-sky-950/60 hover:text-white disabled:opacity-50 transition-colors"
-              title="Cybersecurity, offene Ports, Loopback-Isolierung, SSH, Firewall & Zero-Trust prüfen"
+              title="KI führt tiefgreifenden Cybersecurity- & Zero-Trust-Audit (Ports, SSH, Firewall, Prozesse & Policies) durch"
             >
               {opsecScanBusy ? (
                 <RefreshCw className="h-3.5 w-3.5 animate-spin text-sky-400" />
@@ -4865,44 +4886,11 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 )}
               </div>
 
-              {/* Multimodal Prompt Input Box with Quick-Action Chips, Thumbnail Strip, @-Mentions & Drag-and-Drop */}
+              {/* Multimodal Prompt Input Box with Thumbnail Strip, @-Mentions & Drag-and-Drop */}
               <form
                 onSubmit={handleSendPrompt}
                 className="relative border-t border-nb-gray-900 bg-nb-gray-950 p-3 space-y-2"
               >
-                {/* 1-Click Quick-Action Chips */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    type="button"
-                    disabled={systemScanBusy || chatBusy}
-                    onClick={handleRunSystemScan}
-                    className="flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-950/30 px-2 py-1 text-[10px] font-medium text-emerald-300 hover:border-emerald-500/60 hover:text-white disabled:opacity-50 transition"
-                  >
-                    <Activity className="h-3 w-3 text-emerald-400" />
-                    <span>System-Check</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={opsecScanBusy || chatBusy}
-                    onClick={handleRunOpsecScan}
-                    className="flex items-center gap-1 rounded-md border border-sky-500/30 bg-sky-950/30 px-2 py-1 text-[10px] font-medium text-sky-300 hover:border-sky-500/60 hover:text-white disabled:opacity-50 transition"
-                  >
-                    <Shield className="h-3 w-3 text-sky-400" />
-                    <span>CheckOpsec</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={chatBusy}
-                    onClick={() =>
-                      handleChatInputChange(
-                        `Prüfe auf @${primaryNode || "vps2-muscle"} alle laufenden Ports, Docker-Container und Logfiles auf Fehler.`
-                      )
-                    }
-                    className="rounded-md border border-nb-gray-800 bg-nb-gray-930 px-2 py-1 text-[10px] text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
-                  >
-                    ⚡ Logs &amp; Ports
-                  </button>
-                </div>
                 {/* @-Context Mention Autocomplete Popover */}
                 {mentionMenuOpen && mentionCandidates.length > 0 && (
                   <div className="absolute bottom-full left-3 right-3 mb-1.5 max-h-48 overflow-y-auto rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-1.5 shadow-2xl z-30">
