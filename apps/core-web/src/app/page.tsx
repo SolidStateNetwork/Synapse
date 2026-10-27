@@ -469,6 +469,7 @@ export default function SynapseNetBirdControlCenter() {
   const [previewSubPath, setPreviewSubPath] = useState<string>("/");
   const [previewReloadNonce, setPreviewReloadNonce] = useState<number>(0);
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
+  const [selectedEndpointId, setSelectedEndpointId] = useState<string>("");
   const [serviceCategoryFilter, setServiceCategoryFilter] = useState<
     "all" | "webui" | "backend" | "database"
   >("all");
@@ -2848,6 +2849,30 @@ export default function SynapseNetBirdControlCenter() {
                       primaryNode || "node"
                     }/${previewPort}/`;
 
+                const activeEndpoints = activeSvc?.endpoints || [];
+                const bySelectedIdIdx = selectedEndpointId
+                  ? activeEndpoints.findIndex(
+                      (e, i) => `${e.id || i}::${e.label}` === selectedEndpointId
+                    )
+                  : -1;
+                const byExactMatchIdx = activeEndpoints.findIndex(
+                  (e) =>
+                    e.method === serviceActionMethod &&
+                    e.path === serviceActionPath &&
+                    (e.sample_payload || "") === serviceActionPayload
+                );
+                const byMethodPathIdx = activeEndpoints.findIndex(
+                  (e) =>
+                    e.method === serviceActionMethod &&
+                    e.path === serviceActionPath
+                );
+                const activeEndpointIdx =
+                  bySelectedIdIdx !== -1
+                    ? bySelectedIdIdx
+                    : byExactMatchIdx !== -1
+                    ? byExactMatchIdx
+                    : byMethodPathIdx;
+
                 return (
                   <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6">
                     {/* SINGLE CLEAN WORKBENCH CONTAINER (No nested boxes, no duplicate top filter bar) */}
@@ -2885,6 +2910,9 @@ export default function SynapseNetBirdControlCenter() {
                                     svc.endpoints.length > 0
                                   ) {
                                     const firstEp = svc.endpoints[0];
+                                    setSelectedEndpointId(
+                                      `${firstEp.id || 0}::${firstEp.label}`
+                                    );
                                     setServiceActionMethod(firstEp.method);
                                     setServiceActionPath(firstEp.path);
                                     setServiceActionPayload(
@@ -2897,6 +2925,8 @@ export default function SynapseNetBirdControlCenter() {
                                       path: firstEp.path,
                                       payload: firstEp.sample_payload || "",
                                     });
+                                  } else {
+                                    setSelectedEndpointId("");
                                   }
                                 }}
                                 className={`relative flex shrink-0 items-center gap-2 rounded-t-lg px-4 py-2.5 text-xs transition-colors ${
@@ -3003,17 +3033,19 @@ export default function SynapseNetBirdControlCenter() {
                               </div>
                             ) : (
                               <div className="space-y-1.5">
-                                {(activeSvc.endpoints || []).map((ep) => {
+                                {activeEndpoints.map((ep, idx) => {
                                   const isCurrentEp =
-                                    serviceActionMethod === ep.method &&
-                                    serviceActionPath === ep.path;
+                                    idx === activeEndpointIdx;
                                   return (
                                     <button
-                                      key={ep.id}
+                                      key={`${ep.id || idx}::${ep.label}`}
                                       type="button"
                                       onClick={() => {
                                         setSelectedServiceId(
                                           activeSvc.service_id
+                                        );
+                                        setSelectedEndpointId(
+                                          `${ep.id || idx}::${ep.label}`
                                         );
                                         setPreviewPort(activeSvc.port);
                                         setServiceActionMethod(ep.method);
@@ -3071,7 +3103,8 @@ export default function SynapseNetBirdControlCenter() {
                             <div className="flex items-center gap-2 text-xs">
                               <select
                                 value={serviceActionMethod}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  setSelectedEndpointId("");
                                   setServiceActionMethod(
                                     e.target.value as
                                       | "GET"
@@ -3079,8 +3112,8 @@ export default function SynapseNetBirdControlCenter() {
                                       | "PUT"
                                       | "DELETE"
                                       | "SQL"
-                                  )
-                                }
+                                  );
+                                }}
                                 className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 font-mono text-xs font-semibold text-netbird focus:outline-none"
                               >
                                 <option value="GET">GET</option>
@@ -3093,9 +3126,10 @@ export default function SynapseNetBirdControlCenter() {
                               <input
                                 type="text"
                                 value={serviceActionPath}
-                                onChange={(e) =>
-                                  setServiceActionPath(e.target.value)
-                                }
+                                onChange={(e) => {
+                                  setSelectedEndpointId("");
+                                  setServiceActionPath(e.target.value);
+                                }}
                                 placeholder={
                                   serviceActionMethod === "SQL"
                                     ? "/opt/axon/workspaces/.../pulse.db"
@@ -3124,9 +3158,10 @@ export default function SynapseNetBirdControlCenter() {
                               <textarea
                                 rows={3}
                                 value={serviceActionPayload}
-                                onChange={(e) =>
-                                  setServiceActionPayload(e.target.value)
-                                }
+                                onChange={(e) => {
+                                  setSelectedEndpointId("");
+                                  setServiceActionPayload(e.target.value);
+                                }}
                                 placeholder={
                                   serviceActionMethod === "SQL"
                                     ? "SELECT * FROM events ORDER BY id DESC LIMIT 10;"
