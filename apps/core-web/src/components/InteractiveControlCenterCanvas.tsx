@@ -186,6 +186,7 @@ export default function InteractiveControlCenterCanvas({
   >({});
 
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const lastDragMovedRef = useRef<boolean>(false);
   const dragNodeStartRef = useRef<{
     nodeId: string;
     startClientX: number;
@@ -357,6 +358,7 @@ export default function InteractiveControlCenterCanvas({
         const dy = (e.clientY - d.startClientY) / zoom;
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
           d.moved = true;
+          lastDragMovedRef.current = true;
         }
         setPositions((prev) => ({
           ...prev,
@@ -403,6 +405,7 @@ export default function InteractiveControlCenterCanvas({
     }
     e.stopPropagation();
     const pos = positions[nodeId] || { x: 0, y: 0 };
+    lastDragMovedRef.current = false;
     setDraggingNodeId(nodeId);
     dragNodeStartRef.current = {
       nodeId,
@@ -520,26 +523,6 @@ export default function InteractiveControlCenterCanvas({
         }}
         className="absolute left-0 top-0 h-[1000px] w-[1400px]"
       >
-        {/* Subtle Column Labels */}
-        <div
-          style={{ left: 60, top: 28 }}
-          className="pointer-events-none absolute font-mono text-[10px] font-medium uppercase tracking-widest text-nb-gray-500"
-        >
-          Server (Peers)
-        </div>
-        <div
-          style={{ left: 430, top: 28 }}
-          className="pointer-events-none absolute font-mono text-[10px] font-medium uppercase tracking-widest text-nb-gray-500"
-        >
-          Synapse Core
-        </div>
-        <div
-          style={{ left: 800, top: 28 }}
-          className="pointer-events-none absolute font-mono text-[10px] font-medium uppercase tracking-widest text-nb-gray-500"
-        >
-          Erreichbare Services
-        </div>
-
         {/* CLEAN BEZIER EDGES (Zero-Lag Solid Base + Smooth Directional Flow) */}
         <svg
           className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
@@ -638,6 +621,10 @@ export default function InteractiveControlCenterCanvas({
               onMouseLeave={() => setHoveredNodeId(null)}
               onClick={(e) => {
                 e.stopPropagation();
+                if (lastDragMovedRef.current) {
+                  lastDragMovedRef.current = false;
+                  return;
+                }
                 if (gn.node_id === "empty") {
                   onOpenAddPeer();
                 } else {
@@ -717,6 +704,10 @@ export default function InteractiveControlCenterCanvas({
               onMouseLeave={() => setHoveredNodeId(null)}
               onClick={(e) => {
                 e.stopPropagation();
+                if (lastDragMovedRef.current) {
+                  lastDragMovedRef.current = false;
+                  return;
+                }
                 setInspected({ kind: "core" });
               }}
               className={`absolute w-[265px] rounded-2xl border bg-nb-gray-940 p-4 shadow-xl transition-colors duration-150 ${
@@ -801,6 +792,10 @@ export default function InteractiveControlCenterCanvas({
               onMouseLeave={() => setHoveredNodeId(null)}
               onClick={(e) => {
                 e.stopPropagation();
+                if (lastDragMovedRef.current) {
+                  lastDragMovedRef.current = false;
+                  return;
+                }
                 if (svc.service_id !== "empty") {
                   setInspected({ kind: "service", serviceId: svc.service_id });
                 }
