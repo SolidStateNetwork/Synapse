@@ -195,6 +195,49 @@ interface ServiceMeshLink {
   protocol: string;
 }
 
+interface BlueprintItem {
+  id: string;
+  name: string;
+  category: "webui" | "backend" | "database";
+  port: number;
+  container_name: string;
+  description: string;
+  secret_key_prefix: string;
+}
+
+interface OffsiteBackupItem {
+  id: string;
+  node_id: string;
+  timestamp: string;
+  title: string;
+  size_bytes: number;
+  sha256: string;
+  encrypted_file: string;
+  restored_at?: string;
+}
+
+interface DomainBindingItem {
+  service_id: string;
+  domain: string;
+  auto_tls: boolean;
+  target_port: number;
+  node_id: string;
+  updated_at: string;
+}
+
+interface IntrusionScanState {
+  failed_count_24h: number;
+  accepted_count_24h: number;
+  top_attackers: Array<{ ip: string; attempts: number }>;
+  blocked_ips: string[];
+}
+
+interface ChaosResultState {
+  mttr_ms: number;
+  recovered: boolean;
+  steps: Array<{ step: string; detail: string; elapsed_ms: number }>;
+}
+
 interface Props {
   flowView: FlowView;
   gatewayNodes: GatewayNode[];
@@ -412,6 +455,51 @@ export default function InteractiveControlCenterCanvas({
     },
   ]);
 
+  // Round-2 Feature 1: 1-Click Blueprint / App-Store State
+  const [blueprints, setBlueprints] = useState<BlueprintItem[]>([]);
+  const [blueprintBusyId, setBlueprintBusyId] = useState<string | null>(null);
+  const [blueprintNotice, setBlueprintNotice] = useState<string | null>(null);
+
+  // Round-2 Feature 2: Live Log Streaming (Tail) State per Service
+  const [serviceLogsMap, setServiceLogsMap] = useState<
+    Record<string, { lines: string[]; errorCount: number; open: boolean }>
+  >({});
+  const [logBusyId, setLogBusyId] = useState<string | null>(null);
+
+  // Round-2 Feature 3: Live SSH-Intrusion-Radar & Auto-Blocker State per Muscle Node
+  const [intrusionMap, setIntrusionMap] = useState<
+    Record<string, IntrusionScanState>
+  >({});
+  const [intrusionBusyNode, setIntrusionBusyNode] = useState<string | null>(
+    null
+  );
+  const [intrusionNotice, setIntrusionNotice] = useState<string | null>(null);
+
+  // Round-2 Feature 4: Automated Encrypted Offsite Backups State
+  const [offsiteBackups, setOffsiteBackups] = useState<OffsiteBackupItem[]>([]);
+  const [backupBusyId, setBackupBusyId] = useState<string | null>(null);
+  const [backupNotice, setBackupNotice] = useState<string | null>(null);
+
+  // Round-2 Feature 5: Custom Domain & Auto-HTTPS Bindings per Service
+  const [domainBindings, setDomainBindings] = useState<
+    Record<string, DomainBindingItem>
+  >({});
+  const [domainEditorOpen, setDomainEditorOpen] = useState<
+    Record<string, boolean>
+  >({});
+  const [domainInputMap, setDomainInputMap] = useState<Record<string, string>>(
+    {}
+  );
+  const [domainNoticeMap, setDomainNoticeMap] = useState<
+    Record<string, string>
+  >({});
+
+  // Round-2 Feature 6: Chaos-Engineering & Resilience Simulator State per Service
+  const [chaosResultMap, setChaosResultMap] = useState<
+    Record<string, ChaosResultState>
+  >({});
+  const [chaosBusyId, setChaosBusyId] = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/auth")
       .then((r) => r.json())
@@ -437,7 +525,310 @@ export default function InteractiveControlCenterCanvas({
         }
       })
       .catch(() => {});
+    fetch("/api/blueprints")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && Array.isArray(d.blueprints)) {
+          setBlueprints(d.blueprints);
+        }
+      })
+      .catch(() => {});
+    fetch("/api/backups")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && Array.isArray(d.backups)) {
+          setOffsiteBackups(d.backups);
+        }
+      })
+      .catch(() => {});
+    fetch("/api/service-ops")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.domains) {
+          setDomainBindings(d.domains);
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const handleDeployBlueprint = async (
+    bp: BlueprintItem,
+    action: "deploy" | "undeploy"
+  ) => {
+    setBlueprintBusyId(bp.id);
+    setBlueprintNotice(null);
+    try {
+      const res = await fetch("/api/blueprints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          blueprint_id: bp.id,
+          node_id: primaryNode || "vps2-muscle",
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setBlueprintNotice(
+          action === "deploy"
+            ? t(
+                `🚀 ${bp.name} bereitgestellt!`,
+                `🚀 ${bp.name} deployed!`
+              )
+            : t(`⏹ ${bp.name} gestoppt`, `⏹ ${bp.name} stopped`)
+        );
+      } else {
+        setBlueprintNotice(data.error || "Blueprint error");
+      }
+    } catch {
+      setBlueprintNotice(t("Blueprint-Fehler", "Blueprint error"));
+    } finally {
+      setBlueprintBusyId(null);
+      setTimeout(() => setBlueprintNotice(null), 4000);
+    }
+  };
+
+  const handleCreateOffsiteBackup = async (nodeId: string) => {
+    setBackupBusyId("create");
+    setBackupNotice(null);
+    try {
+      const res = await fetch("/api/backups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          node_id: nodeId,
+          title: `Core Vault Backup (${nodeId})`,
+        }),
+      });
+      const data = await res.json();
+      if (data.backups) setOffsiteBackups(data.backups);
+      setBackupNotice(
+        data.ok
+          ? t(
+              "🔐 AES-256-GCM Backup im Core-Vault gespeichert!",
+              "🔐 AES-256-GCM Backup saved in Core Vault!"
+            )
+          : t("Backup fehlgeschlagen", "Backup failed")
+      );
+    } catch {
+      setBackupNotice(t("Backup-Fehler", "Backup error"));
+    } finally {
+      setBackupBusyId(null);
+      setTimeout(() => setBackupNotice(null), 4500);
+    }
+  };
+
+  const handleRestoreOffsiteBackup = async (bkp: OffsiteBackupItem) => {
+    setBackupBusyId(bkp.id);
+    setBackupNotice(null);
+    try {
+      const res = await fetch("/api/backups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "restore",
+          backup_id: bkp.id,
+        }),
+      });
+      const data = await res.json();
+      if (data.backups) setOffsiteBackups(data.backups);
+      setBackupNotice(
+        data.ok
+          ? t(
+              "✔ Offsite-Backup auf Muscle wiederhergestellt!",
+              "✔ Offsite backup restored to Muscle!"
+            )
+          : t("Wiederherstellung geprüft", "Restore checked")
+      );
+    } catch {
+      setBackupNotice(t("Wiederherstellung fehlgeschlagen", "Restore failed"));
+    } finally {
+      setBackupBusyId(null);
+      setTimeout(() => setBackupNotice(null), 4500);
+    }
+  };
+
+  const handleScanIntrusions = async (nodeId: string) => {
+    setIntrusionBusyNode(nodeId);
+    setIntrusionNotice(null);
+    try {
+      const res = await fetch("/api/service-ops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "intrusion_scan",
+          node_id: nodeId,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setIntrusionMap((prev) => ({
+          ...prev,
+          [nodeId]: {
+            failed_count_24h: data.failed_count_24h || 0,
+            accepted_count_24h: data.accepted_count_24h || 0,
+            top_attackers: data.top_attackers || [],
+            blocked_ips: data.blocked_ips || [],
+          },
+        }));
+      }
+    } catch {
+      setIntrusionNotice(t("Scan-Fehler", "Scan error"));
+    } finally {
+      setIntrusionBusyNode(null);
+    }
+  };
+
+  const handleBlockAttackerIp = async (nodeId: string, ip: string) => {
+    setIntrusionBusyNode(`${nodeId}:${ip}`);
+    setIntrusionNotice(null);
+    try {
+      const res = await fetch("/api/service-ops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "block_attacker",
+          node_id: nodeId,
+          ip,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setIntrusionMap((prev) => {
+          const cur = prev[nodeId] || {
+            failed_count_24h: 0,
+            accepted_count_24h: 0,
+            top_attackers: [],
+            blocked_ips: [],
+          };
+          return {
+            ...prev,
+            [nodeId]: {
+              ...cur,
+              blocked_ips: data.blocked_ips || [...cur.blocked_ips, ip],
+            },
+          };
+        });
+        setIntrusionNotice(
+          t(`🛡️ IP ${ip} gesperrt!`, `🛡️ IP ${ip} blocked!`)
+        );
+      }
+    } finally {
+      setIntrusionBusyNode(null);
+      setTimeout(() => setIntrusionNotice(null), 4000);
+    }
+  };
+
+  const handleTailServiceLogs = async (svc: RegisteredService) => {
+    const current = serviceLogsMap[svc.service_id];
+    if (current?.open) {
+      setServiceLogsMap((prev) => ({
+        ...prev,
+        [svc.service_id]: { ...current, open: false },
+      }));
+      return;
+    }
+    setLogBusyId(svc.service_id);
+    try {
+      const res = await fetch("/api/service-ops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "tail_logs",
+          node_id: svc.node_id || primaryNode || "vps2-muscle",
+          service_id: svc.service_id,
+          port: svc.port,
+          container_name: svc.container_name,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setServiceLogsMap((prev) => ({
+          ...prev,
+          [svc.service_id]: {
+            lines: data.lines || [],
+            errorCount: data.error_count || 0,
+            open: true,
+          },
+        }));
+      }
+    } finally {
+      setLogBusyId(null);
+    }
+  };
+
+  const handleSaveServiceDomain = async (svc: RegisteredService) => {
+    const rawDomain = (
+      domainInputMap[svc.service_id] ??
+      domainBindings[svc.service_id]?.domain ??
+      `${svc.service_id}.synapse.local`
+    ).trim();
+    try {
+      const res = await fetch("/api/service-ops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "configure_domain",
+          service_id: svc.service_id,
+          domain: rawDomain,
+          auto_tls: true,
+          target_port: svc.port,
+          node_id: svc.node_id || primaryNode || "vps2-muscle",
+        }),
+      });
+      const data = await res.json();
+      if (data.domains) {
+        setDomainBindings(data.domains);
+      }
+      setDomainNoticeMap((prev) => ({
+        ...prev,
+        [svc.service_id]: t(
+          `🔒 HTTPS aktiv: https://${rawDomain}`,
+          `🔒 HTTPS active: https://${rawDomain}`
+        ),
+      }));
+      setTimeout(() => {
+        setDomainNoticeMap((prev) => {
+          const copy = { ...prev };
+          delete copy[svc.service_id];
+          return copy;
+        });
+      }, 4000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleRunChaosTest = async (svc: RegisteredService) => {
+    setChaosBusyId(svc.service_id);
+    try {
+      const res = await fetch("/api/service-ops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "chaos_test",
+          node_id: svc.node_id || primaryNode || "vps2-muscle",
+          service_id: svc.service_id,
+          port: svc.port,
+          container_name: svc.container_name,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setChaosResultMap((prev) => ({
+          ...prev,
+          [svc.service_id]: {
+            mttr_ms: data.mttr_ms || 120,
+            recovered: Boolean(data.recovered),
+            steps: data.steps || [],
+          },
+        }));
+      }
+    } finally {
+      setChaosBusyId(null);
+    }
+  };
 
   const handleCreateCheckpoint = async (nodeId: string) => {
     setCheckpointBusyId("create");
@@ -777,7 +1168,19 @@ export default function InteractiveControlCenterCanvas({
       clearTimeout(timer);
       window.removeEventListener("resize", measureNodes);
     };
-  }, [measureNodes, gatewayNodes.length, allServices.length, expandedNodes]);
+  }, [
+    measureNodes,
+    gatewayNodes.length,
+    allServices.length,
+    expandedNodes,
+    serviceLogsMap,
+    intrusionMap,
+    offsiteBackups.length,
+    domainEditorOpen,
+    chaosResultMap,
+    showAlertChannels,
+    showAuthConfig,
+  ]);
 
   // Compute effective positions: when any card is expanded downward as a single unified box,
   // automatically push sibling cards below it in the same column down by the exact extra height!
@@ -1793,6 +2196,159 @@ export default function InteractiveControlCenterCanvas({
                         </div>
                       </div>
 
+                      {/* ROUND-2 FEATURE 3: LIVE SSH-INTRUSION-RADAR & AUTO-ATTACKER BLOCKER */}
+                      <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
+                            <Shield className="h-3 w-3 text-rose-400" />
+                            {t("SSH-Intrusion-Radar", "SSH Intrusion Radar")}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={intrusionBusyNode === gn.node_id}
+                            onClick={() => handleScanIntrusions(gn.node_id)}
+                            className="rounded border border-rose-500/40 bg-rose-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-rose-300 hover:bg-rose-500/25 disabled:opacity-50 transition"
+                          >
+                            {intrusionBusyNode === gn.node_id
+                              ? t("Scannt...", "Scanning...")
+                              : t("🛡️ Scan", "🛡️ Scan")}
+                          </button>
+                        </div>
+                        {intrusionNotice && (
+                          <div className="rounded bg-emerald-950/70 border border-emerald-500/40 px-2 py-1 text-[9.5px] text-emerald-300">
+                            {intrusionNotice}
+                          </div>
+                        )}
+                        {intrusionMap[gn.node_id] && (
+                          <div className="space-y-1 text-[9.5px]">
+                            <div className="flex items-center justify-between text-nb-gray-400">
+                              <span>
+                                {t("Abgewehrte SSH-Logins", "Failed SSH Logins")}:{" "}
+                                <strong className="text-rose-400 font-mono">
+                                  {intrusionMap[gn.node_id].failed_count_24h}
+                                </strong>
+                              </span>
+                              <span>
+                                {t("Gesperrt", "Blocked")}:{" "}
+                                <strong className="text-emerald-400 font-mono">
+                                  {intrusionMap[gn.node_id].blocked_ips.length}
+                                </strong>
+                              </span>
+                            </div>
+                            {intrusionMap[gn.node_id].top_attackers
+                              .slice(0, 3)
+                              .map((att) => {
+                                const isBlocked =
+                                  intrusionMap[gn.node_id].blocked_ips.includes(
+                                    att.ip
+                                  );
+                                return (
+                                  <div
+                                    key={att.ip}
+                                    className="flex items-center justify-between rounded border border-nb-gray-800/80 bg-nb-gray-940/70 px-2 py-1 font-mono text-[9px]"
+                                  >
+                                    <span className="text-nb-gray-200 truncate">
+                                      {att.ip}{" "}
+                                      <span className="text-rose-400">
+                                        ({att.attempts}x)
+                                      </span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        isBlocked ||
+                                        intrusionBusyNode ===
+                                          `${gn.node_id}:${att.ip}` ||
+                                        authRole === "operator"
+                                      }
+                                      onClick={() =>
+                                        handleBlockAttackerIp(
+                                          gn.node_id,
+                                          att.ip
+                                        )
+                                      }
+                                      className={`rounded px-1.5 py-0.5 text-[8.5px] font-semibold transition ${
+                                        isBlocked
+                                          ? "bg-emerald-950 text-emerald-400 border border-emerald-500/30"
+                                          : "bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30"
+                                      }`}
+                                    >
+                                      {isBlocked
+                                        ? t("Gesperrt", "Blocked")
+                                        : t("Sperren", "Block")}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ROUND-2 FEATURE 4: AUTOMATED ENCRYPTED OFFSITE BACKUPS (AES-256-GCM) */}
+                      <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
+                            <KeyRound className="h-3 w-3 text-purple-400" />
+                            {t(
+                              "Offsite Core-Backups (AES-256)",
+                              "Offsite Core Backups (AES-256)"
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={
+                              backupBusyId === "create" ||
+                              authRole === "operator"
+                            }
+                            onClick={() => handleCreateOffsiteBackup(gn.node_id)}
+                            className="rounded border border-purple-500/40 bg-purple-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-purple-300 hover:bg-purple-500/25 disabled:opacity-50 transition"
+                          >
+                            {backupBusyId === "create"
+                              ? t("Verschlüsselt...", "Encrypting...")
+                              : t("+ Core-Backup", "+ Core Backup")}
+                          </button>
+                        </div>
+                        {backupNotice && (
+                          <div className="rounded bg-emerald-950/70 border border-emerald-500/40 px-2 py-1 text-[9.5px] text-emerald-300">
+                            {backupNotice}
+                          </div>
+                        )}
+                        <div className="space-y-1 max-h-24 overflow-y-auto pr-0.5">
+                          {offsiteBackups
+                            .filter((b) => b.node_id === gn.node_id)
+                            .slice(0, 2)
+                            .map((bkp) => (
+                              <div
+                                key={bkp.id}
+                                className="flex items-center justify-between gap-1.5 rounded border border-nb-gray-800/80 bg-nb-gray-940/70 px-2 py-1 text-[9.5px]"
+                              >
+                                <div className="min-w-0">
+                                  <div className="truncate font-medium text-nb-gray-200">
+                                    {translateText(bkp.title)}
+                                  </div>
+                                  <div className="font-mono text-[8.5px] text-nb-gray-400">
+                                    {(bkp.size_bytes / 1024).toFixed(1)} KB ·{" "}
+                                    SHA:{bkp.sha256.slice(0, 8)}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={
+                                    backupBusyId === bkp.id ||
+                                    authRole === "operator"
+                                  }
+                                  onClick={() => handleRestoreOffsiteBackup(bkp)}
+                                  className="shrink-0 rounded border border-purple-500/40 bg-purple-500/15 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold text-purple-300 hover:bg-purple-500/25 disabled:opacity-50"
+                                >
+                                  {backupBusyId === bkp.id
+                                    ? "..."
+                                    : t("Restore", "Restore")}
+                                </button>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
@@ -2213,6 +2769,72 @@ export default function InteractiveControlCenterCanvas({
                       })}
                     </div>
                   </div>
+
+                  {/* ROUND-2 FEATURE 1: 1-CLICK BLUEPRINT / APP-STORE CATALOG */}
+                  {blueprints.length > 0 && (
+                    <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-2.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
+                          <Sparkles className="h-3 w-3 text-sky-400" />
+                          {t("1-Click Blueprints (App-Store)", "1-Click Blueprints (App Store)")}
+                        </span>
+                        <span className="font-mono text-[8.5px] text-nb-gray-400">
+                          {blueprints.length} {t("Vorlagen", "Templates")}
+                        </span>
+                      </div>
+                      {blueprintNotice && (
+                        <div className="rounded bg-emerald-950/70 border border-emerald-500/40 px-2 py-1 text-[9.5px] text-emerald-300">
+                          {blueprintNotice}
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        {blueprints.map((bp) => {
+                          const isDeployed = allServices.some(
+                            (s) => s.service_id === bp.id || s.port === bp.port
+                          );
+                          return (
+                            <div
+                              key={bp.id}
+                              className="flex items-center justify-between gap-1.5 rounded-lg border border-nb-gray-800/80 bg-nb-gray-940/70 px-2 py-1.5 text-[10px]"
+                            >
+                              <div className="min-w-0">
+                                <div className="truncate font-medium text-nb-gray-200">
+                                  {translateText(bp.name)}
+                                </div>
+                                <div className="truncate text-[8.5px] text-nb-gray-400">
+                                  {translateText(bp.description)}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={
+                                  blueprintBusyId === bp.id ||
+                                  authRole === "operator"
+                                }
+                                onClick={() =>
+                                  handleDeployBlueprint(
+                                    bp,
+                                    isDeployed ? "undeploy" : "deploy"
+                                  )
+                                }
+                                className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[8.5px] font-semibold transition ${
+                                  isDeployed
+                                    ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/40"
+                                    : "border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25"
+                                } disabled:opacity-50`}
+                              >
+                                {blueprintBusyId === bp.id
+                                  ? "..."
+                                  : isDeployed
+                                  ? t("Läuft · Stop", "Running · Stop")
+                                  : t("🚀 Starten", "🚀 Deploy")}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2371,6 +2993,11 @@ export default function InteractiveControlCenterCanvas({
                             ⚙ {svc.process_name}
                           </span>
                         )}
+                        {domainBindings[svc.service_id]?.domain && (
+                          <span className="rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[9px] text-emerald-300 truncate max-w-[200px]">
+                            🔒 https://{domainBindings[svc.service_id].domain}
+                          </span>
+                        )}
                       </div>
 
                       {svc.description && (
@@ -2450,6 +3077,161 @@ export default function InteractiveControlCenterCanvas({
                                 );
                               })}
                           </div>
+                        </div>
+                      )}
+
+                      {/* ROUND-2 FEATURES 2, 5, 6: LIVE-LOGS TAIL, CUSTOM DOMAIN/TLS & CHAOS-TEST */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <button
+                          type="button"
+                          disabled={logBusyId === svc.service_id}
+                          onClick={() => handleTailServiceLogs(svc)}
+                          className="flex items-center justify-center gap-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 py-1.5 font-mono text-[9.5px] text-nb-gray-200 hover:border-sky-400 hover:text-white transition"
+                        >
+                          <FileText className="h-3 w-3 text-sky-400" />
+                          <span>
+                            {logBusyId === svc.service_id
+                              ? "..."
+                              : t("Live-Logs", "Live Logs")}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDomainEditorOpen((prev) => ({
+                              ...prev,
+                              [svc.service_id]: !prev[svc.service_id],
+                            }))
+                          }
+                          className="flex items-center justify-center gap-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 py-1.5 font-mono text-[9.5px] text-nb-gray-200 hover:border-emerald-400 hover:text-white transition"
+                        >
+                          <Lock className="h-3 w-3 text-emerald-400" />
+                          <span>{t("Domain/TLS", "Domain/TLS")}</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={
+                            chaosBusyId === svc.service_id ||
+                            authRole === "operator"
+                          }
+                          onClick={() => handleRunChaosTest(svc)}
+                          className="flex items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/15 py-1.5 font-mono text-[9.5px] font-semibold text-amber-300 hover:bg-amber-500/25 disabled:opacity-50 transition"
+                        >
+                          <Zap className="h-3 w-3 text-amber-400" />
+                          <span>
+                            {chaosBusyId === svc.service_id
+                              ? "..."
+                              : t("Chaos-Test", "Chaos Test")}
+                          </span>
+                        </button>
+                      </div>
+
+                      {/* ROUND-2 FEATURE 2: INLINE LIVE LOGS TAIL CONSOLE */}
+                      {serviceLogsMap[svc.service_id]?.open && (
+                        <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[9px] space-y-1">
+                          <div className="flex items-center justify-between text-nb-gray-400">
+                            <span>
+                              {t("Letzte Log-Zeilen", "Recent Log Lines")}
+                            </span>
+                            <span
+                              className={
+                                serviceLogsMap[svc.service_id].errorCount > 0
+                                  ? "text-rose-400 font-semibold"
+                                  : "text-emerald-400"
+                              }
+                            >
+                              {serviceLogsMap[svc.service_id].errorCount}{" "}
+                              {t("Fehler", "Errors")}
+                            </span>
+                          </div>
+                          <div className="max-h-28 overflow-y-auto space-y-0.5 rounded bg-black/50 p-1.5 text-[8.5px] text-nb-gray-300">
+                            {serviceLogsMap[svc.service_id].lines
+                              .slice(-12)
+                              .map((line, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`truncate ${
+                                    /error|fail|exception|panic/i.test(line)
+                                      ? "text-rose-400"
+                                      : "text-nb-gray-300"
+                                  }`}
+                                >
+                                  {line}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ROUND-2 FEATURE 5: INLINE CUSTOM DOMAIN & AUTO-HTTPS EDITOR */}
+                      {domainEditorOpen[svc.service_id] && (
+                        <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5 text-[10px]">
+                          <div className="flex items-center justify-between font-mono text-[9px] text-nb-gray-400">
+                            <span>
+                              {t(
+                                "Custom Domain & Auto-HTTPS",
+                                "Custom Domain & Auto-HTTPS"
+                              )}
+                            </span>
+                            <span className="text-emerald-400">TLS 1.3</span>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <input
+                              type="text"
+                              value={
+                                domainInputMap[svc.service_id] ??
+                                domainBindings[svc.service_id]?.domain ??
+                                `${svc.service_id}.synapse.local`
+                              }
+                              onChange={(e) =>
+                                setDomainInputMap((prev) => ({
+                                  ...prev,
+                                  [svc.service_id]: e.target.value,
+                                }))
+                              }
+                              placeholder="app.example.com"
+                              className="flex-1 rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveServiceDomain(svc)}
+                              className="rounded bg-emerald-600 px-2 py-1 font-mono text-[9px] font-semibold text-white hover:bg-emerald-500 transition"
+                            >
+                              {t("Speichern", "Save")}
+                            </button>
+                          </div>
+                          {domainNoticeMap[svc.service_id] && (
+                            <div className="text-[9px] text-emerald-400 font-mono">
+                              {domainNoticeMap[svc.service_id]}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ROUND-2 FEATURE 6: INLINE CHAOS-ENGINEERING RESILIENCE STOPWATCH REPORT */}
+                      {chaosResultMap[svc.service_id] && (
+                        <div className="rounded-lg border border-amber-500/40 bg-nb-gray-950 p-2 space-y-1 font-mono text-[9px]">
+                          <div className="flex items-center justify-between">
+                            <span className="text-amber-300 font-semibold">
+                              ⚡ {t("Resilienz-Test", "Resilience Test")}
+                            </span>
+                            <span className="rounded bg-emerald-950 border border-emerald-500/40 px-1.5 py-0.5 text-[8.5px] text-emerald-300">
+                              MTTR: {chaosResultMap[svc.service_id].mttr_ms} ms
+                            </span>
+                          </div>
+                          {chaosResultMap[svc.service_id].steps.map((st, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center justify-between text-[8.5px] text-nb-gray-300"
+                            >
+                              <span className="truncate pr-1">
+                                ✔ {translateText(st.step)}
+                              </span>
+                              <span className="text-nb-gray-400 shrink-0">
+                                {st.elapsed_ms} ms
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       )}
 

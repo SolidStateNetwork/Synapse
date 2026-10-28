@@ -976,6 +976,20 @@ const DE_DICTIONARY: Record<string, string> = {
   "Test Push Notification": "Test-Push-Benachrichtigung",
   "Manual Server Snapshot": "Manueller Server-Snapshot",
   "Manual Snapshot (vps2-muscle)": "Manueller Snapshot (vps2-muscle)",
+  "Uptime & Latency Beacon :4060": "Uptime- & Latenz-Beacon :4060",
+  "Lightweight HTTP uptime & latency probe microservice with JSON telemetry":
+    "Leichtgewichtiger HTTP-Uptime- & Latenz-Microservice mit JSON-Telemetrie",
+  "Webhook Event Sink :4065": "Webhook-Event-Empfänger :4065",
+  "Zero-dependency HTTP webhook receiver & event inspector":
+    "Abhängigkeitsfreier HTTP-Webhook-Empfänger & Event-Inspektor",
+  "In-Memory KV Cache :6380": "In-Memory KV-Cache :6380",
+  "High-speed Redis-compatible in-memory key-value cache":
+    "Schneller Redis-kompatibler In-Memory Key-Value-Cache",
+  "Core Vault Backup (vps2-muscle)": "Core-Vault-Backup (vps2-muscle)",
+  "Automated Encrypted Core Backup": "Automatisches verschlüsseltes Core-Backup",
+  "1. Fault Injection": "1. Fehlerinjektion",
+  "2. Watchdog Self-Heal": "2. Wächter Auto-Heilung",
+  "3. Health Verification": "3. Gesundheits-Prüfung",
 };
 
 const EN_PATTERNS: PatternRule[] = [
