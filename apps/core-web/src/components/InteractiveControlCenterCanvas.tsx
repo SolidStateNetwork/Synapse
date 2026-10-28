@@ -1212,13 +1212,12 @@ export default function InteractiveControlCenterCanvas({
         y: Math.min(out["core:hub"].y, 48),
       };
     }
-    const coreW = expandedNodes["core:hub"]
-      ? customDims["core:hub"]?.w || sizes["core:hub"]?.w || DEFAULT_NODE_W
-      : DEFAULT_NODE_W;
+    const coreW =
+      customDims["core:hub"]?.w || sizes["core:hub"]?.w || DEFAULT_NODE_W;
     const coreExtraW = Math.max(0, coreW - DEFAULT_NODE_W);
     let maxPeerExtraW = 0;
     for (const k of Object.keys(out)) {
-      if (k.startsWith("peer:") && expandedNodes[k]) {
+      if (k.startsWith("peer:")) {
         const pw = customDims[k]?.w || sizes[k]?.w || DEFAULT_NODE_W;
         maxPeerExtraW = Math.max(maxPeerExtraW, Math.max(0, pw - DEFAULT_NODE_W));
       }
@@ -1248,10 +1247,13 @@ export default function InteractiveControlCenterCanvas({
           x: Math.round(basePos.x + extraShiftX),
           y: Math.round(startY + extraShiftY),
         };
-        if (expandedNodes[k]) {
-          const actualH = sizes[k]?.h || fallbackExpandedH;
+        if (expandedNodes[k] || customDims[k]?.minH) {
+          const actualH =
+            sizes[k]?.h ||
+            customDims[k]?.minH ||
+            (expandedNodes[k] ? fallbackExpandedH : baseH);
           const delta = Math.max(0, actualH - baseH);
-          extraShiftY += delta + 10;
+          extraShiftY += delta + (expandedNodes[k] ? 10 : 0);
         }
       });
     };
@@ -1599,12 +1601,11 @@ export default function InteractiveControlCenterCanvas({
     nodeId: string,
     mode: "w" | "wh"
   ) {
-    if (!expandedNodes[nodeId]) return;
     e.preventDefault();
     e.stopPropagation();
     const el = nodeRefs.current[nodeId];
     const origW = customDims[nodeId]?.w || el?.offsetWidth || DEFAULT_NODE_W;
-    const origH = el?.offsetHeight || 100;
+    const origH = el?.offsetHeight || 74;
     lastDragMovedRef.current = true;
     setResizingNodeId(nodeId);
     resizeStartRef.current = {
@@ -1629,10 +1630,9 @@ export default function InteractiveControlCenterCanvas({
   }
 
   function renderResizeHandles(nodeId: string) {
-    if (!expandedNodes[nodeId]) return null;
     return (
       <>
-        {/* Right-edge width resize strip */}
+        {/* Right-edge width resize strip (flush with parent rounded-2xl card) */}
         <div
           data-resize-handle="true"
           onPointerDown={(e) => startNodeResize(e, nodeId, "w")}
@@ -1642,7 +1642,7 @@ export default function InteractiveControlCenterCanvas({
             "Ziehen, um Breite zu ändern (Doppelklick = Standardgröße)",
             "Drag to resize width (Double-click = reset size)"
           )}
-          className="absolute top-2 bottom-4 right-0 w-2 cursor-ew-resize rounded-r-xl hover:bg-netbird/40 transition-colors z-20"
+          className="absolute inset-y-0 right-0 w-2 cursor-ew-resize rounded-r-[15px] hover:bg-netbird/35 transition-colors z-20"
         />
         {/* Bottom-right corner 2D resize grip */}
         <div
@@ -1718,12 +1718,8 @@ export default function InteractiveControlCenterCanvas({
     const headerH2 =
       toId === "core:hub" ? 74 : toId.startsWith("peer:") ? 74 : 62;
 
-    const w1 = expandedNodes[fromId]
-      ? customDims[fromId]?.w || sizes[fromId]?.w || DEFAULT_NODE_W
-      : DEFAULT_NODE_W;
-    const w2 = expandedNodes[toId]
-      ? customDims[toId]?.w || sizes[toId]?.w || DEFAULT_NODE_W
-      : DEFAULT_NODE_W;
+    const w1 = customDims[fromId]?.w || sizes[fromId]?.w || DEFAULT_NODE_W;
+    const w2 = customDims[toId]?.w || sizes[toId]?.w || DEFAULT_NODE_W;
 
     const c1CenterX = p1.x + w1 / 2;
     const c2CenterX = p2.x + w2 / 2;
@@ -2033,12 +2029,10 @@ export default function InteractiveControlCenterCanvas({
               const p2 = effectivePositions[toKey];
               if (!p1 || !p2) return null;
 
-              const w1 = expandedNodes[fromKey]
-                ? customDims[fromKey]?.w || sizes[fromKey]?.w || DEFAULT_NODE_W
-                : DEFAULT_NODE_W;
-              const w2 = expandedNodes[toKey]
-                ? customDims[toKey]?.w || sizes[toKey]?.w || DEFAULT_NODE_W
-                : DEFAULT_NODE_W;
+              const w1 =
+                customDims[fromKey]?.w || sizes[fromKey]?.w || DEFAULT_NODE_W;
+              const w2 =
+                customDims[toKey]?.w || sizes[toKey]?.w || DEFAULT_NODE_W;
               const x1 = p1.x + w1;
               const y1 = p1.y + 31;
               const x2 = p2.x + w2;
@@ -2230,10 +2224,8 @@ export default function InteractiveControlCenterCanvas({
             (c) => !c.node_id || c.node_id === gn.node_id
           );
 
-          const customW = isExpanded
-            ? customDims[nodeKey]?.w || DEFAULT_NODE_W
-            : DEFAULT_NODE_W;
-          const customMinH = isExpanded ? customDims[nodeKey]?.minH : undefined;
+          const customW = customDims[nodeKey]?.w || DEFAULT_NODE_W;
+          const customMinH = customDims[nodeKey]?.minH;
 
           return (
             <div
@@ -2771,10 +2763,8 @@ export default function InteractiveControlCenterCanvas({
           const nodeKey = "core:hub";
           const pos = effectivePositions[nodeKey] || { x: 60, y: 120 };
           const isExpanded = Boolean(expandedNodes[nodeKey]);
-          const customW = isExpanded
-            ? customDims[nodeKey]?.w || DEFAULT_NODE_W
-            : DEFAULT_NODE_W;
-          const customMinH = isExpanded ? customDims[nodeKey]?.minH : undefined;
+          const customW = customDims[nodeKey]?.w || DEFAULT_NODE_W;
+          const customMinH = customDims[nodeKey]?.minH;
 
           return (
             <div
@@ -3096,10 +3086,8 @@ export default function InteractiveControlCenterCanvas({
               : "API";
           const latencyMs =
             svc.latency_ms ?? svc.health_check?.latency_ms ?? 1;
-          const customW = isExpanded
-            ? customDims[nodeKey]?.w || DEFAULT_NODE_W
-            : DEFAULT_NODE_W;
-          const customMinH = isExpanded ? customDims[nodeKey]?.minH : undefined;
+          const customW = customDims[nodeKey]?.w || DEFAULT_NODE_W;
+          const customMinH = customDims[nodeKey]?.minH;
 
           return (
             <div
