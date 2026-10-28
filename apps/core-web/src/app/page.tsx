@@ -62,309 +62,36 @@ import {
 import RichMarkdownDocument from "@/components/RichMarkdownDocument";
 import InteractiveControlCenterCanvas from "@/components/InteractiveControlCenterCanvas";
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
+import {
+  AIProviderSettings,
+  AuditEntry,
+  AutonomyTier,
+  CartridgeMeta,
+  ChatAttachment,
+  ChatItem,
+  FlowView,
+  FsEntry,
+  GatewayNode,
+  NavSection,
+  NodeHeartbeat,
+  PendingApproval,
+  PROVIDER_PRESETS,
+  ProjectState,
+  PromptCacheMetrics,
+  StackBlueprint,
+  ToolResultItem,
+} from "@/types/synapse";
+import {
+  SynapseSubTabs,
+  SynapseViewHeader,
+} from "@/components/ui/SynapseDesignSystem";
+import FirewallView from "@/components/views/FirewallView";
+import AccessRulesView from "@/components/views/AccessRulesView";
+import AuditLogView from "@/components/views/AuditLogView";
 
 const XTermTerminal = dynamic(() => import("@/components/XTermTerminal"), {
   ssr: false,
 });
-
-type AutonomyTier =
-  | "TIER_1_UNLEASHED"
-  | "TIER_2_WORKSPACE_JAIL"
-  | "TIER_3_SUPERVISED";
-
-type NavSection =
-  | "control-center"
-  | "peers"
-  | "firewall"
-  | "access-control"
-  | "reverse-proxy"
-  | "brain-vault"
-  | "workspace"
-  | "activity"
-  | "settings";
-
-type FlowView = "peers" | "ai-agent" | "groups" | "networks";
-
-interface NodeHeartbeat {
-  node_id: string;
-  hostname: string;
-  os_arch: string;
-  os_info?: string;
-  public_ipv4?: string;
-  private_ipv4?: string;
-  tier: AutonomyTier;
-  cpu_percent: number;
-  ram_percent: number;
-  ram_used_bytes: number;
-  ram_total_bytes: number;
-  disk_percent: number;
-  active_pty_sessions: string[];
-  pty_session_details?: Array<{
-    session_id: string;
-    cwd: string;
-    running_cmd?: string | null;
-  }>;
-  services?: Array<{
-    service_id: string;
-    name: string;
-    port: number;
-    protocol: string;
-    healthy: boolean;
-    last_error?: string;
-  }>;
-  timestamp_unix: number;
-}
-
-interface PendingApproval {
-  approval_id: string;
-  created_at: string;
-  tool_name: string;
-  node_id: string;
-  arguments: Record<string, unknown>;
-  status: "pending" | "approved" | "rejected";
-}
-
-interface AIProviderSettings {
-  provider: string;
-  base_url: string;
-  model: string;
-  api_key_secret_name: string;
-  enable_prompt_caching?: boolean;
-  enable_auto_watchdog?: boolean;
-}
-
-interface ProjectState {
-  project_id: string;
-  name: string;
-  description: string;
-  created_at: string;
-  updated_at: string;
-  planning_only: boolean;
-  assigned_nodes: Array<{
-    node_id: string;
-    tier: AutonomyTier;
-    online: boolean;
-    hostname?: string;
-    os_arch?: string;
-    os_info?: string;
-    last_seen_unix?: number;
-  }>;
-  active_cartridges: string[];
-  registered_services: Array<{
-    service_id: string;
-    node_id: string;
-    name: string;
-    category?: "webui" | "backend" | "database" | "worker";
-    description?: string;
-    db_path?: string;
-    endpoints?: Array<{
-      id: string;
-      label: string;
-      method: "GET" | "POST" | "PUT" | "DELETE" | "SQL";
-      path: string;
-      description?: string;
-      sample_payload?: string;
-    }>;
-    port: number;
-    protocol: "http" | "tcp";
-    path?: string;
-    healthy?: boolean;
-    health_check?: {
-      type: "HTTP" | "TCP" | "SYSTEMD" | "EXEC";
-      target: string;
-      interval_sec: number;
-      status: "HEALTHY" | "UNHEALTHY" | "UNKNOWN";
-      last_checked?: string;
-      last_error?: string;
-    };
-  }>;
-  active_pty_sessions: string[];
-  telemetry: Record<string, NodeHeartbeat>;
-  pending_approvals: PendingApproval[];
-  ai_settings?: AIProviderSettings;
-  peer_mesh_links?: Array<{
-    link_id: string;
-    source_node_id: string;
-    target_node_id: string;
-    target_port?: number;
-    remote_port?: number;
-    local_port?: number;
-    protocol: "tcp" | "http";
-    alias_env?: string;
-    description?: string;
-    created_at: string;
-  }>;
-  scheduled_playbooks?: Array<{
-    playbook_id: string;
-    name: string;
-    cron?: string;
-    cron_expression?: string;
-    prompt: string;
-    target_node_id?: string;
-    enabled: boolean;
-    last_run_at?: string;
-    last_status?: string;
-  }>;
-  mcp_api_keys?: Array<{
-    key_id: string;
-    name: string;
-    token_prefix: string;
-    scopes: Array<"read" | "execute" | "admin">;
-    created_at: string;
-    last_used_at?: string;
-  }>;
-  firewall_policies?: Record<
-    string,
-    {
-      node_id: string;
-      profile: "web_standard" | "synapse_stealth" | "custom";
-      backend?: string;
-      anti_lockout_active: boolean;
-      rollback_guard_seconds: number;
-      ssh_port: number;
-      shielded_ports: number[];
-      ip_rules: Array<{
-        rule_id: string;
-        ip_or_cidr: string;
-        action: "allow" | "block";
-        port?: number | null;
-        protocol?: "tcp" | "udp" | "any";
-        note?: string;
-        created_at: string;
-      }>;
-      detected_ports?: Array<{
-        port: number;
-        protocol: "tcp" | "udp";
-        bind_address: string;
-        exposure: "public" | "local";
-        process: string;
-        pid?: number;
-        service_name?: string;
-        shielded: boolean;
-        system_protected?: boolean;
-      }>;
-      last_synced_at: string;
-    }
-  >;
-}
-
-interface StackBlueprint {
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-  cartridges?: string[];
-  recommendedCartridges?: string[];
-  prompt?: string;
-  promptCommand?: string;
-}
-
-interface AuditEntry {
-  timestamp: string;
-  actor: "ai" | "user" | "policy_interceptor";
-  tool_name: string;
-  node_id?: string;
-  status:
-    | "executed"
-    | "blocked"
-    | "requires_approval"
-    | "approved"
-    | "rejected"
-    | "error";
-  summary: string;
-  args?: Record<string, unknown>;
-}
-
-interface CartridgeMeta {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  content: string;
-}
-
-interface GatewayNode {
-  node_id: string;
-  tier: AutonomyTier;
-  remote_addr: string;
-  connected_at: string;
-  online: boolean;
-  last_heartbeat?: NodeHeartbeat;
-}
-
-interface FsEntry {
-  name: string;
-  path: string;
-  is_dir: boolean;
-  size: number;
-  mode: string;
-  mod_time_unix: number;
-}
-
-interface ChatAttachment {
-  id: string;
-  name: string;
-  mime_type: string;
-  data_url: string;
-  size_bytes?: number;
-}
-
-interface PromptCacheMetrics {
-  cached_tokens: number;
-  prompt_tokens: number;
-  completion_tokens?: number;
-  tool_cache_hits: number;
-  provider_cache_active: boolean;
-}
-
-interface ToolResultItem {
-  tool_name: string;
-  status: string;
-  output: unknown;
-  cached?: boolean;
-  rollback_snapshot_id?: string;
-  rollback_path?: string;
-}
-
-interface ChatItem {
-  role: "user" | "assistant";
-  content: string;
-  attachments?: ChatAttachment[];
-  thinking?: string;
-  cacheMetrics?: PromptCacheMetrics;
-  toolResults?: ToolResultItem[];
-}
-
-const PROVIDER_PRESETS: Record<
-  string,
-  { label: string; defaultUrl: string; defaultModel: string }
-> = {
-  "openai-compatible": {
-    label: "Custom OpenAI-Compatible (vLLM / LiteLLM / OpenAI)",
-    defaultUrl: "https://api.openai.com/v1",
-    defaultModel: "gpt-4o",
-  },
-  openrouter: {
-    label: "OpenRouter.ai",
-    defaultUrl: "https://openrouter.ai/api/v1",
-    defaultModel: "anthropic/claude-3.5-sonnet",
-  },
-  ollama: {
-    label: "Ollama / Local vLLM",
-    defaultUrl: "http://127.0.0.1:11434/v1",
-    defaultModel: "llama3.1",
-  },
-  anthropic: {
-    label: "Anthropic Messages API",
-    defaultUrl: "https://api.anthropic.com/v1",
-    defaultModel: "claude-3-5-sonnet-latest",
-  },
-  "synapse-autonomous": {
-    label: "Synapse Deterministic Engine",
-    defaultUrl: "builtin://synapse-core",
-    defaultModel: "synapse-v1-deterministic",
-  },
-};
 
 export default function SynapseNetBirdControlCenter() {
   const { locale } = useI18n();
@@ -3158,75 +2885,63 @@ export default function SynapseNetBirdControlCenter() {
                 VIEW 2: NETBIRD PEERS & CLUSTER VIEW (`peers`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "peers" && (
-              <div className="mx-auto max-w-6xl p-6 space-y-4">
-                {/* Clean 4-Tab Sub-Navigation + Action Button (No redundant H1 header) */}
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-nb-gray-900 pb-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {[
-                      {
-                        id: "nodes",
-                        label: "Server",
-                        icon: Server,
-                      },
-                      {
-                        id: "mesh",
-                        label: "P2P Mesh-Links",
-                        icon: Network,
-                      },
-                      {
-                        id: "blueprints",
-                        label: "Stack-Blueprints",
-                        icon: Sparkles,
-                      },
-                      {
-                        id: "playbooks",
-                        label: "Cron-Playbooks",
-                        icon: Activity,
-                      },
-                    ].map((tab) => {
-                      const Icon = tab.icon;
-                      const active = peersSubTab === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() =>
-                            setPeersSubTab(
-                              tab.id as
-                                | "nodes"
-                                | "mesh"
-                                | "blueprints"
-                                | "playbooks"
-                            )
-                          }
-                          className={`flex items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-medium transition ${
-                            active
-                              ? "border-netbird bg-nb-gray-900 text-white"
-                              : "border-nb-gray-800/80 bg-nb-gray-940 text-nb-gray-400 hover:text-white"
-                          }`}
-                        >
-                          <Icon
-                            className={`h-3.5 w-3.5 ${
-                              active ? "text-netbird" : ""
-                            }`}
-                          />
-                          <span>{tab.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setAddPeerModalOpen(true);
-                      if (!issuedToken) handleGenerateJoinToken();
-                    }}
-                    className="flex items-center gap-1.5 rounded-lg bg-netbird px-3.5 py-2 text-xs font-medium text-white hover:bg-netbird-500 transition"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Server hinzufügen</span>
-                  </button>
-                </div>
+              <div className="mx-auto max-w-6xl p-6 space-y-5">
+                <SynapseViewHeader
+                  icon={<Server className="h-5 w-5" />}
+                  accentColor="indigo"
+                  title="Server & Mesh-Netzwerk"
+                  badgeText={`${gatewayNodes.filter((n) => n.online).length} Online`}
+                  badgeTone="emerald"
+                  description="Verwalte alle angeschlossenen Muscle-Server, verknüpfe Dienste über verschlüsselte P2P-Mesh-Tunnel oder stelle komplette Infrastruktur-Stacks und Cron-Playbooks per 1-Klick bereit."
+                  actions={
+                    <button
+                      onClick={() => {
+                        setAddPeerModalOpen(true);
+                        if (!issuedToken) handleGenerateJoinToken();
+                      }}
+                      className="flex items-center gap-1.5 rounded-xl bg-netbird px-3.5 py-2 text-xs font-medium text-white hover:bg-netbird-500 transition shadow-sm"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Server hinzufügen</span>
+                    </button>
+                  }
+                  subTabs={
+                    <SynapseSubTabs
+                      activeTab={peersSubTab}
+                      onChange={(id) =>
+                        setPeersSubTab(
+                          id as "nodes" | "mesh" | "blueprints" | "playbooks"
+                        )
+                      }
+                      tabs={[
+                        {
+                          id: "nodes",
+                          label: "Server",
+                          icon: <Server className="h-3.5 w-3.5" />,
+                          badge: gatewayNodes.length,
+                        },
+                        {
+                          id: "mesh",
+                          label: "P2P Mesh-Links",
+                          icon: <Network className="h-3.5 w-3.5" />,
+                          badge: (activeProject?.peer_mesh_links || []).length,
+                        },
+                        {
+                          id: "blueprints",
+                          label: "Stack-Blueprints",
+                          icon: <Sparkles className="h-3.5 w-3.5" />,
+                          badge: blueprints.length,
+                        },
+                        {
+                          id: "playbooks",
+                          label: "Cron-Playbooks",
+                          icon: <Activity className="h-3.5 w-3.5" />,
+                          badge: (activeProject?.scheduled_playbooks || []).length,
+                        },
+                      ]}
+                    />
+                  }
+                />
 
                 {/* SUB-TAB 1: MUSCLE NODES TABLE */}
                 {peersSubTab === "nodes" && (
@@ -3244,21 +2959,27 @@ export default function SynapseNetBirdControlCenter() {
                       </div>
                       <div className="flex items-center gap-1.5">
                         {[
-                          "ALL",
-                          "TIER_1_UNLEASHED",
-                          "TIER_2_WORKSPACE_JAIL",
-                          "TIER_3_SUPERVISED",
+                          { id: "ALL", label: "Alle Stufen" },
+                          { id: "TIER_1_UNLEASHED", label: "Tier 1 · Unleashed" },
+                          {
+                            id: "TIER_2_WORKSPACE_JAIL",
+                            label: "Tier 2 · Workspace",
+                          },
+                          {
+                            id: "TIER_3_SUPERVISED",
+                            label: "Tier 3 · Supervised",
+                          },
                         ].map((tierOpt) => (
                           <button
-                            key={tierOpt}
-                            onClick={() => setPeerTierFilter(tierOpt)}
+                            key={tierOpt.id}
+                            onClick={() => setPeerTierFilter(tierOpt.id)}
                             className={`rounded-md border px-2.5 py-1 font-mono text-[10px] transition ${
-                              peerTierFilter === tierOpt
+                              peerTierFilter === tierOpt.id
                                 ? "border-netbird-500 bg-netbird-950 text-netbird"
                                 : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:bg-nb-gray-900"
                             }`}
                           >
-                            {tierOpt === "ALL" ? "Alle Tiers" : tierOpt}
+                            {tierOpt.label}
                           </button>
                         ))}
                       </div>
@@ -3270,8 +2991,7 @@ export default function SynapseNetBirdControlCenter() {
                           <tr>
                             <th className="py-3 px-3">Server / Status</th>
                             <th className="py-3 px-3">Autonomie-Stufe</th>
-                            <th className="py-3 px-3">Adresse (IPv4)</th>
-                            <th className="py-3 px-3">OS / Arch</th>
+                            <th className="py-3 px-3">Host &amp; System</th>
                             <th className="py-3 px-3">Auslastung</th>
                             <th className="py-3 px-3 text-right">Aktionen</th>
                           </tr>
@@ -3289,6 +3009,13 @@ export default function SynapseNetBirdControlCenter() {
                             const nodeSvcs = (
                               activeProject?.registered_services || []
                             ).filter((s) => s.node_id === gn.node_id);
+
+                            const tierHumanLabel =
+                              gn.tier === "TIER_1_UNLEASHED"
+                                ? "Tier 1 · Unleashed"
+                                : gn.tier === "TIER_2_WORKSPACE_JAIL"
+                                  ? "Tier 2 · Workspace"
+                                  : "Tier 3 · Supervised";
 
                             return (
                               <React.Fragment key={gn.node_id}>
@@ -3327,23 +3054,25 @@ export default function SynapseNetBirdControlCenter() {
                                   </td>
                                   <td className="py-3 px-3 whitespace-nowrap">
                                     <span className="rounded-md border border-netbird-500/50 bg-netbird-950 px-2 py-0.5 font-mono text-[10px] text-netbird">
-                                      {gn.tier}
+                                      {tierHumanLabel}
                                     </span>
                                   </td>
-                                  <td className="py-3 px-3 font-mono text-nb-gray-200 whitespace-nowrap">
-                                    {hb?.private_ipv4 || "127.0.0.1"}
-                                  </td>
-                                  <td
-                                    className="py-3 px-3 font-mono text-nb-gray-300 max-w-[130px] truncate"
-                                    title={
-                                      hb?.os_info ||
-                                      hb?.os_arch ||
-                                      "linux/amd64"
-                                    }
-                                  >
-                                    {hb?.os_info
-                                      ? hb.os_info.split("(")[0].trim()
-                                      : hb?.os_arch || "linux/amd64"}
+                                  <td className="py-3 px-3 whitespace-nowrap">
+                                    <div className="font-mono text-nb-gray-200">
+                                      {hb?.private_ipv4 || "127.0.0.1"}
+                                    </div>
+                                    <div
+                                      className="font-mono text-[10.5px] text-nb-gray-400 max-w-[140px] truncate"
+                                      title={
+                                        hb?.os_info ||
+                                        hb?.os_arch ||
+                                        "linux/amd64"
+                                      }
+                                    >
+                                      {hb?.os_info
+                                        ? hb.os_info.split("(")[0].trim()
+                                        : hb?.os_arch || "linux/amd64"}
+                                    </div>
                                   </td>
                                   <td className="py-3 px-3">
                                     {hb ? (
@@ -3425,7 +3154,7 @@ export default function SynapseNetBirdControlCenter() {
 
                                 {rowExpanded && (
                                   <tr className="bg-nb-gray-950/80">
-                                    <td colSpan={6} className="p-4">
+                                    <td colSpan={5} className="p-4">
                                       <div className="grid grid-cols-1 gap-4 md:grid-cols-3 text-xs">
                                         {/* Resource Bars */}
                                         <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-940 p-3 space-y-2">
@@ -3843,838 +3572,58 @@ export default function SynapseNetBirdControlCenter() {
             {/* ═══════════════════════════════════════════════════════════════
                 VIEW 2.5: SYNAPSE FIREWALL & PORT-SHIELD (`firewall`)
             ═══════════════════════════════════════════════════════════════ */}
-            {activeNav === "firewall" &&
-              (() => {
-                const targetNode =
-                  selectedNodeId ||
-                  activeProject?.assigned_nodes?.[0]?.node_id ||
-                  gatewayNodes[0]?.node_id ||
-                  "vps2-muscle";
-                const nodePolicy = activeProject?.firewall_policies?.[
-                  targetNode
-                ] || {
-                  node_id: targetNode,
-                  profile: "web_standard" as const,
-                  backend: "iptables + SYNAPSE_FW Shield",
-                  anti_lockout_active: true,
-                  rollback_guard_seconds: 15,
-                  ssh_port: 22,
-                  shielded_ports: [] as number[],
-                  ip_rules: [],
-                  detected_ports: [],
-                  last_synced_at: new Date().toISOString(),
-                };
-                const portsList =
-                  liveFirewallPorts.length > 0
-                    ? liveFirewallPorts
-                    : nodePolicy.detected_ports &&
-                      nodePolicy.detected_ports.length > 0
-                    ? nodePolicy.detected_ports
-                    : [
-                        {
-                          port: nodePolicy.ssh_port || 22,
-                          protocol: "tcp" as "tcp" | "udp",
-                          bind_address: "0.0.0.0",
-                          exposure: "public" as "public" | "local",
-                          process: "sshd",
-                          pid: undefined as number | undefined,
-                          service_name: "SSH Server-Zugang (Anti-Lockout)",
-                          shielded: false,
-                          system_protected: true,
-                        },
-                        ...(activeProject?.registered_services || [])
-                          .filter((s) => s.node_id === targetNode)
-                          .map((s) => ({
-                            port: s.port,
-                            protocol: "tcp" as "tcp" | "udp",
-                            bind_address: "0.0.0.0",
-                            exposure: "public" as "public" | "local",
-                            process: "python3",
-                            pid: undefined as number | undefined,
-                            service_name: s.name,
-                            shielded: nodePolicy.shielded_ports.includes(s.port),
-                            system_protected: false,
-                          })),
-                      ];
-
-                const publicOpenCount = portsList.filter(
-                  (p) =>
-                    p.exposure === "public" &&
-                    !p.shielded &&
-                    !p.system_protected
-                ).length;
-                const shieldedCount = portsList.filter((p) => p.shielded).length;
-                const localOnlyCount = portsList.filter(
-                  (p) => p.exposure === "local"
-                ).length;
-
-                const availableNodes = Array.from(
-                  new Set([
-                    ...gatewayNodes.map((n) => n.node_id),
-                    ...(activeProject?.assigned_nodes || []).map(
-                      (n) => n.node_id
-                    ),
-                    targetNode,
-                  ])
-                ).filter(Boolean);
-
-                return (
-                  <div className="mx-auto max-w-6xl p-6 space-y-5">
-                    {/* Top Bar: Server Switcher + Anti-Lockout Status + Scan Button */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-4">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-950/60 text-emerald-400">
-                          <ShieldCheck className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h2 className="text-sm font-semibold text-white">
-                              Firewall &amp; Port-Schutz
-                            </h2>
-                            <span className="rounded-full border border-emerald-500/40 bg-emerald-950/60 px-2.5 py-0.5 text-[10.5px] font-medium text-emerald-300">
-                              🛡️ Anti-Lockout &amp; 15s Notfall-Rollback aktiv
-                            </span>
-                          </div>
-                          <p className="text-xs text-nb-gray-400 mt-0.5">
-                            Sperre offene Ports mit 1 Klick nach außen, während
-                            deine Apps über den verschlüsselten Synapse-Tunnel (
-                            <code className="text-nb-gray-200">127.0.0.1</code>)
-                            weiterhin erreichbar bleiben.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        {/* Server Selector Pills */}
-                        <div className="flex items-center gap-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-1">
-                          {availableNodes.map((nid) => {
-                            const active = nid === targetNode;
-                            return (
-                              <button
-                                key={nid}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedNodeId(nid);
-                                  fetchFirewallStatus(nid);
-                                }}
-                                className={`rounded-md px-2.5 py-1 font-mono text-xs transition ${
-                                  active
-                                    ? "bg-netbird text-white font-semibold"
-                                    : "text-nb-gray-400 hover:text-white"
-                                }`}
-                              >
-                                {nid}
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        <button
-                          type="button"
-                          disabled={firewallBusy}
-                          onClick={() => fetchFirewallStatus(targetNode)}
-                          className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs font-medium text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white disabled:opacity-50"
-                        >
-                          <RefreshCw
-                            className={`h-3.5 w-3.5 ${
-                              firewallBusy ? "animate-spin text-netbird" : ""
-                            }`}
-                          />
-                          <span>
-                            {firewallBusy ? "Synchronisiere..." : "Port-Radar scannen"}
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCopilotDrawerOpen(true);
-                            runStreamingPrompt(
-                              `Prüfe mit \`node_firewall_control\` (\`action: "inspect"\`) alle offenen Ports und Firewall-Regeln auf \`@${targetNode}\` und gib mir eine kurze, leicht verständliche Sicherheitsempfehlung auf Deutsch.`
-                            );
-                          }}
-                          className="flex items-center gap-1.5 rounded-lg border border-netbird-500/50 bg-netbird-950 px-3 py-2 text-xs font-medium text-netbird hover:bg-netbird hover:text-white transition"
-                        >
-                          <Sparkles className="h-3.5 w-3.5" />
-                          <span>KI-Beratung</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {firewallError && (
-                      <div className="rounded-xl border border-red-500/50 bg-red-950/40 px-4 py-3 text-xs text-red-300 flex items-center justify-between">
-                        <span>⚠️ {firewallError}</span>
-                        <button
-                          type="button"
-                          onClick={() => setFirewallError("")}
-                          className="text-red-300 hover:text-white"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* 1. 1-CLICK SECURITY PROFILES */}
-                    <div className="space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-nb-gray-400">
-                          1. 1-Klick Sicherheits-Profile
-                        </span>
-                        <span className="font-mono text-[11px] text-nb-gray-400">
-                          Aktives Backend:{" "}
-                          <span className="text-nb-gray-200">
-                            {nodePolicy.backend || "iptables + SYNAPSE_FW"}
-                          </span>{" "}
-                          · SSH-Schutz:{" "}
-                          <span className="text-emerald-400">
-                            Port :{nodePolicy.ssh_port || 22}
-                          </span>
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                        {/* Profile 1: Web-Server Standard */}
-                        <div
-                          onClick={() =>
-                            handleFirewallAction({
-                              action: "set_profile",
-                              node_id: targetNode,
-                              profile: "web_standard",
-                            })
-                          }
-                          className={`cursor-pointer rounded-xl border p-4 transition ${
-                            nodePolicy.profile === "web_standard"
-                              ? "border-emerald-500 bg-emerald-950/20 ring-1 ring-emerald-500/30"
-                              : "border-nb-gray-850 bg-nb-gray-940 hover:border-nb-gray-700"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-950 px-2.5 py-0.5 text-[10.5px] font-semibold text-emerald-300">
-                              🟢 Web-Server Modus (Standard)
-                            </span>
-                            {nodePolicy.profile === "web_standard" && (
-                              <span className="rounded bg-emerald-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
-                                AKTIV
-                              </span>
-                            )}
-                          </div>
-                          <h3 className="mt-2.5 text-sm font-semibold text-white">
-                            Webseiten offen, interne Dienste geschützt
-                          </h3>
-                          <p className="mt-1 text-xs text-nb-gray-400 leading-relaxed">
-                            Erlaubt öffentlich nur SSH (:{nodePolicy.ssh_port || 22})
-                            sowie HTTP/HTTPS (:80/:443). Interne Backend- &amp;
-                            Datenbank-Ports werden nach außen abgeschirmt.
-                          </p>
-                        </div>
-
-                        {/* Profile 2: Synapse Stealth / Zero-Port */}
-                        <div
-                          onClick={() =>
-                            handleFirewallAction({
-                              action: "set_profile",
-                              node_id: targetNode,
-                              profile: "synapse_stealth",
-                            })
-                          }
-                          className={`cursor-pointer rounded-xl border p-4 transition ${
-                            nodePolicy.profile === "synapse_stealth"
-                              ? "border-sky-500 bg-sky-950/25 ring-1 ring-sky-500/30"
-                              : "border-nb-gray-850 bg-nb-gray-940 hover:border-nb-gray-700"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-950 px-2.5 py-0.5 text-[10.5px] font-semibold text-sky-300">
-                              🛡️ Synapse Stealth-Modus (Zero-Port)
-                            </span>
-                            {nodePolicy.profile === "synapse_stealth" && (
-                              <span className="rounded bg-sky-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-sky-300">
-                                AKTIV
-                              </span>
-                            )}
-                          </div>
-                          <h3 className="mt-2.5 text-sm font-semibold text-white">
-                            Alle App-Ports nach außen unsichtbar
-                          </h3>
-                          <p className="mt-1 text-xs text-nb-gray-400 leading-relaxed">
-                            Blockiert alle Anwendungs-Ports für das Internet (nur
-                            SSH bleibt als Notfallzugang offen). Alle Apps laufen
-                            sicher über den Synapse-Tunnel!
-                          </p>
-                        </div>
-
-                        {/* Profile 3: Custom */}
-                        <div
-                          onClick={() =>
-                            handleFirewallAction({
-                              action: "set_profile",
-                              node_id: targetNode,
-                              profile: "custom",
-                            })
-                          }
-                          className={`cursor-pointer rounded-xl border p-4 transition ${
-                            nodePolicy.profile === "custom"
-                              ? "border-netbird bg-netbird-950/25 ring-1 ring-netbird/30"
-                              : "border-nb-gray-850 bg-nb-gray-940 hover:border-nb-gray-700"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-netbird-500/40 bg-netbird-950 px-2.5 py-0.5 text-[10.5px] font-semibold text-netbird">
-                              ⚙️ Benutzerdefiniert
-                            </span>
-                            {nodePolicy.profile === "custom" && (
-                              <span className="rounded bg-netbird/20 px-2 py-0.5 font-mono text-[10px] font-bold text-netbird">
-                                AKTIV
-                              </span>
-                            )}
-                          </div>
-                          <h3 className="mt-2.5 text-sm font-semibold text-white">
-                            Einzelne Ports &amp; IPs selbst steuern
-                          </h3>
-                          <p className="mt-1 text-xs text-nb-gray-400 leading-relaxed">
-                            Entscheide unten im Live Port-Radar für jeden Port
-                            einzeln per Klick, ob er öffentlich oder nur über
-                            Synapse erreichbar sein soll.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 2. LIVE PORT-RADAR */}
-                    <div className="rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                            <Activity className="h-4 w-4 text-netbird" />
-                            <span>
-                              2. Live Port-Radar ({portsList.length} aktive Ports
-                              auf {targetNode})
-                            </span>
-                          </h3>
-                          <p className="text-xs text-nb-gray-400 mt-0.5">
-                            Wenn du einen Port „Nach außen sperrst“, wird er für
-                            Fremde im Internet blockiert, funktioniert aber unter{" "}
-                            <strong className="text-nb-gray-200">Services</strong>{" "}
-                            im Synapse-Browser weiterhin!
-                          </p>
-                        </div>
-
-                        {/* KPI Mini Badges */}
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="rounded-lg border border-red-500/30 bg-red-950/40 px-2.5 py-1 text-red-300 font-medium">
-                            🔴 {publicOpenCount} Öffentlich offen
-                          </span>
-                          <span className="rounded-lg border border-sky-500/30 bg-sky-950/40 px-2.5 py-1 text-sky-300 font-medium">
-                            🛡️ {shieldedCount} Durch Firewall geschützt
-                          </span>
-                          <span className="rounded-lg border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1 text-emerald-300 font-medium">
-                            🟢 {localOnlyCount} Nur lokal (127.0.0.1)
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="overflow-x-auto rounded-lg border border-nb-gray-850 bg-nb-gray-950">
-                        <table className="w-full text-left text-xs">
-                          <thead className="border-b border-nb-gray-850 bg-nb-gray-930/70 text-[11px] font-medium uppercase text-nb-gray-400">
-                            <tr>
-                              <th className="py-2.5 px-3">Port</th>
-                              <th className="py-2.5 px-3">Dienst / Programm</th>
-                              <th className="py-2.5 px-3">Bind-Adresse</th>
-                              <th className="py-2.5 px-3">Sichtbarkeit im Internet</th>
-                              <th className="py-2.5 px-3 text-right">
-                                1-Klick Schutz
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-nb-gray-900">
-                            {portsList.map((item) => {
-                              const isSsh =
-                                item.system_protected ||
-                                item.port === (nodePolicy.ssh_port || 22);
-                              return (
-                                <tr
-                                  key={`${item.protocol}:${item.port}`}
-                                  className="hover:bg-nb-gray-930/40 transition-colors"
-                                >
-                                  <td className="py-3 px-3 font-mono font-bold text-white whitespace-nowrap">
-                                    :{item.port}{" "}
-                                    <span className="text-[10px] font-normal uppercase text-nb-gray-400">
-                                      {item.protocol}
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-3">
-                                    <div className="font-medium text-white">
-                                      {item.service_name || item.process}
-                                    </div>
-                                    <div className="font-mono text-[10.5px] text-nb-gray-400">
-                                      Prozess: {item.process}
-                                      {item.pid ? ` (PID ${item.pid})` : ""}
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-3 font-mono text-nb-gray-300 whitespace-nowrap">
-                                    {item.bind_address}:{item.port}
-                                  </td>
-                                  <td className="py-3 px-3 whitespace-nowrap">
-                                    {isSsh ? (
-                                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-950/60 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300">
-                                        🛡️ Geschützter System-Port (SSH)
-                                      </span>
-                                    ) : item.exposure === "local" ? (
-                                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300">
-                                        🟢 Sicher · Nur lokal (127.0.0.1)
-                                      </span>
-                                    ) : item.shielded ? (
-                                      <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-950/60 px-2.5 py-0.5 text-[11px] font-medium text-sky-300">
-                                        🛡️ Durch Firewall geschützt (Nur Synapse-Tunnel)
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-950/50 px-2.5 py-0.5 text-[11px] font-medium text-red-300">
-                                        🔴 Öffentlich im Internet erreichbar
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="py-3 px-3 text-right whitespace-nowrap">
-                                    {isSsh ? (
-                                      <span className="font-mono text-[10.5px] text-nb-gray-500">
-                                        🔒 Anti-Lockout aktiv
-                                      </span>
-                                    ) : item.exposure === "local" ? (
-                                      <span className="font-mono text-[10.5px] text-emerald-400">
-                                        ✓ Bereits lokal isoliert
-                                      </span>
-                                    ) : item.shielded ? (
-                                      <button
-                                        type="button"
-                                        disabled={firewallBusy}
-                                        onClick={() =>
-                                          handleFirewallAction({
-                                            action: "unshield_port",
-                                            node_id: targetNode,
-                                            port: item.port,
-                                          })
-                                        }
-                                        className="rounded-lg border border-nb-gray-700 bg-nb-gray-900 px-3 py-1.5 text-[11px] font-medium text-nb-gray-200 hover:border-amber-500/50 hover:text-amber-300 disabled:opacity-50 transition"
-                                      >
-                                        🔓 Öffentlich freigeben
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        disabled={firewallBusy}
-                                        onClick={() =>
-                                          handleFirewallAction({
-                                            action: "shield_port",
-                                            node_id: targetNode,
-                                            port: item.port,
-                                          })
-                                        }
-                                        className="rounded-lg border border-sky-500/50 bg-sky-950/70 px-3 py-1.5 text-[11px] font-semibold text-sky-200 hover:bg-sky-600 hover:text-white disabled:opacity-50 transition"
-                                      >
-                                        🔒 Nach außen sperren
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {/* 3. IP-BLOCKER & WHITELIST */}
-                    <div className="rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                            <Shield className="h-4 w-4 text-emerald-400" />
-                            <span>
-                              3. IP-Blocker &amp; Whitelist (
-                              {nodePolicy.ip_rules?.length || 0} Regeln)
-                            </span>
-                          </h3>
-                          <p className="text-xs text-nb-gray-400 mt-0.5">
-                            Sperre verdächtige IP-Adressen sofort oder gib
-                            bestimmte Ports exklusiv für deine eigene IP-Adresse
-                            frei.
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 text-[11px]">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFwRuleAction("block");
-                              setFwIpInput("198.51.100.99");
-                              setFwRulePort("");
-                              setFwRuleNote("Verdächtiger Scanner / Bot");
-                            }}
-                            className="rounded-md border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1 text-nb-gray-300 hover:text-white"
-                          >
-                            Vorlage: Angreifer-IP blockieren
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFwRuleAction("allow");
-                              setFwIpInput("203.0.113.10");
-                              setFwRulePort("4070");
-                              setFwRuleNote("Admin Office IP");
-                            }}
-                            className="rounded-md border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1 text-nb-gray-300 hover:text-white"
-                          >
-                            Vorlage: Eigene IP freigeben
-                          </button>
-                        </div>
-                      </div>
-
-                      <form
-                        onSubmit={handleAddFirewallIpRule}
-                        className="grid grid-cols-1 gap-2.5 sm:grid-cols-5 text-xs"
-                      >
-                        <select
-                          value={fwRuleAction}
-                          onChange={(e) =>
-                            setFwRuleAction(
-                              e.target.value as "block" | "allow"
-                            )
-                          }
-                          className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
-                        >
-                          <option value="block">🚫 IP blockieren (Sperre)</option>
-                          <option value="allow">✅ IP erlauben (Whitelist)</option>
-                        </select>
-
-                        <input
-                          type="text"
-                          value={fwIpInput}
-                          onChange={(e) => setFwIpInput(e.target.value)}
-                          placeholder="IP oder CIDR (z.B. 203.0.113.50)"
-                          className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-white placeholder:text-nb-gray-500"
-                        />
-
-                        <input
-                          type="number"
-                          value={fwRulePort}
-                          onChange={(e) => setFwRulePort(e.target.value)}
-                          placeholder="Port (leer = Alle Ports)"
-                          className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-white placeholder:text-nb-gray-500"
-                        />
-
-                        <input
-                          type="text"
-                          value={fwRuleNote}
-                          onChange={(e) => setFwRuleNote(e.target.value)}
-                          placeholder="Notiz (z.B. Büro-VPN)"
-                          className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white placeholder:text-nb-gray-500"
-                        />
-
-                        <button
-                          type="submit"
-                          disabled={firewallBusy || !fwIpInput.trim()}
-                          className="rounded-lg bg-netbird px-3.5 py-2 font-medium text-white hover:bg-netbird-500 disabled:opacity-50 transition"
-                        >
-                          + IP-Regel speichern
-                        </button>
-                      </form>
-
-                      {(nodePolicy.ip_rules?.length || 0) === 0 ? (
-                        <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950 p-4 text-center text-xs text-nb-gray-500">
-                          Noch keine benutzerdefinierten IP-Sperren oder
-                          Whitelists eingetragen.
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {nodePolicy.ip_rules.map((r) => (
-                            <div
-                              key={r.rule_id}
-                              className="flex items-center justify-between gap-3 rounded-lg border border-nb-gray-850 bg-nb-gray-950 px-3.5 py-2.5 text-xs"
-                            >
-                              <div className="flex flex-wrap items-center gap-2.5">
-                                <span
-                                  className={`rounded-md border px-2 py-0.5 font-mono text-[10.5px] font-bold ${
-                                    r.action === "block"
-                                      ? "border-red-500/40 bg-red-950/60 text-red-300"
-                                      : "border-emerald-500/40 bg-emerald-950/60 text-emerald-300"
-                                  }`}
-                                >
-                                  {r.action === "block"
-                                    ? "🚫 BLOCKIERT"
-                                    : "✅ ERLAUBT"}
-                                </span>
-                                <span className="font-mono font-semibold text-white">
-                                  {r.ip_or_cidr}
-                                </span>
-                                <span className="font-mono text-nb-gray-400">
-                                  →{" "}
-                                  {r.port
-                                    ? `Port :${r.port} (${(
-                                        r.protocol || "tcp"
-                                      ).toUpperCase()})`
-                                    : "Alle Ports"}
-                                </span>
-                                {r.note && (
-                                  <span className="rounded bg-nb-gray-900 px-2 py-0.5 text-[11px] text-nb-gray-300">
-                                    {r.note}
-                                  </span>
-                                )}
-                              </div>
-                              <button
-                                type="button"
-                                disabled={firewallBusy}
-                                onClick={() =>
-                                  handleFirewallAction({
-                                    action: "remove_ip_rule",
-                                    node_id: targetNode,
-                                    rule_id: r.rule_id,
-                                  })
-                                }
-                                className="rounded p-1 text-nb-gray-400 hover:bg-red-950/50 hover:text-red-400"
-                                title="IP-Regel entfernen"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
+            {activeNav === "firewall" && (
+              <FirewallView
+                activeProject={activeProject}
+                gatewayNodes={gatewayNodes}
+                selectedNodeId={selectedNodeId}
+                setSelectedNodeId={setSelectedNodeId}
+                liveFirewallPorts={liveFirewallPorts}
+                firewallBusy={firewallBusy}
+                firewallError={firewallError}
+                setFirewallError={setFirewallError}
+                fetchFirewallStatus={fetchFirewallStatus}
+                handleFirewallAction={handleFirewallAction}
+                fwRuleAction={fwRuleAction}
+                setFwRuleAction={setFwRuleAction}
+                fwIpInput={fwIpInput}
+                setFwIpInput={setFwIpInput}
+                fwRulePort={fwRulePort}
+                setFwRulePort={setFwRulePort}
+                fwRuleNote={fwRuleNote}
+                setFwRuleNote={setFwRuleNote}
+                handleAddFirewallIpRule={handleAddFirewallIpRule}
+                onAskCopilot={(prompt) => {
+                  setCopilotDrawerOpen(true);
+                  runStreamingPrompt(prompt);
+                }}
+              />
+            )}
 
             {/* ═══════════════════════════════════════════════════════════════
                 VIEW 3: NETBIRD ACCESS CONTROL (`access-control`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "access-control" && (
-              <div className="mx-auto max-w-6xl p-6 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-nb-gray-900 pb-3">
-                  <span className="text-xs text-nb-gray-400">
-                    Klicke auf eine Rule Cartridge, um die vollständige
-                    Regel-Spezifikation direkt in der Karte aufzuklappen.
-                  </span>
-                  <button
-                    onClick={() => setShowCustomCartModal((v) => !v)}
-                    className="flex items-center gap-1.5 rounded-lg bg-netbird px-3.5 py-2 text-xs font-medium text-white hover:bg-netbird-500 transition"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Neue Cartridge erstellen</span>
-                  </button>
-                </div>
-
-                {showCustomCartModal && (
-                  <form
-                    onSubmit={handleCreateCustomCartridge}
-                    className="rounded-xl border border-netbird-500/50 bg-nb-gray-940 p-5 space-y-3 text-xs shadow-lg"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-white">
-                        Eigene Regel-Cartridge erstellen (.md)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setShowCustomCartModal(false)}
-                        className="text-nb-gray-400 hover:text-white"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <input
-                        type="text"
-                        value={customCartName}
-                        onChange={(e) => setCustomCartName(e.target.value)}
-                        placeholder="Cartridge-Name (z.B. DSGVO / HIPAA)"
-                        className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
-                      />
-                      <input
-                        type="text"
-                        value={customCartCategory}
-                        onChange={(e) => setCustomCartCategory(e.target.value)}
-                        placeholder="Kategorie (z.B. Sicherheit)"
-                        className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
-                      />
-                      <input
-                        type="text"
-                        value={customCartDesc}
-                        onChange={(e) => setCustomCartDesc(e.target.value)}
-                        placeholder="Kurzbeschreibung..."
-                        className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
-                      />
-                    </div>
-                    <textarea
-                      value={customCartContent}
-                      onChange={(e) => setCustomCartContent(e.target.value)}
-                      rows={5}
-                      className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3 font-mono text-xs text-nb-gray-100"
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="submit"
-                        className="rounded-lg bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 transition"
-                      >
-                        Cartridge speichern &amp; aktivieren
-                      </button>
-                    </div>
-                  </form>
-                )}
-
-                {/* Pending Tier-3 Approvals Gate with Visual Unified Diff Highlighting */}
-                {pendingApprovals.length > 0 && (
-                  <div className="rounded-xl border border-netbird-500/60 bg-netbird-950/30 p-5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-netbird flex items-center gap-2">
-                        <ShieldAlert className="h-4 w-4" />
-                        Ausstehende Tier-3-Freigaben ({pendingApprovals.length})
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      {pendingApprovals.map((req) => {
-                        const rawPreview = String(
-                          req.arguments?.command ||
-                            req.arguments?.content_or_patch ||
-                            req.arguments?.content ||
-                            JSON.stringify(req.arguments, null, 2)
-                        );
-                        return (
-                          <div
-                            key={req.approval_id}
-                            className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-4 space-y-2.5"
-                          >
-                            <div className="flex items-center justify-between font-mono text-xs">
-                              <span className="font-semibold text-white">
-                                {req.tool_name}
-                              </span>
-                              <span className="text-nb-gray-400">
-                                {req.node_id}
-                              </span>
-                            </div>
-                            <div className="max-h-40 overflow-auto rounded-lg bg-nb-gray-960 p-2.5 font-mono text-[11px] space-y-0.5">
-                              {rawPreview.split("\n").map((line, idx) => {
-                                const isAdd =
-                                  line.startsWith("+") && !line.startsWith("+++");
-                                const isDel =
-                                  line.startsWith("-") && !line.startsWith("---");
-                                const isHunk = line.startsWith("@@");
-                                return (
-                                  <div
-                                    key={idx}
-                                    className={`px-1 rounded-sm whitespace-pre-wrap break-all ${
-                                      isAdd
-                                        ? "bg-green-950/70 text-green-300"
-                                        : isDel
-                                        ? "bg-red-950/70 text-red-300"
-                                        : isHunk
-                                        ? "bg-sky-950/60 text-sky-300"
-                                        : "text-nb-gray-200"
-                                    }`}
-                                  >
-                                    {line}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() =>
-                                  handleResolveApproval(
-                                    req.approval_id,
-                                    "approve"
-                                  )
-                                }
-                                className="flex-1 rounded-lg bg-green-600 py-1.5 text-xs font-medium text-white hover:bg-green-500 transition"
-                              >
-                                Freigeben &amp; Ausführen
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleResolveApproval(req.approval_id, "reject")
-                                }
-                                className="flex-1 rounded-lg border border-red-500/50 bg-red-950/50 py-1.5 text-xs font-medium text-red-400 hover:bg-red-950 transition"
-                              >
-                                Ablehnen
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Pluggable Rule Cartridges Grid with Inline Expandable Markdown Policy */}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 items-start">
-                  {cartridges.map((c) => {
-                    const enabled =
-                      activeProject?.active_cartridges?.includes(c.id);
-                    const selected = selectedCartridgeId === c.id;
-                    return (
-                      <div
-                        key={c.id}
-                        onClick={() =>
-                          setSelectedCartridgeId(selected ? "" : c.id)
-                        }
-                        className={`cursor-pointer rounded-xl border p-4 transition-all ${
-                          selected
-                            ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/30 sm:col-span-2"
-                            : "border-nb-gray-900 bg-nb-gray-940 hover:border-nb-gray-800"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span
-                              className={`h-2 w-2 shrink-0 rounded-full ${
-                                enabled ? "bg-green-400" : "bg-nb-gray-500"
-                              }`}
-                            />
-                            <span className="truncate text-sm font-semibold text-white">
-                              {c.name}
-                            </span>
-                            <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[9px] text-nb-gray-400">
-                              {c.category}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="flex items-center gap-1 text-[11px] text-nb-gray-400 hover:text-white">
-                              <span>{selected ? "Einklappen" : "Erweitern"}</span>
-                              {selected ? (
-                                <ChevronUp className="h-3.5 w-3.5" />
-                              ) : (
-                                <ChevronDown className="h-3.5 w-3.5" />
-                              )}
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleCartridge(c.id);
-                              }}
-                              className={`rounded-md border px-2.5 py-1 font-mono text-[10px] font-medium transition ${
-                                enabled
-                                  ? "border-green-500/50 bg-green-950/70 text-green-400"
-                                  : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400 hover:text-white"
-                              }`}
-                            >
-                              {enabled ? "AKTIV" : "AUS"}
-                            </button>
-                          </div>
-                        </div>
-                        <p className="mt-1.5 text-xs text-nb-gray-400">
-                          {c.description}
-                        </p>
-
-                        {selected && (
-                          <div
-                            onClick={(e) => e.stopPropagation()}
-                            className="mt-3.5 border-t border-nb-gray-800 pt-3.5"
-                          >
-                            <RichMarkdownDocument markdown={c.content} />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <AccessRulesView
+                activeProject={activeProject}
+                cartridges={cartridges}
+                pendingApprovals={pendingApprovals}
+                selectedCartridgeId={selectedCartridgeId}
+                setSelectedCartridgeId={setSelectedCartridgeId}
+                showCustomCartModal={showCustomCartModal}
+                setShowCustomCartModal={setShowCustomCartModal}
+                customCartName={customCartName}
+                setCustomCartName={setCustomCartName}
+                customCartCategory={customCartCategory}
+                setCustomCartCategory={setCustomCartCategory}
+                customCartDesc={customCartDesc}
+                setCustomCartDesc={setCustomCartDesc}
+                customCartContent={customCartContent}
+                setCustomCartContent={setCustomCartContent}
+                handleCreateCustomCartridge={handleCreateCustomCartridge}
+                handleToggleCartridge={handleToggleCartridge}
+                handleResolveApproval={handleResolveApproval}
+              />
             )}
 
             {/* ═══════════════════════════════════════════════════════════════
@@ -4722,6 +3671,15 @@ export default function SynapseNetBirdControlCenter() {
 
                 return (
                   <div className="mx-auto flex max-w-6xl flex-col gap-5 p-6">
+                    <SynapseViewHeader
+                      icon={<Globe className="h-5 w-5" />}
+                      accentColor="sky"
+                      title="Services & Reverse-Proxy Workbench"
+                      badgeText={`${allSvcs.length} Dienste aktiv`}
+                      badgeTone="sky"
+                      description="Teste Web-Oberflächen, HTTP-Endpunkte und SQLite-Datenbanken deiner Server direkt im Browser über den verschlüsselten Synapse-Tunnel – auch wenn deren Ports in der Firewall nach außen gesperrt sind."
+                    />
+
                     {/* 1. FLUID SERVICE SELECTOR CARDS (Replaces rigid top folder tabs) */}
                     {allSvcs.length === 0 ? (
                       <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-6 text-center text-xs text-nb-gray-400">
@@ -5204,47 +4162,19 @@ export default function SynapseNetBirdControlCenter() {
                 VIEW 5: FOCUSED BRAIN VAULT DOCUMENTS (`brain-vault`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "brain-vault" && (
-              <div className="mx-auto max-w-5xl p-6">
-                {/* Single Clean Document Reader / Editor Container (No duplicate top H1) */}
-                <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-900 bg-nb-gray-940">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      {/* 2-Tab Document Switcher */}
-                      <div className="flex items-center rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-0.5 text-xs">
-                        {(["Architecture.md", "Memory.md"] as const).map(
-                          (doc) => {
-                            const active = brainDocTab === doc;
-                            return (
-                              <button
-                                key={doc}
-                                onClick={() => {
-                                  setBrainDocTab(doc);
-                                  setIsEditingMarkdown(false);
-                                }}
-                                className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-mono text-xs font-medium transition ${
-                                  active
-                                    ? "bg-nb-gray-900 text-white border border-nb-gray-800"
-                                    : "text-nb-gray-400 hover:text-white"
-                                }`}
-                              >
-                                <FileText className="h-3.5 w-3.5 text-netbird" />
-                                <span>{doc}</span>
-                              </button>
-                            );
-                          }
-                        )}
-                      </div>
-                      <span className="hidden sm:inline font-mono text-[11px] text-nb-gray-400">
-                        /projects/
-                        {activeProject?.project_id || "synapse-cloud-demo"}/
-                        {brainDocTab}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
+              <div className="mx-auto max-w-6xl p-6 space-y-5">
+                <SynapseViewHeader
+                  icon={<Brain className="h-5 w-5" />}
+                  accentColor="purple"
+                  title="Brain Vault (Architektur- & System-Gedächtnis)"
+                  badgeText={brainDocTab}
+                  badgeTone="purple"
+                  description="Das persistente Langzeit-Gedächtnis deines Projekts. Der KI-Orchestrator liest und aktualisiert Architecture.md (Topologie, Ports, Dienste) und Memory.md (Runbooks, gelöste Fehler) vollautomatisch."
+                  actions={
+                    <>
                       <button
                         onClick={() => setIsEditingMarkdown((v) => !v)}
-                        className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 text-xs font-medium text-nb-gray-200 hover:text-white transition"
+                        className="flex items-center gap-1.5 rounded-xl border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 text-xs font-medium text-nb-gray-200 hover:text-white transition"
                       >
                         <Code2 className="h-3.5 w-3.5 text-netbird" />
                         <span>
@@ -5255,15 +4185,46 @@ export default function SynapseNetBirdControlCenter() {
                       {isEditingMarkdown && (
                         <button
                           onClick={() => handleSaveBrainDoc(brainDocTab)}
-                          className="flex items-center gap-1.5 rounded-lg bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 transition"
+                          className="flex items-center gap-1.5 rounded-xl bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500 transition shadow-sm"
                         >
                           <Save className="h-3.5 w-3.5" />
                           <span>Speichern</span>
                         </button>
                       )}
+                    </>
+                  }
+                  subTabs={
+                    <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+                      <SynapseSubTabs
+                        activeTab={brainDocTab}
+                        onChange={(doc) => {
+                          setBrainDocTab(doc);
+                          setIsEditingMarkdown(false);
+                        }}
+                        tabs={[
+                          {
+                            id: "Architecture.md",
+                            label: "Architecture.md (System-Topologie)",
+                            icon: <FileText className="h-3.5 w-3.5" />,
+                          },
+                          {
+                            id: "Memory.md",
+                            label: "Memory.md (KI-Erfahrungsschatz)",
+                            icon: <BookOpen className="h-3.5 w-3.5" />,
+                          },
+                        ]}
+                      />
+                      <span className="hidden sm:inline font-mono text-[11px] text-nb-gray-400">
+                        /projects/
+                        {activeProject?.project_id || "synapse-cloud-demo"}/
+                        {brainDocTab}
+                      </span>
                     </div>
-                  </div>
+                  }
+                />
 
+                {/* Single Clean Document Reader / Editor Container */}
+                <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-900 bg-nb-gray-940">
                   <div className="p-6">
                     {isEditingMarkdown ? (
                       <textarea
@@ -5302,144 +4263,154 @@ export default function SynapseNetBirdControlCenter() {
                 VIEW 6: REMOTE WORKSPACE EXPLORER (`workspace`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "workspace" && (
-              <div className="flex h-full overflow-hidden">
-                <div
-                  style={{ width: `${workspaceSidebarWidth}px` }}
-                  className="relative shrink-0 border-r border-nb-gray-900 bg-nb-gray-940 p-3 flex flex-col justify-between"
-                >
-                  {/* Mouse Drag Handle to Resize File Tree Sidebar */}
-                  <div
-                    title="Mit der Maus ziehen, um die Dateiliste breiter/schmaler zu machen"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      const startX = e.clientX;
-                      const startW = workspaceSidebarWidth;
-                      const onMove = (ev: MouseEvent) => {
-                        setWorkspaceSidebarWidth(
-                          Math.max(190, Math.min(480, startW + (ev.clientX - startX)))
-                        );
-                      };
-                      const onUp = () => {
-                        window.removeEventListener("mousemove", onMove);
-                        window.removeEventListener("mouseup", onUp);
-                      };
-                      window.addEventListener("mousemove", onMove);
-                      window.addEventListener("mouseup", onUp);
-                    }}
-                    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-netbird/60 transition-colors z-20"
-                  />
-                  <div className="space-y-2 overflow-y-auto">
-                    <div className="flex items-center justify-between px-2 py-1 text-xs font-medium text-nb-gray-300">
-                      <span className="font-mono truncate">{remoteDir}</span>
-                      <button
-                        onClick={() => fetchRemoteDir(".")}
-                        className="text-nb-gray-400 hover:text-white"
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    {remoteEntries.map((ent) => (
-                      <div
-                        key={ent.path}
-                        className={`flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs cursor-pointer ${
-                          activeFilePath === ent.path
-                            ? "bg-nb-gray-900 text-white"
-                            : "text-nb-gray-400 hover:bg-nb-gray-900/50 hover:text-nb-gray-200"
-                        }`}
-                        onClick={() =>
-                          ent.is_dir
-                            ? fetchRemoteDir(ent.path)
-                            : openRemoteFile(ent.path)
-                        }
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          {ent.is_dir ? (
-                            <Folder className="h-3.5 w-3.5 text-netbird shrink-0" />
-                          ) : (
-                            <FileCode2 className="h-3.5 w-3.5 text-sky-400 shrink-0" />
-                          )}
-                          <span className="truncate font-mono">{ent.name}</span>
-                        </div>
-                        {!ent.is_dir && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteRemoteFile(ent.path);
-                            }}
-                            className="text-nb-gray-500 hover:text-red-400"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <form
-                    onSubmit={handleCreateRemoteFile}
-                    className="flex gap-1.5 pt-2 border-t border-nb-gray-900"
-                  >
-                    <input
-                      type="text"
-                      value={newFileName}
-                      onChange={(e) => setNewFileName(e.target.value)}
-                      placeholder="Neuer Dateipfad..."
-                      className="flex-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1 font-mono text-xs text-white"
-                    />
-                    <button
-                      type="submit"
-                      className="rounded-lg bg-netbird px-2.5 py-1 text-xs text-white hover:bg-netbird-500 transition"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                  </form>
-                </div>
-
-                <div className="flex flex-1 flex-col bg-nb-gray-960">
-                  <div className="flex items-center justify-between border-b border-nb-gray-900 bg-nb-gray-940 px-4 py-2.5">
-                    <span className="font-mono text-xs text-nb-gray-200">
-                      {activeFilePath}
-                    </span>
-                    <div className="flex items-center gap-2">
+              <div className="mx-auto max-w-6xl p-6 space-y-5">
+                <SynapseViewHeader
+                  icon={<FolderGit2 className="h-5 w-5" />}
+                  accentColor="indigo"
+                  title="Remote-Dateien & Code-Editor"
+                  badgeText={activeFilePath || remoteDir}
+                  badgeTone="indigo"
+                  description="Durchsuche und bearbeite Dateien direkt im isolierten Server-Workspace (/opt/axon/workspaces) oder wende Unified-Diff-Patches mit automatischem Backup-Schutz an."
+                  actions={
+                    <>
                       <button
                         onClick={() => setShowDiffDrawer((v) => !v)}
-                        className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1 text-xs text-nb-gray-200 hover:text-white transition"
+                        className="flex items-center gap-1.5 rounded-xl border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 text-xs font-medium text-nb-gray-200 hover:text-white transition"
                       >
                         <GitCompare className="h-3.5 w-3.5 text-netbird" />
                         <span>Unified-Diff-Patch</span>
                       </button>
                       <button
                         onClick={handleSaveRemoteFile}
-                        className="flex items-center gap-1.5 rounded-lg bg-netbird px-3.5 py-1 text-xs font-medium text-white hover:bg-netbird-500 transition"
+                        className="flex items-center gap-1.5 rounded-xl bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500 transition shadow-sm"
                       >
                         <Save className="h-3.5 w-3.5" />
                         <span>Auf Server speichern</span>
                       </button>
-                    </div>
-                  </div>
+                    </>
+                  }
+                />
 
-                  {showDiffDrawer && (
-                    <div className="border-b border-nb-gray-900 bg-nb-gray-940 p-4 space-y-2">
-                      <textarea
-                        value={diffPatchText}
-                        onChange={(e) => setDiffPatchText(e.target.value)}
-                        placeholder="Unified-Diff einfügen (@@ -1,3 +1,4 @@)..."
-                        className="h-28 w-full rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-2.5 font-mono text-xs text-green-400"
+                <div className="flex h-[620px] overflow-hidden rounded-xl border border-nb-gray-900 bg-nb-gray-940 shadow-lg">
+                  <div
+                    style={{ width: `${workspaceSidebarWidth}px` }}
+                    className="relative shrink-0 border-r border-nb-gray-900 bg-nb-gray-940 p-3 flex flex-col justify-between"
+                  >
+                    {/* Mouse Drag Handle to Resize File Tree Sidebar */}
+                    <div
+                      title="Mit der Maus ziehen, um die Dateiliste breiter/schmaler zu machen"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        const startX = e.clientX;
+                        const startW = workspaceSidebarWidth;
+                        const onMove = (ev: MouseEvent) => {
+                          setWorkspaceSidebarWidth(
+                            Math.max(
+                              190,
+                              Math.min(480, startW + (ev.clientX - startX))
+                            )
+                          );
+                        };
+                        const onUp = () => {
+                          window.removeEventListener("mousemove", onMove);
+                          window.removeEventListener("mouseup", onUp);
+                        };
+                        window.addEventListener("mousemove", onMove);
+                        window.addEventListener("mouseup", onUp);
+                      }}
+                      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-netbird/60 transition-colors z-20"
+                    />
+                    <div className="space-y-2 overflow-y-auto">
+                      <div className="flex items-center justify-between px-2 py-1 text-xs font-medium text-nb-gray-300">
+                        <span className="font-mono truncate">{remoteDir}</span>
+                        <button
+                          onClick={() => fetchRemoteDir(".")}
+                          className="text-nb-gray-400 hover:text-white"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      {remoteEntries.map((ent) => (
+                        <div
+                          key={ent.path}
+                          className={`flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs cursor-pointer ${
+                            activeFilePath === ent.path
+                              ? "bg-nb-gray-900 text-white"
+                              : "text-nb-gray-400 hover:bg-nb-gray-900/50 hover:text-nb-gray-200"
+                          }`}
+                          onClick={() =>
+                            ent.is_dir
+                              ? fetchRemoteDir(ent.path)
+                              : openRemoteFile(ent.path)
+                          }
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            {ent.is_dir ? (
+                              <Folder className="h-3.5 w-3.5 text-netbird shrink-0" />
+                            ) : (
+                              <FileCode2 className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                            )}
+                            <span className="truncate font-mono">{ent.name}</span>
+                          </div>
+                          {!ent.is_dir && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteRemoteFile(ent.path);
+                              }}
+                              className="text-nb-gray-500 hover:text-red-400"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <form
+                      onSubmit={handleCreateRemoteFile}
+                      className="flex gap-1.5 pt-2 border-t border-nb-gray-900"
+                    >
+                      <input
+                        type="text"
+                        value={newFileName}
+                        onChange={(e) => setNewFileName(e.target.value)}
+                        placeholder="Neuer Dateipfad..."
+                        className="flex-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1 font-mono text-xs text-white"
                       />
                       <button
-                        onClick={handleApplyUnifiedDiff}
-                        className="rounded-lg bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-500 transition"
+                        type="submit"
+                        className="rounded-lg bg-netbird px-2.5 py-1 text-xs text-white hover:bg-netbird-500 transition"
                       >
-                        Unified-Diff anwenden
+                        <Plus className="h-3.5 w-3.5" />
                       </button>
-                    </div>
-                  )}
+                    </form>
+                  </div>
 
-                  <textarea
-                    value={editorContent}
-                    onChange={(e) => setEditorContent(e.target.value)}
-                    className="flex-1 w-full resize-none bg-nb-gray-960 p-5 font-mono text-xs leading-relaxed text-nb-gray-100 focus:outline-none"
-                  />
+                  <div className="flex flex-1 flex-col bg-nb-gray-960">
+                    {showDiffDrawer && (
+                      <div className="border-b border-nb-gray-900 bg-nb-gray-940 p-4 space-y-2">
+                        <textarea
+                          value={diffPatchText}
+                          onChange={(e) => setDiffPatchText(e.target.value)}
+                          placeholder="Unified-Diff einfügen (@@ -1,3 +1,4 @@)..."
+                          className="h-28 w-full rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-2.5 font-mono text-xs text-green-400"
+                        />
+                        <button
+                          onClick={handleApplyUnifiedDiff}
+                          className="rounded-lg bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-500 transition"
+                        >
+                          Unified-Diff anwenden
+                        </button>
+                      </div>
+                    )}
+
+                    <textarea
+                      value={editorContent}
+                      onChange={(e) => setEditorContent(e.target.value)}
+                      className="flex-1 w-full resize-none bg-nb-gray-960 p-5 font-mono text-xs leading-relaxed text-nb-gray-100 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -5448,206 +4419,82 @@ export default function SynapseNetBirdControlCenter() {
                 VIEW 7: NETBIRD ACTIVITY AUDIT LOG (`activity`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "activity" && (
-              <div className="mx-auto max-w-6xl p-6 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-3">
-                  <div className="flex flex-1 items-center gap-2">
-                    <Search className="h-4 w-4 text-nb-gray-400 ml-1" />
-                    <input
-                      type="text"
-                      value={activitySearch}
-                      onChange={(e) => setActivitySearch(e.target.value)}
-                      placeholder="Audit-Events nach Tool, Peer oder Zusammenfassung durchsuchen (Klick auf Zeile erweitert Details)..."
-                      className="flex-1 bg-transparent text-xs text-white placeholder:text-nb-gray-400 focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {[
-                      { id: "ALL", label: "Alle" },
-                      { id: "executed", label: "Ausgeführt" },
-                      { id: "blocked", label: "Blockiert" },
-                      { id: "requires_approval", label: "Freigabe nötig" },
-                    ].map((st) => (
-                      <button
-                        key={st.id}
-                        onClick={() => setActivityStatusFilter(st.id)}
-                        className={`rounded-lg border px-2.5 py-1 font-mono text-[10px] font-medium transition ${
-                          activityStatusFilter === st.id
-                            ? "border-netbird-500 bg-netbird-950 text-netbird"
-                            : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:text-white"
-                        }`}
-                      >
-                        {st.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto rounded-xl border border-nb-gray-900 bg-nb-gray-940">
-                  <table className="w-full text-left text-xs">
-                    <thead className="border-b border-nb-gray-900 bg-nb-gray-930/70 text-[11px] font-medium uppercase text-nb-gray-400">
-                      <tr>
-                        <th className="py-3 px-3">Zeitstempel</th>
-                        <th className="py-3 px-3">Akteur</th>
-                        <th className="py-3 px-3">Tool / Ereignis</th>
-                        <th className="py-3 px-3">Zusammenfassung</th>
-                        <th className="py-3 px-3 text-right">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-nb-gray-900 font-mono">
-                      {filteredLogs.map((log, i) => {
-                        const isExpanded = Boolean(expandedAuditRows[i]);
-                        return (
-                          <React.Fragment key={i}>
-                            <tr
-                              onClick={() =>
-                                setExpandedAuditRows((prev) => ({
-                                  ...prev,
-                                  [i]: !prev[i],
-                                }))
-                              }
-                              className="cursor-pointer hover:bg-nb-gray-930/50 transition-colors"
-                            >
-                              <td className="py-3 px-3 text-nb-gray-400 whitespace-nowrap">
-                                {log.timestamp.replace("T", " ").slice(0, 19)}
-                              </td>
-                              <td className="py-3 px-3 text-nb-gray-200 whitespace-nowrap">
-                                {log.actor}
-                              </td>
-                              <td className="py-3 px-3 text-netbird whitespace-nowrap">
-                                <span className="flex items-center gap-1.5">
-                                  <span>{log.tool_name}</span>
-                                  {isExpanded ? (
-                                    <ChevronUp className="h-3 w-3 text-nb-gray-400" />
-                                  ) : (
-                                    <ChevronDown className="h-3 w-3 text-nb-gray-400" />
-                                  )}
-                                </span>
-                              </td>
-                              <td className="py-3 px-3 text-nb-gray-200 max-w-[240px] xl:max-w-[340px] truncate">
-                                {log.summary}
-                              </td>
-                              <td className="py-3 px-3 text-right whitespace-nowrap">
-                                <span
-                                  className={`rounded border px-2 py-0.5 text-[10px] uppercase ${
-                                    log.status === "executed" ||
-                                    log.status === "approved"
-                                      ? "border-green-500/50 bg-green-950 text-green-400"
-                                      : log.status === "blocked" ||
-                                        log.status === "rejected" ||
-                                        log.status === "error"
-                                      ? "border-red-500/50 bg-red-950 text-red-400"
-                                      : "border-netbird-500/50 bg-netbird-950 text-netbird"
-                                  }`}
-                                >
-                                  {log.status}
-                                </span>
-                              </td>
-                            </tr>
-                            {isExpanded && (
-                              <tr className="bg-nb-gray-950/80">
-                                <td colSpan={5} className="p-4">
-                                  <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-940 p-3 space-y-2 text-[11px]">
-                                    <div className="flex items-center justify-between text-nb-gray-400">
-                                      <span>
-                                        Vollständiger Audit-Eintrag ({log.tool_name})
-                                      </span>
-                                      <span>{log.timestamp}</span>
-                                    </div>
-                                    <div className="text-white whitespace-pre-wrap">
-                                      {log.summary}
-                                    </div>
-                                    {log.args && (
-                                      <pre className="overflow-x-auto rounded bg-nb-gray-960 p-2.5 text-[10px] text-emerald-300">
-                                        {JSON.stringify(log.args, null, 2)}
-                                      </pre>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <AuditLogView
+                filteredLogs={filteredLogs}
+                totalLogsCount={auditLogs.length}
+                activitySearch={activitySearch}
+                setActivitySearch={setActivitySearch}
+                activityStatusFilter={activityStatusFilter}
+                setActivityStatusFilter={setActivityStatusFilter}
+                expandedAuditRows={expandedAuditRows}
+                setExpandedAuditRows={setExpandedAuditRows}
+              />
             )}
 
             {/* ═══════════════════════════════════════════════════════════════
                 VIEW 8: NETBIRD SETTINGS (`settings` — Setup Keys, Vault & AI)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "settings" && (
-              <div className="mx-auto max-w-5xl p-6 space-y-5">
-                <div className="flex flex-wrap items-center gap-2 border-b border-nb-gray-900 pb-3">
-                  {[
-                    {
-                      id: "system-update",
-                      label: "System-Update (Core & Muscle)",
-                      icon: RefreshCw,
-                    },
-                    {
-                      id: "setup-keys",
-                      label: "Setup-Schlüssel (Server-Onboarding)",
-                      icon: Server,
-                    },
-                    {
-                      id: "secrets-vault",
-                      label: `Verschlüsselter Tresor (${secretKeys.length})`,
-                      icon: KeyRound,
-                    },
-                    {
-                      id: "ai-providers",
-                      label: "KI-Anbieter & Basis-URL",
-                      icon: Bot,
-                    },
-                    {
-                      id: "mcp-server",
-                      label: `Externe KI / MCP-API (${
-                        (activeProject?.mcp_api_keys || []).length
-                      })`,
-                      icon: Sparkles,
-                    },
-                    {
-                      id: "debug-console",
-                      label: `Debug & Selbsttest (${
-                        debugModeEnabled ? "AKTIV" : "AUS"
-                      })`,
-                      icon: Activity,
-                    },
-                    {
-                      id: "language",
-                      label: "Sprache & Region",
-                      icon: Globe,
-                    },
-                  ].map((t) => {
-                    const Icon = t.icon;
-                    const active = settingsTab === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => {
-                          setSettingsTab(t.id as typeof settingsTab);
-                          if (t.id === "debug-console") fetchDebugSnapshot();
-                          if (t.id === "system-update")
-                            fetchSystemUpdateStatus(false, true);
-                        }}
-                        className={`flex items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-medium transition ${
-                          active
-                            ? "border-netbird bg-nb-gray-900 text-white shadow-sm"
-                            : "border-nb-gray-800/80 bg-nb-gray-940 text-nb-gray-400 hover:text-white"
-                        }`}
-                      >
-                        <Icon
-                          className={`h-3.5 w-3.5 ${
-                            active ? "text-netbird" : ""
-                          }`}
-                        />
-                        <span>{t.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="mx-auto max-w-6xl p-6 space-y-5">
+                <SynapseViewHeader
+                  icon={<Settings2 className="h-5 w-5" />}
+                  accentColor="indigo"
+                  title="System-Einstellungen, Tresor & KI-Konfiguration"
+                  badgeText={debugModeEnabled ? "Debug Aktiv" : "Produktiv"}
+                  badgeTone={debugModeEnabled ? "amber" : "emerald"}
+                  description="Verwalte 1-Klick Over-the-Air System-Updates, Server-Koppelungsschlüssel, den AES-256-GCM Geheimnis-Tresor, KI-Modelle sowie den integrierten System-Selbsttest."
+                  subTabs={
+                    <SynapseSubTabs
+                      activeTab={settingsTab}
+                      onChange={(id) => {
+                        setSettingsTab(id);
+                        if (id === "debug-console") fetchDebugSnapshot();
+                        if (id === "system-update")
+                          fetchSystemUpdateStatus(false, true);
+                      }}
+                      tabs={[
+                        {
+                          id: "system-update",
+                          label: "System-Update (OTA)",
+                          icon: <RefreshCw className="h-3.5 w-3.5" />,
+                        },
+                        {
+                          id: "setup-keys",
+                          label: "Server-Onboarding",
+                          icon: <Server className="h-3.5 w-3.5" />,
+                        },
+                        {
+                          id: "secrets-vault",
+                          label: "Geheimnis-Tresor",
+                          icon: <KeyRound className="h-3.5 w-3.5" />,
+                          badge: secretKeys.length,
+                        },
+                        {
+                          id: "ai-providers",
+                          label: "KI-Anbieter",
+                          icon: <Bot className="h-3.5 w-3.5" />,
+                        },
+                        {
+                          id: "mcp-server",
+                          label: "MCP-API",
+                          icon: <Sparkles className="h-3.5 w-3.5" />,
+                          badge: (activeProject?.mcp_api_keys || []).length,
+                        },
+                        {
+                          id: "debug-console",
+                          label: "Debug & Selbsttest",
+                          icon: <Activity className="h-3.5 w-3.5" />,
+                          badge: debugModeEnabled ? "ON" : "OFF",
+                        },
+                        {
+                          id: "language",
+                          label: "Sprache",
+                          icon: <Globe className="h-3.5 w-3.5" />,
+                        },
+                      ]}
+                    />
+                  }
+                />
 
                 {settingsTab === "system-update" && (
                   <div className="space-y-5">

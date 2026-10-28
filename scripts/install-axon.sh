@@ -86,7 +86,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ExecStart=$INSTALL_DIR/axon run --config-dir $CONFIG_DIR
+KillMode=process
 Restart=always
 RestartSec=3s
 LimitNOFILE=65535
@@ -99,6 +101,6 @@ EOF
   echo "[synapse] ✔ axon.service enabled and started via systemd (mTLS + Yamux Reverse Tunnel active)."
 else
   pkill -f "$INSTALL_DIR/axon run --config-dir $CONFIG_DIR" 2>/dev/null || true
-  nohup "$INSTALL_DIR/axon" run --config-dir "$CONFIG_DIR" >/tmp/axon-agent.log 2>&1 &
+  nohup "$INSTALL_DIR/axon" run --config-dir "$CONFIG_DIR" >/tmp/axon-agent.log 2>/dev/null &
   echo "[synapse] ✔ Axon daemon started in background (PID $!, logs at /tmp/axon-agent.log)."
 fi
