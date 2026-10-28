@@ -10,7 +10,7 @@ COPY agents/ ./agents/
 COPY apps/core-gateway/ ./apps/core-gateway/
 
 ARG VERSION=v0.3.0
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/core-gateway ./apps/core-gateway/cmd/gateway
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/core-gateway ./apps/core-gateway
 
 # Stage 2: Minimal Runtime Container
 FROM alpine:3.20

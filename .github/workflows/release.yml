@@ -58,8 +58,8 @@ jobs:
           GOOS=darwin GOARCH=arm64 go build -C agents/axon -ldflags="${LDFLAGS}" -o ../../release-dist/axon-darwin-arm64 ./cmd/axon
 
           # Core Gateway Hub (Linux)
-          GOOS=linux GOARCH=amd64 go build -C apps/core-gateway -ldflags="-s -w" -o ../../release-dist/core-gateway-linux-amd64 ./cmd/gateway
-          GOOS=linux GOARCH=arm64 go build -C apps/core-gateway -ldflags="-s -w" -o ../../release-dist/core-gateway-linux-arm64 ./cmd/gateway
+          GOOS=linux GOARCH=amd64 go build -C apps/core-gateway -ldflags="-s -w" -o ../../release-dist/core-gateway-linux-amd64 .
+          GOOS=linux GOARCH=arm64 go build -C apps/core-gateway -ldflags="-s -w" -o ../../release-dist/core-gateway-linux-arm64 .
 
           # Include deployment & one-line installer scripts in release assets
           cp scripts/deploy-core.sh release-dist/deploy-core.sh
