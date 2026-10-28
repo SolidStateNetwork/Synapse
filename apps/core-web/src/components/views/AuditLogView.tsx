@@ -128,7 +128,17 @@ export default function AuditLogView({
                               : "border-netbird-500/50 bg-netbird-950 text-netbird"
                         }`}
                       >
-                        {log.status}
+                        {log.status === "executed"
+                          ? "Ausgeführt"
+                          : log.status === "approved"
+                          ? "Freigegeben"
+                          : log.status === "blocked"
+                          ? "Blockiert"
+                          : log.status === "rejected"
+                          ? "Abgelehnt"
+                          : log.status === "requires_approval"
+                          ? "Freigabe nötig"
+                          : log.status}
                       </span>
                     </td>
                   </tr>

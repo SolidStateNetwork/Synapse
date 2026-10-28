@@ -2732,30 +2732,30 @@ export default function SynapseNetBirdControlCenter() {
                 </div>
 
                 {hasAnyUpdate && (
-                  <div className="mt-2 flex items-center justify-between gap-2 border-t border-amber-500/30 pt-2">
-                    <div className="min-w-0 leading-tight">
-                      <div className="flex items-center gap-1.5 font-semibold text-[10px] text-amber-300">
+                  <div className="mt-2 space-y-1.5 border-t border-amber-500/30 pt-2">
+                    <div className="flex items-center justify-between gap-1.5 leading-tight">
+                      <span className="flex items-center gap-1.5 font-semibold text-[10px] text-amber-300">
                         <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
-                        <span className="truncate">Update verfügbar</span>
-                      </div>
-                      <div className="truncate font-mono text-[9px] text-amber-200/80 mt-0.5">
+                        <span>Update verfügbar</span>
+                      </span>
+                      <span className="font-mono text-[9.5px] text-amber-200/90">
                         {coreUpdateAvailable
                           ? `Neu: ${remoteShort} (+${systemUpdateStatus?.git.commits_behind})`
                           : `${outdatedNodes.length} Muscle-Node OTA`}
-                      </div>
+                      </span>
                     </div>
                     <button
                       type="button"
                       disabled={systemUpdateBusy}
                       onClick={() => handleRunSystemUpdate("update_all")}
-                      className="shrink-0 flex items-center gap-1 rounded-md bg-netbird px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm hover:bg-netbird-500 disabled:opacity-40 transition-colors"
+                      className="flex w-full items-center justify-center gap-1.5 rounded-md bg-netbird px-2.5 py-1 text-[10.5px] font-semibold text-white shadow-sm hover:bg-netbird-500 disabled:opacity-40 transition-colors"
                     >
                       <RefreshCw
                         className={`h-2.5 w-2.5 ${
                           systemUpdateBusy ? "animate-spin" : ""
                         }`}
                       />
-                      <span>Update</span>
+                      <span>Jetzt aktualisieren</span>
                     </button>
                   </div>
                 )}
@@ -3056,14 +3056,14 @@ export default function SynapseNetBirdControlCenter() {
                       <div className="flex items-center gap-1.5">
                         {[
                           { id: "ALL", label: "Alle Stufen" },
-                          { id: "TIER_1_UNLEASHED", label: "Tier 1 · Unleashed" },
+                          { id: "TIER_1_UNLEASHED", label: "Stufe 1 · Vollzugriff" },
                           {
                             id: "TIER_2_WORKSPACE_JAIL",
-                            label: "Tier 2 · Workspace",
+                            label: "Stufe 2 · Workspace",
                           },
                           {
                             id: "TIER_3_SUPERVISED",
-                            label: "Tier 3 · Supervised",
+                            label: "Stufe 3 · Überwacht",
                           },
                         ].map((tierOpt) => (
                           <button
@@ -3108,10 +3108,10 @@ export default function SynapseNetBirdControlCenter() {
 
                             const tierHumanLabel =
                               gn.tier === "TIER_1_UNLEASHED"
-                                ? "Tier 1 · Unleashed"
+                                ? "Stufe 1 · Vollzugriff"
                                 : gn.tier === "TIER_2_WORKSPACE_JAIL"
-                                  ? "Tier 2 · Workspace"
-                                  : "Tier 3 · Supervised";
+                                  ? "Stufe 2 · Workspace"
+                                  : "Stufe 3 · Überwacht";
 
                             return (
                               <React.Fragment key={gn.node_id}>
@@ -3408,7 +3408,7 @@ export default function SynapseNetBirdControlCenter() {
                     <div>
                       <h2 className="text-sm font-semibold text-white flex items-center gap-2">
                         <Network className="h-4 w-4 text-sky-400" />
-                        Multi-Server Peer-to-Peer Mesh Links (`core_link_peers`)
+                        Multi-Server Peer-to-Peer Mesh-Verbindungen (core_link_peers)
                       </h2>
                       <p className="text-xs text-nb-gray-400 mt-0.5">
                         Verbinde Dienste zwischen verschiedenen Muscle-Servern
@@ -3866,9 +3866,10 @@ export default function SynapseNetBirdControlCenter() {
                                     }`}
                                   />
                                 </div>
-                                <div className="mt-1 flex items-center gap-2 font-mono text-[11px] text-nb-gray-400">
+                                <div className="mt-1 flex items-center gap-2 font-mono text-[11px] text-nb-gray-400 whitespace-nowrap">
                                   <span
-                                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                    data-no-i18n="true"
+                                    className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold ${
                                       cat === "webui"
                                         ? "bg-sky-950/80 text-sky-300 border border-sky-500/30"
                                         : cat === "database"
@@ -3882,7 +3883,7 @@ export default function SynapseNetBirdControlCenter() {
                                       ? "DB"
                                       : "API"}
                                   </span>
-                                  <span className="text-nb-gray-300">
+                                  <span className="shrink-0 whitespace-nowrap text-nb-gray-300">
                                     Port {svc.port}
                                   </span>
                                 </div>
@@ -4972,7 +4973,7 @@ export default function SynapseNetBirdControlCenter() {
                         <div className="rounded-xl border border-netbird-500/40 bg-nb-gray-950 p-4 space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-medium text-netbird">
-                              1. Neuinstallation — Auf dem Ziel-Linux-Server ausführen, um `axon` zu installieren &amp; zu verbinden:
+                              1. Neuinstallation — Auf dem Ziel-Linux-Server ausführen, um axon zu installieren &amp; zu verbinden:
                             </span>
                             <button
                               onClick={() => {
@@ -4996,10 +4997,10 @@ export default function SynapseNetBirdControlCenter() {
                           <div className="flex items-center justify-between">
                             <div>
                               <span className="text-xs font-medium text-sky-400">
-                                2. Bestehenden Muscle-Agenten per CLI umschalten (`axon switch`)
+                                2. Bestehenden Muscle-Agenten per CLI umschalten (axon switch)
                               </span>
                               <p className="text-[11px] text-nb-gray-400">
-                                `axon` ist bereits installiert? Führe diesen Befehl aus, um ihn mit neuem Token an diesen Core zu binden (oder nutze `axon profiles`):
+                                Ist axon bereits installiert? Führe diesen Befehl aus, um ihn mit neuem Token an diesen Core zu binden (oder nutze axon profiles):
                               </p>
                             </div>
                             <button
@@ -5047,7 +5048,7 @@ export default function SynapseNetBirdControlCenter() {
                       </span>
                       <div>
                         <h2 className="text-base font-semibold text-white">
-                          AES-256-GCM Verschlüsselter Secrets-Tresor (`Secrets.enc`)
+                          AES-256-GCM Verschlüsselter Secrets-Tresor (Secrets.enc)
                         </h2>
                         <p className="text-xs text-nb-gray-400">
                           Geheimnisse werden lokal mit AES-256-GCM verschlüsselt gespeichert (Write-Only) und bei Bedarf sicher in Remote-Prozesse injiziert.
@@ -5289,7 +5290,7 @@ export default function SynapseNetBirdControlCenter() {
                         </span>
                         <div>
                           <h2 className="text-base font-semibold text-white">
-                            Externer KI-Zugriff &amp; Model Context Protocol (MCP) Server (`/api/mcp`)
+                            Externer KI-Zugriff &amp; Model Context Protocol (MCP) Server (/api/mcp)
                           </h2>
                           <p className="text-xs text-nb-gray-400">
                             Erlaube externen KI-Agenten (Claude Desktop, Cursor, Windsurf, Antigravity, OpenCode oder eigenen REST/JSON-RPC-Bots), deinen Synapse Core &amp; Muscle sicher per MCP-Token zu steuern.
@@ -5447,7 +5448,7 @@ curl -X POST ${originUrl}/api/mcp \\
                               <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="text-xs font-semibold text-sky-400">
-                                    1. MCP-Client-Konfiguration (`mcp_config.json` — Claude / Cursor / Antigravity)
+                                    1. MCP-Client-Konfiguration (mcp_config.json — Claude / Cursor / Antigravity)
                                   </div>
                                   <button
                                     type="button"
@@ -5476,7 +5477,7 @@ curl -X POST ${originUrl}/api/mcp \\
                               <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="text-xs font-semibold text-emerald-400">
-                                    2. Direkter REST / JSON-RPC Tool-Aufruf (`curl` / Eigener KI-Agent)
+                                    2. Direkter REST / JSON-RPC Tool-Aufruf (curl / Eigener KI-Agent)
                                   </div>
                                   <button
                                     type="button"
@@ -5509,7 +5510,7 @@ curl -X POST ${originUrl}/api/mcp \\
                       <div className="space-y-2 pt-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-xs font-semibold text-nb-gray-300">
-                            Live MCP-Protokoll-Tester (`JSON-RPC 2.0`)
+                            Live MCP-Protokoll-Tester (JSON-RPC 2.0)
                           </span>
                           <div className="flex flex-wrap items-center gap-2">
                             <button
@@ -5517,7 +5518,7 @@ curl -X POST ${originUrl}/api/mcp \\
                               onClick={() => handleTestMcpEndpoint("tools/list")}
                               className="rounded-lg border border-netbird-500/40 bg-netbird-950 px-3 py-1 font-mono text-[11px] text-netbird hover:bg-netbird hover:text-white transition"
                             >
-                              Teste `tools/list` (10 Tools)
+                              Teste tools/list (10 Tools)
                             </button>
                             <button
                               type="button"
@@ -5526,14 +5527,14 @@ curl -X POST ${originUrl}/api/mcp \\
                               }
                               className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1 font-mono text-[11px] text-nb-gray-200 hover:text-white transition"
                             >
-                              Teste `resources/list`
+                              Teste resources/list
                             </button>
                             <button
                               type="button"
                               onClick={() => handleTestMcpEndpoint("call_state")}
                               className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1 font-mono text-[11px] text-nb-gray-200 hover:text-white transition"
                             >
-                              Rufe `synapse_get_project_state` auf
+                              Rufe synapse_get_project_state auf
                             </button>
                           </div>
                         </div>
@@ -5639,7 +5640,7 @@ curl -X POST ${originUrl}/api/mcp \\
                       {/* CLI Debug Commands Reference */}
                       <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
                         <div className="text-xs font-semibold text-sky-400">
-                          CLI-Debug-Befehle für Core &amp; Muscle (`axon debug` / `--debug`)
+                          CLI-Debug-Befehle für Core &amp; Muscle (axon debug / --debug)
                         </div>
                         <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
 {`# 1. Run 5-step Muscle diagnostic doctor (checks X.509 cert, Core HTTP latency, mTLS 1.3 handshake & FS permissions)
@@ -5657,7 +5658,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       {/* Live JSON Snapshot of Core Web + Core Gateway Ring Buffer */}
                       <div className="space-y-1.5">
                         <div className="text-xs font-semibold text-nb-gray-300">
-                          Live Core-Web- &amp; Gateway-Diagnose-Snapshot (`/api/debug`)
+                          Live Core-Web- &amp; Gateway-Diagnose-Snapshot (/api/debug)
                         </div>
                         {debugSnapshot ? (
                           <pre className="max-h-80 overflow-auto rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-green-400">

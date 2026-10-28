@@ -1303,9 +1303,11 @@ export default function InteractiveControlCenterCanvas({
         const h =
           sizes[key]?.h ||
           (key === "core:hub" ? 108 : key.startsWith("peer:") ? 88 : 62);
+        const extraRight =
+          key.startsWith("svc:") && serviceLinks.length > 0 ? 95 : 0;
         if (pos.x < minX) minX = pos.x;
         if (pos.y < minY) minY = pos.y;
-        if (pos.x + w > maxX) maxX = pos.x + w;
+        if (pos.x + w + extraRight > maxX) maxX = pos.x + w + extraRight;
         if (pos.y + h > maxY) maxY = pos.y + h;
       }
 
@@ -1318,9 +1320,10 @@ export default function InteractiveControlCenterCanvas({
 
       const contentW = Math.max(400, maxX - minX);
       const contentH = Math.max(240, maxY - minY);
-      const scaleX = (rect.width - 96) / contentW;
-      const scaleY = (rect.height - 96) / contentH;
-      const nextZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.72), 1.05);
+      const scaleX = (rect.width - 88) / contentW;
+      const scaleY = (rect.height - 88) / contentH;
+      const minScale = layoutOverride ? 0.56 : 0.72;
+      const nextZoom = Math.min(Math.max(Math.min(scaleX, scaleY), minScale), 1.05);
       const roundedZoom = Number(nextZoom.toFixed(2));
 
       const panX = Math.round(
@@ -1333,7 +1336,7 @@ export default function InteractiveControlCenterCanvas({
       setZoom(roundedZoom);
       setPan({ x: panX, y: panY });
     },
-    [positions, sizes, computeDefaultLayout, DEFAULT_NODE_W]
+    [positions, sizes, computeDefaultLayout, DEFAULT_NODE_W, serviceLinks.length]
   );
 
   useEffect(() => {
@@ -3008,9 +3011,12 @@ export default function InteractiveControlCenterCanvas({
                             {translateText(svc.name)}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 font-mono text-[10px] text-nb-gray-400 mt-0.5 truncate">
+                        <div className="flex items-center gap-1.5 font-mono text-[10px] text-nb-gray-400 mt-0.5 min-w-0">
                           <span className="truncate">
-                            {catLabel} · {svc.node_id} · :{svc.port}
+                            {catLabel} · {svc.node_id}
+                          </span>
+                          <span className="shrink-0 font-semibold text-nb-gray-200">
+                            · :{svc.port}
                           </span>
                           <span className="shrink-0 rounded bg-emerald-950/90 border border-emerald-500/30 px-1 py-0.2 text-[8.5px] text-emerald-300">
                             {latencyMs <= 0 ? "<1 ms" : `${latencyMs} ms`}
@@ -3475,7 +3481,7 @@ export default function InteractiveControlCenterCanvas({
         </button>
         <div className="h-3.5 w-[1px] bg-nb-gray-800 mx-0.5" />
         <button
-          onClick={() => handleFitView()}
+          onClick={() => handleFitView(effectivePositions)}
           className="rounded-lg p-1.5 text-nb-gray-300 hover:bg-nb-gray-900 hover:text-white"
           title={t("Ansicht zentrieren", "Center view")}
         >

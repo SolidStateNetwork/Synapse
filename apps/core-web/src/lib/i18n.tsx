@@ -760,6 +760,38 @@ const EN_DICTIONARY: Record<string, string> = {
   "24/7 Wächter & Alarm-Engine aktiv": "24/7 Watchdog & Alert Engine Armed",
   "Test-Push-Benachrichtigung": "Test Push Notification",
   "Manueller Server-Snapshot": "Manual Server Snapshot",
+  "Stufe 1 · Vollzugriff": "Tier 1 · Unleashed",
+  "Stufe 2 · Workspace": "Tier 2 · Workspace",
+  "Stufe 3 · Überwacht": "Tier 3 · Supervised",
+  "Jetzt aktualisieren": "Update now",
+  "Autonomer Microservice": "Autonomous Microservice",
+  "/ (Übersicht)": "/ (Overview)",
+  "/ (JSON-Daten senden)": "/ (Send JSON Input)",
+  "Multi-Server Peer-to-Peer Mesh-Verbindungen (core_link_peers)":
+    "Multi-Server Peer-to-Peer Mesh Links (core_link_peers)",
+  "1. Neuinstallation — Auf dem Ziel-Linux-Server ausführen, um axon zu installieren & zu verbinden:":
+    "1. Fresh Install — Run on target Linux host to install axon & connect via token:",
+  "2. Bestehenden Muscle-Agenten per CLI umschalten (axon switch)":
+    "2. Switch / Rebind Existing Muscle Agent via CLI (axon switch)",
+  "Ist axon bereits installiert? Führe diesen Befehl aus, um ihn mit neuem Token an diesen Core zu binden (oder nutze axon profiles):":
+    "Already have axon installed? Run this command to connect it to this Core with a new token (or use axon profiles):",
+  "AES-256-GCM Verschlüsselter Secrets-Tresor (Secrets.enc)":
+    "AES-256-GCM Encrypted Secrets Vault (Secrets.enc)",
+  "Externer KI-Zugriff & Model Context Protocol (MCP) Server (/api/mcp)":
+    "External AI Access & Model Context Protocol (MCP) Server (/api/mcp)",
+  "1. MCP-Client-Konfiguration (mcp_config.json — Claude / Cursor / Antigravity)":
+    "1. MCP Client Config (mcp_config.json — Claude / Cursor / Antigravity)",
+  "2. Direkter REST / JSON-RPC Tool-Aufruf (curl / Eigener KI-Agent)":
+    "2. Direct REST / JSON-RPC Tool Call (curl / Custom AI Agent)",
+  "Live MCP-Protokoll-Tester (JSON-RPC 2.0)":
+    "Live MCP Protocol Tester (JSON-RPC 2.0)",
+  "Teste tools/list (10 Tools)": "Test tools/list (10 Tools)",
+  "Teste resources/list": "Test resources/list",
+  "Rufe synapse_get_project_state auf": "Call synapse_get_project_state",
+  "CLI-Debug-Befehle für Core & Muscle (axon debug / --debug)":
+    "CLI Debug Commands for Core & Muscle (axon debug / --debug)",
+  "Live Core-Web- & Gateway-Diagnose-Snapshot (/api/debug)":
+    "Live Core Web & Gateway Diagnostic Snapshot (/api/debug)",
 };
 
 /**
@@ -990,6 +1022,39 @@ const DE_DICTIONARY: Record<string, string> = {
   "1. Fault Injection": "1. Fehlerinjektion",
   "2. Watchdog Self-Heal": "2. Wächter Auto-Heilung",
   "3. Health Verification": "3. Gesundheits-Prüfung",
+  "Autonomous Microservice": "Autonomer Microservice",
+  "/ (Overview)": "/ (Übersicht)",
+  "/ (Send JSON Input)": "/ (JSON-Daten senden)",
+  "VerifiedMulti-Core Production Baseline":
+    "Verifizierte Multi-Core Produktions-Basis",
+  "Live Simulation Snapshot": "Live-Simulations-Snapshot",
+  "Lightweight JSON health and latency telemetry beacon running on port 4060.":
+    "Leichtgewichtiger JSON-Uptime- & Latenz-Telemetrie-Beacon auf Port 4060.",
+  "Captures and inspects incoming JSON webhooks in real time on port 4065.":
+    "Empfängt und inspiziert eingehende JSON-Webhooks in Echtzeit auf Port 4065.",
+  "Fast HTTP/JSON Key-Value in-memory cache store running on port 6380.":
+    "Schneller HTTP/JSON In-Memory Key-Value-Cache auf Port 6380.",
+  "Networking": "Netzwerk",
+  "deployment": "Deployment",
+  "Deployment": "Deployment",
+  "Infrastructure": "Infrastruktur",
+  "security": "Sicherheit",
+  "Security": "Sicherheit",
+  "EXECUTED": "AUSGEFÜHRT",
+  "BLOCKED": "BLOCKIERT",
+  "executed": "Ausgeführt",
+  "blocked": "Blockiert",
+  "REMOTE FILE LAYOUT": "REMOTE-DATEISTRUKTUR",
+  "Remote File Layout": "Remote-Dateistruktur",
+  "System Architecture — synapse-cloud-demo":
+    "System-Architektur — synapse-cloud-demo",
+  "Primary project workspace on assigned Axon Muscle Node(s).":
+    "Primäres Projekt-Arbeitsverzeichnis auf den zugewiesenen Axon-Muscle-Servern.",
+  "— Primary project workspace on assigned Axon Muscle Node(s).":
+    "— Primäres Projekt-Arbeitsverzeichnis auf den zugewiesenen Axon-Muscle-Servern.",
+  "Watchdog Log": "Wächter-Log",
+  "24/7 Proactive Watchdog verified from Synapse Control Center.":
+    "Proaktiver 24/7-Wächter aus dem Synapse Control Center verifiziert.",
 };
 
 const EN_PATTERNS: PatternRule[] = [
@@ -1299,6 +1364,22 @@ const DE_PATTERNS: PatternRule[] = [
   {
     match: /^(\d+) Active Topology Link\(s\)$/,
     replace: "$1 aktive Topologie-Verknüpfung(en)",
+  },
+  {
+    match: /^Resilience simulation completed for (.+) on (.+) \((.+)\)\.$/,
+    replace: "Resilienz-Simulation für $1 auf $2 erfolgreich abgeschlossen ($3).",
+  },
+  {
+    match: /^Resilience simulation completed in (\d+) ms \((.+)\)\.$/,
+    replace: "Resilienz-Simulation abgeschlossen in $1 ms ($2).",
+  },
+  {
+    match: /^Chaos-Test Auto-Healed: (.+)$/,
+    replace: "Chaos-Test Selbstheilung: $1",
+  },
+  {
+    match: /^24\/7 Proactive Watchdog verified (\d+) services across all Muscle peers \(all healthy\)\.$/,
+    replace: "Proaktiver 24/7-Wächter hat $1 Dienste auf allen Muscle-Servern geprüft (alle gesund).",
   },
 ];
 
