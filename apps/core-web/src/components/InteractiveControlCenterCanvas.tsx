@@ -1807,7 +1807,7 @@ export default function InteractiveControlCenterCanvas({
               );
               const isPeerEdge =
                 edge.from === "core:hub" || edge.to === "core:hub";
-              const secondaryColor = isPeerEdge ? "#fbbf24" : "#34d399";
+              const secondaryColor = isPeerEdge ? "#f68330" : "#38bdf8";
 
               // IMPORTANT: Keep durations & delays 100% invariant across hover states so particles NEVER jump!
               const staggerSec = ((idx * 0.77) % 3.1).toFixed(2);
@@ -2120,7 +2120,7 @@ export default function InteractiveControlCenterCanvas({
                   <path
                     d={d}
                     fill="none"
-                    stroke="#a855f7"
+                    stroke="#38bdf8"
                     strokeOpacity={isHovered ? 0.35 : 0.14}
                     strokeWidth={isHovered ? 6 : 3.5}
                     strokeLinecap="round"
@@ -2128,7 +2128,7 @@ export default function InteractiveControlCenterCanvas({
                   <path
                     d={d}
                     fill="none"
-                    stroke="#a855f7"
+                    stroke="#38bdf8"
                     strokeOpacity={isHovered ? 0.95 : 0.65}
                     strokeWidth={1.6}
                     strokeDasharray="4 6"
@@ -2141,8 +2141,8 @@ export default function InteractiveControlCenterCanvas({
                       animationDuration: `${(2.8 + lIdx * 0.4).toFixed(2)}s`,
                     }}
                   >
-                    <circle r={4.5} fill="#a855f7" fillOpacity={0.45} />
-                    <circle r={2} fill="#f3e8ff" />
+                    <circle r={4.5} fill="#38bdf8" fillOpacity={0.45} />
+                    <circle r={2} fill="#e0f2fe" />
                   </g>
                 </g>
               );
@@ -2166,16 +2166,16 @@ export default function InteractiveControlCenterCanvas({
                       width={lbl.badgeW}
                       height={18}
                       rx={6}
-                      fill="#0f1115"
-                      stroke="#a855f7"
-                      strokeOpacity={0.75}
+                      fill="#16181b"
+                      stroke="#38bdf8"
+                      strokeOpacity={0.65}
                       strokeWidth={1.1}
                     />
                     <text
                       x={0}
                       y={3}
                       textAnchor="middle"
-                      fill="#e9d5ff"
+                      fill="#bae6fd"
                       fontSize={8.5}
                       fontFamily="monospace"
                     >
@@ -2323,7 +2323,7 @@ export default function InteractiveControlCenterCanvas({
                         <div className="flex items-center gap-2">
                           <span
                             className={`h-2 w-2 shrink-0 rounded-full ${
-                              gn.online ? "bg-green-400" : "bg-nb-gray-500"
+                              gn.online ? "bg-emerald-400" : "bg-nb-gray-500"
                             }`}
                           />
                           <span className="truncate font-mono text-xs font-semibold text-white">
@@ -2584,14 +2584,14 @@ export default function InteractiveControlCenterCanvas({
                       <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
                         <div className="flex items-center justify-between">
                           <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
-                            <Shield className="h-3 w-3 text-rose-400" />
+                            <Shield className="h-3 w-3 text-red-400" />
                             {t("SSH-Intrusion-Radar", "SSH Intrusion Radar")}
                           </span>
                           <button
                             type="button"
                             disabled={intrusionBusyNode === gn.node_id}
                             onClick={() => handleScanIntrusions(gn.node_id)}
-                            className="rounded border border-rose-500/40 bg-rose-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-rose-300 hover:bg-rose-500/25 disabled:opacity-50 transition"
+                            className="rounded border border-red-500/40 bg-red-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-red-300 hover:bg-red-500/25 disabled:opacity-50 transition"
                           >
                             {intrusionBusyNode === gn.node_id
                               ? t("Scannt...", "Scanning...")
@@ -2608,7 +2608,7 @@ export default function InteractiveControlCenterCanvas({
                             <div className="flex items-center justify-between text-nb-gray-400">
                               <span>
                                 {t("Abgewehrte SSH-Logins", "Failed SSH Logins")}:{" "}
-                                <strong className="text-rose-400 font-mono">
+                                <strong className="text-red-400 font-mono">
                                   {intrusionMap[gn.node_id].failed_count_24h}
                                 </strong>
                               </span>
@@ -2634,7 +2634,7 @@ export default function InteractiveControlCenterCanvas({
                                   >
                                     <span className="text-nb-gray-200 truncate">
                                       {att.ip}{" "}
-                                      <span className="text-rose-400">
+                                      <span className="text-red-400">
                                         ({att.attempts}x)
                                       </span>
                                     </span>
@@ -2655,7 +2655,7 @@ export default function InteractiveControlCenterCanvas({
                                       className={`rounded px-1.5 py-0.5 text-[8.5px] font-semibold transition ${
                                         isBlocked
                                           ? "bg-emerald-950 text-emerald-400 border border-emerald-500/30"
-                                          : "bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30"
+                                          : "bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30"
                                       }`}
                                     >
                                       {isBlocked
@@ -2674,7 +2674,7 @@ export default function InteractiveControlCenterCanvas({
                       <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
                         <div className="flex items-center justify-between">
                           <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
-                            <KeyRound className="h-3 w-3 text-purple-400" />
+                            <KeyRound className="h-3 w-3 text-sky-400" />
                             {t(
                               "Offsite Core-Backups (AES-256)",
                               "Offsite Core Backups (AES-256)"
@@ -2687,7 +2687,7 @@ export default function InteractiveControlCenterCanvas({
                               authRole === "operator"
                             }
                             onClick={() => handleCreateOffsiteBackup(gn.node_id)}
-                            className="rounded border border-purple-500/40 bg-purple-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-purple-300 hover:bg-purple-500/25 disabled:opacity-50 transition"
+                            className="rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-sky-300 hover:bg-sky-500/25 disabled:opacity-50 transition"
                           >
                             {backupBusyId === "create"
                               ? t("Verschlüsselt...", "Encrypting...")
@@ -2729,7 +2729,7 @@ export default function InteractiveControlCenterCanvas({
                                     authRole === "operator"
                                   }
                                   onClick={() => handleRestoreOffsiteBackup(bkp)}
-                                  className="shrink-0 rounded border border-purple-500/40 bg-purple-500/15 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold text-purple-300 hover:bg-purple-500/25 disabled:opacity-50"
+                                  className="shrink-0 rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold text-sky-300 hover:bg-sky-500/25 disabled:opacity-50"
                                 >
                                   {backupBusyId === bkp.id
                                     ? "..."
@@ -3029,7 +3029,7 @@ export default function InteractiveControlCenterCanvas({
                                         }
                                         className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[8.5px] font-semibold transition ${
                                           isDeployed
-                                            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/40"
+                                            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/40"
                                             : "border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25"
                                         } disabled:opacity-50`}
                                       >
@@ -3171,7 +3171,7 @@ export default function InteractiveControlCenterCanvas({
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-nb-gray-800 bg-nb-gray-950 text-sky-400">
                         {cat === "database" ? (
-                          <Database className="h-4 w-4 text-purple-400" />
+                          <Database className="h-4 w-4 text-sky-400" />
                         ) : cat === "webui" ? (
                           <Globe className="h-4 w-4 text-sky-400" />
                         ) : (
@@ -3183,7 +3183,7 @@ export default function InteractiveControlCenterCanvas({
                           <span
                             className={`h-2 w-2 shrink-0 rounded-full ${
                               healthy
-                                ? "bg-green-400"
+                                ? "bg-emerald-400"
                                 : "bg-red-500 animate-pulse"
                             }`}
                           />
@@ -3239,7 +3239,7 @@ export default function InteractiveControlCenterCanvas({
                           </span>
                         )}
                         {svc.container_name && (
-                          <span className="rounded border border-purple-500/40 bg-purple-500/15 px-1.5 py-0.5 font-mono text-[9px] text-purple-300 truncate max-w-[180px]">
+                          <span className="rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[9px] text-sky-300 truncate max-w-[180px]">
                             🐳 {svc.container_name}
                           </span>
                         )}
@@ -3296,7 +3296,7 @@ export default function InteractiveControlCenterCanvas({
                       {/* FEATURE 6: SERVICE-TO-SERVICE MESH LINKS */}
                       {allServices.length > 1 && (
                         <div className="space-y-1 rounded-lg border border-nb-gray-800/80 bg-nb-gray-950 p-2">
-                          <div className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider text-purple-300">
+                          <div className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider text-sky-300">
                             <Link2 className="h-3 w-3" />
                             {t(
                               "Service-Mesh Datenfluss-Verbindungen",
@@ -3324,7 +3324,7 @@ export default function InteractiveControlCenterCanvas({
                                     }
                                     className={`rounded border px-1.5 py-0.5 font-mono text-[9px] transition ${
                                       linked
-                                        ? "border-purple-500/60 bg-purple-500/20 text-purple-200"
+                                        ? "border-sky-500/60 bg-sky-500/20 text-sky-200"
                                         : "border-nb-gray-800 bg-nb-gray-900 text-nb-gray-400 hover:text-white"
                                     }`}
                                   >
@@ -3393,7 +3393,7 @@ export default function InteractiveControlCenterCanvas({
                             <span
                               className={
                                 serviceLogsMap[svc.service_id].errorCount > 0
-                                  ? "text-rose-400 font-semibold"
+                                  ? "text-red-400 font-semibold"
                                   : "text-emerald-400"
                               }
                             >
@@ -3411,7 +3411,7 @@ export default function InteractiveControlCenterCanvas({
                                   key={idx}
                                   className={`truncate ${
                                     /error|fail|exception|panic/i.test(line)
-                                      ? "text-rose-400"
+                                      ? "text-red-400"
                                       : "text-nb-gray-300"
                                   }`}
                                 >

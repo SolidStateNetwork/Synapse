@@ -8,8 +8,8 @@
 
 html,
 body {
-  background-color: #181a1d;
-  color: #e4e7e9;
+  background-color: #14161a;
+  color: #e2e4e8;
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
   overflow: hidden;
   user-select: none;
@@ -24,8 +24,8 @@ code {
 
 /* NetBird Control Center Dot-Grid Canvas Background */
 .nb-canvas-grid {
-  background-color: #16181b;
-  background-image: radial-gradient(#2e3238 1.25px, transparent 1.25px);
+  background-color: #14161a;
+  background-image: radial-gradient(#2c3037 1.25px, transparent 1.25px);
   background-size: 22px 22px;
 }
 
@@ -155,12 +155,12 @@ code {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2e3238;
+  background: #2c3037;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f444b;
+  background: #363b42;
 }
 
 /* Hide floating Next.js dev indicator ("Static route") so it never overlaps the bottom-left sidebar */

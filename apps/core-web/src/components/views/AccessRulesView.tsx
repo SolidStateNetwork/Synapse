@@ -179,7 +179,7 @@ export default function AccessRulesView({
                           key={idx}
                           className={`px-1 rounded-sm whitespace-pre-wrap break-all ${
                             isAdd
-                              ? "bg-green-950/70 text-green-300"
+                              ? "bg-emerald-950/70 text-emerald-300"
                               : isDel
                                 ? "bg-red-950/70 text-red-300"
                                 : isHunk
@@ -197,7 +197,7 @@ export default function AccessRulesView({
                       onClick={() =>
                         handleResolveApproval(req.approval_id, "approve")
                       }
-                      className="flex-1 rounded-lg bg-green-600 py-1.5 text-xs font-medium text-white hover:bg-green-500 transition"
+                      className="flex-1 rounded-lg bg-emerald-600 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 transition"
                     >
                       Freigeben &amp; Ausführen
                     </button>
@@ -237,7 +237,7 @@ export default function AccessRulesView({
                   <div className="flex items-center gap-2">
                     <span
                       className={`h-2 w-2 shrink-0 rounded-full ${
-                        enabled ? "bg-green-400" : "bg-nb-gray-500"
+                        enabled ? "bg-emerald-400" : "bg-nb-gray-500"
                       }`}
                     />
                     <span className="text-sm font-semibold text-white leading-snug">
@@ -264,7 +264,7 @@ export default function AccessRulesView({
                     }}
                     className={`rounded-md border px-2.5 py-1 font-mono text-[10px] font-medium transition ${
                       enabled
-                        ? "border-green-500/50 bg-green-950/70 text-green-400"
+                        ? "border-emerald-500/50 bg-emerald-950/70 text-emerald-400"
                         : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400 hover:text-white"
                     }`}
                   >

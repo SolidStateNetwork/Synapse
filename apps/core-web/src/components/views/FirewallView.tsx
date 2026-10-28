@@ -151,7 +151,7 @@ export default function FirewallView({
         description="Sperre offene Ports mit 1 Klick nach außen für das öffentliche Internet, während deine Dienste über den verschlüsselten Synapse-Tunnel (127.0.0.1) weiterhin unter Services erreichbar bleiben."
         actions={
           <>
-            <div className="flex items-center gap-1 rounded-xl border border-[#1f2735] bg-[#0b0e14] p-1">
+            <div className="flex items-center gap-1 rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-1">
               {availableNodes.map((nid) => {
                 const active = nid === targetNode;
                 return (
@@ -164,8 +164,8 @@ export default function FirewallView({
                     }}
                     className={`rounded-lg px-2.5 py-1 font-mono text-xs transition ${
                       active
-                        ? "bg-indigo-600/20 text-indigo-300 border border-indigo-500/40 font-semibold"
-                        : "text-slate-400 hover:text-white"
+                        ? "border border-netbird-500/40 bg-netbird-950 text-netbird font-semibold"
+                        : "text-nb-gray-400 hover:text-white"
                     }`}
                   >
                     {nid}

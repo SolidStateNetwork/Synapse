@@ -186,11 +186,11 @@ function resolveSectionTheme(title: string, idx: number): SectionThemeStyle {
     return {
       key: "update",
       badgeLabel: "Updates & Versionen",
-      borderClass: "border-cyan-500/30 hover:border-cyan-500/50",
-      headerBgClass: "bg-gradient-to-r from-cyan-950/45 via-nb-gray-940 to-nb-gray-940",
-      accentTextClass: "text-cyan-300",
-      badgeClass: "border-cyan-500/30 bg-cyan-950/60 text-cyan-300",
-      icon: <RefreshCw className="h-3.5 w-3.5 shrink-0 text-cyan-400" />,
+      borderClass: "border-sky-500/30 hover:border-sky-500/50",
+      headerBgClass: "bg-gradient-to-r from-sky-950/45 via-nb-gray-940 to-nb-gray-940",
+      accentTextClass: "text-sky-300",
+      badgeClass: "border-sky-500/30 bg-sky-950/60 text-sky-300",
+      icon: <RefreshCw className="h-3.5 w-3.5 shrink-0 text-sky-400" />,
     };
   }
   if (
@@ -201,12 +201,12 @@ function resolveSectionTheme(title: string, idx: number): SectionThemeStyle {
     return {
       key: "forensics",
       badgeLabel: "Diagnose & Forensik",
-      borderClass: "border-purple-500/30 hover:border-purple-500/50",
+      borderClass: "border-sky-500/30 hover:border-sky-500/50",
       headerBgClass:
-        "bg-gradient-to-r from-purple-950/45 via-nb-gray-940 to-nb-gray-940",
-      accentTextClass: "text-purple-300",
-      badgeClass: "border-purple-500/30 bg-purple-950/60 text-purple-300",
-      icon: <Cpu className="h-3.5 w-3.5 shrink-0 text-purple-400" />,
+        "bg-gradient-to-r from-sky-950/45 via-nb-gray-940 to-nb-gray-940",
+      accentTextClass: "text-sky-300",
+      badgeClass: "border-sky-500/30 bg-sky-950/60 text-sky-300",
+      icon: <Cpu className="h-3.5 w-3.5 shrink-0 text-sky-400" />,
     };
   }
   if (
@@ -1412,7 +1412,7 @@ function renderCodeTokens(
               handlers.onOpenBrainDoc!(rawCode);
             }}
             title={`${rawCode} im Brain Vault öffnen`}
-            className="mx-0.5 inline-flex items-center gap-1 rounded-md border border-purple-500/40 bg-purple-950/50 px-1.5 py-0.5 font-mono text-[11px] text-purple-300 transition hover:border-purple-400 hover:bg-purple-900/60 hover:text-white"
+            className="mx-0.5 inline-flex items-center gap-1 rounded-md border border-netbird-500/40 bg-netbird-950/50 px-1.5 py-0.5 font-mono text-[11px] text-netbird transition hover:border-netbird hover:bg-netbird-900/60 hover:text-white"
           >
             <BookOpen className="h-2.5 w-2.5 shrink-0" />
             <span>{rawCode}</span>

@@ -25,30 +25,25 @@ const ACCENT_BOX_CLASSES: Record<
   NonNullable<SynapseViewHeaderProps["accentColor"]>,
   string
 > = {
-  emerald:
-    "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-[0_0_24px_rgba(16,185,129,0.12)]",
-  indigo:
-    "border-indigo-500/30 bg-indigo-500/10 text-indigo-400 shadow-[0_0_24px_rgba(99,102,241,0.12)]",
-  amber:
-    "border-amber-500/30 bg-amber-500/10 text-amber-400 shadow-[0_0_24px_rgba(245,158,11,0.12)]",
-  sky: "border-sky-500/30 bg-sky-500/10 text-sky-400 shadow-[0_0_24px_rgba(14,165,233,0.12)]",
-  purple:
-    "border-purple-500/30 bg-purple-500/10 text-purple-400 shadow-[0_0_24px_rgba(168,85,247,0.12)]",
-  rose:
-    "border-rose-500/30 bg-rose-500/10 text-rose-400 shadow-[0_0_24px_rgba(244,63,94,0.12)]",
+  emerald: "border-emerald-500/35 bg-emerald-950/60 text-emerald-400",
+  indigo: "border-netbird-500/40 bg-netbird-950 text-netbird",
+  amber: "border-amber-500/35 bg-amber-950/60 text-amber-400",
+  sky: "border-sky-500/35 bg-sky-950/60 text-sky-400",
+  purple: "border-netbird-500/40 bg-netbird-950 text-netbird",
+  rose: "border-red-500/35 bg-red-950/60 text-red-400",
 };
 
 const BADGE_TONE_CLASSES: Record<
   NonNullable<SynapseViewHeaderProps["badgeTone"]>,
   string
 > = {
-  emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-  indigo: "border-indigo-500/30 bg-indigo-500/10 text-indigo-300",
-  amber: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  sky: "border-sky-500/30 bg-sky-500/10 text-sky-300",
-  purple: "border-purple-500/30 bg-purple-500/10 text-purple-300",
-  rose: "border-rose-500/30 bg-rose-500/10 text-rose-300",
-  slate: "border-[#273142] bg-[#161c26] text-slate-300",
+  emerald: "border-emerald-500/35 bg-emerald-950/60 text-emerald-300",
+  indigo: "border-netbird-500/40 bg-netbird-950 text-netbird",
+  amber: "border-amber-500/35 bg-amber-950/60 text-amber-300",
+  sky: "border-sky-500/35 bg-sky-950/60 text-sky-300",
+  purple: "border-netbird-500/40 bg-netbird-950 text-netbird",
+  rose: "border-red-500/35 bg-red-950/60 text-red-300",
+  slate: "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300",
 };
 
 /**
@@ -64,32 +59,32 @@ export function SynapseViewHeader({
   subTabs,
 }: SynapseViewHeaderProps) {
   return (
-    <div className="rounded-2xl border border-[#1f2633] bg-gradient-to-b from-[#131822] to-[#0f131b] p-5 shadow-xl">
+    <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-5 shadow-lg">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3.5 min-w-0 flex-1">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
           <div
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${ACCENT_BOX_CLASSES[accentColor]}`}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${ACCENT_BOX_CLASSES[accentColor]}`}
           >
             {icon}
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-base font-bold tracking-tight text-white">
+            <h2 className="text-base font-semibold tracking-tight text-white">
               {title}
             </h2>
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            <p className="mt-0.5 text-xs leading-relaxed text-nb-gray-400">
               {description}
             </p>
           </div>
         </div>
         {actions && (
-          <div className="flex flex-wrap items-center gap-2 shrink-0 sm:pt-0.5">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             {actions}
           </div>
         )}
       </div>
 
       {subTabs && (
-        <div className="mt-4 pt-3.5 border-t border-[#1e2636] flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-4 pt-3.5 border-t border-nb-gray-850 flex flex-wrap items-center justify-between gap-3">
           {subTabs}
         </div>
       )}
@@ -107,7 +102,7 @@ export function SynapseSubTabs<T extends string>({
   onChange: (id: T) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-[#1f2735] bg-[#0b0e14] p-1">
+    <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-1">
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
@@ -115,10 +110,10 @@ export function SynapseSubTabs<T extends string>({
             key={tab.id}
             type="button"
             onClick={() => onChange(tab.id)}
-            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
               isActive
-                ? "bg-indigo-600/20 text-indigo-300 border border-indigo-500/40 shadow-sm"
-                : "border border-transparent text-slate-400 hover:bg-[#151b26] hover:text-slate-200"
+                ? "border border-netbird-500/40 bg-netbird-950 text-netbird shadow-sm"
+                : "border border-transparent text-nb-gray-400 hover:bg-nb-gray-920 hover:text-nb-gray-200"
             }`}
           >
             {tab.icon}
@@ -127,8 +122,8 @@ export function SynapseSubTabs<T extends string>({
               <span
                 className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
                   isActive
-                    ? "bg-indigo-500/30 text-indigo-200"
-                    : "bg-[#1a2130] text-slate-400"
+                    ? "bg-netbird/20 text-netbird"
+                    : "bg-nb-gray-900 text-nb-gray-400"
                 }`}
               >
                 {tab.badge}
@@ -156,25 +151,25 @@ export function SynapseStatCard({
 }) {
   const toneBorder =
     tone === "emerald"
-      ? "border-emerald-500/25 bg-emerald-950/10"
+      ? "border-emerald-500/30 bg-emerald-950/20"
       : tone === "indigo"
-        ? "border-indigo-500/25 bg-indigo-950/10"
+        ? "border-netbird-500/30 bg-netbird-950/20"
         : tone === "amber"
-          ? "border-amber-500/25 bg-amber-950/10"
+          ? "border-amber-500/30 bg-amber-950/20"
           : tone === "rose"
-            ? "border-rose-500/25 bg-rose-950/10"
-            : "border-[#1f2633] bg-[#131822]";
+            ? "border-red-500/30 bg-red-950/20"
+            : "border-nb-gray-800 bg-nb-gray-940";
 
   return (
     <div className={`rounded-xl border p-4 ${toneBorder}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-nb-gray-400">
           {label}
         </span>
-        {icon && <span className="text-slate-400">{icon}</span>}
+        {icon && <span className="text-nb-gray-400">{icon}</span>}
       </div>
       <div className="mt-1.5 text-xl font-bold text-white">{value}</div>
-      {subtext && <p className="mt-0.5 text-[11px] text-slate-400">{subtext}</p>}
+      {subtext && <p className="mt-0.5 text-[11px] text-nb-gray-400">{subtext}</p>}
     </div>
   );
 }

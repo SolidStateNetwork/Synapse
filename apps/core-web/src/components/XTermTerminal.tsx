@@ -40,10 +40,10 @@ export default function XTermTerminal({
         fontFamily:
           '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
         theme: {
-          background: "#060609",
-          foreground: "#d4d4d8",
-          cursor: "#10b981",
-          selectionBackground: "#27272a",
+          background: "#121417",
+          foreground: "#e2e4e8",
+          cursor: "#f68330",
+          selectionBackground: "#2c3037",
         },
         rows: 11,
         cols: 110,
@@ -105,19 +105,19 @@ export default function XTermTerminal({
   }, [gatewayUrl, projectId, nodeId, sessionId]);
 
   return (
-    <div className="flex h-full flex-col bg-[#060609] overflow-hidden">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-1 text-[11px] text-zinc-500">
+    <div className="flex h-full flex-col bg-nb-gray-960 overflow-hidden">
+      <div className="flex items-center justify-between border-b border-nb-gray-800 px-3 py-1 text-[11px] text-nb-gray-400">
         <div className="flex items-center gap-2 font-mono">
           <span
             className={`h-1.5 w-1.5 rounded-full ${
               connected ? "bg-emerald-400" : "bg-amber-400"
             }`}
           />
-          <span className="text-zinc-300">
+          <span className="text-nb-gray-200">
             {nodeId} : {sessionId}
           </span>
         </div>
-        <span className="font-mono text-[10px] text-zinc-500">
+        <span className="font-mono text-[10px] text-nb-gray-400">
           STREAM_TYPE_PTY • /proc/pid/cwd
         </span>
       </div>

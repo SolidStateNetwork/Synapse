@@ -72,7 +72,7 @@ export default function MermaidTopologyView({
             </p>
           </div>
         </div>
-        <span className="rounded-md border border-green-500/40 bg-green-950 px-2.5 py-0.5 font-mono text-[10px] text-green-400">
+        <span className="rounded-md border border-emerald-500/40 bg-emerald-950 px-2.5 py-0.5 font-mono text-[10px] text-emerald-400">
           {edges.length} Active Topology Link(s)
         </span>
       </div>
@@ -127,7 +127,7 @@ export default function MermaidTopologyView({
                   className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
                     isApp
                       ? "border-sky-500/40 bg-sky-950/60 text-sky-400"
-                      : "border-green-500/40 bg-green-950 text-green-400"
+                      : "border-emerald-500/40 bg-emerald-950 text-emerald-400"
                   }`}
                 >
                   {isApp ? (
@@ -139,7 +139,7 @@ export default function MermaidTopologyView({
                 <div className="min-w-0">
                   <div
                     className={`font-mono text-[10px] uppercase tracking-wider ${
-                      isApp ? "text-sky-400" : "text-green-400"
+                      isApp ? "text-sky-400" : "text-emerald-400"
                     }`}
                   >
                     {edge.toId}

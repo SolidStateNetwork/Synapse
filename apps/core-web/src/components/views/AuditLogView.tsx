@@ -129,7 +129,7 @@ export default function AuditLogView({
                           className={`inline-block rounded border px-2 py-0.5 text-[10px] uppercase ${
                             log.status === "executed" ||
                             log.status === "approved"
-                              ? "border-green-500/50 bg-green-950 text-green-400"
+                              ? "border-emerald-500/50 bg-emerald-950 text-emerald-400"
                               : log.status === "blocked" ||
                                   log.status === "rejected" ||
                                   log.status === "error"

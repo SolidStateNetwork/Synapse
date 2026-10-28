@@ -2653,7 +2653,7 @@ export default function SynapseNetBirdControlCenter() {
                     className={`h-2.5 w-2.5 rounded-full ${
                       activeProject?.planning_only
                         ? "bg-amber-400"
-                        : "bg-green-400"
+                        : "bg-emerald-400"
                     }`}
                   />
                 </div>
@@ -2776,7 +2776,7 @@ export default function SynapseNetBirdControlCenter() {
                     className={`h-2 w-2 rounded-full ${
                       activeProject?.planning_only
                         ? "bg-amber-400"
-                        : "bg-green-400"
+                        : "bg-emerald-400"
                     }`}
                   />
                   {activeProject?.planning_only ? "Planning-Only" : "mTLS 1.3 Mesh"}
@@ -2811,10 +2811,10 @@ export default function SynapseNetBirdControlCenter() {
             {primaryNode ? (
               <div
                 onClick={() => setActiveNav("peers")}
-                className="hidden md:flex cursor-pointer items-center gap-1.5 rounded-full border border-green-500/30 bg-green-950/50 px-2.5 py-0.5 text-[11px] text-green-400 hover:bg-green-950 transition"
+                className="hidden md:flex cursor-pointer items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/50 px-2.5 py-0.5 text-[11px] text-emerald-400 hover:bg-emerald-950 transition"
                 title="Verbundenen Server anzeigen"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                 <span className="font-mono">{primaryNode}</span>
               </div>
             ) : (
@@ -2823,7 +2823,7 @@ export default function SynapseNetBirdControlCenter() {
                   setAddPeerModalOpen(true);
                   handleGenerateJoinToken();
                 }}
-                className="hidden md:flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-yellow-950/50 px-2.5 py-0.5 text-[11px] text-yellow-400 hover:bg-yellow-950"
+                className="hidden md:flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-950/50 px-2.5 py-0.5 text-[11px] text-amber-400 hover:bg-amber-950"
               >
                 <Lock className="h-3 w-3" />
                 <span>Planning-Only</span>
@@ -2834,7 +2834,7 @@ export default function SynapseNetBirdControlCenter() {
           {/* Right: Essential Global Controls (Language + Update + Copilot + Server) */}
           <div className="flex items-center gap-2">
             {statusToast && (
-              <span className="hidden xl:inline-block rounded-md border border-green-500/40 bg-green-950 px-2.5 py-1 font-mono text-[11px] text-green-400">
+              <span className="hidden xl:inline-block rounded-md border border-emerald-500/40 bg-emerald-950 px-2.5 py-1 font-mono text-[11px] text-emerald-400">
                 {statusToast}
               </span>
             )}
@@ -3135,7 +3135,7 @@ export default function SynapseNetBirdControlCenter() {
                                       <span
                                         className={`h-2.5 w-2.5 shrink-0 rounded-full ${
                                           gn.online
-                                            ? "bg-green-400"
+                                            ? "bg-emerald-400"
                                             : "bg-nb-gray-500"
                                         }`}
                                       />
@@ -3615,7 +3615,7 @@ export default function SynapseNetBirdControlCenter() {
                                 onClick={() => handleTogglePlaybook(pb)}
                                 className={`rounded border px-2.5 py-1 font-mono text-[10px] ${
                                   pb.enabled
-                                    ? "border-green-500/40 bg-green-950 text-green-400"
+                                    ? "border-emerald-500/40 bg-emerald-950 text-emerald-400"
                                     : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400"
                                 }`}
                               >
@@ -3877,7 +3877,7 @@ export default function SynapseNetBirdControlCenter() {
                                       cat === "webui"
                                         ? "bg-sky-950/80 text-sky-300 border border-sky-500/30"
                                         : cat === "database"
-                                        ? "bg-purple-950/80 text-purple-300 border border-purple-500/30"
+                                        ? "bg-sky-950/80 text-sky-300 border border-sky-500/30"
                                         : "bg-amber-950/70 text-amber-300 border border-amber-500/30"
                                     }`}
                                   >
@@ -4047,7 +4047,7 @@ export default function SynapseNetBirdControlCenter() {
                                                 ep.method === "POST"
                                                   ? "bg-amber-950/90 text-amber-300 border border-amber-500/30"
                                                   : ep.method === "SQL"
-                                                  ? "bg-purple-950/90 text-purple-300 border border-purple-500/30"
+                                                  ? "bg-sky-950/90 text-sky-300 border border-sky-500/30"
                                                   : "bg-emerald-950/90 text-emerald-300 border border-emerald-500/30"
                                               }`}
                                             >
@@ -4491,11 +4491,11 @@ export default function SynapseNetBirdControlCenter() {
                           value={diffPatchText}
                           onChange={(e) => setDiffPatchText(e.target.value)}
                           placeholder="Unified-Diff einfügen (@@ -1,3 +1,4 @@)..."
-                          className="h-28 w-full rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-2.5 font-mono text-xs text-green-400"
+                          className="h-28 w-full rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-2.5 font-mono text-xs text-emerald-400"
                         />
                         <button
                           onClick={handleApplyUnifiedDiff}
-                          className="rounded-lg bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-500 transition"
+                          className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-500 transition"
                         >
                           Unified-Diff anwenden
                         </button>
@@ -4685,7 +4685,7 @@ export default function SynapseNetBirdControlCenter() {
                           type="button"
                           disabled={systemUpdateBusy}
                           onClick={() => handleRunSystemUpdate("update_muscle")}
-                          className="flex items-center gap-2 rounded-lg border border-purple-500/50 bg-purple-950/60 px-3.5 py-2.5 text-xs font-medium text-purple-300 hover:bg-purple-900/50 disabled:opacity-50 transition"
+                          className="flex items-center gap-2 rounded-lg border border-sky-500/50 bg-sky-950/60 px-3.5 py-2.5 text-xs font-medium text-sky-300 hover:bg-sky-900/50 disabled:opacity-50 transition"
                         >
                           <Cpu className="h-3.5 w-3.5" />
                           <span>Alle Muscles (OTA) updaten</span>
@@ -4806,7 +4806,7 @@ export default function SynapseNetBirdControlCenter() {
                               <>
                                 <div className="flex items-center justify-between border-b border-nb-gray-900 pb-2.5">
                                   <div className="flex items-center gap-2">
-                                    <Server className="h-4 w-4 text-purple-400" />
+                                    <Server className="h-4 w-4 text-sky-400" />
                                     <span className="text-xs font-semibold text-white">
                                       Verbundene Muscle-Knoten (0)
                                     </span>
@@ -4824,7 +4824,7 @@ export default function SynapseNetBirdControlCenter() {
                                 <div key={node.node_id} className="space-y-3">
                                   <div className="flex items-center justify-between border-b border-nb-gray-900 pb-2.5">
                                     <div className="flex items-center gap-2 min-w-0">
-                                      <Server className="h-4 w-4 text-purple-400 shrink-0" />
+                                      <Server className="h-4 w-4 text-sky-400 shrink-0" />
                                       <span className="text-xs font-semibold text-white truncate">
                                         Muscle Plane ({node.node_id})
                                       </span>
@@ -4862,7 +4862,7 @@ export default function SynapseNetBirdControlCenter() {
                                             node.node_id
                                           )
                                         }
-                                        className="rounded border border-purple-500/40 bg-purple-950/60 px-2 py-0.5 font-mono text-[10px] text-purple-200 hover:bg-purple-900/60 disabled:opacity-40 transition"
+                                        className="rounded border border-sky-500/40 bg-sky-950/60 px-2 py-0.5 font-mono text-[10px] text-sky-200 hover:bg-sky-900/60 disabled:opacity-40 transition"
                                       >
                                         OTA Update
                                       </button>
@@ -5074,7 +5074,7 @@ export default function SynapseNetBirdControlCenter() {
                               {copiedJoinCmd ? "✔ Kopiert!" : "Befehl kopieren"}
                             </button>
                           </div>
-                          <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-xs text-green-400">
+                          <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-xs text-emerald-400">
                             {oneLineInstallerCmd}
                           </pre>
                         </div>
@@ -5420,9 +5420,9 @@ export default function SynapseNetBirdControlCenter() {
                       </form>
 
                       {issuedMcpToken && (
-                        <div className="rounded-xl border border-green-500/50 bg-green-950/20 p-4 space-y-2">
+                        <div className="rounded-xl border border-emerald-500/50 bg-emerald-950/20 p-4 space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-green-400">
+                            <span className="text-xs font-semibold text-emerald-400">
                               ✔ Neuer MCP-API-Schlüssel erzeugt (jetzt kopieren — wird als SHA-256-Hash gespeichert):
                             </span>
                             <button
@@ -5431,12 +5431,12 @@ export default function SynapseNetBirdControlCenter() {
                                 setCopiedMcpToken(true);
                                 setTimeout(() => setCopiedMcpToken(false), 2500);
                               }}
-                              className="rounded-md bg-green-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-green-500 transition"
+                              className="rounded-md bg-emerald-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-emerald-500 transition"
                             >
                               {copiedMcpToken ? "✔ Token kopiert!" : "Token kopieren"}
                             </button>
                           </div>
-                          <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-xs text-green-300">
+                          <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-xs text-emerald-300">
                             {issuedMcpToken}
                           </pre>
                         </div>
@@ -5625,7 +5625,7 @@ curl -X POST ${originUrl}/api/mcp \\
                           </div>
                         </div>
                         {mcpTestOutput && (
-                          <pre className="max-h-72 overflow-auto rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-green-400">
+                          <pre className="max-h-72 overflow-auto rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-emerald-400">
                             {mcpTestOutput}
                           </pre>
                         )}
@@ -5698,7 +5698,7 @@ curl -X POST ${originUrl}/api/mcp \\
                                     <span
                                       className={`rounded px-2 py-0.5 font-mono text-[10px] font-semibold ${
                                         chk.status === "PASS"
-                                          ? "bg-green-950 text-green-400 border border-green-500/40"
+                                          ? "bg-emerald-950 text-emerald-400 border border-emerald-500/40"
                                           : chk.status === "WARN"
                                           ? "bg-amber-950 text-amber-300 border border-amber-500/40"
                                           : "bg-red-950 text-red-400 border border-red-500/40"
@@ -5747,7 +5747,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                           Live Core-Web- &amp; Gateway-Diagnose-Snapshot (/api/debug)
                         </div>
                         {debugSnapshot ? (
-                          <pre className="max-h-80 overflow-auto rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-green-400">
+                          <pre className="max-h-80 overflow-auto rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-emerald-400">
                             {JSON.stringify(debugSnapshot, null, 2)}
                           </pre>
                         ) : (
@@ -6384,10 +6384,10 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                 ? rawContent.replace(/\*\*/g, "")
                                 : "Prüft Axon-Binaries, Runtimes, Systempakete & Backends auf Updates."),
                             border:
-                              "border-cyan-500/40 bg-gradient-to-br from-cyan-950/50 via-nb-gray-940 to-nb-gray-950",
-                            pill: "border-cyan-500/40 bg-cyan-950/70 text-cyan-300",
+                              "border-sky-500/40 bg-gradient-to-br from-sky-950/50 via-nb-gray-940 to-nb-gray-950",
+                            pill: "border-sky-500/40 bg-sky-950/70 text-sky-300",
                             icon: (
-                              <RefreshCw className="h-3.5 w-3.5 text-cyan-400" />
+                              <RefreshCw className="h-3.5 w-3.5 text-sky-400" />
                             ),
                           }
                         : isSkillForensics
@@ -6398,10 +6398,10 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                               userFocusText ||
                               "Durchsucht Systemd-Journals, Logs, Datenbanken & Prozesse nach Fehlerursachen.",
                             border:
-                              "border-purple-500/40 bg-gradient-to-br from-purple-950/50 via-nb-gray-940 to-nb-gray-950",
-                            pill: "border-purple-500/40 bg-purple-950/70 text-purple-300",
+                              "border-sky-500/40 bg-gradient-to-br from-sky-950/50 via-nb-gray-940 to-nb-gray-950",
+                            pill: "border-sky-500/40 bg-sky-950/70 text-sky-300",
                             icon: (
-                              <Cpu className="h-3.5 w-3.5 text-purple-400" />
+                              <Cpu className="h-3.5 w-3.5 text-sky-400" />
                             ),
                           }
                         : isSkillSearch
@@ -6656,9 +6656,9 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       ? {
                           label: "Update- & Test-Inspektor",
                           badgeClass:
-                            "border-cyan-500/35 bg-cyan-950/60 text-cyan-300",
-                          cardBorder: "border-cyan-500/25",
-                          icon: <RefreshCw className="h-3 w-3 text-cyan-400" />,
+                            "border-sky-500/35 bg-sky-950/60 text-sky-300",
+                          cardBorder: "border-sky-500/25",
+                          icon: <RefreshCw className="h-3 w-3 text-sky-400" />,
                         }
                       : prevUserText.includes("CheckSystem") ||
                         prevUserText.includes("[System-Check]")
@@ -6675,9 +6675,9 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       ? {
                           label: "Root-Cause Forensik",
                           badgeClass:
-                            "border-purple-500/35 bg-purple-950/60 text-purple-300",
-                          cardBorder: "border-purple-500/25",
-                          icon: <Cpu className="h-3 w-3 text-purple-400" />,
+                            "border-sky-500/35 bg-sky-950/60 text-sky-300",
+                          cardBorder: "border-sky-500/25",
+                          icon: <Cpu className="h-3 w-3 text-sky-400" />,
                         }
                       : prevUserText.includes("[Interview-")
                       ? {
@@ -6902,10 +6902,10 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                   50
                                 );
                               }}
-                              className="group flex flex-col items-start rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-2.5 text-left transition hover:border-cyan-500/60 hover:bg-cyan-950/40"
+                              className="group flex flex-col items-start rounded-xl border border-sky-500/30 bg-sky-950/20 p-2.5 text-left transition hover:border-sky-500/60 hover:bg-sky-950/40"
                             >
-                              <div className="flex items-center gap-1.5 font-semibold text-cyan-300">
-                                <RefreshCw className="h-3.5 w-3.5 text-cyan-400" />
+                              <div className="flex items-center gap-1.5 font-semibold text-sky-300">
+                                <RefreshCw className="h-3.5 w-3.5 text-sky-400" />
                                 <span>Updates prüfen</span>
                               </div>
                               <span className="mt-0.5 text-[10px] text-nb-gray-400 group-hover:text-nb-gray-200">
@@ -6922,10 +6922,10 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                   50
                                 );
                               }}
-                              className="group flex flex-col items-start rounded-xl border border-purple-500/30 bg-purple-950/20 p-2.5 text-left transition hover:border-purple-500/60 hover:bg-purple-950/40"
+                              className="group flex flex-col items-start rounded-xl border border-amber-500/30 bg-amber-950/20 p-2.5 text-left transition hover:border-amber-500/60 hover:bg-amber-950/40"
                             >
-                              <div className="flex items-center gap-1.5 font-semibold text-purple-300">
-                                <Cpu className="h-3.5 w-3.5 text-purple-400" />
+                              <div className="flex items-center gap-1.5 font-semibold text-amber-300">
+                                <Cpu className="h-3.5 w-3.5 text-amber-400" />
                                 <span>Deep-Forensik</span>
                               </div>
                               <span className="mt-0.5 text-[10px] text-nb-gray-400 group-hover:text-nb-gray-200">
@@ -6979,10 +6979,10 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
 
                         if (isUpdateCheckReport) {
                           return (
-                            <div className="mt-3 rounded-xl border border-cyan-500/40 bg-gradient-to-br from-cyan-950/35 via-nb-gray-940 to-nb-gray-940 p-3 space-y-2.5">
+                            <div className="mt-3 rounded-xl border border-sky-500/40 bg-gradient-to-br from-sky-950/35 via-nb-gray-940 to-nb-gray-940 p-3 space-y-2.5">
                               <div className="flex items-center justify-between gap-2">
-                                <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
-                                  <RefreshCw className="h-3.5 w-3.5 text-cyan-400" />
+                                <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-sky-300">
+                                  <RefreshCw className="h-3.5 w-3.5 text-sky-400" />
                                   <span>
                                     Muscle &amp; Backend Updates: Sollen die Updates durchgeführt &amp; getestet werden?
                                   </span>
@@ -7014,9 +7014,9 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                       msg.content
                                     )
                                   }
-                                  className="flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-950/50 px-2.5 py-1.5 text-[11px] font-medium text-cyan-200 hover:bg-cyan-900/60 hover:text-white disabled:opacity-40 transition"
+                                  className="flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-950/50 px-2.5 py-1.5 text-[11px] font-medium text-sky-200 hover:bg-sky-900/60 hover:text-white disabled:opacity-40 transition"
                                 >
-                                  <Activity className="h-3.5 w-3.5 text-cyan-400" />
+                                  <Activity className="h-3.5 w-3.5 text-sky-400" />
                                   <span>Nur Funktionstest ausführen</span>
                                 </button>
                                 <button
@@ -7424,8 +7424,8 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                       className={`rounded-md border px-2 py-0.5 font-mono text-[10px] transition ${
                                         turnToolsExpanded &&
                                         activeCat === "core"
-                                          ? "border-purple-500/50 bg-purple-950/70 text-purple-200"
-                                          : "border-nb-gray-800 bg-nb-gray-930 text-purple-300/90 hover:border-purple-500/40"
+                                          ? "border-netbird-500/50 bg-netbird-950/70 text-netbird"
+                                          : "border-nb-gray-800 bg-nb-gray-930 text-netbird/90 hover:border-netbird-500/40"
                                       }`}
                                     >
                                       🧠 Core ({counts.core})
@@ -7462,7 +7462,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                         ? "text-emerald-300"
                                         : cat === "fs"
                                         ? "text-sky-300"
-                                        : "text-purple-300";
+                                        : "text-netbird";
 
                                     return (
                                       <div
@@ -7662,9 +7662,9 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         : selectedChatSkill === "CheckOpsec"
                         ? "border-sky-500/40 bg-sky-950/30 text-sky-100"
                         : selectedChatSkill === "CheckUpdates"
-                        ? "border-cyan-500/40 bg-cyan-950/30 text-cyan-100"
+                        ? "border-sky-500/40 bg-sky-950/30 text-sky-100"
                         : selectedChatSkill === "DeepForensics"
-                        ? "border-purple-500/40 bg-purple-950/30 text-purple-100"
+                        ? "border-amber-500/40 bg-amber-950/30 text-amber-100"
                         : "border-amber-500/40 bg-amber-950/30 text-amber-100"
                     }`}
                   >
@@ -7675,9 +7675,9 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         ) : selectedChatSkill === "CheckOpsec" ? (
                           <Shield className="h-3.5 w-3.5 shrink-0 text-sky-400" />
                         ) : selectedChatSkill === "CheckUpdates" ? (
-                          <RefreshCw className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                          <RefreshCw className="h-3.5 w-3.5 shrink-0 text-sky-400" />
                         ) : selectedChatSkill === "DeepForensics" ? (
-                          <Cpu className="h-3.5 w-3.5 shrink-0 text-purple-400" />
+                          <Cpu className="h-3.5 w-3.5 shrink-0 text-amber-400" />
                         ) : (
                           <Search className="h-3.5 w-3.5 shrink-0 text-amber-400" />
                         )}
@@ -7730,11 +7730,11 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       }}
                       className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-nb-gray-900 transition"
                     >
-                      <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
+                      <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-sky-400" />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 font-semibold text-xs text-cyan-300">
+                        <div className="flex items-center gap-2 font-semibold text-xs text-sky-300">
                           <span>CheckUpdates</span>
-                          <span className="rounded border border-cyan-500/30 bg-cyan-950/40 px-1.5 py-0.2 font-mono text-[9px] text-cyan-300">
+                          <span className="rounded border border-sky-500/30 bg-sky-950/40 px-1.5 py-0.2 font-mono text-[9px] text-sky-300">
                             Muscle &amp; Backend Updates + Test
                           </span>
                         </div>
@@ -7796,11 +7796,11 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       }}
                       className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-nb-gray-900 transition"
                     >
-                      <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-purple-400" />
+                      <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 font-semibold text-xs text-purple-300">
+                        <div className="flex items-center gap-2 font-semibold text-xs text-amber-300">
                           <span>DeepForensics</span>
-                          <span className="rounded border border-purple-500/30 bg-purple-950/40 px-1.5 py-0.2 font-mono text-[9px] text-purple-300">
+                          <span className="rounded border border-amber-500/30 bg-amber-950/40 px-1.5 py-0.2 font-mono text-[9px] text-amber-300">
                             Root-Cause &amp; Logs
                           </span>
                         </div>
@@ -8214,7 +8214,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   )}
                 </div>
               </div>
-              <pre className="overflow-x-auto rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-xs text-green-400">
+              <pre className="overflow-x-auto rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-xs text-emerald-400">
                 {oneLineInstallerCmd || "Erzeuge Setup-Token..."}
               </pre>
             </div>
@@ -8252,7 +8252,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
 
             <div className="flex items-center justify-between border-t border-nb-gray-900 pt-3 text-xs text-nb-gray-400">
               <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                 Warte auf eingehenden mTLS 1.3 + Yamux Server-Handshake...
               </span>
               <button
