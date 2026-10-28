@@ -67,9 +67,13 @@ func main() {
 	switch subcmd {
 	case "join":
 		runJoin(filteredArgs[2:])
+	case "add-core", "join-multi", "add":
+		runAddCore(filteredArgs[2:])
+	case "remove-core", "rm-core":
+		runRemoveCore(filteredArgs[2:])
 	case "switch", "rebind", "connect":
 		runSwitchCore(filteredArgs[2:])
-	case "profiles", "list-cores":
+	case "profiles", "list-cores", "cores":
 		runProfiles(filteredArgs[2:])
 	case "run":
 		runDaemon(filteredArgs[2:])
@@ -111,17 +115,27 @@ func saveNamedProfile(baseConfigDir string, profileName string, cfg *tunnel.Iden
 	profDir := filepath.Join(baseConfigDir, "profiles", profileName)
 	_ = os.MkdirAll(profDir, 0o700)
 
-	// Copy cert, key, ca, and config.json into profile directory so user can switch back anytime
+	profCert := filepath.Join(profDir, "node.crt")
+	profKey := filepath.Join(profDir, "node.key")
+	profCA := filepath.Join(profDir, "ca.crt")
+
+	// Copy cert, key, ca, and self-contained config.json into profile directory
 	if certBytes, err := os.ReadFile(cfg.CertFile); err == nil {
-		_ = os.WriteFile(filepath.Join(profDir, "node.crt"), certBytes, 0o600)
+		_ = os.WriteFile(profCert, certBytes, 0o600)
 	}
 	if keyBytes, err := os.ReadFile(cfg.KeyFile); err == nil {
-		_ = os.WriteFile(filepath.Join(profDir, "node.key"), keyBytes, 0o600)
+		_ = os.WriteFile(profKey, keyBytes, 0o600)
 	}
 	if caBytes, err := os.ReadFile(cfg.CACertFile); err == nil {
-		_ = os.WriteFile(filepath.Join(profDir, "ca.crt"), caBytes, 0o600)
+		_ = os.WriteFile(profCA, caBytes, 0o600)
 	}
-	cfgBytes, _ := json.MarshalIndent(cfg, "", "  ")
+
+	profCfg := *cfg
+	profCfg.CertFile = profCert
+	profCfg.KeyFile = profKey
+	profCfg.CACertFile = profCA
+	profCfg.Cores = nil
+	cfgBytes, _ := json.MarshalIndent(&profCfg, "", "  ")
 	_ = os.WriteFile(filepath.Join(profDir, "config.json"), cfgBytes, 0o600)
 }
 
@@ -134,6 +148,12 @@ func activateSavedProfile(baseConfigDir string, profileName string) (*tunnel.Ide
 	var cfg tunnel.IdentityConfig
 	if err := json.Unmarshal(rawCfg, &cfg); err != nil {
 		return nil, err
+	}
+
+	// Preserve existing secondary Cores if multi_core was active
+	if existing, err := tunnel.LoadIdentity(baseConfigDir); err == nil && existing != nil {
+		cfg.MultiCore = existing.MultiCore
+		cfg.Cores = existing.Cores
 	}
 
 	_ = os.MkdirAll(baseConfigDir, 0o700)
@@ -164,12 +184,14 @@ func activateSavedProfile(baseConfigDir string, profileName string) (*tunnel.Ide
 func runJoin(args []string) {
 	fsFlags := flag.NewFlagSet("join", flag.ExitOnError)
 	coreURL := fsFlags.String("core", "http://127.0.0.1:8081", "Synapse Core Gateway HTTP bootstrap endpoint")
+	gatewayOverride := fsFlags.String("gateway", "", "Optional explicit Core mTLS tunnel host:port override (e.g. 127.0.0.1:9443)")
 	tokenFlag := fsFlags.String("token", "", "One-time join token (can also be passed as positional arg)")
 	nodeID := fsFlags.String("node-id", "", "Explicit node identifier (defaults to hostname)")
 	tierStr := fsFlags.String("tier", string(tunnelv1.Tier2WorkspaceJail), "Autonomy tier (TIER_1_UNLEASHED, TIER_2_WORKSPACE_JAIL, TIER_3_SUPERVISED)")
 	configDir := fsFlags.String("config-dir", defaultConfigDir, "Directory to persist mTLS identity")
 	workspaceRoot := fsFlags.String("workspace-root", "/opt/axon/workspaces", "Workspace root directory for TIER_2_WORKSPACE_JAIL")
 	profileName := fsFlags.String("profile", "", "Optional profile alias to save this Core identity under")
+	addMulti := fsFlags.Bool("add", false, "Add this Core as a simultaneous Multi-Core connection without overwriting the existing primary Core")
 	autoRun := fsFlags.Bool("run", false, "Immediately start the tunnel daemon after bootstrapping")
 	debugFlag := fsFlags.Bool("debug", false, "Enable verbose debug logging")
 	_ = fsFlags.Parse(args)
@@ -181,12 +203,43 @@ func runJoin(args []string) {
 		token = remaining[0]
 	}
 	if token == "" {
-		log.Fatalf("Usage: axon join --core <http://core-ip:8081> [--token <token>] [flags] [<one-time-token>]")
+		log.Fatalf("Usage: axon join --core <http://core-ip:8081> [--token <token>] [--add] [--gateway <host:port>] [<one-time-token>]")
 	}
 
-	cfg, err := tunnel.BootstrapCSR(*configDir, *coreURL, token, *nodeID, tunnelv1.AutonomyTier(*tierStr), *workspaceRoot)
+	if *addMulti {
+		prof := *profileName
+		if prof == "" {
+			prof = sanitizeProfileSlug(*coreURL)
+		}
+		cfg, target, err := tunnel.AddSecondaryCore(*configDir, prof, *coreURL, token, *nodeID, tunnelv1.AutonomyTier(*tierStr), *workspaceRoot, *gatewayOverride)
+		if err != nil {
+			log.Fatalf("[axon join --add] failed: %v", err)
+		}
+		fmt.Printf("Successfully added simultaneous Core %q -> %s (node=%s, tier=%s, active_cores=%d)\n",
+			target.Name, target.CoreGateway, target.NodeID, target.Tier, len(cfg.ActiveCoreTargets()))
+		if *autoRun {
+			startAgentLoop(cfg)
+		}
+		return
+	}
+
+	// Preserve existing secondary Cores if already configured
+	var existingCores []tunnel.CoreTarget
+	var existingMulti bool
+	if oldCfg, err := tunnel.LoadIdentity(*configDir); err == nil && oldCfg != nil {
+		existingCores = oldCfg.Cores
+		existingMulti = oldCfg.MultiCore
+	}
+
+	cfg, err := tunnel.BootstrapCSRWithOptions(*configDir, *coreURL, token, *nodeID, tunnelv1.AutonomyTier(*tierStr), *workspaceRoot, *gatewayOverride, true)
 	if err != nil {
 		log.Fatalf("[axon join] failed: %v", err)
+	}
+	if len(existingCores) > 0 {
+		cfg.MultiCore = existingMulti
+		cfg.Cores = existingCores
+		b, _ := json.MarshalIndent(cfg, "", "  ")
+		_ = os.WriteFile(filepath.Join(*configDir, "config.json"), b, 0o600)
 	}
 
 	saveNamedProfile(*configDir, *profileName, cfg)
@@ -199,19 +252,19 @@ func runJoin(args []string) {
 	}
 }
 
-// runSwitchCore allows the user to rebind an existing Muscle node to a different Core server & token
-// directly from the CLI (`axon switch --core http://<NEW_CORE>:8081 --token <NEW_TOKEN>`) or activate a saved profile.
-func runSwitchCore(args []string) {
-	fsFlags := flag.NewFlagSet("switch", flag.ExitOnError)
-	coreURL := fsFlags.String("core", "", "New Synapse Core Gateway HTTP URL (e.g. http://10.0.0.5:8081)")
-	tokenFlag := fsFlags.String("token", "", "One-time join token from the target Core")
-	profileName := fsFlags.String("profile", "", "Profile name to save or activate")
-	nodeID := fsFlags.String("node-id", "", "Explicit node identifier (defaults to existing node ID or hostname)")
-	tierStr := fsFlags.String("tier", string(tunnelv1.Tier2WorkspaceJail), "Autonomy tier (TIER_1_UNLEASHED, TIER_2_WORKSPACE_JAIL, TIER_3_SUPERVISED)")
+// runAddCore enrolls this Muscle with an additional Core server simultaneously (Multi-Core Dual/N-Way Homing)
+// without disconnecting or overwriting the existing primary Core connection.
+func runAddCore(args []string) {
+	fsFlags := flag.NewFlagSet("add-core", flag.ExitOnError)
+	coreURL := fsFlags.String("core", "", "Additional Synapse Core Gateway HTTP URL (e.g. http://127.0.0.1:9081)")
+	gatewayOverride := fsFlags.String("gateway", "", "Optional explicit mTLS tunnel host:port for this Core (e.g. 127.0.0.1:9443)")
+	tokenFlag := fsFlags.String("token", "", "One-time join token from the additional Core")
+	profileName := fsFlags.String("profile", "", "Profile name for this additional Core (defaults to host-port slug)")
+	nodeID := fsFlags.String("node-id", "", "Node identifier on the additional Core (defaults to existing node_id)")
+	tierStr := fsFlags.String("tier", "", "Autonomy tier on the additional Core (defaults to existing tier)")
 	configDir := fsFlags.String("config-dir", defaultConfigDir, "Directory containing config.json and mTLS certificates")
 	workspaceRoot := fsFlags.String("workspace-root", "/opt/axon/workspaces", "Workspace root directory")
-	restartDaemon := fsFlags.Bool("restart", true, "Automatically restart systemd axon.service if active")
-	runForeground := fsFlags.Bool("run", false, "Immediately run the tunnel in foreground after switching")
+	restartDaemon := fsFlags.Bool("restart", true, "Automatically restart systemd axon.service to activate simultaneous tunnel")
 	debugFlag := fsFlags.Bool("debug", false, "Enable verbose debug logging")
 	_ = fsFlags.Parse(args)
 	enableDebugLogging(*debugFlag)
@@ -220,7 +273,6 @@ func runSwitchCore(args []string) {
 	token := strings.TrimSpace(*tokenFlag)
 	targetCore := strings.TrimSpace(*coreURL)
 
-	// Support positional syntax: `axon switch <CORE_URL> <TOKEN> [TIER]` or `axon switch <TOKEN>`
 	for _, arg := range remaining {
 		if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
 			if targetCore == "" {
@@ -233,7 +285,173 @@ func runSwitchCore(args []string) {
 		}
 	}
 
-	// Preserve existing NodeID / WorkspaceRoot if already enrolled previously
+	// Case 1: Activate an already saved profile in `/etc/axon/profiles/<profile>` as a simultaneous secondary Core
+	if token == "" && *profileName != "" && targetCore == "" {
+		profDir := filepath.Join(*configDir, "profiles", *profileName)
+		rawProf, err := os.ReadFile(filepath.Join(profDir, "config.json"))
+		if err != nil {
+			log.Fatalf("[axon add-core] saved profile %q not found in %s: %v", *profileName, profDir, err)
+		}
+		var pCfg tunnel.IdentityConfig
+		if err := json.Unmarshal(rawProf, &pCfg); err != nil {
+			log.Fatalf("[axon add-core] invalid profile config: %v", err)
+		}
+		baseCfg, err := tunnel.LoadIdentity(*configDir)
+		if err != nil {
+			log.Fatalf("[axon add-core] load base config: %v", err)
+		}
+		target := tunnel.CoreTarget{
+			Name:        *profileName,
+			NodeID:      pCfg.NodeID,
+			CoreGateway: pCfg.CoreGateway,
+			CoreHTTP:    pCfg.CoreHTTP,
+			Tier:        pCfg.Tier,
+			CertFile:    filepath.Join(profDir, "node.crt"),
+			KeyFile:     filepath.Join(profDir, "node.key"),
+			CACertFile:  filepath.Join(profDir, "ca.crt"),
+			Enabled:     true,
+		}
+		if *gatewayOverride != "" {
+			target.CoreGateway = *gatewayOverride
+		}
+		baseCfg.MultiCore = true
+		updated := false
+		for i := range baseCfg.Cores {
+			if baseCfg.Cores[i].Name == target.Name || baseCfg.Cores[i].CoreGateway == target.CoreGateway {
+				baseCfg.Cores[i] = target
+				updated = true
+				break
+			}
+		}
+		if !updated {
+			baseCfg.Cores = append(baseCfg.Cores, target)
+		}
+		b, _ := json.MarshalIndent(baseCfg, "", "  ")
+		_ = os.WriteFile(filepath.Join(*configDir, "config.json"), b, 0o600)
+		fmt.Printf("[axon add-core] ✔ Attached saved profile %q (%s) for simultaneous Multi-Core operation (total active cores: %d)\n",
+			target.Name, target.CoreGateway, len(baseCfg.ActiveCoreTargets()))
+	} else {
+		if targetCore == "" || token == "" {
+			log.Fatalf("Usage:\n  axon add-core --core http://<CORE_HOST>:<PORT> --token <JOIN_TOKEN> [--gateway <HOST:PORT>] [--profile <name>]\n  axon add-core --profile <saved-profile-name>")
+		}
+		prof := strings.TrimSpace(*profileName)
+		if prof == "" {
+			prof = sanitizeProfileSlug(targetCore)
+		}
+		fmt.Printf("[axon add-core] Bootstrapping simultaneous Core connection to %s (profile=%s)...\n", targetCore, prof)
+		cfg, target, err := tunnel.AddSecondaryCore(*configDir, prof, targetCore, token, *nodeID, tunnelv1.AutonomyTier(*tierStr), *workspaceRoot, *gatewayOverride)
+		if err != nil {
+			log.Fatalf("[axon add-core] failed: %v", err)
+		}
+		fmt.Printf("[axon add-core] ✔ Enrolled simultaneous Core %q -> %s (node=%s, tier=%s)\n",
+			target.Name, target.CoreGateway, target.NodeID, target.Tier)
+		fmt.Printf("[axon add-core] ✔ Multi-Core active targets (%d):\n", len(cfg.ActiveCoreTargets()))
+		for _, t := range cfg.ActiveCoreTargets() {
+			fmt.Printf("  • %-20s -> Tunnel: %-20s | HTTP: %-26s | Node: %s (%s)\n",
+				t.Name, t.CoreGateway, t.CoreHTTP, t.NodeID, t.Tier)
+		}
+	}
+
+	if *restartDaemon && runtime.GOOS == "linux" {
+		if _, err := os.Stat("/run/systemd/system"); err == nil {
+			unitName := "axon.service"
+			if strings.Contains(*configDir, "axon-db") {
+				unitName = "axon-db.service"
+			}
+			if err := exec.Command("systemctl", "restart", unitName).Run(); err == nil {
+				fmt.Printf("[axon add-core] ✔ Restarted systemd %s — Muscle is now connected to all configured Cores simultaneously.\n", unitName)
+				return
+			}
+		}
+	}
+}
+
+func runRemoveCore(args []string) {
+	fsFlags := flag.NewFlagSet("remove-core", flag.ExitOnError)
+	profileName := fsFlags.String("profile", "", "Profile name or Core gateway host:port to detach")
+	configDir := fsFlags.String("config-dir", defaultConfigDir, "Directory containing config.json")
+	restartDaemon := fsFlags.Bool("restart", true, "Automatically restart systemd axon.service")
+	_ = fsFlags.Parse(args)
+
+	targetKey := strings.TrimSpace(*profileName)
+	if targetKey == "" && len(fsFlags.Args()) > 0 {
+		targetKey = fsFlags.Args()[0]
+	}
+	if targetKey == "" {
+		log.Fatalf("Usage: axon remove-core --profile <name-or-host:port>")
+	}
+
+	cfg, err := tunnel.LoadIdentity(*configDir)
+	if err != nil {
+		log.Fatalf("[axon remove-core] load config: %v", err)
+	}
+	filtered := make([]tunnel.CoreTarget, 0, len(cfg.Cores))
+	removed := false
+	for _, c := range cfg.Cores {
+		if c.Name == targetKey || c.CoreGateway == targetKey || c.CoreHTTP == targetKey {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, c)
+	}
+	if !removed {
+		log.Fatalf("[axon remove-core] no secondary Core matching %q found in %s/config.json", targetKey, *configDir)
+	}
+	cfg.Cores = filtered
+	cfg.MultiCore = len(cfg.Cores) > 0
+	b, _ := json.MarshalIndent(cfg, "", "  ")
+	_ = os.WriteFile(filepath.Join(*configDir, "config.json"), b, 0o600)
+	fmt.Printf("[axon remove-core] ✔ Detached secondary Core %q (remaining active cores: %d)\n", targetKey, len(cfg.ActiveCoreTargets()))
+
+	if *restartDaemon && runtime.GOOS == "linux" {
+		if _, err := os.Stat("/run/systemd/system"); err == nil {
+			_ = exec.Command("systemctl", "restart", "axon.service").Run()
+		}
+	}
+}
+
+// runSwitchCore allows the user to rebind an existing Muscle node to a different Core server & token
+// directly from the CLI (`axon switch --core http://<NEW_CORE>:8081 --token <NEW_TOKEN>`) or activate a saved profile.
+func runSwitchCore(args []string) {
+	fsFlags := flag.NewFlagSet("switch", flag.ExitOnError)
+	coreURL := fsFlags.String("core", "", "New Synapse Core Gateway HTTP URL (e.g. http://10.0.0.5:8081)")
+	gatewayOverride := fsFlags.String("gateway", "", "Optional explicit Core mTLS tunnel host:port override")
+	tokenFlag := fsFlags.String("token", "", "One-time join token from the target Core")
+	profileName := fsFlags.String("profile", "", "Profile name to save or activate")
+	nodeID := fsFlags.String("node-id", "", "Explicit node identifier (defaults to existing node ID or hostname)")
+	tierStr := fsFlags.String("tier", string(tunnelv1.Tier2WorkspaceJail), "Autonomy tier (TIER_1_UNLEASHED, TIER_2_WORKSPACE_JAIL, TIER_3_SUPERVISED)")
+	configDir := fsFlags.String("config-dir", defaultConfigDir, "Directory containing config.json and mTLS certificates")
+	workspaceRoot := fsFlags.String("workspace-root", "/opt/axon/workspaces", "Workspace root directory")
+	addMulti := fsFlags.Bool("multi", false, "Keep existing Core connected and add this Core simultaneously (alias for 'axon add-core')")
+	restartDaemon := fsFlags.Bool("restart", true, "Automatically restart systemd axon.service if active")
+	runForeground := fsFlags.Bool("run", false, "Immediately run the tunnel in foreground after switching")
+	debugFlag := fsFlags.Bool("debug", false, "Enable verbose debug logging")
+	_ = fsFlags.Parse(args)
+	enableDebugLogging(*debugFlag)
+
+	if *addMulti {
+		runAddCore(args)
+		return
+	}
+
+	remaining := fsFlags.Args()
+	token := strings.TrimSpace(*tokenFlag)
+	targetCore := strings.TrimSpace(*coreURL)
+
+	for _, arg := range remaining {
+		if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
+			if targetCore == "" {
+				targetCore = arg
+			}
+		} else if arg == string(tunnelv1.Tier1Unleashed) || arg == string(tunnelv1.Tier2WorkspaceJail) || arg == string(tunnelv1.Tier3Supervised) {
+			*tierStr = arg
+		} else if token == "" {
+			token = arg
+		}
+	}
+
+	var existingCores []tunnel.CoreTarget
+	var existingMulti bool
 	if existingCfg, err := tunnel.LoadIdentity(*configDir); err == nil {
 		if *nodeID == "" {
 			*nodeID = existingCfg.NodeID
@@ -241,14 +459,14 @@ func runSwitchCore(args []string) {
 		if *workspaceRoot == "/opt/axon/workspaces" && existingCfg.WorkspaceRoot != "" {
 			*workspaceRoot = existingCfg.WorkspaceRoot
 		}
-		// Save previous identity into profiles before overwriting
+		existingCores = existingCfg.Cores
+		existingMulti = existingCfg.MultiCore
 		saveNamedProfile(*configDir, sanitizeProfileSlug(existingCfg.CoreHTTP), existingCfg)
 	}
 
 	var newCfg *tunnel.IdentityConfig
 	var err error
 
-	// Case 1: Switching to an already saved profile without needing a new token (`axon switch --profile prod-core`)
 	if token == "" && *profileName != "" && targetCore == "" {
 		newCfg, err = activateSavedProfile(*configDir, *profileName)
 		if err != nil {
@@ -257,18 +475,23 @@ func runSwitchCore(args []string) {
 		fmt.Printf("[axon switch] ✔ Activated saved Core profile %q -> %s (node=%s, tier=%s)\n",
 			*profileName, newCfg.CoreGateway, newCfg.NodeID, newCfg.Tier)
 	} else {
-		// Case 2: Bootstrap fresh mTLS identity with the new Core & new Join Token
 		if targetCore == "" {
 			targetCore = "http://127.0.0.1:8081"
 		}
 		if token == "" {
-			log.Fatalf("Usage:\n  axon switch --core http://<NEW_CORE_IP>:8081 --token <NEW_JOIN_TOKEN> [--tier TIER_2_WORKSPACE_JAIL]\n  axon switch http://<NEW_CORE_IP>:8081 <NEW_JOIN_TOKEN>\n  axon switch --profile <saved-profile-name>")
+			log.Fatalf("Usage:\n  axon switch --core http://<NEW_CORE_IP>:8081 --token <NEW_JOIN_TOKEN> [--tier TIER_2_WORKSPACE_JAIL]\n  axon add-core --core http://<SECOND_CORE_IP>:8081 --token <JOIN_TOKEN> [--gateway <HOST:PORT>]\n  axon switch --profile <saved-profile-name>")
 		}
 
 		fmt.Printf("[axon switch] Enrolling Muscle node with new Core (%s)...\n", targetCore)
-		newCfg, err = tunnel.BootstrapCSR(*configDir, targetCore, token, *nodeID, tunnelv1.AutonomyTier(*tierStr), *workspaceRoot)
+		newCfg, err = tunnel.BootstrapCSRWithOptions(*configDir, targetCore, token, *nodeID, tunnelv1.AutonomyTier(*tierStr), *workspaceRoot, *gatewayOverride, true)
 		if err != nil {
 			log.Fatalf("[axon switch] failed to bind to new Core %s: %v", targetCore, err)
+		}
+		if len(existingCores) > 0 {
+			newCfg.MultiCore = existingMulti
+			newCfg.Cores = existingCores
+			b, _ := json.MarshalIndent(newCfg, "", "  ")
+			_ = os.WriteFile(filepath.Join(*configDir, "config.json"), b, 0o600)
 		}
 		saveNamedProfile(*configDir, *profileName, newCfg)
 		fmt.Printf("[axon switch] ✔ Successfully bound Muscle %q to new Core %s (tier=%s)\n",
@@ -296,11 +519,17 @@ func runProfiles(args []string) {
 	configDir := fsFlags.String("config-dir", defaultConfigDir, "Base configuration directory")
 	_ = fsFlags.Parse(args)
 
-	activeCore := "none"
 	if cur, err := tunnel.LoadIdentity(*configDir); err == nil {
-		activeCore = fmt.Sprintf("%s (%s, node=%s, tier=%s)", cur.CoreHTTP, cur.CoreGateway, cur.NodeID, cur.Tier)
+		targets := cur.ActiveCoreTargets()
+		fmt.Printf("Multi-Core Simultaneous Mode: %v (%d active Core tunnel(s))\n", len(targets) > 1 || cur.MultiCore, len(targets))
+		for idx, t := range targets {
+			fmt.Printf("  [%d] %-20s -> Tunnel: %-20s | HTTP: %-26s | Node: %s (%s)\n",
+				idx+1, t.Name, t.CoreGateway, t.CoreHTTP, t.NodeID, t.Tier)
+		}
+		fmt.Println()
+	} else {
+		fmt.Printf("Active Core Binding: none (%v)\n\n", err)
 	}
-	fmt.Printf("Active Core Binding: %s\n\n", activeCore)
 
 	profRoot := filepath.Join(*configDir, "profiles")
 	entries, err := os.ReadDir(profRoot)
@@ -308,7 +537,7 @@ func runProfiles(args []string) {
 		fmt.Printf("No saved Core profiles in %s.\n", profRoot)
 		return
 	}
-	fmt.Println("Saved Core Profiles (switch anytime via 'axon switch --profile <name>'):")
+	fmt.Println("Saved Core Profiles (attach simultaneously via 'axon add-core --profile <name>' or switch via 'axon switch --profile <name>'):")
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -329,6 +558,7 @@ func runDaemon(args []string) {
 	fsFlags := flag.NewFlagSet("run", flag.ExitOnError)
 	configDir := fsFlags.String("config-dir", defaultConfigDir, "Directory containing config.json and mTLS certificates")
 	coreOverride := fsFlags.String("core", "", "Optional Core HTTP URL to auto-bootstrap before running if --token is also provided")
+	gatewayOverride := fsFlags.String("gateway", "", "Optional explicit Core mTLS tunnel host:port override")
 	tokenOverride := fsFlags.String("token", "", "Optional one-time join token to bind to a new Core on startup")
 	tierOverride := fsFlags.String("tier", string(tunnelv1.Tier2WorkspaceJail), "Autonomy tier when bootstrapping via --token")
 	nodeIDOverride := fsFlags.String("node-id", "", "Node ID when bootstrapping via --token")
@@ -337,13 +567,12 @@ func runDaemon(args []string) {
 	_ = fsFlags.Parse(args)
 	enableDebugLogging(*debugFlag)
 
-	// Allow one-shot `axon run --core http://<NEW_CORE>:8081 --token <NEW_TOKEN>` directly from the shell!
 	if strings.TrimSpace(*tokenOverride) != "" {
 		targetCore := strings.TrimSpace(*coreOverride)
 		if targetCore == "" {
 			targetCore = "http://127.0.0.1:8081"
 		}
-		cfg, err := tunnel.BootstrapCSR(*configDir, targetCore, strings.TrimSpace(*tokenOverride), *nodeIDOverride, tunnelv1.AutonomyTier(*tierOverride), *workspaceRoot)
+		cfg, err := tunnel.BootstrapCSRWithOptions(*configDir, targetCore, strings.TrimSpace(*tokenOverride), *nodeIDOverride, tunnelv1.AutonomyTier(*tierOverride), *workspaceRoot, *gatewayOverride, true)
 		if err != nil {
 			log.Fatalf("[axon run] inline bootstrap with %s failed: %v", targetCore, err)
 		}
@@ -354,7 +583,7 @@ func runDaemon(args []string) {
 
 	cfg, err := tunnel.LoadIdentity(*configDir)
 	if err != nil {
-		log.Fatalf("[axon run] failed to load identity from %s: %v (run 'axon join <token>' or 'axon switch --core <url> --token <token>' first)", *configDir, err)
+		log.Fatalf("[axon run] failed to load identity from %s: %v (run 'axon join <token>' or 'axon add-core --core <url> --token <token>' first)", *configDir, err)
 	}
 	if cfg.Debug {
 		enableDebugLogging(true)
@@ -368,7 +597,9 @@ func startAgentLoop(cfg *tunnel.IdentityConfig) {
 	defer stop()
 
 	agent := tunnel.NewAgent(cfg)
-	log.Printf("[axon] starting agent %q -> %s (tier=%s, pid=%d, debug=%v)", cfg.NodeID, cfg.CoreGateway, cfg.Tier, os.Getpid(), tunnel.DebugEnabled)
+	targets := cfg.ActiveCoreTargets()
+	log.Printf("[axon] starting agent %q (active_cores=%d, primary=%s, tier=%s, pid=%d, debug=%v)",
+		cfg.NodeID, len(targets), cfg.CoreGateway, cfg.Tier, os.Getpid(), tunnel.DebugEnabled)
 	if err := agent.RunForever(ctx); err != nil && err != context.Canceled {
 		log.Fatalf("[axon] fatal error: %v", err)
 	}
@@ -383,16 +614,18 @@ func runStatus(args []string) {
 	tier := tunnelv1.Tier2WorkspaceJail
 	coreEndpoint := "not-configured"
 	coreHTTP := "not-configured"
+	var activeTargets []tunnel.CoreTarget
 
 	if cfg, err := tunnel.LoadIdentity(*configDir); err == nil {
 		nodeID = cfg.NodeID
 		tier = cfg.Tier
 		coreEndpoint = cfg.CoreGateway
 		coreHTTP = cfg.CoreHTTP
+		activeTargets = cfg.ActiveCoreTargets()
 	}
 
 	col := health.NewCollector(nodeID, tier)
-	snap := col.Collect(nil)
+	snap := col.Collect(nil, nil)
 
 	report := map[string]any{
 		"agent":        fmt.Sprintf("axon %s (%s)", version, commit),
@@ -400,6 +633,8 @@ func runStatus(args []string) {
 		"debug_mode":   tunnel.DebugEnabled,
 		"core_http":    coreHTTP,
 		"core_gateway": coreEndpoint,
+		"multi_core":   len(activeTargets) > 1,
+		"active_cores": activeTargets,
 		"config_dir":   *configDir,
 		"telemetry":    snap,
 	}
@@ -435,12 +670,14 @@ func runDebugDoctor(args []string) {
 func printUsage() {
 	fmt.Println(`Synapse Axon Agent ("The Muscle")
 Usage:
-  axon join [--debug] [flags] <token>                  Bootstrap mTLS certificate via one-time CSR token
-  axon switch [--debug] --core <url> --token <token>   Rebind this Muscle to a different Core server & token
-  axon switch --profile <name>                         Switch back to a previously saved Core profile
-  axon profiles                                        List active & saved Core server profiles
-  axon run [--debug] [--core <url> --token <token>]    Start outbound mTLS + Yamux reverse tunnel
-  axon debug [--config-dir <dir>] [--enable|--disable] Run 5-step mTLS/HTTP/FS diagnostic doctor & toggle debug mode
-  axon status [flags]                                  Print local hardware telemetry and mTLS enrollment status
-  axon version                                         Print agent version`)
+  axon join [--debug] [flags] <token>                     Bootstrap mTLS certificate via one-time CSR token
+  axon add-core --core <url> --token <token> [--gateway]  Attach an additional Core simultaneously (Multi-Core Dual/N-Way Homing)
+  axon remove-core --profile <name>                       Detach a secondary Core from simultaneous Multi-Core list
+  axon switch [--debug] --core <url> --token <token>      Rebind primary Core to a different Core server & token
+  axon switch --profile <name>                            Switch primary Core to a previously saved profile
+  axon profiles                                           List all active simultaneous Cores & saved profiles
+  axon run [--debug] [--core <url> --token <token>]       Start outbound mTLS + Yamux reverse tunnel(s)
+  axon debug [--config-dir <dir>] [--enable|--disable]    Run mTLS/HTTP/FS diagnostic doctor across all configured Cores
+  axon status [flags]                                     Print local hardware telemetry and Multi-Core enrollment status
+  axon version                                            Print agent version`)
 }
