@@ -104,14 +104,12 @@ code {
 
 .cc-animated-edge {
   animation: cc-edge-dash 1.35s linear infinite;
-  will-change: stroke-dashoffset;
 }
 
 .synapse-comet-path {
   animation-name: synapse-comet-streak;
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   animation-iteration-count: infinite;
-  will-change: stroke-dashoffset, opacity;
 }
 
 .synapse-packet-fwd {
@@ -119,7 +117,6 @@ code {
   animation-name: synapse-packet-forward;
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   animation-iteration-count: infinite;
-  will-change: offset-distance, opacity;
 }
 
 .synapse-packet-rev {
@@ -127,14 +124,12 @@ code {
   animation-name: synapse-packet-reverse;
   animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
   animation-iteration-count: infinite;
-  will-change: offset-distance, opacity;
 }
 
 .synapse-port-ring {
   transform-box: fill-box;
   transform-origin: center;
   animation: synapse-port-pulse 2.6s ease-in-out infinite;
-  will-change: transform, opacity;
 }
 
 @keyframes slow-ping {

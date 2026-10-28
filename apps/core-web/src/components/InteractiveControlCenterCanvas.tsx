@@ -1165,10 +1165,18 @@ export default function InteractiveControlCenterCanvas({
     setSizes((prev) => {
       let changed = false;
       const nextSizes: Record<string, { w: number; h: number }> = { ...prev };
+      const currentZoom = zoomRef.current || 1;
       for (const [id, el] of Object.entries(nodeRefs.current)) {
         if (el) {
-          const w = el.offsetWidth || DEFAULT_NODE_W;
-          const h = el.offsetHeight || 64;
+          const rect = el.getBoundingClientRect();
+          const w =
+            rect.width > 0
+              ? Math.round(rect.width / currentZoom)
+              : el.offsetWidth || DEFAULT_NODE_W;
+          const h =
+            rect.height > 0
+              ? Math.round(rect.height / currentZoom)
+              : el.offsetHeight || 64;
           if (!prev[id] || prev[id].w !== w || prev[id].h !== h) {
             nextSizes[id] = { w, h };
             changed = true;
@@ -1604,8 +1612,18 @@ export default function InteractiveControlCenterCanvas({
     e.preventDefault();
     e.stopPropagation();
     const el = nodeRefs.current[nodeId];
-    const origW = customDims[nodeId]?.w || el?.offsetWidth || DEFAULT_NODE_W;
-    const origH = el?.offsetHeight || 74;
+    const currentZoom = zoomRef.current || 1;
+    const rect = el?.getBoundingClientRect();
+    const origW =
+      customDims[nodeId]?.w ||
+      (rect && rect.width > 0
+        ? Math.round(rect.width / currentZoom)
+        : el?.offsetWidth) ||
+      DEFAULT_NODE_W;
+    const origH =
+      (rect && rect.height > 0
+        ? Math.round(rect.height / currentZoom)
+        : el?.offsetHeight) || 74;
     lastDragMovedRef.current = true;
     setResizingNodeId(nodeId);
     resizeStartRef.current = {
@@ -1768,20 +1786,17 @@ export default function InteractiveControlCenterCanvas({
         isPanning ? "cursor-grabbing" : "cursor-grab"
       }`}
     >
-      {/* TRANSFORMED GRAPH LAYER */}
-      <div
+      {/* 1. ANIMATED SVG EDGES LAYER (Isolated so 60fps edge animations never lock HTML card raster scale) */}
+      <svg
+        shapeRendering="geometricPrecision"
+        textRendering="geometricPrecision"
         style={{
-          transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+          transform: `translate(${Math.round(pan.x)}px, ${Math.round(pan.y)}px) scale(${zoom})`,
           transformOrigin: "0 0",
-          willChange: "transform",
+          zIndex: 1,
         }}
-        className="absolute left-0 top-0 h-[1000px] w-[1400px]"
+        className="pointer-events-none absolute left-0 top-0 h-[1000px] w-[1400px] overflow-visible"
       >
-        {/* GPU-ACCELERATED MULTI-LAYER NEURAL / MESH FLOW EDGES (Zero SVG Filters, Zero Hover Jump) */}
-        <svg
-          className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-          style={{ zIndex: 1 }}
-        >
           {(() => {
             const renderedPorts = new Set<string>();
             return edges.map((edge, idx) => {
@@ -2171,8 +2186,23 @@ export default function InteractiveControlCenterCanvas({
               </>
             );
           })()}
-        </svg>
+      </svg>
 
+      {/* 2. CRISP VECTOR HTML CARDS LAYER (Native CSS layout zoom so fonts/icons/borders are 100% vector-sharp at any zoom level) */}
+      <div
+        style={{
+          left: `${Math.round(pan.x)}px`,
+          top: `${Math.round(pan.y)}px`,
+          zIndex: 2,
+        }}
+        className="pointer-events-none absolute left-0 top-0"
+      >
+        <div
+          style={{
+            zoom: zoom,
+          }}
+          className="pointer-events-none relative h-[1000px] w-[1400px]"
+        >
         {/* 1. MIDDLE: INTERACTIVE MUSCLE SERVER CARDS (Single Unified Expandable Box) */}
         {peerNodesToRender.map((gn) => {
           const nodeKey =
@@ -2234,13 +2264,11 @@ export default function InteractiveControlCenterCanvas({
                 nodeRefs.current[nodeKey] = el;
               }}
               style={{
-                left: 0,
-                top: 0,
+                left: `${Math.round(pos.x)}px`,
+                top: `${Math.round(pos.y)}px`,
                 width: `${customW}px`,
                 minWidth: `${MIN_NODE_W}px`,
                 minHeight: customMinH ? `${customMinH}px` : undefined,
-                transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
-                willChange: "transform, width",
                 zIndex:
                   draggingNodeId === nodeKey || resizingNodeId === nodeKey
                     ? 30
@@ -2264,7 +2292,7 @@ export default function InteractiveControlCenterCanvas({
                   toggleExpandNode(nodeKey, e);
                 }
               }}
-              className={`absolute rounded-xl border bg-nb-gray-940 px-4 py-3.5 shadow-lg transition-colors duration-150 ${
+              className={`pointer-events-auto absolute rounded-xl border bg-nb-gray-940 px-4 py-3.5 shadow-lg transition-colors duration-150 ${
                 draggingNodeId === nodeKey || resizingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-netbird shadow-2xl"
                   : "cursor-grab hover:border-nb-gray-700 hover:bg-nb-gray-930"
@@ -2772,13 +2800,11 @@ export default function InteractiveControlCenterCanvas({
                 nodeRefs.current[nodeKey] = el;
               }}
               style={{
-                left: 0,
-                top: 0,
+                left: `${Math.round(pos.x)}px`,
+                top: `${Math.round(pos.y)}px`,
                 width: `${customW}px`,
                 minWidth: `${MIN_NODE_W}px`,
                 minHeight: customMinH ? `${customMinH}px` : undefined,
-                transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
-                willChange: "transform, width",
                 zIndex:
                   draggingNodeId === nodeKey || resizingNodeId === nodeKey
                     ? 30
@@ -2797,7 +2823,7 @@ export default function InteractiveControlCenterCanvas({
                 }
                 toggleExpandNode(nodeKey, e);
               }}
-              className={`absolute rounded-2xl border bg-nb-gray-940 p-4 shadow-xl transition-colors duration-150 ${
+              className={`pointer-events-auto absolute rounded-2xl border bg-nb-gray-940 p-4 shadow-xl transition-colors duration-150 ${
                 draggingNodeId === nodeKey || resizingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-netbird shadow-2xl"
                   : "cursor-grab hover:border-netbird/70 hover:bg-nb-gray-930"
@@ -3096,13 +3122,11 @@ export default function InteractiveControlCenterCanvas({
                 nodeRefs.current[nodeKey] = el;
               }}
               style={{
-                left: 0,
-                top: 0,
+                left: `${Math.round(pos.x)}px`,
+                top: `${Math.round(pos.y)}px`,
                 width: `${customW}px`,
                 minWidth: `${MIN_NODE_W}px`,
                 minHeight: customMinH ? `${customMinH}px` : undefined,
-                transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
-                willChange: "transform, width",
                 zIndex:
                   draggingNodeId === nodeKey || resizingNodeId === nodeKey
                     ? 30
@@ -3123,7 +3147,7 @@ export default function InteractiveControlCenterCanvas({
                   toggleExpandNode(nodeKey, e);
                 }
               }}
-              className={`absolute rounded-xl border bg-nb-gray-940 px-4 py-3 shadow-lg transition-colors duration-150 ${
+              className={`pointer-events-auto absolute rounded-xl border bg-nb-gray-940 px-4 py-3 shadow-lg transition-colors duration-150 ${
                 draggingNodeId === nodeKey || resizingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-sky-400 shadow-2xl"
                   : "cursor-grab hover:border-nb-gray-700 hover:bg-nb-gray-930"
@@ -3510,6 +3534,7 @@ export default function InteractiveControlCenterCanvas({
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* FEATURE 3: ZERO-TRUST WEBUI LOCK OVERLAY */}
