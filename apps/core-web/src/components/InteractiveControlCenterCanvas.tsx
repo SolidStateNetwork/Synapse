@@ -1204,14 +1204,13 @@ export default function InteractiveControlCenterCanvas({
   // automatically push sibling cards below it (and columns to the right) so nothing overlaps!
   const effectivePositions = useMemo(() => {
     const out: Record<string, CanvasPos> = { ...positions };
-    const coreExtraW = Math.max(
-      0,
-      (customDims["core:hub"]?.w || sizes["core:hub"]?.w || DEFAULT_NODE_W) -
-        DEFAULT_NODE_W
-    );
+    const coreW = expandedNodes["core:hub"]
+      ? customDims["core:hub"]?.w || sizes["core:hub"]?.w || DEFAULT_NODE_W
+      : DEFAULT_NODE_W;
+    const coreExtraW = Math.max(0, coreW - DEFAULT_NODE_W);
     let maxPeerExtraW = 0;
     for (const k of Object.keys(out)) {
-      if (k.startsWith("peer:")) {
+      if (k.startsWith("peer:") && expandedNodes[k]) {
         const pw = customDims[k]?.w || sizes[k]?.w || DEFAULT_NODE_W;
         maxPeerExtraW = Math.max(maxPeerExtraW, Math.max(0, pw - DEFAULT_NODE_W));
       }
@@ -1234,7 +1233,7 @@ export default function InteractiveControlCenterCanvas({
           x: Math.round(basePos.x + extraShiftX),
           y: Math.round(basePos.y + extraShiftY),
         };
-        if (expandedNodes[k] || customDims[k]?.minH) {
+        if (expandedNodes[k]) {
           const actualH = sizes[k]?.h || fallbackExpandedH;
           const delta = Math.max(0, actualH - baseH);
           extraShiftY += delta + 10;
@@ -1515,6 +1514,7 @@ export default function InteractiveControlCenterCanvas({
     nodeId: string,
     mode: "w" | "wh"
   ) {
+    if (!expandedNodes[nodeId]) return;
     e.preventDefault();
     e.stopPropagation();
     const el = nodeRefs.current[nodeId];
@@ -1544,6 +1544,7 @@ export default function InteractiveControlCenterCanvas({
   }
 
   function renderResizeHandles(nodeId: string) {
+    if (!expandedNodes[nodeId]) return null;
     return (
       <>
         {/* Right-edge width resize strip */}
@@ -1640,8 +1641,12 @@ export default function InteractiveControlCenterCanvas({
     const headerH2 =
       toId === "core:hub" ? 108 : toId.startsWith("peer:") ? 88 : 62;
 
-    const w1 = customDims[fromId]?.w || sizes[fromId]?.w || DEFAULT_NODE_W;
-    const w2 = customDims[toId]?.w || sizes[toId]?.w || DEFAULT_NODE_W;
+    const w1 = expandedNodes[fromId]
+      ? customDims[fromId]?.w || sizes[fromId]?.w || DEFAULT_NODE_W
+      : DEFAULT_NODE_W;
+    const w2 = expandedNodes[toId]
+      ? customDims[toId]?.w || sizes[toId]?.w || DEFAULT_NODE_W
+      : DEFAULT_NODE_W;
 
     const c1CenterX = p1.x + w1 / 2;
     const c2CenterX = p2.x + w2 / 2;
@@ -1929,10 +1934,12 @@ export default function InteractiveControlCenterCanvas({
             const p2 = effectivePositions[toKey];
             if (!p1 || !p2) return null;
 
-            const w1 =
-              customDims[fromKey]?.w || sizes[fromKey]?.w || DEFAULT_NODE_W;
-            const w2 =
-              customDims[toKey]?.w || sizes[toKey]?.w || DEFAULT_NODE_W;
+            const w1 = expandedNodes[fromKey]
+              ? customDims[fromKey]?.w || sizes[fromKey]?.w || DEFAULT_NODE_W
+              : DEFAULT_NODE_W;
+            const w2 = expandedNodes[toKey]
+              ? customDims[toKey]?.w || sizes[toKey]?.w || DEFAULT_NODE_W
+              : DEFAULT_NODE_W;
             const x1 = p1.x + w1;
             const y1 = p1.y + 31;
             const x2 = p2.x + w2;
@@ -2060,8 +2067,10 @@ export default function InteractiveControlCenterCanvas({
             (c) => !c.node_id || c.node_id === gn.node_id
           );
 
-          const customW = customDims[nodeKey]?.w || DEFAULT_NODE_W;
-          const customMinH = customDims[nodeKey]?.minH;
+          const customW = isExpanded
+            ? customDims[nodeKey]?.w || DEFAULT_NODE_W
+            : DEFAULT_NODE_W;
+          const customMinH = isExpanded ? customDims[nodeKey]?.minH : undefined;
 
           return (
             <div
@@ -2596,8 +2605,10 @@ export default function InteractiveControlCenterCanvas({
           const nodeKey = "core:hub";
           const pos = effectivePositions[nodeKey] || { x: 60, y: 120 };
           const isExpanded = Boolean(expandedNodes[nodeKey]);
-          const customW = customDims[nodeKey]?.w || DEFAULT_NODE_W;
-          const customMinH = customDims[nodeKey]?.minH;
+          const customW = isExpanded
+            ? customDims[nodeKey]?.w || DEFAULT_NODE_W
+            : DEFAULT_NODE_W;
+          const customMinH = isExpanded ? customDims[nodeKey]?.minH : undefined;
 
           return (
             <div
@@ -2914,8 +2925,10 @@ export default function InteractiveControlCenterCanvas({
               : t("Backend-API", "Backend API");
           const latencyMs =
             svc.latency_ms ?? svc.health_check?.latency_ms ?? 1;
-          const customW = customDims[nodeKey]?.w || DEFAULT_NODE_W;
-          const customMinH = customDims[nodeKey]?.minH;
+          const customW = isExpanded
+            ? customDims[nodeKey]?.w || DEFAULT_NODE_W
+            : DEFAULT_NODE_W;
+          const customMinH = isExpanded ? customDims[nodeKey]?.minH : undefined;
 
           return (
             <div
