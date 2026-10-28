@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SolidStateNetwork/Synapse/agents/axon/internal/health"
 	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
 	"github.com/hashicorp/yamux"
 )
@@ -348,5 +349,27 @@ func TestLoadIdentity_MultiCorePersistence(t *testing.T) {
 	targets := loaded.ActiveCoreTargets()
 	if len(targets) != 2 {
 		t.Fatalf("expected 2 active targets, got %d", len(targets))
+	}
+}
+
+func TestMultiCoreSharedHealthCollectorMergesTargets(t *testing.T) {
+	col := health.NewCollector("test-multi-core-node", tunnelv1.Tier1Unleashed)
+	col.SetTargetsForSource("primary", []tunnelv1.ServiceHealthTarget{
+		{ServiceID: "vps2-status-api", Name: "VPS2 Status API", Protocol: "http", Port: 4070, Path: "/"},
+		{ServiceID: "pulse-webui", Name: "Pulse Live WebUI", Protocol: "http", Port: 4090, Path: "/"},
+	})
+	col.SetTargetsForSource("local-cachyos-core", []tunnelv1.ServiceHealthTarget{
+		{ServiceID: "auto-svc-4050", Name: "Autonomous Microservice :4050", Protocol: "http", Port: 4050, Path: "/"},
+	})
+
+	beat := col.CollectForNode("vps2-muscle", tunnelv1.Tier1Unleashed, nil)
+	found := make(map[string]bool)
+	for _, s := range beat.Services {
+		found[s.ServiceID] = true
+	}
+	for _, id := range []string{"vps2-status-api", "pulse-webui", "auto-svc-4050"} {
+		if !found[id] {
+			t.Fatalf("expected merged heartbeat services to include %q, got %+v", id, beat.Services)
+		}
 	}
 }

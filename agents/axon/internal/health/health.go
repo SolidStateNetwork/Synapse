@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,33 +22,82 @@ import (
 
 // Collector gathers host hardware telemetry and performs local service health probes.
 type Collector struct {
-	NodeID   string
-	Tier     tunnelv1.AutonomyTier
-	mu       sync.RWMutex
-	targets  map[string]tunnelv1.ServiceHealthTarget
-	httpCli  *http.Client
+	NodeID          string
+	Tier            tunnelv1.AutonomyTier
+	mu              sync.RWMutex
+	targets         map[string]tunnelv1.ServiceHealthTarget
+	targetsBySource map[string][]tunnelv1.ServiceHealthTarget
+	httpCli         *http.Client
 }
 
 // NewCollector creates a telemetry and service health collector.
 func NewCollector(nodeID string, tier tunnelv1.AutonomyTier) *Collector {
 	return &Collector{
-		NodeID:  nodeID,
-		Tier:    tier,
-		targets: make(map[string]tunnelv1.ServiceHealthTarget),
+		NodeID:          nodeID,
+		Tier:            tier,
+		targets:         make(map[string]tunnelv1.ServiceHealthTarget),
+		targetsBySource: make(map[string][]tunnelv1.ServiceHealthTarget),
 		httpCli: &http.Client{
 			Timeout: 2 * time.Second,
 		},
 	}
 }
 
-// SetTargets updates the registered local services to probe on each heartbeat.
+// SetTargets updates the registered local services for the default source.
 func (c *Collector) SetTargets(targets []tunnelv1.ServiceHealthTarget) {
+	c.SetTargetsForSource("default", targets)
+}
+
+// SetTargetsForSource updates the registered local services from a specific Core source
+// and merges all active Core sources so Multi-Core Muscle nodes report the union of all services to every Core.
+func (c *Collector) SetTargetsForSource(source string, targets []tunnelv1.ServiceHealthTarget) {
+	if strings.TrimSpace(source) == "" {
+		source = "default"
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.targets = make(map[string]tunnelv1.ServiceHealthTarget, len(targets))
-	for _, t := range targets {
-		c.targets[t.ServiceID] = t
+	if c.targetsBySource == nil {
+		c.targetsBySource = make(map[string][]tunnelv1.ServiceHealthTarget)
 	}
+	c.targetsBySource[source] = targets
+
+	merged := make(map[string]tunnelv1.ServiceHealthTarget)
+	// Sort source names so "primary" takes precedence if identical ServiceIDs exist
+	sources := make([]string, 0, len(c.targetsBySource))
+	for s := range c.targetsBySource {
+		sources = append(sources, s)
+	}
+	sort.Strings(sources)
+	for _, s := range sources {
+		for _, t := range c.targetsBySource[s] {
+			if t.ServiceID == "" {
+				continue
+			}
+			merged[t.ServiceID] = t
+		}
+	}
+	// Ensure primary source overrides metadata if present
+	if prim, ok := c.targetsBySource["primary"]; ok {
+		for _, t := range prim {
+			if t.ServiceID != "" {
+				merged[t.ServiceID] = t
+			}
+		}
+	}
+	c.targets = merged
+}
+
+// CollectForNode builds a NodeHeartbeat snapshot using the collector's shared Multi-Core service registry
+// while stamping the given nodeID and tier for the target Core.
+func (c *Collector) CollectForNode(nodeID string, tier tunnelv1.AutonomyTier, activePtySessions []string, sessionDetails ...[]tunnelv1.PtySessionMeta) tunnelv1.NodeHeartbeat {
+	beat := c.Collect(activePtySessions, sessionDetails...)
+	if strings.TrimSpace(nodeID) != "" {
+		beat.NodeID = nodeID
+	}
+	if tier != "" && tier != tunnelv1.AutonomyTierUnspecified {
+		beat.Tier = tier
+	}
+	return beat
 }
 
 // Collect builds a NodeHeartbeat snapshot including CPU, RAM, Disk, OS info, IPv4, PTY sessions, and local service statuses.
@@ -79,10 +130,24 @@ func (c *Collector) Collect(activePtySessions []string, sessionDetails ...[]tunn
 
 	c.mu.RLock()
 	targets := make([]tunnelv1.ServiceHealthTarget, 0, len(c.targets))
+	coveredPorts := make(map[uint32]bool, len(c.targets))
 	for _, t := range c.targets {
 		targets = append(targets, t)
+		if t.Port > 0 {
+			coveredPorts[t.Port] = true
+		}
 	}
 	c.mu.RUnlock()
+
+	for _, autoTarget := range c.discoverLocalTargets(coveredPorts) {
+		targets = append(targets, autoTarget)
+	}
+	sort.Slice(targets, func(i, j int) bool {
+		if targets[i].Port != targets[j].Port {
+			return targets[i].Port < targets[j].Port
+		}
+		return targets[i].ServiceID < targets[j].ServiceID
+	})
 
 	statuses := make([]tunnelv1.ServiceHealthStatus, 0, len(targets))
 	for _, target := range targets {
@@ -203,4 +268,94 @@ func detectPrivateIPv4() string {
 		}
 	}
 	return "127.0.0.1"
+}
+
+// discoverLocalTargets inspects /proc/net/tcp and /proc/net/tcp6 on Linux to auto-discover
+// active local application and database ports (4000..4999 for compute Muscle nodes,
+// 5400..5999 for database Muscle nodes) that are not yet registered in coveredPorts.
+func (c *Collector) discoverLocalTargets(coveredPorts map[uint32]bool) []tunnelv1.ServiceHealthTarget {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+	isDBNode := strings.Contains(strings.ToLower(c.NodeID), "db")
+	seenPorts := make(map[uint32]bool)
+	var discovered []tunnelv1.ServiceHealthTarget
+
+	for _, procFile := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
+		raw, err := os.ReadFile(procFile)
+		if err != nil {
+			continue
+		}
+		lines := strings.Split(string(raw), "\n")
+		for idx, line := range lines {
+			if idx == 0 {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) < 4 {
+				continue
+			}
+			// State 0A = TCP_LISTEN
+			if fields[3] != "0A" {
+				continue
+			}
+			addrParts := strings.Split(fields[1], ":")
+			if len(addrParts) != 2 {
+				continue
+			}
+			port64, err := strconv.ParseUint(addrParts[1], 16, 32)
+			if err != nil {
+				continue
+			}
+			port := uint32(port64)
+			if coveredPorts[port] || seenPorts[port] {
+				continue
+			}
+			if isDBNode {
+				if port < 5400 || port > 5999 {
+					continue
+				}
+				seenPorts[port] = true
+				svcID := fmt.Sprintf("auto-db-%d", port)
+				svcName := fmt.Sprintf("Encrypted Mesh DB :%d", port)
+				if port == 5499 {
+					svcID = "vps2-db-mesh"
+					svcName = "VPS2 Encrypted Mesh DB"
+				}
+				discovered = append(discovered, tunnelv1.ServiceHealthTarget{
+					ServiceID: svcID,
+					Name:      svcName,
+					Protocol:  "http",
+					Port:      port,
+					Path:      "/",
+				})
+			} else {
+				if port < 4000 || port > 4999 {
+					continue
+				}
+				seenPorts[port] = true
+				svcID := fmt.Sprintf("auto-svc-%d", port)
+				svcName := fmt.Sprintf("Autonomous Microservice :%d", port)
+				switch port {
+				case 4070:
+					svcID = "vps2-status-api"
+					svcName = "VPS2 Status API"
+				case 4085:
+					svcID = "pulse-analytics-api"
+					svcName = "Pulse Analytics API"
+				case 4090:
+					svcID = "pulse-webui"
+					svcName = "Pulse Live WebUI"
+				}
+				discovered = append(discovered, tunnelv1.ServiceHealthTarget{
+					ServiceID: svcID,
+					Name:      svcName,
+					Protocol:  "http",
+					Port:      port,
+					Path:      "/",
+				})
+			}
+		}
+	}
+	return discovered
 }

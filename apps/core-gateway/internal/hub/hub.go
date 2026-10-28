@@ -516,6 +516,67 @@ func (h *Hub) syncTelemetryToProjectVaults(nodeID string, beat *tunnelv1.NodeHea
 		telemetryMap[nodeID] = beat
 		state["telemetry"] = telemetryMap
 		state["active_pty_sessions"] = beat.ActivePtySessions
+
+		// Automatically synchronize services reported by the Muscle node (including services
+		// registered by another Core in Multi-Core mode or auto-discovered on the Muscle host)
+		// into registered_services so every connected Core displays all running Muscle services.
+		if len(beat.Services) > 0 {
+			regServices, _ := state["registered_services"].([]any)
+			nowISO := time.Now().UTC().Format(time.RFC3339)
+			for _, liveSvc := range beat.Services {
+				if liveSvc.ServiceID == "" || liveSvc.Port == 0 {
+					continue
+				}
+				foundSvc := false
+				for _, item := range regServices {
+					m, ok := item.(map[string]any)
+					if !ok {
+						continue
+					}
+					if m["node_id"] == nodeID && m["service_id"] == liveSvc.ServiceID {
+						foundSvc = true
+						m["healthy"] = liveSvc.Healthy
+						break
+					}
+				}
+				if !foundSvc {
+					lowerMeta := strings.ToLower(liveSvc.ServiceID + " " + liveSvc.Name)
+					category := "backend"
+					switch {
+					case strings.Contains(lowerMeta, "db") || strings.Contains(lowerMeta, "sqlite") || strings.Contains(lowerMeta, "postgres") || strings.Contains(lowerMeta, "mysql") || strings.Contains(lowerMeta, "redis") || strings.Contains(lowerMeta, "sql"):
+						category = "database"
+					case strings.Contains(lowerMeta, "web") || strings.Contains(lowerMeta, "ui") || strings.Contains(lowerMeta, "frontend") || strings.Contains(lowerMeta, "dashboard") || strings.Contains(lowerMeta, "portal"):
+						category = "webui"
+					}
+					statusStr := "UNHEALTHY"
+					if liveSvc.Healthy {
+						statusStr = "HEALTHY"
+					}
+					regServices = append(regServices, map[string]any{
+						"service_id":           liveSvc.ServiceID,
+						"name":                 liveSvc.Name,
+						"node_id":              nodeID,
+						"port":                 liveSvc.Port,
+						"protocol":             "http",
+						"path":                 "/",
+						"category":             category,
+						"healthy":              liveSvc.Healthy,
+						"consecutive_failures": 0,
+						"registered_at":        nowISO,
+						"health_check": map[string]any{
+							"type":         "HTTP",
+							"target":       fmt.Sprintf("http://127.0.0.1:%d/", liveSvc.Port),
+							"interval_sec": 15,
+							"status":       statusStr,
+							"last_checked": nowISO,
+							"last_error":   liveSvc.LastError,
+						},
+					})
+				}
+			}
+			state["registered_services"] = regServices
+		}
+
 		state["updated_at"] = time.Now().UTC().Format(time.RFC3339)
 
 		if updatedBytes, err := json.MarshalIndent(state, "", "  "); err == nil {

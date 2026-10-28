@@ -593,8 +593,6 @@ func (a *Agent) RunForever(ctx context.Context) error {
 }
 
 func (a *Agent) runTargetForever(ctx context.Context, target CoreTarget) error {
-	targetHealthCol := health.NewCollector(target.NodeID, target.Tier)
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -602,7 +600,7 @@ func (a *Agent) runTargetForever(ctx context.Context, target CoreTarget) error {
 		default:
 		}
 
-		if err := a.connectAndServeTarget(ctx, target, targetHealthCol); err != nil {
+		if err := a.connectAndServeTarget(ctx, target, a.HealthCol); err != nil {
 			log.Printf("[axon][%s -> %s] tunnel disconnected (%v); reconnecting in 3s...", target.Name, target.CoreGateway, err)
 		}
 
@@ -696,15 +694,15 @@ func (a *Agent) telemetryLoopForTarget(ctx context.Context, session *yamux.Sessi
 				return
 			}
 			debugLog("[%s] received %d ServiceHealthTarget(s) from Core Gateway %s", target.Name, len(targets), target.CoreGateway)
-			healthCol.SetTargets(targets)
+			healthCol.SetTargetsForSource(target.Name, targets)
 		}
 	}()
 
 	// Send immediate heartbeat on connect, then every 5 seconds
 	sendBeat := func() error {
-		hb := healthCol.Collect(a.PtyMgr.ActiveSessionIDs(), a.PtyMgr.ActiveSessionMeta())
-		debugLog("[%s -> %s] sending telemetry heartbeat: cpu=%.1f%% ram=%.1f%% disk=%.1f%% ptySessions=%d",
-			target.Name, target.CoreGateway, hb.CPUPercent, hb.RAMPercent, hb.DiskPercent, len(hb.ActivePtySessions))
+		hb := healthCol.CollectForNode(target.NodeID, target.Tier, a.PtyMgr.ActiveSessionIDs(), a.PtyMgr.ActiveSessionMeta())
+		debugLog("[%s -> %s] sending telemetry heartbeat: cpu=%.1f%% ram=%.1f%% disk=%.1f%% services=%d ptySessions=%d",
+			target.Name, target.CoreGateway, hb.CPUPercent, hb.RAMPercent, hb.DiskPercent, len(hb.Services), len(hb.ActivePtySessions))
 		return tunnelv1.WriteFrame(stream, hb)
 	}
 	_ = sendBeat()

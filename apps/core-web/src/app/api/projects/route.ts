@@ -69,7 +69,31 @@ export async function GET(req: NextRequest) {
         }));
 
       // Synchronize registered service health statuses from node heartbeat
+      // and auto-import any services reported by Multi-Core Muscle nodes
       if (Array.isArray(hb.services)) {
+        for (const liveSvc of hb.services) {
+          if (!liveSvc.service_id || !liveSvc.port) continue;
+          const exists = state.registered_services.some(
+            (s) =>
+              s.node_id === assigned.node_id &&
+              s.service_id === liveSvc.service_id
+          );
+          if (!exists) {
+            state.registered_services.push({
+              service_id: liveSvc.service_id,
+              name: liveSvc.name || liveSvc.service_id,
+              node_id: assigned.node_id,
+              protocol: "http",
+              port: liveSvc.port,
+              path: "/",
+              healthy: Boolean(liveSvc.healthy),
+              consecutive_failures: 0,
+              registered_at: new Date().toISOString(),
+            });
+            stateChanged = true;
+          }
+        }
+
         for (const svc of state.registered_services) {
           if (svc.node_id !== assigned.node_id) continue;
           const liveSvc = hb.services.find(
