@@ -1854,7 +1854,14 @@ export default function SynapseNetBirdControlCenter() {
         l.summary.toLowerCase().includes(activitySearch.toLowerCase()) ||
         (l.node_id || "").toLowerCase().includes(activitySearch.toLowerCase());
       const matchesStatus =
-        activityStatusFilter === "ALL" || l.status === activityStatusFilter;
+        activityStatusFilter === "ALL" ||
+        (activityStatusFilter === "executed"
+          ? l.status === "executed" || l.status === "approved"
+          : activityStatusFilter === "blocked"
+            ? l.status === "blocked" ||
+              l.status === "rejected" ||
+              l.status === "error"
+            : l.status === activityStatusFilter);
       return matchesQuery && matchesStatus;
     });
   }, [auditLogs, activitySearch, activityStatusFilter]);

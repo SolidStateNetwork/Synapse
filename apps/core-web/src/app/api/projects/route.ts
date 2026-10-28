@@ -242,7 +242,7 @@ export async function GET(req: NextRequest) {
     architecture_md: readBrainDoc(projectId, "Architecture.md"),
     memory_md: readBrainDoc(projectId, "Memory.md"),
     secret_keys: listSecretKeys(projectId),
-    audit_logs: readAuditLogs(projectId, 60),
+    audit_logs: readAuditLogs(projectId, 200),
     chat_history: readChatHistory(projectId, 100),
     cartridges: listCartridges(),
     blueprints: OFFICIAL_STACK_BLUEPRINTS,

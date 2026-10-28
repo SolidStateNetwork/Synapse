@@ -82,89 +82,103 @@ export default function AuditLogView({
             </tr>
           </thead>
           <tbody className="divide-y divide-nb-gray-900 font-mono">
-            {filteredLogs.map((log, i) => {
-              const isExpanded = Boolean(expandedAuditRows[i]);
-              return (
-                <React.Fragment key={i}>
-                  <tr
-                    onClick={() =>
-                      setExpandedAuditRows((prev) => ({
-                        ...prev,
-                        [i]: !prev[i],
-                      }))
-                    }
-                    className="cursor-pointer hover:bg-nb-gray-930/50 transition-colors"
-                  >
-                    <td className="py-3 px-3 text-nb-gray-400 whitespace-nowrap">
-                      {log.timestamp.replace("T", " ").slice(0, 19)}
-                    </td>
-                    <td className="py-3 px-3 text-nb-gray-200 whitespace-nowrap">
-                      {log.actor}
-                    </td>
-                    <td className="py-3 px-3 text-netbird whitespace-nowrap">
-                      <span className="flex items-center gap-1.5">
-                        <span>{log.tool_name}</span>
-                        {isExpanded ? (
-                          <ChevronUp className="h-3 w-3 text-nb-gray-400" />
-                        ) : (
-                          <ChevronDown className="h-3 w-3 text-nb-gray-400" />
-                        )}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-nb-gray-200 w-full max-w-0 truncate">
-                      {log.summary}
-                    </td>
-                    <td className="py-3 px-3 text-right whitespace-nowrap">
-                      <span
-                        className={`inline-block rounded border px-2 py-0.5 text-[10px] uppercase ${
-                          log.status === "executed" || log.status === "approved"
-                            ? "border-green-500/50 bg-green-950 text-green-400"
-                            : log.status === "blocked" ||
-                                log.status === "rejected" ||
-                                log.status === "error"
-                              ? "border-red-500/50 bg-red-950 text-red-400"
-                              : "border-netbird-500/50 bg-netbird-950 text-netbird"
-                        }`}
-                      >
-                        {log.status === "executed"
-                          ? "Ausgeführt"
-                          : log.status === "approved"
-                          ? "Freigegeben"
-                          : log.status === "blocked"
-                          ? "Blockiert"
-                          : log.status === "rejected"
-                          ? "Abgelehnt"
-                          : log.status === "requires_approval"
-                          ? "Freigabe nötig"
-                          : log.status}
-                      </span>
-                    </td>
-                  </tr>
-                  {isExpanded && (
-                    <tr className="bg-nb-gray-950/80">
-                      <td colSpan={5} className="p-4">
-                        <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-940 p-3 space-y-2 text-[11px]">
-                          <div className="flex items-center justify-between text-nb-gray-400">
-                            <span>
-                              Vollständiger Audit-Eintrag ({log.tool_name})
-                            </span>
-                            <span>{log.timestamp}</span>
-                          </div>
-                          <div className="text-white whitespace-pre-wrap">
-                            {log.summary}
-                          </div>
-                          {log.args && (
-                            <pre className="overflow-x-auto rounded bg-nb-gray-960 p-2.5 text-[10px] text-emerald-300">
-                              {JSON.stringify(log.args, null, 2)}
-                            </pre>
+            {filteredLogs.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="py-8 px-4 text-center font-sans text-xs text-nb-gray-400"
+                >
+                  Keine passenden Audit-Einträge für diesen Filter gefunden.
+                </td>
+              </tr>
+            ) : (
+              filteredLogs.map((log, i) => {
+                const isExpanded = Boolean(expandedAuditRows[i]);
+                return (
+                  <React.Fragment key={i}>
+                    <tr
+                      onClick={() =>
+                        setExpandedAuditRows((prev) => ({
+                          ...prev,
+                          [i]: !prev[i],
+                        }))
+                      }
+                      className="cursor-pointer hover:bg-nb-gray-930/50 transition-colors"
+                    >
+                      <td className="py-3 px-3 text-nb-gray-400 whitespace-nowrap">
+                        {log.timestamp.replace("T", " ").slice(0, 19)}
+                      </td>
+                      <td className="py-3 px-3 text-nb-gray-200 whitespace-nowrap">
+                        {log.actor}
+                      </td>
+                      <td className="py-3 px-3 text-netbird whitespace-nowrap">
+                        <span className="flex items-center gap-1.5">
+                          <span>{log.tool_name}</span>
+                          {isExpanded ? (
+                            <ChevronUp className="h-3 w-3 text-nb-gray-400" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3 text-nb-gray-400" />
                           )}
-                        </div>
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-nb-gray-200 w-full max-w-0 truncate">
+                        {log.summary}
+                      </td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
+                        <span
+                          className={`inline-block rounded border px-2 py-0.5 text-[10px] uppercase ${
+                            log.status === "executed" ||
+                            log.status === "approved"
+                              ? "border-green-500/50 bg-green-950 text-green-400"
+                              : log.status === "blocked" ||
+                                  log.status === "rejected" ||
+                                  log.status === "error"
+                                ? "border-red-500/50 bg-red-950 text-red-400"
+                                : "border-netbird-500/50 bg-netbird-950 text-netbird"
+                          }`}
+                        >
+                          {log.status === "executed"
+                            ? "Ausgeführt"
+                            : log.status === "approved"
+                              ? "Freigegeben"
+                              : log.status === "blocked"
+                                ? "Blockiert"
+                                : log.status === "rejected"
+                                  ? "Abgelehnt"
+                                  : log.status === "error"
+                                    ? "Blockiert"
+                                    : log.status === "requires_approval"
+                                      ? "Freigabe nötig"
+                                      : log.status}
+                        </span>
                       </td>
                     </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
+                    {isExpanded && (
+                      <tr className="bg-nb-gray-950/80">
+                        <td colSpan={5} className="p-4">
+                          <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-940 p-3 space-y-2 text-[11px]">
+                            <div className="flex items-center justify-between text-nb-gray-400">
+                              <span>
+                                Vollständiger Audit-Eintrag ({log.tool_name})
+                              </span>
+                              <span>{log.timestamp}</span>
+                            </div>
+                            <div className="text-white whitespace-pre-wrap">
+                              {log.summary}
+                            </div>
+                            {log.args && (
+                              <pre className="overflow-x-auto rounded bg-nb-gray-960 p-2.5 text-[10px] text-emerald-300">
+                                {JSON.stringify(log.args, null, 2)}
+                              </pre>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
