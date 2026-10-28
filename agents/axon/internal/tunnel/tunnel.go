@@ -671,19 +671,40 @@ func (a *Agent) connectAndServeTarget(ctx context.Context, target CoreTarget, he
 }
 
 func (a *Agent) telemetryLoopForTarget(ctx context.Context, session *yamux.Session, target CoreTarget, healthCol *health.Collector) {
+	for {
+		if ctx.Err() != nil || session == nil || session.IsClosed() {
+			return
+		}
+		if err := a.runSingleTelemetryStream(ctx, session, target, healthCol); err != nil {
+			if ctx.Err() != nil || session.IsClosed() {
+				return
+			}
+			debugLog("[%s] telemetry stream interrupted (%v); reopening in 2s...", target.Name, err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
+func (a *Agent) runSingleTelemetryStream(ctx context.Context, session *yamux.Session, target CoreTarget, healthCol *health.Collector) error {
 	stream, err := session.OpenStream()
 	if err != nil {
 		log.Printf("[axon][%s] failed to open telemetry stream to %s: %v", target.Name, target.CoreGateway, err)
-		return
+		return err
 	}
 	defer stream.Close()
 
 	hdr := tunnelv1.StreamHeader{
 		StreamType: tunnelv1.StreamTypeTelemetry,
 	}
+	_ = stream.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	if err := tunnelv1.WriteFrame(stream, hdr); err != nil {
-		return
+		return err
 	}
+	_ = stream.SetWriteDeadline(time.Time{})
 	debugLog("[%s] StreamTypeTelemetry opened to Core Gateway %s", target.Name, target.CoreGateway)
 
 	// Listen for dynamic ServiceHealthTarget updates pushed from this Core Gateway on the same stream
@@ -703,19 +724,24 @@ func (a *Agent) telemetryLoopForTarget(ctx context.Context, session *yamux.Sessi
 		hb := healthCol.CollectForNode(target.NodeID, target.Tier, a.PtyMgr.ActiveSessionIDs(), a.PtyMgr.ActiveSessionMeta())
 		debugLog("[%s -> %s] sending telemetry heartbeat: cpu=%.1f%% ram=%.1f%% disk=%.1f%% services=%d ptySessions=%d",
 			target.Name, target.CoreGateway, hb.CPUPercent, hb.RAMPercent, hb.DiskPercent, len(hb.Services), len(hb.ActivePtySessions))
-		return tunnelv1.WriteFrame(stream, hb)
+		_ = stream.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		err := tunnelv1.WriteFrame(stream, hb)
+		_ = stream.SetWriteDeadline(time.Time{})
+		return err
 	}
-	_ = sendBeat()
+	if err := sendBeat(); err != nil {
+		return err
+	}
 
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case <-ticker.C:
 			if err := sendBeat(); err != nil {
-				return
+				return err
 			}
 		}
 	}
@@ -724,10 +750,12 @@ func (a *Agent) telemetryLoopForTarget(ctx context.Context, session *yamux.Sessi
 func (a *Agent) handleStreamForTarget(stream net.Conn, target CoreTarget) {
 	defer stream.Close()
 
+	_ = stream.SetReadDeadline(time.Now().Add(10 * time.Second))
 	var hdr tunnelv1.StreamHeader
 	if err := tunnelv1.ReadFrame(stream, &hdr); err != nil {
 		return
 	}
+	_ = stream.SetReadDeadline(time.Time{})
 	debugLog("[%s] accepted Yamux stream: type=%v project=%s session=%s targetPort=%d",
 		target.Name, hdr.StreamType, hdr.ProjectID, hdr.SessionID, hdr.TargetPort)
 
@@ -745,6 +773,7 @@ func (a *Agent) handleStreamForTarget(stream net.Conn, target CoreTarget) {
 
 // Stream Type 1: RPC Control & Atomic Filesystem Ops
 func (a *Agent) handleFsStream(stream net.Conn, defaultTier tunnelv1.AutonomyTier) {
+	_ = stream.SetDeadline(time.Now().Add(30 * time.Second))
 	var req tunnelv1.FsRequest
 	if err := tunnelv1.ReadFrame(stream, &req); err != nil {
 		return
@@ -791,9 +820,11 @@ func (a *Agent) handlePtyStream(stream net.Conn, hdr tunnelv1.StreamHeader, defa
 					Type:      "data",
 					Data:      chunk,
 				}
+				_ = stream.SetWriteDeadline(time.Now().Add(10 * time.Second))
 				if err := tunnelv1.WriteFrame(stream, frame); err != nil {
 					return
 				}
+				_ = stream.SetWriteDeadline(time.Time{})
 			}
 		}()
 
@@ -815,10 +846,12 @@ func (a *Agent) handlePtyStream(stream net.Conn, hdr tunnelv1.StreamHeader, defa
 	}
 
 	// Standard AI Tool Execution with Sentinel Framing (`node_pty_exec`)
+	_ = stream.SetReadDeadline(time.Now().Add(15 * time.Second))
 	var req tunnelv1.PtyExecRequest
 	if err := tunnelv1.ReadFrame(stream, &req); err != nil {
 		return
 	}
+	_ = stream.SetReadDeadline(time.Time{})
 	if req.Tier == "" || req.Tier == tunnelv1.AutonomyTierUnspecified {
 		req.Tier = effectiveTier
 	}
@@ -827,6 +860,7 @@ func (a *Agent) handlePtyStream(stream net.Conn, hdr tunnelv1.StreamHeader, defa
 	resp := a.PtyMgr.Execute(req)
 	debugLog("PTY EXEC done: session=%s exitCode=%d cwd=%q blocked=%v (%s)",
 		req.SessionID, resp.ExitCode, resp.Cwd, resp.BlockedByGuardrail, time.Since(start).Round(time.Millisecond))
+	_ = stream.SetWriteDeadline(time.Now().Add(30 * time.Second))
 	_ = tunnelv1.WriteFrame(stream, resp)
 }
 

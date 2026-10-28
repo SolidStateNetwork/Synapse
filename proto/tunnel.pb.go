@@ -193,7 +193,7 @@ type CSRBootstrapResponse struct {
 
 const MaxFrameSize = 32 * 1024 * 1024 // 32 MB
 
-// WriteFrame writes a length-prefixed JSON wire frame to w.
+// WriteFrame writes a length-prefixed JSON wire frame to w in a single contiguous buffer write.
 func WriteFrame(w io.Writer, msg any) error {
 	payload, err := json.Marshal(msg)
 	if err != nil {
@@ -202,13 +202,19 @@ func WriteFrame(w io.Writer, msg any) error {
 	if len(payload) > MaxFrameSize {
 		return fmt.Errorf("frame size %d exceeds maximum %d", len(payload), MaxFrameSize)
 	}
-	var lenBuf [4]byte
-	binary.BigEndian.PutUint32(lenBuf[:], uint32(len(payload)))
-	if _, err := w.Write(lenBuf[:]); err != nil {
-		return fmt.Errorf("write frame length: %w", err)
-	}
-	if _, err := w.Write(payload); err != nil {
-		return fmt.Errorf("write frame payload: %w", err)
+	frame := make([]byte, 4+len(payload))
+	binary.BigEndian.PutUint32(frame[:4], uint32(len(payload)))
+	copy(frame[4:], payload)
+	written := 0
+	for written < len(frame) {
+		n, err := w.Write(frame[written:])
+		if err != nil {
+			return fmt.Errorf("write frame: %w", err)
+		}
+		if n <= 0 {
+			return io.ErrShortWrite
+		}
+		written += n
 	}
 	return nil
 }
