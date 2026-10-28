@@ -488,7 +488,12 @@ export default function SynapseNetBirdControlCenter() {
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [selectedChatSkill, setSelectedChatSkill] = useState<
-    "CheckSystem" | "CheckOpsec" | "SkillSearch" | "DeepForensics" | null
+    | "CheckSystem"
+    | "CheckOpsec"
+    | "SkillSearch"
+    | "DeepForensics"
+    | "CheckUpdates"
+    | null
   >(null);
   const [skillMenuOpen, setSkillMenuOpen] = useState<boolean>(false);
   const [chatBusy, setChatBusy] = useState(false);
@@ -1494,6 +1499,65 @@ export default function SynapseNetBirdControlCenter() {
       return;
     }
 
+    if (activeSkill === "CheckUpdates") {
+      const node = primaryNode || "vps2-muscle";
+      let sysStatusSummary = "";
+      try {
+        const upRes = await fetch(
+          "/api/system-update?check_remote=1&inspect_nodes=1",
+          { cache: "no-store" }
+        );
+        if (upRes.ok) {
+          const upData = await upRes.json();
+          setSystemUpdateStatus(upData);
+          sysStatusSummary = JSON.stringify(
+            {
+              git: upData.git,
+              nodes: upData.nodes,
+            },
+            null,
+            2
+          );
+        }
+      } catch {
+        // ignore
+      }
+
+      const aiUpdateCheckPrompt = [
+        `Du führst jetzt den Skill **CheckUpdates** (Umfassende Update-Prüfung aller Muscle-Server, Axon-Daemons, Linux-Pakete & Workspace-Backends) für das Projekt \`${activeProject.project_id}\` auf \`@${node}\` aus.`,
+        text ? `ZUSÄTZLICHER BENUTZER-FOKUS / ANWEISUNG: "${text}"` : ``,
+        sysStatusSummary
+          ? `Vorab geladener Core/Muscle Git- & OTA-Binary-Status:\n\`\`\`json\n${sysStatusSummary}\n\`\`\``
+          : ``,
+        ``,
+        `ARBEITE WIE EIN SENIOR DEVOPS RELEASE & PATCH ENGINEER: Prüfe in mehreren Schritten gründlich alle Ebenen auf Updates und Verbesserungen (führe jetzt **NOCH KEINE** Updates aus, sondern erstelle zuerst den Prüfbericht!):`,
+        `1. **Schicht 1 — Synapse Muscle Agent (\`/usr/local/bin/axon\`, \`axon.service\`, \`axon-db.service\` & \`/opt/synapse-src\`):**`,
+        `   - Prüfe per \`node_pty_exec\` auf \`@${node}\` den genauen Stand von \`/opt/synapse-src\` (\`git -C /opt/synapse-src fetch origin main && git -C /opt/synapse-src status -sb && git -C /opt/synapse-src log -1 --format="%h %ci %s"\`), den SHA-256-Hash & Zeitstempel von \`/usr/local/bin/axon\` sowie den Systemd-Status von \`axon\` und \`axon-db\`.`,
+        `2. **Schicht 2 — Workspace-Backends, Runtimes & Abhängigkeiten (\`/opt/axon/workspaces\`):**`,
+        `   - Nutze \`node_deep_search\` (\`search_mode: "process_and_port_map"\` und \`"file_find"\`), um alle laufenden Backend-Services (z. B. Ports \`:4050\`, \`:4060\`, \`:4070\`, SQLite-DBs, Python-/Node-Skripte) zu inventarisieren.`,
+        `   - Prüfe die eingesetzten Runtimes (\`python3 --version\`, \`go version\`, \`node --version\`, \`sqlite3 --version\`), vorhandene \`requirements.txt\`/\`package.json\` sowie ob die Backend-Dienste Health-/Version-Endpunkte, sauberes Logging und Systemd-Auto-Restart besitzen oder aktualisiert/modernisiert werden können.`,
+        `3. **Schicht 3 — Linux OS- & Security-Updates (\`apt\`):**`,
+        `   - Prüfe per \`node_pty_exec\` auf \`@${node}\` mit \`apt list --upgradable 2>/dev/null | head -n 35\` und \`[ -f /var/run/reboot-required ] && cat /var/run/reboot-required || echo "Kein Reboot erforderlich"\`, welche System- und Sicherheits-Updates für den Muscle-Host bereitstehen.`,
+        `4. **Strukturierter Update-Bericht & Entscheidungsfrage (auf Deutsch):**`,
+        `   - Erstelle eine übersichtliche Markdown-Tabelle aller geprüften Komponenten (**Synapse Muscle Agent**, **Backend :4050**, **Backend :4060**, **DB-Mesh :4070**, **Runtimes**, **Linux Security/APT-Pakete**) mit \`Aktueller Stand\`, \`Verfügbares Update / Optimierung\`, \`Risiko\` und \`Empfehlung\`.`,
+        `   - Stelle am Ende des Berichts ausdrücklich die Frage: **„Sollen diese Updates jetzt durchgeführt und im Anschluss ein vollständiger Funktionstest aller Muscle-Backends gestartet werden?“**`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const displayMsg = text
+        ? `🔄 **[Skill: CheckUpdates]** ${text}`
+        : `🔄 **[Skill: CheckUpdates]** Prüfe alle Muscle-Server, Axon-Daemons, Runtimes, OS-Pakete & Workspace-Backends auf verfügbare Updates auf \`@${node}\``;
+
+      await runStreamingPrompt(
+        aiUpdateCheckPrompt,
+        undefined,
+        atts,
+        displayMsg
+      );
+      return;
+    }
+
     await runStreamingPrompt(text, undefined, atts);
   }
 
@@ -1572,6 +1636,112 @@ export default function SynapseNetBirdControlCenter() {
         `⏹️ **[Interview-Antwort]** Interview beenden & Zusammenfassung anzeigen.`
       );
     }
+  }
+
+  async function handleUpdateSkillDecision(
+    decision: "execute_and_test" | "test_only" | "skip",
+    reportContent: string
+  ) {
+    if (!activeProject || chatBusy) return;
+    const node = primaryNode || "vps2-muscle";
+
+    if (decision === "skip") {
+      const prompt = [
+        `Der Nutzer hat entschieden: **NEIN, KEINE UPDATES DURCHFÜHREN.**`,
+        `Nimm KEINE Änderungen oder Updates an den Muscle-Servern oder Backends vor und bestätige kurz auf Deutsch, dass alle Dienste im aktuellen Zustand belassen wurden.`,
+      ].join("\n");
+      await runStreamingPrompt(
+        prompt,
+        undefined,
+        undefined,
+        `❌ **[Update-Entscheidung]** Nein, Updates jetzt nicht durchführen.`
+      );
+      return;
+    }
+
+    if (decision === "test_only") {
+      const prompt = [
+        `Der Nutzer möchte **OHNE vorheriges Update sofort einen vollständigen End-to-End Funktionstest** aller Muscle-Server und Backends auf \`@${node}\` durchführen.`,
+        `Führe jetzt folgende Live-Tests durch:`,
+        `1. Prüfe per \`node_deep_search\` (\`search_mode: "process_and_port_map"\`), dass \`axon\`, \`axon-db\` und alle Backend-Ports (\`:4050\`, \`:4060\`, \`:4070\`) aktiv lauschen.`,
+        `2. Prüfe per \`node_pty_exec\` mit \`curl -sS -i http://127.0.0.1:4050/\`, \`curl -sS -i http://127.0.0.1:4060/api/events\` und \`curl -sS -i http://127.0.0.1:4070/query\`, ob alle HTTP- & JSON-Endpunkte fehlerfrei mit HTTP 200 antworten.`,
+        `3. Prüfe per \`node_deep_search\` (\`search_mode: "sqlite_inspect"\`), ob alle SQLite-Datenbanken \`PRAGMA integrity_check = ok\` melden.`,
+        `4. Erstelle einen klaren **Funktionstest-Bericht (PASS / FAIL)** für jedes getestete Backend.`,
+      ].join("\n");
+      await runStreamingPrompt(
+        prompt,
+        undefined,
+        undefined,
+        `🧪 **[Update-Entscheidung]** Nur vollständigen End-to-End Funktionstest aller Muscle-Backends ausführen.`
+      );
+      return;
+    }
+
+    // decision === "execute_and_test":
+    // 1. Trigger OTA Muscle & Core sync via /api/system-update first so /usr/local/bin/axon is freshly synced
+    let otaSummary = "";
+    try {
+      setStatusToast("Führe Core & Muscle OTA-Sync durch...");
+      const upRes = await fetch("/api/system-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_all",
+          project_id: activeProject.project_id,
+        }),
+      });
+      if (upRes.ok) {
+        const upData = await upRes.json();
+        if (upData.status) setSystemUpdateStatus(upData.status);
+        if (Array.isArray(upData.steps)) setSystemUpdateSteps(upData.steps);
+        otaSummary = JSON.stringify(
+          {
+            success: upData.success,
+            steps: upData.steps,
+            git: upData.status?.git,
+            nodes: upData.status?.nodes,
+          },
+          null,
+          2
+        );
+      }
+    } catch {
+      // ignore
+    } finally {
+      setStatusToast("");
+    }
+
+    const executeAndTestPrompt = [
+      `Der Nutzer hat entschieden: **JA, UPDATES JETZT DURCHFÜHREN UND ANSCHLIESSEND VOLLSTÄNDIG TESTEN!**`,
+      `Bezugnehmend auf deinen vorherigen Update-Bericht:`,
+      `<update_report>`,
+      reportContent.slice(0, 4500),
+      `</update_report>`,
+      otaSummary
+        ? `Ergebnis des soeben ausgeführten Core & Muscle OTA-Binary-Rollouts (\`/api/system-update\`):\n\`\`\`json\n${otaSummary}\n\`\`\``
+        : ``,
+      ``,
+      `DEIN AUFTRAG IN 2 VERBINDLICHEN PHASEN AUF \`@${node}\`:`,
+      `### Phase 1 — Muscle- & Backend-Updates ausführen:`,
+      `1. Prüfe bzw. aktualisiere auf \`@${node}\` per \`node_pty_exec\` die im Bericht genannten sicheren Backend-/Paket-Updates (z. B. \`DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y curl ca-certificates git sqlite3 2>/dev/null || true\`) sowie eventuelle Verbesserungen an den Workspace-Backends unter \`/opt/axon/workspaces\`, ohne laufende Datenbanken zu beschädigen.`,
+      `2. Stelle sicher, dass alle Backend-Prozesse (\`:4050\`, \`:4060\`, \`:4070\`) sowie \`axon.service\` und \`axon-db.service\` sauber laufen.`,
+      ``,
+      `### Phase 2 — Verbindlicher End-to-End Funktionstest (PFLICHT!):`,
+      `1. **Prozess- & Port-Verifikation:** Führe \`node_deep_search\` mit \`search_mode: "process_and_port_map"\` auf \`@${node}\` aus und prüfe, dass \`axon\`, \`axon-db\` und alle Backend-Ports (\`:4050\`, \`:4060\`, \`:4070\`) aktiv sind.`,
+      `2. **Live HTTP- & API-Funktionstest:** Teste per \`node_pty_exec\` jeden einzelnen Backend-Dienst mit echten Requests (\`curl -sS -w "\\nHTTP_CODE:%{http_code} TIME:%{time_total}s\\n" http://127.0.0.1:4050/\`, \`http://127.0.0.1:4060/api/events\`, \`http://127.0.0.1:4070/query\`) und verifiziere Statuscode \`200\` sowie valide Antworten.`,
+      `3. **Datenbank-Integritätstest:** Führe \`node_deep_search\` mit \`search_mode: "sqlite_inspect"\` aus und bestätige \`PRAGMA integrity_check = ok\` für alle SQLite-Datenbanken.`,
+      `4. **Abschlussbericht (Update + Testergebnis auf Deutsch):**`,
+      `   - Zeige eine übersichtliche Tabelle mit **allen durchgeführten Updates** (Vorher -> Nachher) und **jedem einzelnen Funktionstest (PASS / FAIL, HTTP-Code, Antwortzeit, DB-Integrität)**.`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    await runStreamingPrompt(
+      executeAndTestPrompt,
+      undefined,
+      undefined,
+      `🚀 **[Update & Funktionstest]** Ja, alle Updates für Muscle & Backends jetzt durchführen und anschließend auf Herz und Nieren testen!`
+    );
   }
 
   async function handleQuickAction(actionPrompt: string) {
@@ -5254,8 +5424,18 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         const showInterviewControls =
                           isInterviewTurn || asksToFixOrSkip;
 
+                        const isUpdateCheckReport =
+                          !showInterviewControls &&
+                          !prevUserContent.includes("[Interview-") &&
+                          !prevUserContent.includes("[Update-") &&
+                          (prevUserContent.includes("[Skill: CheckUpdates]") ||
+                            /sollen diese updates.*durchgeführt|muscle.*backend.*update-bericht/i.test(
+                              msg.content
+                            ));
+
                         const isSkillReport =
                           !showInterviewControls &&
+                          !isUpdateCheckReport &&
                           !prevUserContent.includes("[Interview-") &&
                           (prevUserContent.includes("[Skill: CheckSystem]") ||
                             prevUserContent.includes("[Skill: CheckOpsec]") ||
@@ -5265,6 +5445,75 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                               /Empfehlung|Härtung|Befund|OpSec|Verbesserung|CheckSystem|CheckOpsec|Forensik/i.test(
                                 msg.content
                               )));
+
+                        if (isUpdateCheckReport) {
+                          return (
+                            <div className="mt-3 rounded-lg border border-cyan-500/40 bg-nb-gray-940 p-3 space-y-2.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
+                                  <RefreshCw className="h-3.5 w-3.5 text-cyan-400" />
+                                  <span>
+                                    Muscle &amp; Backend Updates: Sollen die Updates durchgeführt &amp; getestet werden?
+                                  </span>
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={chatBusy}
+                                  onClick={() =>
+                                    handleUpdateSkillDecision(
+                                      "execute_and_test",
+                                      msg.content
+                                    )
+                                  }
+                                  className="flex items-center gap-1.5 rounded-md border border-emerald-500/50 bg-emerald-950/60 px-3 py-1.5 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-900/70 hover:text-white disabled:opacity-40 transition"
+                                >
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                                  <span>
+                                    Ja, Updates durchführen &amp; Funktionstest starten
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={chatBusy}
+                                  onClick={() =>
+                                    handleUpdateSkillDecision(
+                                      "test_only",
+                                      msg.content
+                                    )
+                                  }
+                                  className="flex items-center gap-1.5 rounded-md border border-cyan-500/40 bg-cyan-950/50 px-2.5 py-1.5 text-[11px] font-medium text-cyan-200 hover:bg-cyan-900/60 hover:text-white disabled:opacity-40 transition"
+                                >
+                                  <Activity className="h-3.5 w-3.5 text-cyan-400" />
+                                  <span>Nur Funktionstest ausführen</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={chatBusy}
+                                  onClick={() =>
+                                    handleStartSkillInterview(msg.content)
+                                  }
+                                  className="flex items-center gap-1.5 rounded-md border border-netbird-500/40 bg-netbird/15 px-2.5 py-1.5 text-[11px] font-medium text-netbird hover:bg-netbird/25 hover:text-white disabled:opacity-40 transition"
+                                >
+                                  <Sparkles className="h-3.5 w-3.5" />
+                                  <span>Einzeln im Interview durchgehen</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={chatBusy}
+                                  onClick={() =>
+                                    handleUpdateSkillDecision("skip", msg.content)
+                                  }
+                                  className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 text-[11px] text-nb-gray-400 hover:border-red-500/40 hover:text-red-300 disabled:opacity-40 transition"
+                                >
+                                  <X className="h-3 w-3" />
+                                  <span>Nein, keine Updates</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        }
 
                         if (showInterviewControls) {
                           return (
@@ -5674,7 +5923,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 onSubmit={handleSendPrompt}
                 className="relative border-t border-nb-gray-900 bg-nb-gray-950 p-3 space-y-2"
               >
-                {/* Selected Skill Card (Appears when CheckSystem, CheckOpsec, SkillSearch, or DeepForensics is clicked) */}
+                {/* Selected Skill Card (Appears when CheckSystem, CheckOpsec, CheckUpdates, SkillSearch, or DeepForensics is clicked) */}
                 {selectedChatSkill && (
                   <div
                     className={`flex items-start justify-between gap-2.5 rounded-lg border p-2.5 text-xs ${
@@ -5682,6 +5931,8 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         ? "border-emerald-500/40 bg-emerald-950/30 text-emerald-100"
                         : selectedChatSkill === "CheckOpsec"
                         ? "border-sky-500/40 bg-sky-950/30 text-sky-100"
+                        : selectedChatSkill === "CheckUpdates"
+                        ? "border-cyan-500/40 bg-cyan-950/30 text-cyan-100"
                         : selectedChatSkill === "DeepForensics"
                         ? "border-purple-500/40 bg-purple-950/30 text-purple-100"
                         : "border-amber-500/40 bg-amber-950/30 text-amber-100"
@@ -5693,6 +5944,8 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                           <Activity className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
                         ) : selectedChatSkill === "CheckOpsec" ? (
                           <Shield className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+                        ) : selectedChatSkill === "CheckUpdates" ? (
+                          <RefreshCw className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
                         ) : selectedChatSkill === "DeepForensics" ? (
                           <Cpu className="h-3.5 w-3.5 shrink-0 text-purple-400" />
                         ) : (
@@ -5705,6 +5958,8 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                           ? "Mehrstufiger Senior-DevOps-Tiefenscan: Prüft Host, Ports, Quellcode, SQLite-Integrität, Logs & Brain-Sync mit erweiterten Suchfunktionen."
                           : selectedChatSkill === "CheckOpsec"
                           ? "Mehrstufiger DevSecOps-Tiefenaudit: Prüft offene Sockets, SSH, Firewall, Sysctl, Dateirechte, Code-Schwachstellen, Secrets & HTTP-Header."
+                          : selectedChatSkill === "CheckUpdates"
+                          ? "Muscle & Backend Update-Prüfung: Prüft Axon-Daemons, Workspace-Backends, Runtimes & OS-Pakete auf Updates und fragt danach nach Ausführung + Funktionstest."
                           : selectedChatSkill === "DeepForensics"
                           ? "Tiefgreifende DevOps-Forensik: Durchsucht alle Logs, Prozesse, Datenbanken und Quellcode-Dateien nach versteckten Fehlern & Root-Causes."
                           : "Erweiterte System-, Code-, Datenbank-, Log- & UI-Tiefensuche: Findet jede Funktion, Einstellung, Datei oder Zeile im gesamten System."}
@@ -5736,6 +5991,28 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         <X className="h-3 w-3" />
                       </button>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedChatSkill("CheckUpdates");
+                        setSkillMenuOpen(false);
+                        setTimeout(() => chatInputRef.current?.focus(), 50);
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-nb-gray-900 transition"
+                    >
+                      <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 font-semibold text-xs text-cyan-300">
+                          <span>CheckUpdates</span>
+                          <span className="rounded border border-cyan-500/30 bg-cyan-950/40 px-1.5 py-0.2 font-mono text-[9px] text-cyan-300">
+                            Muscle &amp; Backend Updates + Test
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-nb-gray-400 leading-snug">
+                          Prüft alle Muscle-Server, Axon-Binaries, Runtimes, OS-Pakete &amp; Backends auf Updates, fragt nach Freigabe und führt danach einen Funktionstest durch.
+                        </p>
+                      </div>
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
