@@ -297,6 +297,27 @@ async function emitProgressiveTokens(
   }
 }
 
+function detectPromptLanguage(text: string): "de" | "en" {
+  const sample = (text || "").trim();
+  if (!sample) return "de";
+  if (/respond in english|answer in english|in english please/i.test(sample)) {
+    return "en";
+  }
+  if (/auf deutsch|antworte.*deutsch/i.test(sample)) {
+    return "de";
+  }
+  const deScore =
+    (sample.match(
+      /\b(wie|was|warum|wo|wann|bitte|zeig|zeige|prüf|prüfe|teste|finde|suche|erkläre|erstelle|baue|behebe|aktualisiere|ist|sind|nicht|und|oder|für|mit|auf|dem|den|der|die|das|ein|eine|meine|deine|alle|servern|dienste|dateien|hallo|danke|kannst|soll|mach|mache)\b/gi
+    ) || []).length + (/[äöüß]/i.test(sample) ? 2 : 0);
+  const enScore = (
+    sample.match(
+      /\b(what|how|why|where|when|who|can|could|would|should|please|show|check|test|find|search|list|explain|tell|give|help|create|deploy|build|fix|update|is|are|do|does|the|with|from|for|and|all|my|your|our|servers|services|ports|files|hello|hi|thanks)\b/gi
+    ) || []
+  ).length;
+  return enScore > deScore ? "en" : "de";
+}
+
 async function runOpenAICompatibleAgentLoop(
   projectId: string,
   endpoint: string,
@@ -322,10 +343,18 @@ async function runOpenAICompatibleAgentLoop(
     headers["Authorization"] = `Bearer ${apiKey}`;
   }
 
+  const lastUserMsg =
+    [...messages].reverse().find((m) => m.role === "user")?.content || "";
+  const userLang = detectPromptLanguage(lastUserMsg);
+  const langDirective =
+    userLang === "en"
+      ? "\n\nLANGUAGE DIRECTIVE: The user's latest request is in ENGLISH. You MUST write your entire response, explanations, headings, and tables in ENGLISH."
+      : "\n\nSPRACH-DIREKTIVE: Die aktuelle Anfrage des Nutzers ist auf DEUTSCH. Antworte vollständig, präzise und strukturiert auf DEUTSCH.";
+
   // Send static prefix first in system message so OpenAI / OpenRouter / DeepSeek prefix cache hits
   const conversation: Array<Record<string, unknown>> = [
     { role: "system", content: promptParts.staticPrefix },
-    { role: "system", content: promptParts.dynamicSuffix },
+    { role: "system", content: `${promptParts.dynamicSuffix}${langDirective}` },
     ...messages.map((m, idx) => {
       const expandedText =
         idx === messages.length - 1 && m.role === "user"
@@ -354,7 +383,11 @@ async function runOpenAICompatibleAgentLoop(
       type: "thinking_delta",
       delta:
         step === 0
-          ? "KI analysiert Systemkontext & plant Prüfschritte...\n"
+          ? userLang === "en"
+            ? "AI analyzing system context & planning inspection steps...\n"
+            : "KI analysiert Systemkontext & plant Prüfschritte...\n"
+          : userLang === "en"
+          ? `Round ${step + 1}: AI evaluating findings & inspecting next subsystem...\n`
           : `Runde ${step + 1}: KI wertet Ergebnisse aus & prüft nächstes Teilsystem...\n`,
     });
 
@@ -518,7 +551,10 @@ async function runOpenAICompatibleAgentLoop(
   if (!finalReply && allToolResults.length > 0) {
     onProgress?.({
       type: "thinking_delta",
-      delta: "Synthese-Phase: KI fasst alle gesammelten Befunde in einem umfassenden Bericht zusammen...\n",
+      delta:
+        userLang === "en"
+          ? "Synthesis phase: AI summarizing all collected findings into a comprehensive report...\n"
+          : "Synthese-Phase: KI fasst alle gesammelten Befunde in einem umfassenden Bericht zusammen...\n",
     });
     try {
       const synthRes = await fetch(endpoint, {
@@ -531,7 +567,9 @@ async function runOpenAICompatibleAgentLoop(
             {
               role: "user",
               content:
-                "Du hast nun alle Tool-Daten gesammelt. Erstelle jetzt deinen vollständigen, tiefgreifenden und strukturierten Abschlussbericht auf Deutsch anhand aller realen Befunde.",
+                userLang === "en"
+                  ? "You have gathered all tool data. Now write your complete, in-depth, structured final report in English based on all real findings."
+                  : "Du hast nun alle Tool-Daten gesammelt. Erstelle jetzt deinen vollständigen, tiefgreifenden und strukturierten Abschlussbericht auf Deutsch anhand aller realen Befunde.",
             },
           ],
           tool_choice: "none",
@@ -567,14 +605,18 @@ async function runOpenAICompatibleAgentLoop(
 
   const resolvedReply =
     finalReply ||
-    `### Durchgeführte DevOps-Analyse (${allToolResults.length} Schritte)\n\n` +
+    (userLang === "en"
+      ? `### Completed DevOps Analysis (${allToolResults.length} steps)\n\n`
+      : `### Durchgeführte DevOps-Analyse (${allToolResults.length} Schritte)\n\n`) +
       allToolResults
         .map((tr, i) => {
           const outObj = tr.output as Record<string, unknown> | undefined;
           const textOut = String(
             outObj?.findings || outObj?.output || JSON.stringify(tr.output)
           ).slice(0, 1200);
-          return `#### Schritt ${i + 1}: \`${tr.tool_name}\` (${tr.status})\n\`\`\`text\n${textOut}\n\`\`\``;
+          return `#### ${userLang === "en" ? "Step" : "Schritt"} ${i + 1}: \`${
+            tr.tool_name
+          }\` (${tr.status})\n\`\`\`text\n${textOut}\n\`\`\``;
         })
         .join("\n\n");
 

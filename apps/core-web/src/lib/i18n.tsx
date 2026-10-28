@@ -573,6 +573,164 @@ const EN_DICTIONARY: Record<string, string> = {
   "Kein Endpunkt für diese Kategorie hinterlegt.": "No endpoints registered for this category.",
   "Warte auf Anfrage — klicke oben auf einen Endpunkt oder auf 'Ausführen'.":
     "Waiting for request — click an endpoint above or press 'Execute'.",
+
+  // ── Complete View Headers, Firewall, Access Rules, Audit Log, Canvas & Copilot ──
+  "Live-Terminal": "Live Terminal",
+  "Copilot ausblenden": "Hide Copilot",
+  "Copilot einblenden": "Show Copilot",
+  "Noch keine Server verbunden": "No servers connected yet",
+  "Online — Klicken zum Verwalten": "Online — Click to manage",
+  "Offline — Klicken zum Prüfen": "Offline — Click to inspect",
+  "aktive Regeln — Klicken zum Verwalten": "active rules — Click to manage",
+  "Einträge im Brain-Tresor": "entries in Brain Vault",
+  "Neues Projekt...": "New Project...",
+  "Suche": "Search",
+  "Mit der Maus ziehen, um die linke Seitenleiste breiter/schmaler zu machen (Doppelklick = Standardbreite)":
+    "Drag to resize left sidebar (double-click = default width)",
+  "Mit der Maus ziehen, um das KI-Copilot-Panel breiter/schmaler zu machen (Doppelklick = Standardbreite)":
+    "Drag to resize AI Copilot panel (double-click = default width)",
+  "Topologie-Layout wird gespeichert...": "Saving topology layout...",
+  "Ziehe Karten frei auf der Fläche ·": "Drag cards freely on the canvas ·",
+  "speichert für alle Ansichten": "saves across all views",
+  "Auto-Anordnen": "Auto-Arrange",
+  "Alle Knoten übersichtlich im 3-Spalten-Raster anordnen (Core -> Muscle -> Services)":
+    "Arrange all nodes cleanly in a 3-column grid (Core -> Muscle -> Services)",
+  "Mausrad = Zoom · Leere Fläche ziehen = Schwenken ·":
+    "Scroll = Zoom · Drag empty space = Pan ·",
+  "verschiebt auch verbundene Dienste": "also moves attached services",
+  "Kein Muscle verbunden — klicke oben auf": "No Muscle connected — click",
+  "Läuft auf": "Runs on",
+  "Brain-Tresor": "Brain Vault",
+  "Konfiguriert": "Configured",
+  "Bereit": "Ready",
+  "Server & Mesh-Netzwerk": "Servers & Mesh Network",
+  "Verwalte alle angeschlossenen Muscle-Server, verknüpfe Dienste über verschlüsselte P2P-Mesh-Tunnel oder stelle komplette Infrastruktur-Stacks und Cron-Playbooks per 1-Klick bereit.":
+    "Manage all connected Muscle servers, link services across encrypted P2P mesh tunnels, or deploy complete infrastructure stacks and cron playbooks with 1 click.",
+  "Alle Stufen": "All Tiers",
+  "Host & System": "Host & System",
+  "Bereitstellen": "Deploy",
+  "Firewall & Port-Abschirmung": "Firewall & Port Shielding",
+  "Anti-Lockout & 15s Rollback aktiv": "Anti-Lockout & 15s Rollback active",
+  "Sperre offene Ports mit 1 Klick nach außen für das öffentliche Internet, während deine Dienste über den verschlüsselten Synapse-Tunnel (127.0.0.1) weiterhin unter Services erreichbar bleiben.":
+    "Block open ports from the public internet with 1 click while keeping your services reachable via the encrypted Synapse tunnel (127.0.0.1) under Services.",
+  "Synchronisiere...": "Synchronizing...",
+  "Port-Radar scannen": "Scan Port Radar",
+  "KI-Beratung": "AI Security Advice",
+  "1. 1-Klick Sicherheits-Profile": "1. 1-Click Security Profiles",
+  "Aktives Backend:": "Active Backend:",
+  "· SSH-Schutz:": "· SSH Protection:",
+  "🟢 Web-Server Modus (Standard)": "🟢 Web Server Mode (Standard)",
+  "Webseiten offen, interne Dienste geschützt":
+    "Websites open, internal services shielded",
+  "Erlaubt öffentlich nur SSH (:22) sowie HTTP/HTTPS (:80/:443). Interne Backend- & Datenbank-Ports werden nach außen abgeschirmt.":
+    "Publicly allows only SSH (:22) and HTTP/HTTPS (:80/:443). Internal backend & database ports are shielded externally.",
+  "🛡️ Synapse Stealth-Modus (Zero-Port)": "🛡️ Synapse Stealth Mode (Zero-Port)",
+  "Alle App-Ports nach außen unsichtbar": "All app ports invisible externally",
+  "Blockiert alle Anwendungs-Ports für das Internet (nur SSH bleibt als Notfallzugang offen). Alle Apps laufen sicher über den Synapse-Tunnel!":
+    "Blocks all application ports from the internet (only SSH remains open for emergency access). All apps run securely over the Synapse tunnel!",
+  "⚙️ Benutzerdefiniert": "⚙️ Custom Mode",
+  "Einzelne Ports & IPs selbst steuern": "Control individual ports & IPs manually",
+  "Entscheide unten im Live Port-Radar für jeden Port einzeln per Klick, ob er öffentlich oder nur über Synapse erreichbar sein soll.":
+    "Decide for each port individually in the Live Port Radar below whether it should be publicly accessible or only reachable via Synapse.",
+  "Wenn du einen Port „Nach außen sperrst“, wird er für Fremde im Internet blockiert, funktioniert aber unter":
+    "When you click 'Block Externally', the port is blocked from the public internet, but continues to work under",
+  "im Synapse-Browser weiterhin!": "in the Synapse browser!",
+  "Noch keine lauschenden Ports erkannt oder kein Muscle-Server verbunden.":
+    "No listening ports detected yet or no Muscle server connected.",
+  "Dienst / Programm": "Service / Process",
+  "Bind-Adresse": "Bind Address",
+  "Sichtbarkeit im Internet": "Internet Exposure",
+  "1-Klick Schutz": "1-Click Shield",
+  "SSH Server-Zugang (Anti-Lockout)": "SSH Server Access (Anti-Lockout)",
+  "🛡️ Geschützter System-Port (SSH)": "🛡️ Protected System Port (SSH)",
+  "🟢 Sicher · Nur lokal (127.0.0.1)": "🟢 Safe · Local only (127.0.0.1)",
+  "🛡️ Durch Firewall geschützt (Nur Synapse-Tunnel)":
+    "🛡️ Shielded by Firewall (Synapse Tunnel only)",
+  "🔴 Öffentlich im Internet offen": "🔴 Publicly open on the Internet",
+  "Anti-Lockout aktiv": "Anti-Lockout active",
+  "Bereits lokal isoliert": "Already locally isolated",
+  "Nur über Synapse erreichbar machen (Für das öffentliche Internet sperren)":
+    "Make reachable via Synapse only (block from public internet)",
+  "Port wieder öffentlich für das gesamte Internet öffnen":
+    "Re-open port publicly to the entire internet",
+  "🔓 Öffentlich freigeben": "🔓 Allow Publicly",
+  "🔒 Nach außen sperren": "🔒 Block Externally",
+  "Sperre verdächtige IP-Adressen sofort oder gib bestimmte Ports exklusiv für deine eigene IP-Adresse frei.":
+    "Block suspicious IP addresses immediately or whitelist specific ports exclusively for your own IP address.",
+  "Vorlage: Angreifer-IP blockieren": "Preset: Block Attacker IP",
+  "Vorlage: Eigene IP freigeben": "Preset: Allow Own IP",
+  "🚫 IP blockieren (Sperre)": "🚫 Block IP (Deny)",
+  "✅ IP erlauben (Whitelist)": "✅ Allow IP (Whitelist)",
+  "IP oder CIDR (z.B. 203.0.113.50)": "IP or CIDR (e.g. 203.0.113.50)",
+  "Port (leer = Alle Ports)": "Port (empty = All Ports)",
+  "Notiz (z.B. Büro-VPN)": "Note (e.g. Office VPN)",
+  "+ IP-Regel speichern": "+ Save IP Rule",
+  "Noch keine benutzerdefinierten IP-Sperren oder Whitelists eingetragen.":
+    "No custom IP blocks or whitelists configured yet.",
+  "🚫 BLOCKIERT": "🚫 BLOCKED",
+  "✅ ERLAUBT": "✅ ALLOWED",
+  "→ Alle Ports": "→ All Ports",
+  "IP-Regel entfernen": "Remove IP Rule",
+  "Sicherheits-Regeln & KI-Richtlinien (Rule Cartridges)":
+    "Security Rules & AI Policies (Rule Cartridges)",
+  "Steuere in verständlicher Sprache, welche Sicherheits- und Architektur-Leitplanken der KI-Agent auf deinen Servern strikt einhalten muss. Klicke auf eine Karte, um das Regelwerk aufzuklappen.":
+    "Control in plain language which security and architecture guardrails the AI agent must strictly enforce on your servers. Click any card to expand its policy specification.",
+  "Neue Regel-Cartridge erstellen": "Create New Rule Cartridge",
+  "Vollständiges Regelwerk (.md)": "Full Policy Specification (.md)",
+  "Services & Reverse-Proxy Workbench": "Services & Reverse Proxy Workbench",
+  "Teste Web-Oberflächen, HTTP-Endpunkte und SQLite-Datenbanken deiner Server direkt im Browser über den verschlüsselten Synapse-Tunnel – auch wenn deren Ports in der Firewall nach außen gesperrt sind.":
+    "Test web interfaces, HTTP endpoints, and SQLite databases on your servers directly in the browser over the encrypted Synapse tunnel — even when their ports are blocked externally by the firewall.",
+  "Erneut prüfen": "Re-check",
+  "Alle Dienste prüfen": "Check All Services",
+  "Vollbild beenden": "Exit Fullscreen",
+  "Vollbild": "Fullscreen",
+  "Brain Vault (Architektur- & System-Gedächtnis)":
+    "Brain Vault (Architecture & System Memory)",
+  "Das persistente Langzeit-Gedächtnis deines Projekts. Der KI-Orchestrator liest und aktualisiert Architecture.md (Topologie, Ports, Dienste) und Memory.md (Runbooks, gelöste Fehler) vollautomatisch.":
+    "The persistent long-term memory of your project. The AI orchestrator automatically reads and updates Architecture.md (topology, ports, services) and Memory.md (runbooks, resolved issues).",
+  "Architecture.md (System-Topologie)": "Architecture.md (System Topology)",
+  "Memory.md (KI-Erfahrungsschatz)": "Memory.md (AI Engineering Journal)",
+  "Vorschau": "Preview",
+  "Markdown bearbeiten": "Edit Markdown",
+  "Remote-Dateien & Code-Editor": "Remote Files & Code Editor",
+  "Durchsuche und bearbeite Dateien direkt im isolierten Server-Workspace (/opt/axon/workspaces) oder wende Unified-Diff-Patches mit automatischem Backup-Schutz an.":
+    "Browse and edit files directly inside the isolated server workspace (/opt/axon/workspaces) or apply unified diff patches with automatic backup protection.",
+  "Audit-Log & Sicherheits-Ereignisse": "Audit Log & Security Events",
+  "Lückenlose Chronik aller KI-Aktionen, Benutzer-Befehle und blockierten Sicherheits-Richtlinien. Klicke auf eine Zeile, um die vollständigen Parameter und Ausgaben aufzuklappen.":
+    "Complete chronological trail of all AI actions, user commands, and policy interceptions. Click any row to expand full parameters and outputs.",
+  "Audit-Events nach Tool, Server oder Zusammenfassung durchsuchen (Klick auf Zeile erweitert Details)...":
+    "Search audit events by tool, server, or summary (click row to expand details)...",
+  "System-Einstellungen, Tresor & KI-Konfiguration":
+    "System Settings, Vault & AI Configuration",
+  "Debug Aktiv": "Debug Active",
+  "Produktiv": "Production",
+  "Verwalte 1-Klick Over-the-Air System-Updates, Server-Koppelungsschlüssel, den AES-256-GCM Geheimnis-Tresor, KI-Modelle sowie den integrierten System-Selbsttest.":
+    "Manage 1-click over-the-air system updates, server enrollment keys, the AES-256-GCM secrets vault, AI models, and the built-in system self-test.",
+  "System-Update (OTA)": "System Update (OTA)",
+  "Server-Onboarding": "Server Onboarding",
+  "Geheimnis-Tresor": "Secrets Vault",
+  "KI-Anbieter": "AI Providers",
+  "MCP-API": "MCP API",
+  "Debug & Selbsttest": "Debug & Self-Test",
+  "Sprache": "Language",
+  "UI-Sprache & Internationalisierung (i18n)":
+    "UI Language & Internationalization (i18n)",
+  "Wähle die Anzeigesprache für das gesamte Synapse Control Center. Weitere Sprachen können jederzeit über das zentrale Sprach-Register ergänzt werden.":
+    "Choose the display language for the entire Synapse Control Center. Additional languages can be registered anytime via the central locale registry.",
+  "Tipp: Du kannst die Sprache auch jederzeit über den Schnellschalter oben rechts in der Kopfzeile zwischen":
+    "Tip: You can also switch the language anytime using the quick toggle in the top-right header bar between",
+  "umschalten.": ".",
+  "Interaktiver Schritt-für-Schritt Assistent":
+    "Interactive Step-by-Step Assistant",
+  "Geführter Einrichtungs-Dialog": "Guided Setup Dialog",
+  "Eigenen Wunsch eingeben": "Enter custom answer",
+  "Überspringen & Direkt umsetzen": "Skip & Execute Directly",
+  "Eigene Antwort oder Details eingeben...":
+    "Enter custom answer or details...",
+  "Weiter": "Continue",
+  "Was bedeutet das konkret?": "What does this mean in practice?",
+  "Ergebnisse kopieren": "Copy Results",
+  "Abschnitt kopieren": "Copy Section",
 };
 
 /**
@@ -882,6 +1040,62 @@ const EN_PATTERNS: PatternRule[] = [
     match: /^Auf Port :(\d+)\.\.\.$/,
     replace: "On Port :$1...",
   },
+  {
+    match: /^FW · (\d+) gesperrt$/,
+    replace: "FW · $1 shielded",
+  },
+  {
+    match: /^2\. Live Port-Radar \((\d+) aktive Ports auf (.+)\)$/,
+    replace: "2. Live Port Radar ($1 active ports on $2)",
+  },
+  {
+    match: /^🔴 (\d+) Öffentlich offen$/,
+    replace: "🔴 $1 Publicly open",
+  },
+  {
+    match: /^🛡️ (\d+) Durch Firewall geschützt$/,
+    replace: "🛡️ $1 Shielded by Firewall",
+  },
+  {
+    match: /^🟢 (\d+) Nur lokal \(127\.0\.0\.1\)$/,
+    replace: "🟢 $1 Local only (127.0.0.1)",
+  },
+  {
+    match: /^Prozess: (.+)$/,
+    replace: "Process: $1",
+  },
+  {
+    match: /^3\. IP-Blocker & Whitelist \((\d+) Regeln\)$/,
+    replace: "3. IP Blocker & Whitelist ($1 Rules)",
+  },
+  {
+    match: /^(\d+) von (\d+) aktiv$/,
+    replace: "$1 of $2 active",
+  },
+  {
+    match: /^(\d+) Dienste aktiv$/,
+    replace: "$1 Services active",
+  },
+  {
+    match: /^(\d+) von (\d+) Einträgen$/,
+    replace: "$1 of $2 entries",
+  },
+  {
+    match: /^Optionaler Fokus für (.+)\.\.\.$/,
+    replace: "Optional focus for $1...",
+  },
+  {
+    match: /^IP-Regel für (.+) wurde entfernt\.$/,
+    replace: "IP rule for $1 removed.",
+  },
+  {
+    match: /^IP (.+) wurde erfolgreich blockiert\.$/,
+    replace: "IP $1 blocked successfully.",
+  },
+  {
+    match: /^IP (.+) wurde erfolgreich freigegeben\.$/,
+    replace: "IP $1 whitelisted successfully.",
+  },
 ];
 
 const DE_PATTERNS: PatternRule[] = [
@@ -898,6 +1112,47 @@ const DE_PATTERNS: PatternRule[] = [
   { match: /^(\d+) lines$/, replace: "$1 Zeilen" },
   { match: /^All (\d+) lines$/, replace: "Alle $1 Zeilen" },
   { match: /^(\d+) Rules active$/, replace: "$1 Regeln aktiv" },
+  { match: /^FW · (\d+) shielded$/, replace: "FW · $1 gesperrt" },
+  {
+    match: /^2\. Live Port Radar \((\d+) active ports on (.+)\)$/,
+    replace: "2. Live Port-Radar ($1 aktive Ports auf $2)",
+  },
+  {
+    match: /^🔴 (\d+) Publicly open$/,
+    replace: "🔴 $1 Öffentlich offen",
+  },
+  {
+    match: /^🛡️ (\d+) Shielded by Firewall$/,
+    replace: "🛡️ $1 Durch Firewall geschützt",
+  },
+  {
+    match: /^🟢 (\d+) Local only \(127\.0\.0\.1\)$/,
+    replace: "🟢 $1 Nur lokal (127.0.0.1)",
+  },
+  {
+    match: /^Process: (.+)$/,
+    replace: "Prozess: $1",
+  },
+  {
+    match: /^3\. IP Blocker & Whitelist \((\d+) Rules\)$/,
+    replace: "3. IP-Blocker & Whitelist ($1 Regeln)",
+  },
+  {
+    match: /^(\d+) of (\d+) active$/,
+    replace: "$1 von $2 aktiv",
+  },
+  {
+    match: /^(\d+) Services active$/,
+    replace: "$1 Dienste aktiv",
+  },
+  {
+    match: /^(\d+) of (\d+) entries$/,
+    replace: "$1 von $2 Einträgen",
+  },
+  {
+    match: /^Optional focus for (.+)\.\.\.$/,
+    replace: "Optionaler Fokus für $1...",
+  },
   {
     match: /^Encrypted Vault \((\d+)\)$/,
     replace: "Verschlüsselter Tresor ($1)",
@@ -939,6 +1194,13 @@ const DE_PATTERNS: PatternRule[] = [
     replace: "$1 aktive Topologie-Verknüpfung(en)",
   },
 ];
+
+// Ensure DE_DICTIONARY also contains all reverse mappings (EN -> DE) from EN_DICTIONARY
+for (const [deKey, enVal] of Object.entries(EN_DICTIONARY)) {
+  if (enVal && !DE_DICTIONARY[enVal]) {
+    DE_DICTIONARY[enVal] = deKey;
+  }
+}
 
 /**
  * Central extensible registry of supported UI languages.

@@ -2037,6 +2037,7 @@ CRITICAL ARCHITECTURAL LAWS:
    - Whenever you solve a non-trivial bug or server quirk, record the lesson in \`Memory.md\`.
 4. SELF-PRESERVATION: Never stop \`axon\` / \`muscle-agent\`, never flush firewall rules without preserving the outbound connection to the Core Hub, and never expose raw database ports to \`0.0.0.0\` without firewall restrictions.
 5. MULTIMODAL VISION & CONTEXT MENTIONS: When the user attaches screenshots, architecture diagrams, or error photos, inspect the visual details carefully and translate them directly into concrete file changes, service configurations, or fixes on the target node.
+6. LANGUAGE MATCHING RULE (CRITICAL): Always respond in the exact natural language used by the user in their latest message. If the user writes to you in English, you MUST write your entire response, explanations, section headings, and tables in English. If the user writes to you in German, you MUST write your entire response, explanations, section headings, and tables in German.
 
 <!-- ===================================================================== -->
 <!-- LAYER 3: PLUGGABLE RULE CARTRIDGES (USER-SELECTED IN PROJECT UI)      -->

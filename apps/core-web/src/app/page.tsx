@@ -1169,11 +1169,35 @@ export default function SynapseNetBirdControlCenter() {
     setSkillMenuOpen(false);
     setMentionMenuOpen(false);
 
+    const detectInputLang = (sample: string): "de" | "en" => {
+      const trimmed = (sample || "").trim();
+      if (!trimmed) return locale === "en" ? "en" : "de";
+      const deWords =
+        (trimmed.match(
+          /\b(wie|was|warum|wo|wann|bitte|zeig|zeige|prüf|prüfe|teste|finde|suche|erkläre|erstelle|baue|behebe|aktualisiere|ist|sind|nicht|und|oder|für|mit|auf|dem|den|der|die|das|ein|eine|meine|deine|alle|servern|dienste|dateien)\b/gi
+        ) || []).length + (/[äöüß]/i.test(trimmed) ? 2 : 0);
+      const enWords = (
+        trimmed.match(
+          /\b(what|how|why|where|when|who|can|could|would|should|please|show|check|test|find|search|list|explain|tell|give|help|create|deploy|build|fix|update|is|are|do|does|the|with|from|for|and|all|my|your|our|servers|services|ports|files)\b/gi
+        ) || []
+      ).length;
+      if (enWords > deWords) return "en";
+      if (deWords > enWords) return "de";
+      return locale === "en" ? "en" : "de";
+    };
+    const promptLang = detectInputLang(text);
+    const langInstruction =
+      promptLang === "en"
+        ? "IMPORTANT LANGUAGE RULE: Respond thoroughly and accurately in ENGLISH."
+        : "WICHTIGE SPRACHREGEL: Antworte ausführlich und präzise auf DEUTSCH.";
+
     if (activeSkill === "SkillSearch") {
       const node = primaryNode || "vps2-muscle";
       const searchQuery =
         text ||
-        "Gib mir eine vollständige Übersicht über alle Funktionen in der UI sowie alle Dateien, Datenbanken, Ports und Dienste auf dem Server.";
+        (promptLang === "en"
+          ? "Give me a complete overview of all UI features as well as all files, databases, ports, and services on the server."
+          : "Gib mir eine vollständige Übersicht über alle Funktionen in der UI sowie alle Dateien, Datenbanken, Ports und Dienste auf dem Server.");
       const aiSearchPrompt = [
         `Du führst jetzt den erweiterten DevOps-Such-Skill **SkillSearch** (Vollständige System-, Code-, Log-, Datenbank- & UI-Tiefensuche) für das Projekt \`${activeProject.project_id}\` auf \`@${node}\` aus.`,
         `SUCHANFRAGE DES NUTZERS: "${searchQuery}"`,
@@ -1194,7 +1218,7 @@ export default function SynapseNetBirdControlCenter() {
         `   - **Linke Sidebar -> Einstellungen:** KI-Provider/Modell & API-Key, Prompt-Caching & Auto-Watchdog, externe **MCP-Server API-Keys** sowie Debug-Selbsttest.`,
         `   - **Untere Leiste -> Live Peer PTY Shell:** Ausklappbares Echtzeit-Linux-Terminal direkt auf dem Muscle-Server.`,
         ``,
-        `Antworte ausführlich und präzise auf Deutsch mit exakten Fundstellen (UI-Pfad, Dateipfad, Zeilennummer, Port, Prozess oder DB-Tabelle).`,
+        langInstruction,
       ].join("\n");
 
       const displayMsg = `🧭 **[Skill: SkillSearch]** ${searchQuery}`;
@@ -1231,16 +1255,19 @@ export default function SynapseNetBirdControlCenter() {
         `   - Rufe \`node_deep_search\` mit \`search_mode: "log_scan"\` auf, um sämtliche \`*.log\`-Dateien in \`/opt/axon/workspaces\`, \`/tmp\`, \`journalctl\` und Docker-Logs nach Fehlern, Warnungen, Tracebacks oder abgestürzten Prozessen zu durchsuchen.`,
         `5. **Phase 5 — Brain-Vault-Abgleich & Drift-Erkennung:**`,
         `   - Rufe \`core_vault_search\` (\`scope: "all"\`) auf und prüfe, ob die registrierten Services (${svcsList}) sowie \`Architecture.md\` und \`Memory.md\` zu 100 % mit den tatsächlich auf \`@${node}\` laufenden Ports und Dateien übereinstimmen oder ob es Abweichungen (Drift) gibt.`,
-        `6. **Phase 6 — Großer Senior-DevOps-Abschlussbericht (auf Deutsch):**`,
+        `6. **Phase 6 — Großer Senior-DevOps-Abschlussbericht:**`,
         `   - Erstelle eine übersichtliche Status-Tabelle aller geprüften Subsysteme (Host, Muscle-Agent, jeder einzelne Backend-/WebUI-Service, Datenbanken, Logs, Brain-Sync).`,
         `   - Belege jeden Befund mit echten Daten aus deiner Untersuchung (PIDs, Ports, Dateipfade, Zeilen, DB-Tabellen, Antwortzeiten).`,
         `   - Gib konkrete, priorisierte **Verbesserungsempfehlungen** (Architektur, Stabilität, Auto-Restart/Systemd, Logging, Performance).`,
+        langInstruction,
       ]
         .filter(Boolean)
         .join("\n");
 
       const displayMsg = text
         ? `🔍 **[Skill: CheckSystem]** ${text}`
+        : promptLang === "en"
+        ? `🔍 **[Skill: CheckSystem]** Multi-phase Senior DevOps deep scan (Host, Ports, Code, SQLite DBs, Logs & Brain Sync) on \`@${node}\``
         : `🔍 **[Skill: CheckSystem]** Mehrstufiger Senior-DevOps-Tiefenscan (Host, Ports, Code, SQLite-DBs, Logs & Brain-Sync) auf \`@${node}\``;
 
       setSystemScanBusy(true);
@@ -1274,15 +1301,18 @@ export default function SynapseNetBirdControlCenter() {
         `   - Prüfe, unter welchem Linux-User (\`root\` vs. unprivilegierter User) die Python-/App-Prozesse und Container laufen und welche Oktal-Rechte (\`0600\` vs. \`0644\`/\`0777\`) die SQLite-Datenbanken und Skripte besitzen.`,
         `4. **Phase 4 — Synapse Governance & Zero-Trust Policy Audit (\`core_vault_search\`):**`,
         `   - Prüfe über \`core_vault_search\` (\`scope: "all"\`) das aktive Autonomy-Tier (\`${currentTier}\`), die aktiven Sicherheits-Cartridges (\`${activeCarts}\`), die gespeicherten Secret-Keys in \`Secrets.enc\` und das Audit-Log.`,
-        `5. **Phase 5 — Umfassender DevSecOps-Bericht (auf Deutsch):**`,
+        `5. **Phase 5 — Umfassender DevSecOps-Bericht:**`,
         `   - Gliedere alle Befunde nach Schweregrad (**KRITISCH / HOCH / MITTEL / NIEDRIG / OK**) mit exakten technischen Nachweisen (Port, Datei, Zeilennummer, Konfigurationswert).`,
         `   - Vergib einen fundierten **OpSec-Score (0–100)** und liefere sofort ausführbare Härtungsmaßnahmen.`,
+        langInstruction,
       ]
         .filter(Boolean)
         .join("\n");
 
       const displayMsg = text
         ? `🛡️ **[Skill: CheckOpsec]** ${text}`
+        : promptLang === "en"
+        ? `🛡️ **[Skill: CheckOpsec]** Multi-phase DevSecOps & Cybersecurity deep audit (Network, SSH, Firewall, Code Vulnerabilities, Secrets & Headers) on \`@${node}\``
         : `🛡️ **[Skill: CheckOpsec]** Mehrstufiger DevSecOps- & Cybersecurity-Tiefenaudit (Netzwerk, SSH, Firewall, Code-Schwachstellen, Secrets & Header) auf \`@${node}\``;
 
       setOpsecScanBusy(true);
@@ -1298,7 +1328,9 @@ export default function SynapseNetBirdControlCenter() {
       const node = primaryNode || "vps2-muscle";
       const focusTopic =
         text ||
-        "Untersuche alle Logs, Prozesse, Datenbanken und Quellcode-Dateien auf versteckte Fehler, Warnungen, Performance-Engpässe oder Inkonsistenzen.";
+        (promptLang === "en"
+          ? "Inspect all logs, processes, databases, and source files for hidden errors, warnings, performance bottlenecks, or inconsistencies."
+          : "Untersuche alle Logs, Prozesse, Datenbanken und Quellcode-Dateien auf versteckte Fehler, Warnungen, Performance-Engpässe oder Inkonsistenzen.");
       const aiForensicsPrompt = [
         `Du führst jetzt den Skill **DeepForensics** (Tiefgreifende DevOps-Fehler-, Log-, Code- & Datenbank-Forensik) für \`${activeProject.project_id}\` auf \`@${node}\` aus.`,
         `FORENSIK-AUFTRAG / FOKUS: "${focusTopic}"`,
@@ -1307,7 +1339,8 @@ export default function SynapseNetBirdControlCenter() {
         `1. **Log- & Crash-Analyse:** Starte \`node_deep_search\` mit \`search_mode: "log_scan"\` auf \`@${node}\`, um alle Applikations-Logs, \`/tmp/*.log\`, \`journalctl\` und Container-Logs auszuwerten.`,
         `2. **Prozess-, Port- & Ressourcen-Analyse:** Starte \`node_deep_search\` mit \`search_mode: "process_and_port_map"\`, um hängende Prozesse, Speicherverbrauch, Antwortzeiten und HTTP-Statuscodes aller Dienste zu prüfen.`,
         `3. **Code- & Datenbank-Tiefenprüfung:** Nutze \`node_deep_search\` mit \`search_mode: "content_grep"\` und \`"sqlite_inspect"\` sowie \`node_fs_operation\` (\`read_file\`), um den relevanten Quellcode und die Datenbank-Tabellen Zeile für Zeile auf Ursachen (Root Cause) zu untersuchen.`,
-        `4. **Forensischer Diagnosebericht (auf Deutsch):** Präsentiere die genaue Ursache (Root Cause), alle gefundenen Belege (Logs, Codezeilen, DB-Status) und die exakte technische Lösung.`,
+        `4. **Forensischer Diagnosebericht:** Präsentiere die genaue Ursache (Root Cause), alle gefundenen Belege (Logs, Codezeilen, DB-Status) und die exakte technische Lösung.`,
+        langInstruction,
       ].join("\n");
 
       const displayMsg = `🔬 **[Skill: DeepForensics]** ${focusTopic}`;
@@ -6181,12 +6214,31 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                           icon: <Sparkles className="h-3 w-3 text-netbird" />,
                         };
 
-                  const displayContent = rawContent.replace(
-                    /^Executed `?([a-z0-9_]+)`? through the Synapse Core Interceptor \(`?([^)`]+)`?\)\.$/i,
-                    locale === "de"
-                      ? "✔ Tool `$1` erfolgreich über den Synapse Core Interceptor ausgeführt (`$2`)."
-                      : "✔ Tool `$1` executed via Synapse Core Interceptor (`$2`)."
-                  );
+                  const isWelcomeCard =
+                    rawContent.startsWith("Welcome to **Synapse Control Center**") ||
+                    rawContent.startsWith("Willkommen im **Synapse Control Center**") ||
+                    rawContent.startsWith("Willkommen im Synapse AI Copilot") ||
+                    rawContent.startsWith("Welcome to the Synapse AI Copilot");
+                  const isResetCard =
+                    rawContent.startsWith("Conversation context compacted") ||
+                    rawContent.startsWith("Konversations-Kontext bereinigt") ||
+                    rawContent === "Conversation history cleared." ||
+                    rawContent === "Konversationsverlauf geleert.";
+
+                  const displayContent = isWelcomeCard
+                    ? locale === "de"
+                      ? "Willkommen im **Synapse Control Center**. Deine interaktive Overlay-Topologie, Muscle-Server, `Rule Cartridges` und der `Brain Vault` sind auf der Hauptfläche abgebildet.\n\nNutze das **Control Center**, um Knoten frei anzuordnen, Sicherheits-Richtlinien zu steuern oder über `+ Server` einen neuen Linux-Host mit einem Befehl anzubinden."
+                      : "Welcome to **Synapse Control Center**. Your interactive overlay topology, Muscle Peers, `Rule Cartridges`, and `Brain Vault` are mapped on the main canvas.\n\nUse the **Control Center** to drag nodes, toggle policies, or click `+ Server` to enroll a new Linux server with one command."
+                    : isResetCard
+                    ? locale === "de"
+                      ? "Konversations-Kontext bereinigt. Bereit für neue Anweisungen (Prompt-Cache & Vision aktiv)."
+                      : "Conversation context compacted and cleared. Ready for new instructions (Prompt Cache & Vision active)."
+                    : rawContent.replace(
+                        /^Executed `?([a-z0-9_]+)`? through the Synapse Core Interceptor \(`?([^)`]+)`?\)\.$/i,
+                        locale === "de"
+                          ? "✔ Tool `$1` erfolgreich über den Synapse Core Interceptor ausgeführt (`$2`)."
+                          : "✔ Tool `$1` executed via Synapse Core Interceptor (`$2`)."
+                      );
 
                   return (
                     <div
