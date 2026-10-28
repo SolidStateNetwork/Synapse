@@ -173,6 +173,7 @@ export default function SynapseNetBirdControlCenter() {
   }, []);
   const [systemUpdateBusy, setSystemUpdateBusy] = useState(false);
   const [systemUpdateActionLabel, setSystemUpdateActionLabel] = useState("");
+  const [showReleaseNotes, setShowReleaseNotes] = useState(false);
   const [systemUpdateStatus, setSystemUpdateStatus] = useState<{
     checked_at: string;
     git: {
@@ -4731,9 +4732,29 @@ export default function SynapseNetBirdControlCenter() {
                                   Core Plane (WebUI, Orchestrator &amp; Gateway)
                                 </span>
                               </div>
-                              <span className="rounded border border-netbird-500/40 bg-netbird-950/60 px-2 py-0.5 font-mono text-[10px] text-netbird">
-                                Branch: {systemUpdateStatus.git.branch}
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setShowReleaseNotes((prev) => !prev)
+                                  }
+                                  className="inline-flex items-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-930 px-2 py-0.5 font-mono text-[10px] text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
+                                >
+                                  <span>
+                                    {showReleaseNotes
+                                      ? "Release einklappen"
+                                      : "Release ausklappen"}
+                                  </span>
+                                  {showReleaseNotes ? (
+                                    <ChevronUp className="h-3 w-3" />
+                                  ) : (
+                                    <ChevronDown className="h-3 w-3" />
+                                  )}
+                                </button>
+                                <span className="rounded border border-netbird-500/40 bg-netbird-950/60 px-2 py-0.5 font-mono text-[10px] text-netbird">
+                                  Branch: {systemUpdateStatus.git.branch}
+                                </span>
+                              </div>
                             </div>
 
                             <div className="space-y-2 text-xs">
@@ -4748,10 +4769,12 @@ export default function SynapseNetBirdControlCenter() {
                                   </span>
                                 </span>
                               </div>
-                              <div className="text-[11px] text-nb-gray-300 truncate font-mono bg-nb-gray-930/80 rounded px-2.5 py-1.5 border border-nb-gray-900">
-                                {systemUpdateStatus.git.local_subject}
-                              </div>
-                              <div className="flex items-center justify-between pt-1">
+                              {showReleaseNotes && (
+                                <div className="text-[11px] text-nb-gray-300 font-mono bg-nb-gray-930/80 rounded px-2.5 py-1.5 border border-nb-gray-900 leading-relaxed">
+                                  {systemUpdateStatus.git.local_subject}
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between">
                                 <span className="text-nb-gray-400">
                                   Remote (origin/main):
                                 </span>
@@ -4780,83 +4803,135 @@ export default function SynapseNetBirdControlCenter() {
                             </div>
                           </div>
 
-                          {/* Right Card: Muscle Plane Nodes */}
+                          {/* Right Card: Muscle Plane Nodes (Identical Info Structure as Core Plane) */}
                           <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950/90 p-4 space-y-3">
-                            <div className="flex items-center justify-between border-b border-nb-gray-900 pb-2.5">
-                              <div className="flex items-center gap-2">
-                                <Server className="h-4 w-4 text-purple-400" />
-                                <span className="text-xs font-semibold text-white">
-                                  Verbundene Muscle-Knoten (
-                                  {systemUpdateStatus.nodes.length})
-                                </span>
-                              </div>
-                              <span className="font-mono text-[10px] text-nb-gray-400">
-                                /usr/local/bin/axon
-                              </span>
-                            </div>
-
-                            <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
-                              {systemUpdateStatus.nodes.map((node) => (
-                                <div
-                                  key={node.node_id}
-                                  className="flex items-center justify-between gap-2 rounded-lg border border-nb-gray-900 bg-nb-gray-930/70 p-2.5 text-xs"
-                                >
-                                  <div className="space-y-0.5 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <span
-                                        className={`h-2 w-2 rounded-full ${
-                                          node.online
-                                            ? "bg-emerald-400"
-                                            : "bg-red-400"
-                                        }`}
-                                      />
-                                      <span className="font-mono font-semibold text-white">
-                                        {node.node_id}
+                            {systemUpdateStatus.nodes.length === 0 ? (
+                              <>
+                                <div className="flex items-center justify-between border-b border-nb-gray-900 pb-2.5">
+                                  <div className="flex items-center gap-2">
+                                    <Server className="h-4 w-4 text-purple-400" />
+                                    <span className="text-xs font-semibold text-white">
+                                      Verbundene Muscle-Knoten (0)
+                                    </span>
+                                  </div>
+                                  <span className="font-mono text-[10px] text-nb-gray-400">
+                                    /usr/local/bin/axon
+                                  </span>
+                                </div>
+                                <div className="py-4 text-center text-xs text-nb-gray-400">
+                                  Kein Muscle-Knoten verbunden.
+                                </div>
+                              </>
+                            ) : (
+                              systemUpdateStatus.nodes.map((node) => (
+                                <div key={node.node_id} className="space-y-3">
+                                  <div className="flex items-center justify-between border-b border-nb-gray-900 pb-2.5">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <Server className="h-4 w-4 text-purple-400 shrink-0" />
+                                      <span className="text-xs font-semibold text-white truncate">
+                                        Muscle Plane ({node.node_id})
                                       </span>
-                                      <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.2 font-mono text-[9px] text-nb-gray-300">
+                                      <span className="rounded border border-nb-gray-800 bg-nb-gray-930 px-1.5 py-0.2 font-mono text-[9px] text-nb-gray-300">
                                         {node.systemd_status || "active"}
                                       </span>
-                                      {node.up_to_date && (
-                                        <span className="rounded border border-emerald-500/40 bg-emerald-950/60 px-1.5 py-0.2 font-mono text-[9px] text-emerald-300">
-                                          Aktuell
-                                        </span>
-                                      )}
                                     </div>
-                                    <div className="font-mono text-[10px] text-nb-gray-400 leading-relaxed">
-                                      <div>
-                                        Commit:{" "}
-                                        <span className="text-nb-gray-200">
-                                          {node.source_commit || "n/a"}
-                                        </span>{" "}
-                                        · SHA:{" "}
-                                        <span className="text-nb-gray-200">
-                                          {(node.installed_sha256 || "n/a").slice(0, 12)}
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setShowReleaseNotes((prev) => !prev)
+                                        }
+                                        className="inline-flex items-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-930 px-2 py-0.5 font-mono text-[10px] text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
+                                      >
+                                        <span>
+                                          {showReleaseNotes
+                                            ? "Release einklappen"
+                                            : "Release ausklappen"}
                                         </span>
-                                      </div>
-                                      {node.installed_mtime && (
-                                        <div className="text-[9.5px] text-nb-gray-400">
-                                          Build: {node.installed_mtime}
-                                        </div>
-                                      )}
+                                        {showReleaseNotes ? (
+                                          <ChevronUp className="h-3 w-3" />
+                                        ) : (
+                                          <ChevronDown className="h-3 w-3" />
+                                        )}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          systemUpdateBusy || !node.online
+                                        }
+                                        onClick={() =>
+                                          handleRunSystemUpdate(
+                                            "update_muscle",
+                                            node.node_id
+                                          )
+                                        }
+                                        className="rounded border border-purple-500/40 bg-purple-950/60 px-2 py-0.5 font-mono text-[10px] text-purple-200 hover:bg-purple-900/60 disabled:opacity-40 transition"
+                                      >
+                                        OTA Update
+                                      </button>
                                     </div>
                                   </div>
 
-                                  <button
-                                    type="button"
-                                    disabled={systemUpdateBusy || !node.online}
-                                    onClick={() =>
-                                      handleRunSystemUpdate(
-                                        "update_muscle",
-                                        node.node_id
-                                      )
-                                    }
-                                    className="shrink-0 rounded-md border border-purple-500/40 bg-purple-950/50 px-2.5 py-1 text-[11px] font-medium text-purple-200 hover:bg-purple-900/60 disabled:opacity-40 transition"
-                                  >
-                                    ⬆️ OTA Update
-                                  </button>
+                                  <div className="space-y-2 text-xs">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-nb-gray-400">
+                                        Installierter Commit:
+                                      </span>
+                                      <span className="font-mono font-semibold text-emerald-300">
+                                        {node.source_commit ||
+                                          systemUpdateStatus.git.local_short}{" "}
+                                        <span className="text-[10px] font-normal text-nb-gray-400">
+                                          (
+                                          {(
+                                            node.installed_mtime ||
+                                            systemUpdateStatus.git.local_date
+                                          ).slice(0, 16)}
+                                          )
+                                        </span>
+                                      </span>
+                                    </div>
+                                    {showReleaseNotes && (
+                                      <div className="text-[11px] text-nb-gray-300 font-mono bg-nb-gray-930/80 rounded px-2.5 py-1.5 border border-nb-gray-900 leading-relaxed">
+                                        {systemUpdateStatus.git.local_subject}
+                                      </div>
+                                    )}
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-nb-gray-400">
+                                        Remote (origin/main):
+                                      </span>
+                                      <span className="font-mono text-nb-gray-200">
+                                        {systemUpdateStatus.git.remote_short}
+                                        {node.up_to_date
+                                          ? " (Synchron)"
+                                          : " (OTA verfügbar)"}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-nb-gray-400">
+                                        Axon Muscle Binary:
+                                      </span>
+                                      <span className="font-mono text-[11px] text-nb-gray-200">
+                                        SHA-256{" "}
+                                        {(
+                                          node.installed_sha256 ||
+                                          systemUpdateStatus.binaries
+                                            .axon_linux_amd64.sha256 ||
+                                          "aktiv"
+                                        ).slice(0, 16)}
+                                        {systemUpdateStatus.binaries
+                                          .axon_linux_amd64.exists
+                                          ? ` (${(
+                                              systemUpdateStatus.binaries
+                                                .axon_linux_amd64.size_bytes /
+                                              (1024 * 1024)
+                                            ).toFixed(1)} MB)`
+                                          : ""}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
-                              ))}
-                            </div>
+                              ))
+                            )}
                           </div>
                         </div>
                       )}
