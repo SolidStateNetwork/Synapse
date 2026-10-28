@@ -552,6 +552,11 @@ export default function SynapseNetBirdControlCenter() {
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [selectedEndpointId, setSelectedEndpointId] = useState<string>("");
   const [copilotWide, setCopilotWide] = useState<boolean>(false);
+  const [copilotWidth, setCopilotWidth] = useState<number>(420);
+  const [terminalHeight, setTerminalHeight] = useState<number>(250);
+  const [workspaceSidebarWidth, setWorkspaceSidebarWidth] = useState<number>(260);
+  const [expandedPeerRows, setExpandedPeerRows] = useState<Record<string, boolean>>({});
+  const [expandedAuditRows, setExpandedAuditRows] = useState<Record<number, boolean>>({});
   const [systemScanBusy, setSystemScanBusy] = useState<boolean>(false);
   const [opsecScanBusy, setOpsecScanBusy] = useState<boolean>(false);
   const [serviceCategoryFilter, setServiceCategoryFilter] = useState<
@@ -2805,83 +2810,74 @@ export default function SynapseNetBirdControlCenter() {
                 VIEW 2: NETBIRD PEERS & CLUSTER VIEW (`peers`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "peers" && (
-              <div className="mx-auto max-w-6xl p-6 space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h1 className="text-xl font-medium text-nb-gray-100">
-                      Peers, Cluster-Mesh &amp; Stack-Blueprints
-                    </h1>
-                    <p className="text-xs text-nb-gray-400 mt-0.5">
-                      Übersichtlich sortiert nach verbundenen Muscle-Servern,
-                      Peer-to-Peer Mesh-Tunnels, 1-Click Stacks und Cron-Jobs.
-                    </p>
+              <div className="mx-auto max-w-6xl p-6 space-y-4">
+                {/* Clean 4-Tab Sub-Navigation + Action Button (No redundant H1 header) */}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-nb-gray-900 pb-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[
+                      {
+                        id: "nodes",
+                        label: "Server",
+                        icon: Server,
+                      },
+                      {
+                        id: "mesh",
+                        label: "P2P Mesh-Links",
+                        icon: Network,
+                      },
+                      {
+                        id: "blueprints",
+                        label: "Stack-Blueprints",
+                        icon: Sparkles,
+                      },
+                      {
+                        id: "playbooks",
+                        label: "Cron-Playbooks",
+                        icon: Activity,
+                      },
+                    ].map((tab) => {
+                      const Icon = tab.icon;
+                      const active = peersSubTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() =>
+                            setPeersSubTab(
+                              tab.id as
+                                | "nodes"
+                                | "mesh"
+                                | "blueprints"
+                                | "playbooks"
+                            )
+                          }
+                          className={`flex items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-medium transition ${
+                            active
+                              ? "border-netbird bg-nb-gray-900 text-white"
+                              : "border-nb-gray-800/80 bg-nb-gray-940 text-nb-gray-400 hover:text-white"
+                          }`}
+                        >
+                          <Icon
+                            className={`h-3.5 w-3.5 ${
+                              active ? "text-netbird" : ""
+                            }`}
+                          />
+                          <span>{tab.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
+
                   <button
                     onClick={() => {
                       setAddPeerModalOpen(true);
                       if (!issuedToken) handleGenerateJoinToken();
                     }}
-                    className="flex items-center gap-2 rounded-md bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+                    className="flex items-center gap-1.5 rounded-lg bg-netbird px-3.5 py-2 text-xs font-medium text-white hover:bg-netbird-500 transition"
                   >
-                    <Plus className="h-4 w-4" />
-                    <span>+ Server hinzufügen</span>
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Server hinzufügen</span>
                   </button>
-                </div>
-
-                {/* Clean 4-Tab Sub-Navigation for Peers & Cluster */}
-                <div className="flex flex-wrap items-center gap-2 border-b border-nb-gray-900 pb-3">
-                  {[
-                    {
-                      id: "nodes",
-                      label: "Server",
-                      icon: Server,
-                    },
-                    {
-                      id: "mesh",
-                      label: "P2P Mesh-Links",
-                      icon: Network,
-                    },
-                    {
-                      id: "blueprints",
-                      label: "Stack-Blueprints",
-                      icon: Sparkles,
-                    },
-                    {
-                      id: "playbooks",
-                      label: "Cron-Playbooks",
-                      icon: Activity,
-                    },
-                  ].map((tab) => {
-                    const Icon = tab.icon;
-                    const active = peersSubTab === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() =>
-                          setPeersSubTab(
-                            tab.id as
-                              | "nodes"
-                              | "mesh"
-                              | "blueprints"
-                              | "playbooks"
-                          )
-                        }
-                        className={`flex items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-medium transition ${
-                          active
-                            ? "border-netbird bg-nb-gray-900 text-white"
-                            : "border-nb-gray-800/80 bg-nb-gray-940 text-nb-gray-400 hover:text-white"
-                        }`}
-                      >
-                        <Icon
-                          className={`h-3.5 w-3.5 ${
-                            active ? "text-netbird" : ""
-                          }`}
-                        />
-                        <span>{tab.label}</span>
-                      </button>
-                    );
-                  })}
                 </div>
 
                 {/* SUB-TAB 1: MUSCLE NODES TABLE */}
@@ -2920,16 +2916,16 @@ export default function SynapseNetBirdControlCenter() {
                       </div>
                     </div>
 
-                    <div className="overflow-hidden rounded-lg border border-nb-gray-900 bg-nb-gray-940">
+                    <div className="overflow-x-auto rounded-lg border border-nb-gray-900 bg-nb-gray-940">
                       <table className="w-full text-left text-xs">
                         <thead className="border-b border-nb-gray-900 bg-nb-gray-930/70 text-[11px] font-medium uppercase text-nb-gray-400">
                           <tr>
-                            <th className="py-3 px-4">Server / Status</th>
-                            <th className="py-3 px-4">Autonomy Tier</th>
-                            <th className="py-3 px-4">Adresse (IPv4)</th>
-                            <th className="py-3 px-4">OS / Arch</th>
-                            <th className="py-3 px-4">Auslastung</th>
-                            <th className="py-3 px-4 text-right">Aktionen</th>
+                            <th className="py-3 px-3">Server / Status</th>
+                            <th className="py-3 px-3">Autonomy Tier</th>
+                            <th className="py-3 px-3">Adresse (IPv4)</th>
+                            <th className="py-3 px-3">OS / Arch</th>
+                            <th className="py-3 px-3">Auslastung</th>
+                            <th className="py-3 px-3 text-right">Aktionen</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-nb-gray-900">
@@ -2939,100 +2935,281 @@ export default function SynapseNetBirdControlCenter() {
                               activeProject?.assigned_nodes.some(
                                 (a) => a.node_id === gn.node_id
                               );
+                            const rowExpanded = Boolean(
+                              expandedPeerRows[gn.node_id]
+                            );
+                            const nodeSvcs = (
+                              activeProject?.registered_services || []
+                            ).filter((s) => s.node_id === gn.node_id);
+
                             return (
-                              <tr
-                                key={gn.node_id}
-                                className="hover:bg-nb-gray-930/50 transition-colors"
-                              >
-                                <td className="py-3.5 px-4">
-                                  <div className="flex items-center gap-3">
-                                    <span
-                                      className={`h-2.5 w-2.5 rounded-full ${
-                                        gn.online
-                                          ? "bg-green-400"
-                                          : "bg-nb-gray-500"
-                                      }`}
-                                    />
-                                    <div>
-                                      <div className="font-mono font-semibold text-white">
-                                        {gn.node_id}
-                                      </div>
-                                      <div className="text-[11px] text-nb-gray-400">
-                                        {hb?.hostname || gn.remote_addr}
+                              <React.Fragment key={gn.node_id}>
+                                <tr
+                                  onClick={() =>
+                                    setExpandedPeerRows((prev) => ({
+                                      ...prev,
+                                      [gn.node_id]: !prev[gn.node_id],
+                                    }))
+                                  }
+                                  className="cursor-pointer hover:bg-nb-gray-930/50 transition-colors"
+                                >
+                                  <td className="py-3 px-3 whitespace-nowrap">
+                                    <div className="flex items-center gap-2.5">
+                                      <span
+                                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                                          gn.online
+                                            ? "bg-green-400"
+                                            : "bg-nb-gray-500"
+                                        }`}
+                                      />
+                                      <div>
+                                        <div className="flex items-center gap-1.5 font-mono font-semibold text-white">
+                                          <span>{gn.node_id}</span>
+                                          {rowExpanded ? (
+                                            <ChevronUp className="h-3.5 w-3.5 text-nb-gray-400" />
+                                          ) : (
+                                            <ChevronDown className="h-3.5 w-3.5 text-nb-gray-400" />
+                                          )}
+                                        </div>
+                                        <div className="text-[11px] text-nb-gray-400">
+                                          {hb?.hostname || gn.remote_addr}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                </td>
-                                <td className="py-3.5 px-4">
-                                  <span className="rounded-md border border-netbird-500/50 bg-netbird-950 px-2.5 py-1 font-mono text-[10px] text-netbird">
-                                    {gn.tier}
-                                  </span>
-                                </td>
-                                <td className="py-3.5 px-4 font-mono text-nb-gray-200">
-                                  {hb?.private_ipv4 || "127.0.0.1"}
-                                </td>
-                                <td className="py-3.5 px-4 font-mono text-nb-gray-300">
-                                  {hb?.os_info || hb?.os_arch || "linux/amd64"}
-                                </td>
-                                <td className="py-3.5 px-4">
-                                  {hb ? (
-                                    <div className="flex items-center gap-3 font-mono text-[11px] text-nb-gray-300">
-                                      <span>
-                                        CPU {hb.cpu_percent.toFixed(1)}%
-                                      </span>
-                                      <span>
-                                        RAM {hb.ram_percent.toFixed(1)}%
-                                      </span>
-                                      <span>
-                                        DSK {hb.disk_percent.toFixed(1)}%
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <span className="text-nb-gray-500">—</span>
-                                  )}
-                                </td>
-                                <td className="py-3.5 px-4 text-right space-x-2">
-                                  <button
-                                    type="button"
-                                    disabled={systemUpdateBusy || !gn.online}
-                                    onClick={() => {
-                                      handleRunSystemUpdate(
-                                        "update_muscle",
-                                        gn.node_id
-                                      );
-                                    }}
-                                    title="Diesen Muscle-Server Over-the-Air (OTA) aktualisieren & neu starten"
-                                    className="rounded-md border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-900/50 disabled:opacity-40"
-                                  >
-                                    {systemUpdateBusy
-                                      ? "Update..."
-                                      : "⬆️ OTA Update"}
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setSelectedNodeId(gn.node_id);
-                                      setTerminalDrawerOpen(true);
-                                    }}
-                                    className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white"
-                                  >
-                                    Terminal
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      isAssigned
-                                        ? handleUnassignNode(gn.node_id)
-                                        : handleAssignNode(gn.node_id, gn.tier)
+                                  </td>
+                                  <td className="py-3 px-3 whitespace-nowrap">
+                                    <span className="rounded-md border border-netbird-500/50 bg-netbird-950 px-2 py-0.5 font-mono text-[10px] text-netbird">
+                                      {gn.tier}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3 font-mono text-nb-gray-200 whitespace-nowrap">
+                                    {hb?.private_ipv4 || "127.0.0.1"}
+                                  </td>
+                                  <td
+                                    className="py-3 px-3 font-mono text-nb-gray-300 max-w-[130px] truncate"
+                                    title={
+                                      hb?.os_info ||
+                                      hb?.os_arch ||
+                                      "linux/amd64"
                                     }
-                                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium ${
-                                      isAssigned
-                                        ? "border border-red-500/40 bg-red-950/40 text-red-400 hover:bg-red-950"
-                                        : "bg-netbird text-white hover:bg-netbird-500"
-                                    }`}
                                   >
-                                    {isAssigned ? "Unassign" : "Assign"}
-                                  </button>
-                                </td>
-                              </tr>
+                                    {hb?.os_info
+                                      ? hb.os_info.split("(")[0].trim()
+                                      : hb?.os_arch || "linux/amd64"}
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    {hb ? (
+                                      <div className="flex items-center gap-2 font-mono text-[11px] text-nb-gray-300 whitespace-nowrap">
+                                        <span>
+                                          CPU {hb.cpu_percent.toFixed(1)}%
+                                        </span>
+                                        <span>
+                                          RAM {hb.ram_percent.toFixed(1)}%
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-nb-gray-500">—</span>
+                                    )}
+                                  </td>
+                                  <td
+                                    className="py-3 px-3 text-right"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          systemUpdateBusy || !gn.online
+                                        }
+                                        onClick={() => {
+                                          handleRunSystemUpdate(
+                                            "update_muscle",
+                                            gn.node_id
+                                          );
+                                        }}
+                                        title="Diesen Muscle-Server Over-the-Air (OTA) aktualisieren & neu starten"
+                                        className="rounded-md border border-emerald-500/40 bg-emerald-950/40 px-2 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-900/50 disabled:opacity-40"
+                                      >
+                                        {systemUpdateBusy
+                                          ? "Update..."
+                                          : "⬆️ OTA"}
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedNodeId(gn.node_id);
+                                          setTerminalDrawerOpen(true);
+                                        }}
+                                        className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2 py-1 text-[11px] text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white"
+                                      >
+                                        Terminal
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          isAssigned
+                                            ? handleUnassignNode(gn.node_id)
+                                            : handleAssignNode(
+                                                gn.node_id,
+                                                gn.tier
+                                              )
+                                        }
+                                        className={`rounded-md px-2 py-1 text-[11px] font-medium ${
+                                          isAssigned
+                                            ? "border border-red-500/40 bg-red-950/40 text-red-400 hover:bg-red-950"
+                                            : "bg-netbird text-white hover:bg-netbird-500"
+                                        }`}
+                                      >
+                                        {isAssigned ? "Unassign" : "Assign"}
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+
+                                {rowExpanded && (
+                                  <tr className="bg-nb-gray-950/80">
+                                    <td colSpan={6} className="p-4">
+                                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 text-xs">
+                                        {/* Resource Bars */}
+                                        <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-940 p-3 space-y-2">
+                                          <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
+                                            Live Ressourcen-Metriken
+                                          </div>
+                                          {[
+                                            {
+                                              label: "CPU",
+                                              val: hb?.cpu_percent ?? 0,
+                                              color: "bg-netbird",
+                                            },
+                                            {
+                                              label: "RAM",
+                                              val: hb?.ram_percent ?? 0,
+                                              color: "bg-sky-400",
+                                            },
+                                            {
+                                              label: "DISK",
+                                              val: hb?.disk_percent ?? 0,
+                                              color: "bg-emerald-400",
+                                            },
+                                          ].map((m) => (
+                                            <div
+                                              key={m.label}
+                                              className="space-y-1 font-mono text-[11px]"
+                                            >
+                                              <div className="flex justify-between text-nb-gray-300">
+                                                <span>{m.label}</span>
+                                                <span className="text-white">
+                                                  {m.val.toFixed(1)}%
+                                                </span>
+                                              </div>
+                                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-nb-gray-900">
+                                                <div
+                                                  className={`h-full rounded-full ${m.color}`}
+                                                  style={{
+                                                    width: `${Math.min(
+                                                      100,
+                                                      Math.max(3, m.val)
+                                                    )}%`,
+                                                  }}
+                                                />
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+
+                                        {/* Assigned Services on this Peer */}
+                                        <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-940 p-3 space-y-2">
+                                          <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
+                                            Registrierte Dienste (
+                                            {nodeSvcs.length})
+                                          </div>
+                                          {nodeSvcs.length === 0 ? (
+                                            <div className="text-nb-gray-500 text-[11px]">
+                                              Keine Dienste auf diesem Knoten.
+                                            </div>
+                                          ) : (
+                                            <div className="space-y-1.5">
+                                              {nodeSvcs.map((s) => (
+                                                <button
+                                                  key={s.service_id}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setSelectedServiceId(
+                                                      s.service_id
+                                                    );
+                                                    setPreviewPort(s.port);
+                                                    setActiveNav(
+                                                      "reverse-proxy"
+                                                    );
+                                                  }}
+                                                  className="flex w-full items-center justify-between rounded border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 text-left font-mono text-[11px] text-nb-gray-200 hover:border-netbird hover:text-white"
+                                                >
+                                                  <span className="truncate">
+                                                    {s.name}
+                                                  </span>
+                                                  <span className="text-netbird">
+                                                    :{s.port} →
+                                                  </span>
+                                                </button>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Quick Peer Actions & Connection Info */}
+                                        <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-940 p-3 flex flex-col justify-between space-y-2">
+                                          <div className="space-y-1 font-mono text-[11px] text-nb-gray-300">
+                                            <div className="text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400 mb-1">
+                                              Verbindungs-Details
+                                            </div>
+                                            <div>
+                                              Remote:{" "}
+                                              <span className="text-white">
+                                                {gn.remote_addr}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              Aktive PTYs:{" "}
+                                              <span className="text-white">
+                                                {hb?.active_pty_sessions
+                                                  ?.length ?? 0}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              Verbunden seit:{" "}
+                                              <span className="text-nb-gray-400">
+                                                {gn.connected_at
+                                                  ?.replace("T", " ")
+                                                  .slice(0, 19)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-2 pt-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setSelectedNodeId(gn.node_id);
+                                                setActiveNav("workspace");
+                                              }}
+                                              className="flex-1 rounded border border-nb-gray-800 bg-nb-gray-950 py-1.5 text-[11px] font-medium text-nb-gray-200 hover:border-netbird hover:text-white"
+                                            >
+                                              Dateien öffnen
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setSelectedNodeId(gn.node_id);
+                                                setTerminalDrawerOpen(true);
+                                              }}
+                                              className="flex-1 rounded bg-netbird py-1.5 text-[11px] font-medium text-white hover:bg-netbird-500"
+                                            >
+                                              Live Shell
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
                             );
                           })}
                         </tbody>
@@ -3270,24 +3447,18 @@ export default function SynapseNetBirdControlCenter() {
                 VIEW 3: NETBIRD ACCESS CONTROL (`access-control`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "access-control" && (
-              <div className="mx-auto max-w-6xl p-6 space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h1 className="text-xl font-medium text-nb-gray-100">
-                      Access Control, Guardrails &amp; Rule Cartridges
-                    </h1>
-                    <p className="text-xs text-nb-gray-400 mt-0.5">
-                      Configure modular DevOps Rule Cartridges, inspect hardcoded
-                      node guardrails, and review Tier-3 human-in-the-loop
-                      approvals with visual diff highlighting.
-                    </p>
-                  </div>
+              <div className="mx-auto max-w-6xl p-6 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-nb-gray-900 pb-3">
+                  <span className="text-xs text-nb-gray-400">
+                    Klicke auf eine Rule Cartridge, um die vollständige
+                    Regel-Spezifikation direkt in der Karte aufzuklappen.
+                  </span>
                   <button
                     onClick={() => setShowCustomCartModal((v) => !v)}
-                    className="flex items-center gap-1.5 rounded-md bg-netbird px-3.5 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+                    className="flex items-center gap-1.5 rounded-lg bg-netbird px-3.5 py-2 text-xs font-medium text-white hover:bg-netbird-500 transition"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    <span>New Custom Cartridge</span>
+                    <span>Neue Cartridge erstellen</span>
                   </button>
                 </div>
 
@@ -3432,85 +3603,77 @@ export default function SynapseNetBirdControlCenter() {
                   </div>
                 )}
 
-                {/* Pluggable Rule Cartridges Grid with On-Demand Markdown Inspector */}
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {cartridges.map((c) => {
-                      const enabled =
-                        activeProject?.active_cartridges?.includes(c.id);
-                      const selected = selectedCartridgeId === c.id;
-                      return (
-                        <div
-                          key={c.id}
-                          onClick={() =>
-                            setSelectedCartridgeId(selected ? "" : c.id)
-                          }
-                          className={`cursor-pointer rounded-xl border p-4 transition-all ${
-                            selected
-                              ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/30"
-                              : "border-nb-gray-900 bg-nb-gray-940 hover:border-nb-gray-800"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span
-                                className={`h-2 w-2 shrink-0 rounded-full ${
-                                  enabled ? "bg-green-400" : "bg-nb-gray-500"
-                                }`}
-                              />
-                              <span className="truncate text-sm font-semibold text-white">
-                                {c.name}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-[11px] text-nb-gray-400 hover:text-white">
-                                {selected ? "Ausblenden" : "Details"}
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleCartridge(c.id);
-                                }}
-                                className={`rounded-md border px-2.5 py-1 font-mono text-[10px] font-medium transition ${
-                                  enabled
-                                    ? "border-green-500/50 bg-green-950/70 text-green-400"
-                                    : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400 hover:text-white"
-                                }`}
-                              >
-                                {enabled ? "AKTIV" : "AUS"}
-                              </button>
-                            </div>
+                {/* Pluggable Rule Cartridges Grid with Inline Expandable Markdown Policy */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 items-start">
+                  {cartridges.map((c) => {
+                    const enabled =
+                      activeProject?.active_cartridges?.includes(c.id);
+                    const selected = selectedCartridgeId === c.id;
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() =>
+                          setSelectedCartridgeId(selected ? "" : c.id)
+                        }
+                        className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                          selected
+                            ? "border-netbird bg-nb-gray-930 ring-1 ring-netbird/30 sm:col-span-2"
+                            : "border-nb-gray-900 bg-nb-gray-940 hover:border-nb-gray-800"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span
+                              className={`h-2 w-2 shrink-0 rounded-full ${
+                                enabled ? "bg-green-400" : "bg-nb-gray-500"
+                              }`}
+                            />
+                            <span className="truncate text-sm font-semibold text-white">
+                              {c.name}
+                            </span>
+                            <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[9px] text-nb-gray-400">
+                              {c.category}
+                            </span>
                           </div>
-                          <p className="mt-1.5 text-xs text-nb-gray-400 line-clamp-1">
-                            {c.description}
-                          </p>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="flex items-center gap-1 text-[11px] text-nb-gray-400 hover:text-white">
+                              <span>{selected ? "Einklappen" : "Erweitern"}</span>
+                              {selected ? (
+                                <ChevronUp className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              )}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleCartridge(c.id);
+                              }}
+                              className={`rounded-md border px-2.5 py-1 font-mono text-[10px] font-medium transition ${
+                                enabled
+                                  ? "border-green-500/50 bg-green-950/70 text-green-400"
+                                  : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400 hover:text-white"
+                              }`}
+                            >
+                              {enabled ? "AKTIV" : "AUS"}
+                            </button>
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                        <p className="mt-1.5 text-xs text-nb-gray-400">
+                          {c.description}
+                        </p>
 
-                  {/* On-Demand Cartridge Specification Drawer */}
-                  {selectedCartridgeId && currentCartridge && (
-                    <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-5 space-y-3">
-                      <div className="flex items-center justify-between border-b border-nb-gray-800 pb-3">
-                        <div className="flex items-center gap-2">
-                          <Shield className="h-4 w-4 text-netbird" />
-                          <span className="text-sm font-semibold text-white">
-                            {currentCartridge.name} — Regel-Spezifikation
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => setSelectedCartridgeId("")}
-                          className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+                        {selected && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-3.5 border-t border-nb-gray-800 pt-3.5"
+                          >
+                            <RichMarkdownDocument markdown={c.content} />
+                          </div>
+                        )}
                       </div>
-                      <RichMarkdownDocument
-                        markdown={currentCartridge.content}
-                      />
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -3941,83 +4104,64 @@ export default function SynapseNetBirdControlCenter() {
                 VIEW 5: FOCUSED BRAIN VAULT DOCUMENTS (`brain-vault`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "brain-vault" && (
-              <div className="mx-auto max-w-5xl p-6 space-y-5">
-                {/* Clean Header + Document Switcher */}
-                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-nb-gray-900 pb-4">
-                  <div>
-                    <h1 className="text-xl font-medium text-nb-gray-100">
-                      Brain Vault
-                    </h1>
-                    <p className="text-xs text-nb-gray-400 mt-0.5">
-                      Persistente Architektur-Spezifikation und technisches
-                      Projekt-Gedächtnis für den KI-Orchestrator.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* 2-Tab Document Switcher */}
-                    <div className="flex items-center rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-1 text-xs">
-                      {(["Architecture.md", "Memory.md"] as const).map(
-                        (doc) => {
-                          const active = brainDocTab === doc;
-                          return (
-                            <button
-                              key={doc}
-                              onClick={() => {
-                                setBrainDocTab(doc);
-                                setIsEditingMarkdown(false);
-                              }}
-                              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-xs font-medium transition ${
-                                active
-                                  ? "bg-nb-gray-900 text-white border border-nb-gray-800"
-                                  : "text-nb-gray-400 hover:text-white"
-                              }`}
-                            >
-                              <FileText className="h-3.5 w-3.5 text-netbird" />
-                              <span>{doc}</span>
-                            </button>
-                          );
-                        }
-                      )}
-                    </div>
-
-                    <button
-                      onClick={() => setIsEditingMarkdown((v) => !v)}
-                      className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-3 py-1.5 text-xs font-medium text-nb-gray-200 hover:text-white transition"
-                    >
-                      <Code2 className="h-3.5 w-3.5 text-netbird" />
-                      <span>
-                        {isEditingMarkdown ? "Leseansicht" : "Bearbeiten"}
-                      </span>
-                    </button>
-
-                    {isEditingMarkdown && (
-                      <button
-                        onClick={() => handleSaveBrainDoc(brainDocTab)}
-                        className="flex items-center gap-1.5 rounded-lg bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 transition"
-                      >
-                        <Save className="h-3.5 w-3.5" />
-                        <span>Speichern</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Focused Document Reader / Editor */}
+              <div className="mx-auto max-w-5xl p-6">
+                {/* Single Clean Document Reader / Editor Container (No duplicate top H1) */}
                 <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-900 bg-nb-gray-940">
-                  <div className="flex items-center justify-between border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <FolderGit2 className="h-4 w-4 text-netbird" />
-                      <span className="font-mono text-xs font-medium text-white">
-                        /projects/{activeProject?.project_id || "synapse-cloud-demo"}/
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-nb-gray-900 bg-nb-gray-930 px-4 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      {/* 2-Tab Document Switcher */}
+                      <div className="flex items-center rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-0.5 text-xs">
+                        {(["Architecture.md", "Memory.md"] as const).map(
+                          (doc) => {
+                            const active = brainDocTab === doc;
+                            return (
+                              <button
+                                key={doc}
+                                onClick={() => {
+                                  setBrainDocTab(doc);
+                                  setIsEditingMarkdown(false);
+                                }}
+                                className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-mono text-xs font-medium transition ${
+                                  active
+                                    ? "bg-nb-gray-900 text-white border border-nb-gray-800"
+                                    : "text-nb-gray-400 hover:text-white"
+                                }`}
+                              >
+                                <FileText className="h-3.5 w-3.5 text-netbird" />
+                                <span>{doc}</span>
+                              </button>
+                            );
+                          }
+                        )}
+                      </div>
+                      <span className="hidden sm:inline font-mono text-[11px] text-nb-gray-400">
+                        /projects/
+                        {activeProject?.project_id || "synapse-cloud-demo"}/
                         {brainDocTab}
                       </span>
                     </div>
-                    <span className="font-mono text-[10px] text-nb-gray-400">
-                      {brainDocTab === "Architecture.md"
-                        ? "System-Architektur & Komponenten"
-                        : "Chronologisches Engineering-Log"}
-                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setIsEditingMarkdown((v) => !v)}
+                        className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 text-xs font-medium text-nb-gray-200 hover:text-white transition"
+                      >
+                        <Code2 className="h-3.5 w-3.5 text-netbird" />
+                        <span>
+                          {isEditingMarkdown ? "Leseansicht" : "Bearbeiten"}
+                        </span>
+                      </button>
+
+                      {isEditingMarkdown && (
+                        <button
+                          onClick={() => handleSaveBrainDoc(brainDocTab)}
+                          className="flex items-center gap-1.5 rounded-lg bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 transition"
+                        >
+                          <Save className="h-3.5 w-3.5" />
+                          <span>Speichern</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="p-6">
@@ -4033,7 +4177,7 @@ export default function SynapseNetBirdControlCenter() {
                             ? setArchitectureMd(e.target.value)
                             : setMemoryMd(e.target.value)
                         }
-                        className="h-[540px] w-full rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-4 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
+                        className="h-[560px] w-full rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-4 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
                       />
                     ) : (
                       <RichMarkdownDocument
@@ -4059,7 +4203,31 @@ export default function SynapseNetBirdControlCenter() {
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "workspace" && (
               <div className="flex h-full overflow-hidden">
-                <div className="w-64 shrink-0 border-r border-nb-gray-900 bg-nb-gray-940 p-3 flex flex-col justify-between">
+                <div
+                  style={{ width: `${workspaceSidebarWidth}px` }}
+                  className="relative shrink-0 border-r border-nb-gray-900 bg-nb-gray-940 p-3 flex flex-col justify-between"
+                >
+                  {/* Mouse Drag Handle to Resize File Tree Sidebar */}
+                  <div
+                    title="Mit der Maus ziehen, um die Dateiliste breiter/schmaler zu machen"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const startX = e.clientX;
+                      const startW = workspaceSidebarWidth;
+                      const onMove = (ev: MouseEvent) => {
+                        setWorkspaceSidebarWidth(
+                          Math.max(190, Math.min(480, startW + (ev.clientX - startX)))
+                        );
+                      };
+                      const onUp = () => {
+                        window.removeEventListener("mousemove", onMove);
+                        window.removeEventListener("mouseup", onUp);
+                      };
+                      window.addEventListener("mousemove", onMove);
+                      window.addEventListener("mouseup", onUp);
+                    }}
+                    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-netbird/60 transition-colors z-20"
+                  />
                   <div className="space-y-2 overflow-y-auto">
                     <div className="flex items-center justify-between px-2 py-1 text-xs font-medium text-nb-gray-300">
                       <span className="font-mono truncate">{remoteDir}</span>
@@ -4180,17 +4348,7 @@ export default function SynapseNetBirdControlCenter() {
                 VIEW 7: NETBIRD ACTIVITY AUDIT LOG (`activity`)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "activity" && (
-              <div className="mx-auto max-w-6xl p-6 space-y-5">
-                <div>
-                  <h1 className="text-xl font-medium text-nb-gray-100">
-                    Activity &amp; Immutable Audit Log (`Audit.jsonl`)
-                  </h1>
-                  <p className="text-xs text-nb-gray-400 mt-0.5">
-                    Cryptographic trail of every AI tool call, policy intercept,
-                    and operator action.
-                  </p>
-                </div>
-
+              <div className="mx-auto max-w-6xl p-6 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-3">
                   <div className="flex flex-1 items-center gap-2">
                     <Search className="h-4 w-4 text-nb-gray-400 ml-1" />
@@ -4198,7 +4356,7 @@ export default function SynapseNetBirdControlCenter() {
                       type="text"
                       value={activitySearch}
                       onChange={(e) => setActivitySearch(e.target.value)}
-                      placeholder="Search events by tool name, peer, or summary..."
+                      placeholder="Audit-Events nach Tool, Peer oder Zusammenfassung durchsuchen (Klick auf Zeile erweitert Details)..."
                       className="flex-1 bg-transparent text-xs text-white placeholder:text-nb-gray-400 focus:outline-none"
                     />
                   </div>
@@ -4224,50 +4382,92 @@ export default function SynapseNetBirdControlCenter() {
                   </div>
                 </div>
 
-                <div className="overflow-hidden rounded-lg border border-nb-gray-900 bg-nb-gray-940">
+                <div className="overflow-x-auto rounded-lg border border-nb-gray-900 bg-nb-gray-940">
                   <table className="w-full text-left text-xs">
                     <thead className="border-b border-nb-gray-900 bg-nb-gray-930/70 text-[11px] font-medium uppercase text-nb-gray-400">
                       <tr>
-                        <th className="py-3 px-4">Timestamp</th>
-                        <th className="py-3 px-4">Actor</th>
-                        <th className="py-3 px-4">Tool / Event</th>
-                        <th className="py-3 px-4">Summary</th>
-                        <th className="py-3 px-4 text-right">Status</th>
+                        <th className="py-3 px-3">Timestamp</th>
+                        <th className="py-3 px-3">Actor</th>
+                        <th className="py-3 px-3">Tool / Event</th>
+                        <th className="py-3 px-3">Summary</th>
+                        <th className="py-3 px-3 text-right">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-nb-gray-900 font-mono">
-                      {filteredLogs.map((log, i) => (
-                        <tr key={i} className="hover:bg-nb-gray-930/40">
-                          <td className="py-3 px-4 text-nb-gray-400 whitespace-nowrap">
-                            {log.timestamp.replace("T", " ").slice(0, 19)}
-                          </td>
-                          <td className="py-3 px-4 text-nb-gray-200">
-                            {log.actor}
-                          </td>
-                          <td className="py-3 px-4 text-netbird">
-                            {log.tool_name}
-                          </td>
-                          <td className="py-3 px-4 text-nb-gray-200 max-w-md truncate">
-                            {log.summary}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <span
-                              className={`rounded border px-2 py-0.5 text-[10px] uppercase ${
-                                log.status === "executed" ||
-                                log.status === "approved"
-                                  ? "border-green-500/50 bg-green-950 text-green-400"
-                                  : log.status === "blocked" ||
-                                    log.status === "rejected" ||
-                                    log.status === "error"
-                                  ? "border-red-500/50 bg-red-950 text-red-400"
-                                  : "border-netbird-500/50 bg-netbird-950 text-netbird"
-                              }`}
+                      {filteredLogs.map((log, i) => {
+                        const isExpanded = Boolean(expandedAuditRows[i]);
+                        return (
+                          <React.Fragment key={i}>
+                            <tr
+                              onClick={() =>
+                                setExpandedAuditRows((prev) => ({
+                                  ...prev,
+                                  [i]: !prev[i],
+                                }))
+                              }
+                              className="cursor-pointer hover:bg-nb-gray-930/50 transition-colors"
                             >
-                              {log.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                              <td className="py-3 px-3 text-nb-gray-400 whitespace-nowrap">
+                                {log.timestamp.replace("T", " ").slice(0, 19)}
+                              </td>
+                              <td className="py-3 px-3 text-nb-gray-200 whitespace-nowrap">
+                                {log.actor}
+                              </td>
+                              <td className="py-3 px-3 text-netbird whitespace-nowrap">
+                                <span className="flex items-center gap-1.5">
+                                  <span>{log.tool_name}</span>
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-3 w-3 text-nb-gray-400" />
+                                  ) : (
+                                    <ChevronDown className="h-3 w-3 text-nb-gray-400" />
+                                  )}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-nb-gray-200 max-w-[240px] xl:max-w-[340px] truncate">
+                                {log.summary}
+                              </td>
+                              <td className="py-3 px-3 text-right whitespace-nowrap">
+                                <span
+                                  className={`rounded border px-2 py-0.5 text-[10px] uppercase ${
+                                    log.status === "executed" ||
+                                    log.status === "approved"
+                                      ? "border-green-500/50 bg-green-950 text-green-400"
+                                      : log.status === "blocked" ||
+                                        log.status === "rejected" ||
+                                        log.status === "error"
+                                      ? "border-red-500/50 bg-red-950 text-red-400"
+                                      : "border-netbird-500/50 bg-netbird-950 text-netbird"
+                                  }`}
+                                >
+                                  {log.status}
+                                </span>
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr className="bg-nb-gray-950/80">
+                                <td colSpan={5} className="p-4">
+                                  <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-940 p-3 space-y-2 text-[11px]">
+                                    <div className="flex items-center justify-between text-nb-gray-400">
+                                      <span>
+                                        Vollständiger Audit-Eintrag ({log.tool_name})
+                                      </span>
+                                      <span>{log.timestamp}</span>
+                                    </div>
+                                    <div className="text-white whitespace-pre-wrap">
+                                      {log.summary}
+                                    </div>
+                                    {log.args && (
+                                      <pre className="overflow-x-auto rounded bg-nb-gray-960 p-2.5 text-[10px] text-emerald-300">
+                                        {JSON.stringify(log.args, null, 2)}
+                                      </pre>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -4278,18 +4478,7 @@ export default function SynapseNetBirdControlCenter() {
                 VIEW 8: NETBIRD SETTINGS (`settings` — Setup Keys, Vault & AI)
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "settings" && (
-              <div className="mx-auto max-w-5xl p-6 space-y-6">
-                <div>
-                  <h1 className="text-xl font-medium text-nb-gray-100">
-                    Settings &amp; System-Update
-                  </h1>
-                  <p className="text-xs text-nb-gray-400 mt-0.5">
-                    1-Click Over-the-Air (OTA) System-Update für Core &amp;
-                    Muscle, Setup Keys, AES-256-GCM Encrypted Secrets Vault und
-                    KI-Provider.
-                  </p>
-                </div>
-
+              <div className="mx-auto max-w-5xl p-6 space-y-5">
                 <div className="flex flex-wrap items-center gap-2 border-b border-nb-gray-900 pb-3">
                   {[
                     {
@@ -4374,20 +4563,16 @@ export default function SynapseNetBirdControlCenter() {
                                 System-Update &amp; Over-the-Air (OTA) Rollout
                               </h2>
                               <p className="text-xs text-nb-gray-400">
-                                Aktualisiere bequem per 1-Klick die{" "}
+                                1-Klick Synchronisation für{" "}
                                 <strong className="text-nb-gray-200">
                                   Core Plane
                                 </strong>{" "}
-                                (Git Fast-Forward, Next.js WebUI, Orchestrator
-                                &amp; Gateway) sowie alle verbundenen{" "}
+                                (Git, WebUI &amp; Gateway) und alle{" "}
                                 <strong className="text-nb-gray-200">
                                   Muscle-Server
                                 </strong>{" "}
-                                (OTA Go-Kompilierung, Binary-Swap{" "}
-                                <code className="text-emerald-300">
-                                  /usr/local/bin/axon
-                                </code>{" "}
-                                &amp; Systemd-Neustart).
+                                (<code className="text-emerald-300">/usr/local/bin/axon</code>{" "}
+                                &amp; Systemd-Daemon).
                               </p>
                             </div>
                           </div>
@@ -4410,7 +4595,7 @@ export default function SynapseNetBirdControlCenter() {
                         )}
                       </div>
 
-                      {/* 4 Primary Action Buttons */}
+                      {/* 4 Primary Action Buttons (Clean Icons without duplicate Emojis) */}
                       <div className="flex flex-wrap items-center gap-2.5 pt-1">
                         <button
                           type="button"
@@ -4420,7 +4605,7 @@ export default function SynapseNetBirdControlCenter() {
                         >
                           <Zap className="h-3.5 w-3.5" />
                           <span>
-                            🚀 Komplett-Update (Core + alle Muscles)
+                            Komplett-Update (Core + alle Muscles)
                           </span>
                         </button>
 
@@ -4431,7 +4616,7 @@ export default function SynapseNetBirdControlCenter() {
                           className="flex items-center gap-2 rounded-lg border border-netbird-500/50 bg-netbird-950/70 px-3.5 py-2.5 text-xs font-medium text-netbird hover:bg-netbird-900/60 disabled:opacity-50 transition"
                         >
                           <Brain className="h-3.5 w-3.5" />
-                          <span>🧠 Nur Core updaten</span>
+                          <span>Nur Core updaten</span>
                         </button>
 
                         <button
@@ -4441,7 +4626,7 @@ export default function SynapseNetBirdControlCenter() {
                           className="flex items-center gap-2 rounded-lg border border-purple-500/50 bg-purple-950/60 px-3.5 py-2.5 text-xs font-medium text-purple-300 hover:bg-purple-900/50 disabled:opacity-50 transition"
                         >
                           <Cpu className="h-3.5 w-3.5" />
-                          <span>💪 Alle Muscles (OTA) updaten</span>
+                          <span>Alle Muscles (OTA) updaten</span>
                         </button>
 
                         <button
@@ -4455,7 +4640,7 @@ export default function SynapseNetBirdControlCenter() {
                               systemUpdateBusy ? "animate-spin" : ""
                             }`}
                           />
-                          <span>🔄 Auf Updates prüfen</span>
+                          <span>Auf Updates prüfen</span>
                         </button>
                       </div>
 
@@ -5222,7 +5407,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
 
           {/* ─────────────────────────────────────────────────────────────────
               RIGHT DOCKED AI COPILOT & REACT ORCHESTRATOR PANEL
-              (With Drag & Drop Vision, Prompt/Tool Caching, Live Thinking & Rollback)
+              (Mouse-Resizable, Drag & Drop Vision, Prompt/Tool Caching & Rollback)
           ───────────────────────────────────────────────────────────────── */}
           {copilotDrawerOpen && (
             <aside
@@ -5246,10 +5431,33 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   processDroppedOrSelectedFiles(e.dataTransfer.files);
                 }
               }}
-              className={`relative flex shrink-0 flex-col border-l border-nb-gray-900 bg-nb-gray-940 transition-all duration-200 ${
-                copilotWide ? "w-[580px]" : "w-[410px]"
-              }`}
+              style={{
+                width: `${copilotWide ? 600 : copilotWidth}px`,
+              }}
+              className="relative flex shrink-0 flex-col border-l border-nb-gray-900 bg-nb-gray-940"
             >
+              {/* Mouse-Drag Left Border Handle to Resize Copilot Panel */}
+              <div
+                title="Mit der Maus ziehen, um die Breite des KI-Chats frei anzupassen"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const startX = e.clientX;
+                  const startW = copilotWide ? 600 : copilotWidth;
+                  setCopilotWide(false);
+                  const onMove = (ev: MouseEvent) => {
+                    const nextW = startW - (ev.clientX - startX);
+                    setCopilotWidth(Math.max(320, Math.min(820, nextW)));
+                  };
+                  const onUp = () => {
+                    window.removeEventListener("mousemove", onMove);
+                    window.removeEventListener("mouseup", onUp);
+                  };
+                  window.addEventListener("mousemove", onMove);
+                  window.addEventListener("mouseup", onUp);
+                }}
+                className="absolute left-0 top-0 bottom-0 w-1.5 -ml-0.5 cursor-col-resize hover:bg-netbird/60 transition-colors z-30"
+              />
+
               {/* Drag & Drop Vision Overlay */}
               {isDraggingOverChat && (
                 <div
@@ -5269,64 +5477,56 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 </div>
               )}
 
-              {/* Header + Prompt Cache Status Badge */}
-              <div className="border-b border-nb-gray-900 px-4 py-2.5 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-netbird" />
-                    <span className="text-xs font-semibold text-white">
-                      Synapse AI Orchestrator
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setCopilotWide((w) => !w)}
-                      className="rounded px-2 py-0.5 text-[10px] text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
-                      title={
-                        copilotWide
-                          ? "Auf Standardbreite verkleinern"
-                          : "Chat-Fenster verbreitern"
-                      }
-                    >
-                      {copilotWide ? "Kompakt" : "Breiter"}
-                    </button>
-                    <button
-                      onClick={handleClearChat}
-                      className="rounded px-2 py-0.5 text-[10px] text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
-                      title="Clear conversation"
-                    >
-                      Clear
-                    </button>
-                    <button
-                      onClick={() => setCopilotDrawerOpen(false)}
-                      className="text-nb-gray-400 hover:text-white"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-1 text-[10px]">
+              {/* Single Clean Header Bar (No redundant sub-header row) */}
+              <div className="flex items-center justify-between border-b border-nb-gray-900 px-3.5 py-2.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Sparkles className="h-4 w-4 shrink-0 text-netbird" />
+                  <span className="truncate text-xs font-semibold text-white">
+                    Synapse AI
+                  </span>
                   <span
-                    className="flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-950/40 px-2 py-0.5 font-mono text-emerald-300"
+                    className="flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-950/40 px-1.5 py-0.5 font-mono text-[9px] text-emerald-300"
                     title="Static 5-Layer System Prefix & Read-Only FS Calls Cached"
                   >
                     <Zap className="h-2.5 w-2.5 text-emerald-400" />
-                    {latestCacheMetrics ? (
-                      <span>
-                        Cache: {latestCacheMetrics.cached_tokens} tok
-                        {latestCacheMetrics.tool_cache_hits > 0
-                          ? ` · ${latestCacheMetrics.tool_cache_hits} FS hit(s)`
-                          : ""}
-                      </span>
-                    ) : (
-                      <span>Prefix &amp; Tool Cache Ready</span>
-                    )}
+                    {latestCacheMetrics
+                      ? `${latestCacheMetrics.cached_tokens} tok`
+                      : "Cache aktiv"}
                   </span>
-
-                  <span className="font-mono text-nb-gray-400">
-                    Vision · @Mentions · Rollback
-                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      if (copilotWide) {
+                        setCopilotWide(false);
+                        setCopilotWidth(420);
+                      } else {
+                        setCopilotWide(true);
+                        setCopilotWidth(600);
+                      }
+                    }}
+                    className="rounded px-2 py-0.5 text-[10px] text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
+                    title={
+                      copilotWide
+                        ? "Auf Standardbreite verkleinern"
+                        : "Chat-Fenster verbreitern (oder linken Rand ziehen)"
+                    }
+                  >
+                    {copilotWide ? "Kompakt" : "Breiter"}
+                  </button>
+                  <button
+                    onClick={handleClearChat}
+                    className="rounded px-2 py-0.5 text-[10px] text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
+                    title="Clear conversation"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => setCopilotDrawerOpen(false)}
+                    className="text-nb-gray-400 hover:text-white p-0.5"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
 
@@ -6258,8 +6458,29 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
           )}
         </div>
 
-        {/* COLLAPSIBLE BOTTOM LIVE PTY TERMINAL BAR (`xterm.js`) */}
-        <div className="shrink-0 border-t border-nb-gray-900 bg-nb-gray-950">
+        {/* COLLAPSIBLE & MOUSE-RESIZABLE BOTTOM LIVE PTY TERMINAL BAR (`xterm.js`) */}
+        <div className="relative shrink-0 border-t border-nb-gray-900 bg-nb-gray-950">
+          {terminalDrawerOpen && (
+            <div
+              title="Mit der Maus ziehen, um die Höhe des Terminals anzupassen"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const startY = e.clientY;
+                const startH = terminalHeight;
+                const onMove = (ev: MouseEvent) => {
+                  const nextH = startH - (ev.clientY - startY);
+                  setTerminalHeight(Math.max(150, Math.min(540, nextH)));
+                };
+                const onUp = () => {
+                  window.removeEventListener("mousemove", onMove);
+                  window.removeEventListener("mouseup", onUp);
+                };
+                window.addEventListener("mousemove", onMove);
+                window.addEventListener("mouseup", onUp);
+              }}
+              className="absolute top-0 left-0 right-0 h-1.5 -mt-0.5 cursor-row-resize hover:bg-netbird/60 transition-colors z-30"
+            />
+          )}
           <div className="flex h-9 items-center justify-between px-4 text-xs">
             <button
               onClick={() => setTerminalDrawerOpen((v) => !v)}
@@ -6291,7 +6512,10 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
           </div>
 
           {terminalDrawerOpen && (
-            <div className="h-60 border-t border-nb-gray-900 bg-nb-gray-960">
+            <div
+              style={{ height: `${terminalHeight}px` }}
+              className="border-t border-nb-gray-900 bg-nb-gray-960"
+            >
               {primaryNode ? (
                 <XTermTerminal
                   gatewayUrl={gatewayUrl}

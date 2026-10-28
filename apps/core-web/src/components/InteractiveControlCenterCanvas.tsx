@@ -9,7 +9,10 @@ import React, {
 } from "react";
 import {
   Bot,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
+  ChevronsUpDown,
   Code2,
   Cpu,
   Database,
@@ -20,6 +23,7 @@ import {
   KeyRound,
   Maximize2,
   MonitorSmartphone,
+  Move,
   Plus,
   RotateCcw,
   Server,
@@ -196,9 +200,17 @@ export default function InteractiveControlCenterCanvas({
     moved: boolean;
   } | null>(null);
 
-  // Progressive Disclosure: Click any node to open its clean detail drawer
+  // Progressive Disclosure: Click any node to open its clean detail drawer, or expand inline on canvas
   const [inspected, setInspected] = useState<InspectedTarget>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
+  const [inspectorPos, setInspectorPos] = useState<CanvasPos | null>(null);
+  const dragInspectorRef = useRef<{
+    startClientX: number;
+    startClientY: number;
+    origX: number;
+    origY: number;
+  } | null>(null);
 
   const peerIdsKey = useMemo(
     () =>
@@ -231,21 +243,21 @@ export default function InteractiveControlCenterCanvas({
         : ["svc:empty"];
 
     const maxRows = Math.max(peerIds.length, serviceIds.length, 2);
-    const centerHeight = maxRows * 110;
-    const coreY = Math.max(120, Math.round(centerHeight / 2) - 10);
+    const centerHeight = maxRows * 105;
+    const coreY = Math.max(150, Math.round(centerHeight / 2));
 
     peerIds.forEach((id, idx) => {
       const totalH = (peerIds.length - 1) * 115;
-      const startY = Math.max(80, coreY - Math.round(totalH / 2));
-      next[id] = { x: 60, y: startY + idx * 115 };
+      const startY = Math.max(40, coreY - Math.round(totalH / 2));
+      next[id] = { x: 48, y: startY + idx * 115 };
     });
 
-    next["core:hub"] = { x: 430, y: coreY - 24 };
+    next["core:hub"] = { x: 420, y: coreY - 24 };
 
     serviceIds.forEach((id, idx) => {
-      const totalH = (serviceIds.length - 1) * 100;
-      const startY = Math.max(80, coreY - Math.round(totalH / 2));
-      next[id] = { x: 800, y: startY + idx * 100 };
+      const totalH = (serviceIds.length - 1) * 102;
+      const startY = Math.max(40, coreY - Math.round(totalH / 2));
+      next[id] = { x: 790, y: startY + idx * 102 };
     });
 
     return next;
@@ -270,7 +282,7 @@ export default function InteractiveControlCenterCanvas({
       const nextSizes: Record<string, { w: number; h: number }> = { ...prev };
       for (const [id, el] of Object.entries(nodeRefs.current)) {
         if (el) {
-          const w = el.offsetWidth || 240;
+          const w = el.offsetWidth || 255;
           const h = el.offsetHeight || 64;
           if (!prev[id] || prev[id].w !== w || prev[id].h !== h) {
             nextSizes[id] = { w, h };
@@ -284,24 +296,109 @@ export default function InteractiveControlCenterCanvas({
 
   useEffect(() => {
     measureNodes();
-    const timer = setTimeout(measureNodes, 80);
+    const timer = setTimeout(measureNodes, 60);
     window.addEventListener("resize", measureNodes);
     return () => {
       clearTimeout(timer);
       window.removeEventListener("resize", measureNodes);
     };
-  }, [measureNodes, gatewayNodes.length, registeredServices.length]);
+  }, [measureNodes, gatewayNodes.length, registeredServices.length, expandedNodes]);
+
+  const toggleExpandNode = useCallback((nodeKey: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedNodes((prev) => {
+      const nextExpanded = !prev[nodeKey];
+      const next = { ...prev, [nodeKey]: nextExpanded };
+      // If a peer or service card is expanded/collapsed, shift cards below it in the same column so they never overlap
+      if (nodeKey.startsWith("svc:") || nodeKey.startsWith("peer:")) {
+        const prefix = nodeKey.startsWith("svc:") ? "svc:" : "peer:";
+        const deltaY = nextExpanded ? 120 : -120;
+        setPositions((posPrev) => {
+          const curY = posPrev[nodeKey]?.y ?? 0;
+          const nextPos = { ...posPrev };
+          for (const k of Object.keys(nextPos)) {
+            if (k.startsWith(prefix) && k !== nodeKey && (nextPos[k]?.y ?? 0) > curY) {
+              nextPos[k] = {
+                x: nextPos[k].x,
+                y: Math.max(24, nextPos[k].y + deltaY),
+              };
+            }
+          }
+          return nextPos;
+        });
+      }
+      return next;
+    });
+    setTimeout(measureNodes, 30);
+    setTimeout(measureNodes, 120);
+  }, [measureNodes]);
+
+  const allExpanded = useMemo(() => {
+    const keys = [
+      "core:hub",
+      ...gatewayNodes.map((n) => `peer:${n.node_id}`),
+      ...registeredServices.map((s) => `svc:${s.service_id}`),
+    ];
+    return keys.length > 0 && keys.every((k) => expandedNodes[k]);
+  }, [gatewayNodes, registeredServices, expandedNodes]);
+
+  const handleToggleExpandAll = () => {
+    const target = !allExpanded;
+    const next: Record<string, boolean> = { "core:hub": target };
+    gatewayNodes.forEach((n) => {
+      next[`peer:${n.node_id}`] = target;
+    });
+    registeredServices.forEach((s) => {
+      next[`svc:${s.service_id}`] = target;
+    });
+    setExpandedNodes(next);
+    // Adjust vertical spacing so expanded cards never overlap
+    setPositions(() => {
+      const peerIds =
+        peerIdsKey !== "empty"
+          ? peerIdsKey.split(",").map((id) => `peer:${id}`)
+          : ["peer:empty"];
+      const serviceIds =
+        serviceIdsKey !== "empty"
+          ? serviceIdsKey.split(",").map((id) => `svc:${id}`)
+          : ["svc:empty"];
+      const peerStep = target ? 205 : 115;
+      const svcStep = target ? 226 : 102;
+      const maxRows = Math.max(peerIds.length, serviceIds.length, 2);
+      const coreY = target ? 260 : Math.max(150, Math.round((maxRows * svcStep) / 2));
+      const updated: Record<string, CanvasPos> = {};
+      peerIds.forEach((id, idx) => {
+        const totalH = (peerIds.length - 1) * peerStep;
+        const startY = Math.max(24, coreY - Math.round(totalH / 2));
+        updated[id] = { x: 48, y: startY + idx * peerStep };
+      });
+      updated["core:hub"] = { x: 420, y: Math.max(40, coreY - (target ? 110 : 24)) };
+      serviceIds.forEach((id, idx) => {
+        const startY = target ? 16 : Math.max(36, coreY - Math.round(((serviceIds.length - 1) * svcStep) / 2));
+        updated[id] = { x: 790, y: startY + idx * svcStep };
+      });
+      return updated;
+    });
+    if (target) {
+      setZoom(0.75);
+      setPan({ x: 64, y: 18 });
+    } else {
+      handleFitView();
+    }
+    setTimeout(measureNodes, 40);
+    setTimeout(measureNodes, 150);
+  };
 
   const handleFitView = useCallback(() => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const targetW = 1120;
+    const targetW = 1110;
     const targetH = 440;
-    const scaleX = (rect.width - 80) / targetW;
-    const scaleY = (rect.height - 80) / targetH;
-    const nextZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.7), 1.12);
-    const offsetX = Math.max(32, (rect.width - targetW * nextZoom) / 2);
-    const offsetY = Math.max(32, (rect.height - targetH * nextZoom) / 2);
+    const scaleX = (rect.width - 64) / targetW;
+    const scaleY = (rect.height - 64) / targetH;
+    const nextZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.72), 1.08);
+    const offsetX = Math.max(28, (rect.width - targetW * nextZoom) / 2);
+    const offsetY = Math.max(24, (rect.height - targetH * nextZoom) / 2.8);
     setZoom(Number(nextZoom.toFixed(2)));
     setPan({ x: Math.round(offsetX), y: Math.round(offsetY) });
   }, []);
@@ -311,6 +408,8 @@ export default function InteractiveControlCenterCanvas({
   }, [handleFitView]);
 
   const handleResetLayout = () => {
+    setExpandedNodes({});
+    setInspectorPos(null);
     setPositions(computeDefaultLayout());
     handleFitView();
   };
@@ -352,6 +451,15 @@ export default function InteractiveControlCenterCanvas({
 
   useEffect(() => {
     function onPointerMove(e: PointerEvent) {
+      if (dragInspectorRef.current) {
+        const d = dragInspectorRef.current;
+        setInspectorPos({
+          x: Math.max(12, Math.round(d.origX + (e.clientX - d.startClientX))),
+          y: Math.max(12, Math.round(d.origY + (e.clientY - d.startClientY))),
+        });
+        return;
+      }
+
       if (dragNodeStartRef.current) {
         const d = dragNodeStartRef.current;
         const dx = (e.clientX - d.startClientX) / zoom;
@@ -380,6 +488,9 @@ export default function InteractiveControlCenterCanvas({
     }
 
     function onPointerUp() {
+      if (dragInspectorRef.current) {
+        dragInspectorRef.current = null;
+      }
       if (dragNodeStartRef.current) {
         dragNodeStartRef.current = null;
         setDraggingNodeId(null);
@@ -506,15 +617,6 @@ export default function InteractiveControlCenterCanvas({
         isPanning ? "cursor-grabbing" : "cursor-grab"
       }`}
     >
-      {/* Subtle Top-Left Hint Pill */}
-      <div
-        onPointerDown={(e) => e.stopPropagation()}
-        className="pointer-events-auto absolute left-5 top-4 z-20 flex items-center gap-2 rounded-full border border-nb-gray-800/80 bg-nb-gray-940/90 px-3.5 py-1.5 text-[11px] text-nb-gray-300 backdrop-blur"
-      >
-        <span className="h-2 w-2 rounded-full bg-green-400" />
-        <span>Klicke auf ein Element für Details</span>
-      </div>
-
       {/* TRANSFORMED GRAPH LAYER */}
       <div
         style={{
@@ -601,14 +703,15 @@ export default function InteractiveControlCenterCanvas({
           })}
         </svg>
 
-        {/* 1. LEFT: MINIMALIST SERVER CARDS (GPU-accelerated translate3d, zero CSS position transition lag) */}
+        {/* 1. LEFT: INTERACTIVE SERVER CARDS (Draggable + Inline Expandable) */}
         {peerNodesToRender.map((gn) => {
           const nodeKey =
             gn.node_id === "empty" ? "peer:empty" : `peer:${gn.node_id}`;
-          const pos = positions[nodeKey] || { x: 60, y: 120 };
+          const pos = positions[nodeKey] || { x: 48, y: 120 };
           const hb = gn.last_heartbeat;
           const isSelected =
             inspected?.kind === "peer" && inspected.nodeId === gn.node_id;
+          const isExpanded = Boolean(expandedNodes[nodeKey]);
 
           return (
             <div
@@ -621,11 +724,14 @@ export default function InteractiveControlCenterCanvas({
                 top: 0,
                 transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
                 willChange: "transform",
-                zIndex: draggingNodeId === nodeKey ? 30 : 10,
+                zIndex: draggingNodeId === nodeKey ? 30 : isExpanded ? 20 : 10,
               }}
               onPointerDown={(e) => startNodeDrag(e, nodeKey)}
               onMouseEnter={() => setHoveredNodeId(nodeKey)}
               onMouseLeave={() => setHoveredNodeId(null)}
+              onDoubleClick={(e) => {
+                if (gn.node_id !== "empty") toggleExpandNode(nodeKey, e);
+              }}
               onClick={(e) => {
                 e.stopPropagation();
                 if (lastDragMovedRef.current) {
@@ -639,10 +745,10 @@ export default function InteractiveControlCenterCanvas({
                   setInspected({ kind: "peer", nodeId: gn.node_id });
                 }
               }}
-              className={`absolute w-[250px] rounded-xl border bg-nb-gray-940 px-4 py-3.5 shadow-lg transition-colors duration-150 ${
+              className={`absolute w-[255px] rounded-xl border bg-nb-gray-940 px-4 py-3.5 shadow-lg transition-colors duration-150 ${
                 draggingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-netbird shadow-2xl"
-                  : "cursor-pointer hover:border-nb-gray-700 hover:bg-nb-gray-930"
+                  : "cursor-grab hover:border-nb-gray-700 hover:bg-nb-gray-930"
               } ${
                 isSelected
                   ? "border-netbird/80 ring-1 ring-netbird/30"
@@ -655,44 +761,116 @@ export default function InteractiveControlCenterCanvas({
                   <span className="text-netbird font-medium">+ Verbinden</span>
                 </div>
               ) : (
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-nb-gray-800 bg-nb-gray-950 text-netbird">
-                      <Server className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${
-                            gn.online ? "bg-green-400" : "bg-nb-gray-500"
-                          }`}
-                        />
-                        <span className="truncate font-mono text-xs font-semibold text-white">
-                          {gn.node_id}
-                        </span>
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-nb-gray-800 bg-nb-gray-950 text-netbird">
+                        <Server className="h-4 w-4" />
                       </div>
-                      <div className="truncate text-[11px] text-nb-gray-400 mt-0.5">
-                        {hb?.private_ipv4 || "Online"} ·{" "}
-                        {gn.tier === "TIER_1_UNLEASHED"
-                          ? "Tier 1"
-                          : gn.tier === "TIER_2_WORKSPACE_JAIL"
-                          ? "Tier 2"
-                          : "Tier 3"}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`h-2 w-2 shrink-0 rounded-full ${
+                              gn.online ? "bg-green-400" : "bg-nb-gray-500"
+                            }`}
+                          />
+                          <span className="truncate font-mono text-xs font-semibold text-white">
+                            {gn.node_id}
+                          </span>
+                        </div>
+                        <div className="truncate text-[11px] text-nb-gray-400 mt-0.5">
+                          {hb?.private_ipv4 || "Online"} ·{" "}
+                          {gn.tier === "TIER_1_UNLEASHED"
+                            ? "Tier 1"
+                            : gn.tier === "TIER_2_WORKSPACE_JAIL"
+                            ? "Tier 2"
+                            : "Tier 3"}
+                        </div>
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={(e) => toggleExpandNode(nodeKey, e)}
+                      title={
+                        isExpanded
+                          ? "Details einklappen"
+                          : "Details direkt im Knoten aufklappen"
+                      }
+                      className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white transition"
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </button>
                   </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-nb-gray-500" />
+
+                  {/* INLINE EXPANDED PEER METRICS & QUICK ACTIONS */}
+                  {isExpanded && (
+                    <div className="mt-3 space-y-2.5 border-t border-nb-gray-800/80 pt-2.5 text-[11px]">
+                      {hb && (
+                        <div className="grid grid-cols-3 gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[10px]">
+                          <div>
+                            <div className="text-nb-gray-400">CPU</div>
+                            <div className="font-semibold text-white">
+                              {hb.cpu_percent.toFixed(1)}%
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-nb-gray-400">RAM</div>
+                            <div className="font-semibold text-white">
+                              {hb.ram_percent.toFixed(1)}%
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-nb-gray-400">DISK</div>
+                            <div className="font-semibold text-white">
+                              {hb.disk_percent.toFixed(1)}%
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectNode(gn.node_id);
+                            onOpenPty();
+                          }}
+                          className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-netbird py-1.5 text-[11px] font-medium text-white hover:bg-netbird-500"
+                        >
+                          <TerminalIcon className="h-3 w-3" />
+                          <span>Terminal</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectNode(gn.node_id);
+                            onOpenRemoteFiles();
+                          }}
+                          className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 py-1.5 text-[11px] text-nb-gray-200 hover:text-white"
+                        >
+                          <Code2 className="h-3 w-3 text-sky-400" />
+                          <span>Dateien</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           );
         })}
 
-        {/* 2. CENTER: UNIFIED SYNAPSE CORE HUB NODE */}
+        {/* 2. CENTER: UNIFIED SYNAPSE CORE HUB NODE (Draggable + Inline Expandable) */}
         {(() => {
           const nodeKey = "core:hub";
-          const pos = positions[nodeKey] || { x: 430, y: 120 };
+          const pos = positions[nodeKey] || { x: 420, y: 120 };
           const isSelected = inspected?.kind === "core";
+          const isExpanded = Boolean(expandedNodes[nodeKey]);
 
           return (
             <div
@@ -704,11 +882,12 @@ export default function InteractiveControlCenterCanvas({
                 top: 0,
                 transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
                 willChange: "transform",
-                zIndex: draggingNodeId === nodeKey ? 30 : 10,
+                zIndex: draggingNodeId === nodeKey ? 30 : isExpanded ? 20 : 10,
               }}
               onPointerDown={(e) => startNodeDrag(e, nodeKey)}
               onMouseEnter={() => setHoveredNodeId(nodeKey)}
               onMouseLeave={() => setHoveredNodeId(null)}
+              onDoubleClick={(e) => toggleExpandNode(nodeKey, e)}
               onClick={(e) => {
                 e.stopPropagation();
                 if (lastDragMovedRef.current) {
@@ -717,17 +896,17 @@ export default function InteractiveControlCenterCanvas({
                 }
                 setInspected({ kind: "core" });
               }}
-              className={`absolute w-[265px] rounded-2xl border bg-nb-gray-940 p-4 shadow-xl transition-colors duration-150 ${
+              className={`absolute w-[275px] rounded-2xl border bg-nb-gray-940 p-4 shadow-xl transition-colors duration-150 ${
                 draggingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-netbird shadow-2xl"
-                  : "cursor-pointer hover:border-netbird/70 hover:bg-nb-gray-930"
+                  : "cursor-grab hover:border-netbird/70 hover:bg-nb-gray-930"
               } ${
                 isSelected
                   ? "border-netbird ring-2 ring-netbird/30"
                   : "border-nb-gray-800"
               }`}
             >
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-netbird-500/40 bg-netbird-950 text-netbird">
                     <Bot className="h-5 w-5" />
@@ -741,7 +920,22 @@ export default function InteractiveControlCenterCanvas({
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-nb-gray-500" />
+                <button
+                  type="button"
+                  onClick={(e) => toggleExpandNode(nodeKey, e)}
+                  title={
+                    isExpanded
+                      ? "Core Hub einklappen"
+                      : "Regeln & Brain Vault direkt aufklappen"
+                  }
+                  className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white transition"
+                >
+                  {isExpanded ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
               </div>
 
               <div className="mt-3 flex items-center justify-between border-t border-nb-gray-800/80 pt-2.5 text-[11px] text-nb-gray-400">
@@ -754,11 +948,79 @@ export default function InteractiveControlCenterCanvas({
                   <span>Brain Vault</span>
                 </span>
               </div>
+
+              {/* INLINE EXPANDED CORE HUB CONTROLS */}
+              {isExpanded && (
+                <div className="mt-3 space-y-2.5 border-t border-nb-gray-800/80 pt-2.5 text-[11px]">
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenBrainDoc("Architecture.md");
+                      }}
+                      className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2 py-1.5 font-mono text-[10px] text-nb-gray-200 hover:border-netbird hover:text-white truncate"
+                    >
+                      Arch.md
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenBrainDoc("Memory.md");
+                      }}
+                      className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2 py-1.5 font-mono text-[10px] text-nb-gray-200 hover:border-netbird hover:text-white truncate"
+                    >
+                      Memory.md
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenSecretsVault();
+                      }}
+                      className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2 py-1.5 font-mono text-[10px] text-amber-300 hover:border-amber-500 truncate"
+                    >
+                      Vault ({secretKeysCount})
+                    </button>
+                  </div>
+
+                  <div className="space-y-1">
+                    {cartridges.slice(0, 4).map((c) => {
+                      const enabled = activeCartridges.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleCartridge(c.id);
+                          }}
+                          className="flex w-full items-center justify-between rounded-lg border border-nb-gray-800/80 bg-nb-gray-950 px-2.5 py-1 text-[10px] hover:border-nb-gray-700"
+                        >
+                          <span className="truncate text-nb-gray-200 pr-2">
+                            {c.name}
+                          </span>
+                          <span
+                            className={`rounded px-1.5 py-0.2 font-mono text-[9px] font-semibold ${
+                              enabled
+                                ? "bg-green-950 text-green-400"
+                                : "bg-nb-gray-900 text-nb-gray-500"
+                            }`}
+                          >
+                            {enabled ? "ON" : "OFF"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}
 
-        {/* 3. RIGHT: MINIMALIST REACHABLE SERVICE CARDS */}
+        {/* 3. RIGHT: INTERACTIVE SERVICE CARDS (Draggable + Inline Expandable) */}
         {(registeredServices.length > 0
           ? registeredServices
           : [
@@ -773,12 +1035,13 @@ export default function InteractiveControlCenterCanvas({
         ).map((svc) => {
           const nodeKey =
             svc.service_id === "empty" ? "svc:empty" : `svc:${svc.service_id}`;
-          const pos = positions[nodeKey] || { x: 800, y: 120 };
+          const pos = positions[nodeKey] || { x: 790, y: 120 };
           const healthy =
             svc.healthy !== false && svc.health_check?.status !== "UNHEALTHY";
           const isSelected =
             inspected?.kind === "service" &&
             inspected.serviceId === svc.service_id;
+          const isExpanded = Boolean(expandedNodes[nodeKey]);
           const cat = svc.category || "backend";
 
           return (
@@ -792,11 +1055,14 @@ export default function InteractiveControlCenterCanvas({
                 top: 0,
                 transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
                 willChange: "transform",
-                zIndex: draggingNodeId === nodeKey ? 30 : 10,
+                zIndex: draggingNodeId === nodeKey ? 30 : isExpanded ? 20 : 10,
               }}
               onPointerDown={(e) => startNodeDrag(e, nodeKey)}
               onMouseEnter={() => setHoveredNodeId(nodeKey)}
               onMouseLeave={() => setHoveredNodeId(null)}
+              onDoubleClick={(e) => {
+                if (svc.service_id !== "empty") toggleExpandNode(nodeKey, e);
+              }}
               onClick={(e) => {
                 e.stopPropagation();
                 if (lastDragMovedRef.current) {
@@ -807,10 +1073,10 @@ export default function InteractiveControlCenterCanvas({
                   setInspected({ kind: "service", serviceId: svc.service_id });
                 }
               }}
-              className={`absolute w-[255px] rounded-xl border bg-nb-gray-940 px-4 py-3 shadow-lg transition-colors duration-150 ${
+              className={`absolute w-[275px] rounded-xl border bg-nb-gray-940 px-4 py-3 shadow-lg transition-colors duration-150 ${
                 draggingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-sky-400 shadow-2xl"
-                  : "cursor-pointer hover:border-nb-gray-700 hover:bg-nb-gray-930"
+                  : "cursor-grab hover:border-nb-gray-700 hover:bg-nb-gray-930"
               } ${
                 isSelected
                   ? "border-sky-400 ring-1 ring-sky-400/30"
@@ -822,41 +1088,98 @@ export default function InteractiveControlCenterCanvas({
                   Noch keine Dienste bereitgestellt
                 </div>
               ) : (
-                <div className="flex items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-nb-gray-800 bg-nb-gray-950 text-sky-400">
-                      {cat === "database" ? (
-                        <Database className="h-4 w-4 text-purple-400" />
-                      ) : cat === "webui" ? (
-                        <Globe className="h-4 w-4 text-sky-400" />
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-nb-gray-800 bg-nb-gray-950 text-sky-400">
+                        {cat === "database" ? (
+                          <Database className="h-4 w-4 text-purple-400" />
+                        ) : cat === "webui" ? (
+                          <Globe className="h-4 w-4 text-sky-400" />
+                        ) : (
+                          <Zap className="h-4 w-4 text-netbird" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`h-2 w-2 shrink-0 rounded-full ${
+                              healthy
+                                ? "bg-green-400"
+                                : "bg-red-500 animate-pulse"
+                            }`}
+                          />
+                          <span className="truncate text-xs font-semibold text-white">
+                            {svc.name}
+                          </span>
+                        </div>
+                        <div className="font-mono text-[10px] text-nb-gray-400 mt-0.5">
+                          {cat === "webui"
+                            ? "WebUI"
+                            : cat === "database"
+                            ? "Datenbank"
+                            : "Backend API"}{" "}
+                          · :{svc.port}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => toggleExpandNode(nodeKey, e)}
+                      title={
+                        isExpanded
+                          ? "Service einklappen"
+                          : "Endpunkte & Aktionen direkt aufklappen"
+                      }
+                      className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white transition"
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="h-4 w-4" />
                       ) : (
-                        <Zap className="h-4 w-4 text-netbird" />
+                        <ChevronDown className="h-4 w-4" />
                       )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${
-                            healthy
-                              ? "bg-green-400"
-                              : "bg-red-500 animate-pulse"
-                          }`}
-                        />
-                        <span className="truncate text-xs font-semibold text-white">
-                          {svc.name}
-                        </span>
-                      </div>
-                      <div className="font-mono text-[10px] text-nb-gray-400 mt-0.5">
-                        {cat === "webui"
-                          ? "WebUI"
-                          : cat === "database"
-                          ? "Datenbank"
-                          : "Backend API"}{" "}
-                        · :{svc.port}
-                      </div>
-                    </div>
+                    </button>
                   </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-nb-gray-500" />
+
+                  {/* INLINE EXPANDED SERVICE ENDPOINTS & TESTER BUTTON */}
+                  {isExpanded && (
+                    <div className="mt-2.5 space-y-2 border-t border-nb-gray-800/80 pt-2 text-[11px]">
+                      {svc.endpoints && svc.endpoints.length > 0 && (
+                        <div className="space-y-1">
+                          {svc.endpoints.slice(0, 3).map((ep) => (
+                            <button
+                              key={ep.id}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenReverseProxy(svc.port);
+                              }}
+                              className="flex w-full items-center justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1 text-[10px] text-nb-gray-200 hover:border-sky-400"
+                            >
+                              <span className="truncate">
+                                <strong className="font-mono text-netbird mr-1.5">
+                                  {ep.method}
+                                </strong>
+                                {ep.label}
+                              </span>
+                              <ChevronRight className="h-3 w-3 shrink-0 text-nb-gray-500" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenReverseProxy(svc.port);
+                        }}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-netbird py-1.5 text-[11px] font-medium text-white hover:bg-netbird-500"
+                      >
+                        <Globe className="h-3 w-3" />
+                        <span>Tester &amp; Vorschau öffnen</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -865,13 +1188,65 @@ export default function InteractiveControlCenterCanvas({
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          PROGRESSIVE DISCLOSURE: SLIDE-OVER DETAIL INSPECTOR (ON CLICK)
+          PROGRESSIVE DISCLOSURE: DRAGGABLE FLOATING DETAIL INSPECTOR
       ═══════════════════════════════════════════════════════════════════ */}
       {inspected && (
         <div
           onPointerDown={(e) => e.stopPropagation()}
-          className="pointer-events-auto absolute right-4 top-4 bottom-4 z-30 flex w-[340px] flex-col rounded-2xl border border-nb-gray-800 bg-nb-gray-940/95 p-5 shadow-2xl backdrop-blur overflow-y-auto"
+          style={
+            inspectorPos
+              ? {
+                  left: `${inspectorPos.x}px`,
+                  top: `${inspectorPos.y}px`,
+                  right: "auto",
+                  bottom: "auto",
+                  maxHeight: "calc(100% - 32px)",
+                }
+              : undefined
+          }
+          className={`pointer-events-auto absolute z-30 flex w-[340px] flex-col rounded-2xl border border-nb-gray-800 bg-nb-gray-940/95 p-4 shadow-2xl backdrop-blur overflow-y-auto ${
+            inspectorPos ? "" : "right-4 top-4 bottom-4"
+          }`}
         >
+          {/* Draggable Window Handle */}
+          <div
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              const el = e.currentTarget.parentElement;
+              const rect = el?.getBoundingClientRect();
+              const parentRect = containerRef.current?.getBoundingClientRect();
+              const curX = inspectorPos
+                ? inspectorPos.x
+                : rect && parentRect
+                ? rect.left - parentRect.left
+                : 400;
+              const curY = inspectorPos
+                ? inspectorPos.y
+                : rect && parentRect
+                ? rect.top - parentRect.top
+                : 16;
+              dragInspectorRef.current = {
+                startClientX: e.clientX,
+                startClientY: e.clientY,
+                origX: curX,
+                origY: curY,
+              };
+            }}
+            className="mb-2 flex cursor-move items-center justify-between rounded-lg bg-nb-gray-950/70 px-2.5 py-1 text-[10px] text-nb-gray-400 hover:text-nb-gray-200"
+            title="Mit der Maus ziehen, um das Detailfenster frei zu verschieben"
+          >
+            <span className="flex items-center gap-1.5 font-mono">
+              <Move className="h-3 w-3 text-netbird" />
+              <span>Detail-Inspektor (frei verschiebbar)</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setInspected(null)}
+              className="rounded p-0.5 text-nb-gray-400 hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
           {/* CASE 1: INSPECTING A MUSCLE SERVER */}
           {inspectedPeer && (
             <div className="space-y-4">
@@ -1156,7 +1531,7 @@ export default function InteractiveControlCenterCanvas({
         </div>
       )}
 
-      {/* Bottom-Left Zoom Controls */}
+      {/* Bottom-Left Zoom & Expand Controls */}
       <div
         onPointerDown={(e) => e.stopPropagation()}
         className="pointer-events-auto absolute bottom-4 left-5 z-20 flex items-center gap-1 rounded-xl border border-nb-gray-800 bg-nb-gray-940/90 p-1 shadow-lg backdrop-blur"
@@ -1181,6 +1556,15 @@ export default function InteractiveControlCenterCanvas({
           title="Zoom Out"
         >
           <ZoomOut className="h-3.5 w-3.5" />
+        </button>
+        <div className="h-3.5 w-[1px] bg-nb-gray-800 mx-0.5" />
+        <button
+          onClick={handleToggleExpandAll}
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-nb-gray-300 hover:bg-nb-gray-900 hover:text-white"
+          title="Alle Knoten auf dem Canvas auf- oder zuklappen"
+        >
+          <ChevronsUpDown className="h-3.5 w-3.5 text-netbird" />
+          <span>{allExpanded ? "Alle einklappen" : "Alle erweitern"}</span>
         </button>
         <div className="h-3.5 w-[1px] bg-nb-gray-800 mx-0.5" />
         <button
