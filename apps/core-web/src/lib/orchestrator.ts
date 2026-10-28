@@ -1249,7 +1249,15 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
             !rawQuery ||
             JSON.stringify(a).toLowerCase().includes(rawQuery.toLowerCase())
         )
-        .slice(0, 25);
+        .slice(0, 15)
+        .map((a) => ({
+          timestamp: a.timestamp,
+          actor: a.actor,
+          tool_name: a.tool_name,
+          node_id: a.node_id,
+          status: a.status,
+          summary: a.summary,
+        }));
     }
 
     if (scope === "all" || scope === "cartridges") {

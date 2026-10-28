@@ -282,17 +282,17 @@ async function emitProgressiveTokens(
 ): Promise<void> {
   if (!onProgress) return;
   if (thinkingText) {
-    const tChunks = thinkingText.match(/[\s\S]{1,48}/g) || [thinkingText];
+    const tChunks = thinkingText.match(/[\s\S]{1,180}/g) || [thinkingText];
     for (const c of tChunks) {
       onProgress({ type: "thinking_delta", delta: c });
-      await new Promise((r) => setTimeout(r, 8));
+      await new Promise((r) => setTimeout(r, 4));
     }
   }
   if (text) {
-    const chunks = text.match(/[\s\S]{1,36}/g) || [text];
+    const chunks = text.match(/[\s\S]{1,180}/g) || [text];
     for (const c of chunks) {
       onProgress({ type: "token_delta", delta: c });
-      await new Promise((r) => setTimeout(r, 10));
+      await new Promise((r) => setTimeout(r, 4));
     }
   }
 }
@@ -358,37 +358,52 @@ async function runOpenAICompatibleAgentLoop(
           : `Runde ${step + 1}: KI wertet Ergebnisse aus & prüft nächstes Teilsystem...\n`,
     });
 
-    const llmRes = await fetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model,
-        messages: conversation,
-        tools: SYNAPSE_TOOL_SCHEMAS,
-        tool_choice: "auto",
-      }),
-    });
+    let completion: Record<string, unknown> | null = null;
+    try {
+      const llmRes = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: conversation,
+          tools: SYNAPSE_TOOL_SCHEMAS,
+          tool_choice: "auto",
+        }),
+      });
 
-    if (!llmRes.ok) {
+      if (!llmRes.ok) {
+        if (allToolResults.length > 0) {
+          break;
+        }
+        return null;
+      }
+
+      completion = (await llmRes.json()) as Record<string, unknown>;
+    } catch {
+      if (allToolResults.length > 0) {
+        break;
+      }
       return null;
     }
 
-    const completion = await llmRes.json();
-
     // Parse OpenAI / DeepSeek prompt cache metrics if present
-    const usage = completion.usage;
+    const usage = completion.usage as Record<string, unknown> | undefined;
     if (usage) {
       totalPromptTokens += Number(usage.prompt_tokens || 0);
       totalCompletionTokens += Number(usage.completion_tokens || 0);
+      const promptDetails = usage.prompt_tokens_details as
+        | Record<string, unknown>
+        | undefined;
       const cached = Number(
-        usage.prompt_tokens_details?.cached_tokens ??
-          usage.prompt_cache_hit_tokens ??
-          0
+        promptDetails?.cached_tokens ?? usage.prompt_cache_hit_tokens ?? 0
       );
       totalCachedTokens += cached;
     }
 
-    const choice = completion.choices?.[0]?.message;
+    const choices = completion.choices as
+      | Array<{ message?: Record<string, unknown> }>
+      | undefined;
+    const choice = choices?.[0]?.message;
     if (!choice) {
       break;
     }
@@ -465,11 +480,19 @@ async function runOpenAICompatibleAgentLoop(
         result: dispatched,
       });
 
+      const rawToolJson = JSON.stringify(dispatched.output);
+      const cappedToolJson =
+        rawToolJson.length > 10000
+          ? `${rawToolJson.slice(0, 10000)}\n... [truncated ${
+              rawToolJson.length - 10000
+            } chars for LLM context window]`
+          : rawToolJson;
+
       conversation.push({
         role: "tool",
         tool_call_id: tc.id,
         name: fnName,
-        content: JSON.stringify(dispatched.output),
+        content: cappedToolJson,
       });
 
       if (
@@ -486,7 +509,7 @@ async function runOpenAICompatibleAgentLoop(
     }
   }
 
-  // If the AI reached MAX_AGENT_ITERATIONS while still calling tools, force a final synthesis pass
+  // If the AI reached MAX_AGENT_ITERATIONS or broke out while still calling tools, force a final synthesis pass
   if (!finalReply && allToolResults.length > 0) {
     onProgress?.({
       type: "thinking_delta",
@@ -539,7 +562,16 @@ async function runOpenAICompatibleAgentLoop(
 
   const resolvedReply =
     finalReply ||
-    `Completed ${allToolResults.length} autonomous tool step(s) across the Brain & Muscle pipeline.`;
+    `### Durchgeführte DevOps-Analyse (${allToolResults.length} Schritte)\n\n` +
+      allToolResults
+        .map((tr, i) => {
+          const outObj = tr.output as Record<string, unknown> | undefined;
+          const textOut = String(
+            outObj?.findings || outObj?.output || JSON.stringify(tr.output)
+          ).slice(0, 1200);
+          return `#### Schritt ${i + 1}: \`${tr.tool_name}\` (${tr.status})\n\`\`\`text\n${textOut}\n\`\`\``;
+        })
+        .join("\n\n");
 
   await emitProgressiveTokens(
     resolvedReply,
@@ -1065,7 +1097,7 @@ if __name__ == "__main__":
       path: ".",
     });
     finalReply = formatHaltedWorkflowReply(step, 1);
-  } else if (lower.includes("update memory") || lower.includes("journal")) {
+  } else if (lower.startsWith("update memory") || lower.startsWith("journal:")) {
     const step = await runStep("core_update_brain_doc", {
       document: "Memory.md",
       mode: "append",
