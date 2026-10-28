@@ -4605,7 +4605,7 @@ export default function SynapseNetBirdControlCenter() {
                     <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex items-start gap-2.5">
                             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-500/40 bg-emerald-950/60 text-emerald-400">
                               <RefreshCw
                                 className={`h-4 w-4 ${
@@ -4990,7 +4990,7 @@ export default function SynapseNetBirdControlCenter() {
 
                 {settingsTab === "setup-keys" && (
                   <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-start gap-2.5">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
                         <Server className="h-4 w-4" />
                       </span>
@@ -5131,7 +5131,7 @@ export default function SynapseNetBirdControlCenter() {
 
                 {settingsTab === "secrets-vault" && (
                   <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-start gap-2.5">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
                         <KeyRound className="h-4 w-4" />
                       </span>
@@ -5200,7 +5200,7 @@ export default function SynapseNetBirdControlCenter() {
 
                 {settingsTab === "ai-providers" && (
                   <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-start gap-2.5">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
                         <Bot className="h-4 w-4" />
                       </span>
@@ -5373,7 +5373,7 @@ export default function SynapseNetBirdControlCenter() {
                 {settingsTab === "mcp-server" && (
                   <div className="space-y-5">
                     <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-start gap-2.5">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
                           <Sparkles className="h-4 w-4" />
                         </span>
@@ -5640,8 +5640,8 @@ curl -X POST ${originUrl}/api/mcp \\
                 {settingsTab === "debug-console" && (
                   <div className="space-y-5">
                     <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5">
                           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-amber-500/40 bg-amber-950/60 text-amber-400">
                             <Activity className="h-4 w-4" />
                           </span>
@@ -5768,7 +5768,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                     {/* Left Card: 24/7 Watchdog & Multi-Channel Push Alerts */}
                     <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-4">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-start gap-2.5">
                           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
                             <Activity className="h-4 w-4" />
                           </span>
@@ -5928,7 +5928,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                     {/* Right Card: WebUI Login & RBAC Roles */}
                     <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-4">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-start gap-2.5">
                           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-500/40 bg-emerald-950/60 text-emerald-400">
                             <Lock className="h-4 w-4" />
                           </span>
@@ -6071,17 +6071,19 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 {settingsTab === "language" && (
                   <div className="space-y-5">
                     <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
-                      <div className="flex flex-wrap items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2.5 text-base font-semibold text-white">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
-                              <Globe className="h-4 w-4" />
-                            </span>
-                            <span>Sprache &amp; Lokalisierung</span>
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="flex items-start gap-2.5">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
+                            <Globe className="h-4 w-4" />
+                          </span>
+                          <div>
+                            <h2 className="text-base font-semibold text-white">
+                              Sprache &amp; Lokalisierung
+                            </h2>
+                            <p className="text-xs text-nb-gray-400">
+                              Wähle die Anzeigesprache der Benutzeroberfläche. Weitere Sprachen können jederzeit über das Sprach-Register ergänzt werden.
+                            </p>
                           </div>
-                          <p className="text-xs text-nb-gray-400">
-                            Wähle die Anzeigesprache der Benutzeroberfläche. Weitere Sprachen können jederzeit über das Sprach-Register ergänzt werden.
-                          </p>
                         </div>
                         <LanguageSwitcher variant="settings" />
                       </div>
@@ -8111,8 +8113,8 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
       {addPeerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
           <div className="w-full max-w-xl rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-nb-gray-900 pb-3.5">
-              <div className="flex items-center gap-2.5">
+            <div className="flex items-start justify-between border-b border-nb-gray-900 pb-3.5">
+              <div className="flex items-start gap-2.5">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
                   <MonitorSmartphone className="h-4 w-4" />
                 </div>
