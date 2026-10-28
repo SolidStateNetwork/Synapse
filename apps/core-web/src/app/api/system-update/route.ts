@@ -17,21 +17,22 @@ export interface UpdateStepLog {
 }
 
 function resolveRepoRoot(): string {
-  const cwd = process.cwd();
-  if (
-    fs.existsSync(path.join(cwd, "agents", "axon")) &&
-    fs.existsSync(path.join(cwd, "apps", "core-gateway"))
-  ) {
-    return cwd;
+  if (process.env.SYNAPSE_REPO_ROOT && fs.existsSync(process.env.SYNAPSE_REPO_ROOT)) {
+    return process.env.SYNAPSE_REPO_ROOT;
   }
-  const parent = path.resolve(cwd, "..", "..");
-  if (
-    fs.existsSync(path.join(parent, "agents", "axon")) &&
-    fs.existsSync(path.join(parent, "apps", "core-gateway"))
-  ) {
-    return parent;
+  let dir = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    if (
+      fs.existsSync(path.join(dir, "agents", "axon")) &&
+      fs.existsSync(path.join(dir, "apps", "core-gateway"))
+    ) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
   }
-  return cwd;
+  return process.cwd();
 }
 
 function getFileSummary(filePath: string): {
