@@ -234,57 +234,87 @@ export default function InteractiveControlCenterCanvas({
   const serviceIdsKey = useMemo(
     () =>
       registeredServices.length > 0
-        ? registeredServices.map((s) => s.service_id).join(",")
+        ? registeredServices
+            .map((s) => `${s.service_id}@${s.node_id || ""}`)
+            .join(",")
         : "empty",
     [registeredServices]
   );
 
-  // Clean 3-column Hub-and-Spoke layout:
-  // Left: Muscle Peers -> Center: 1 Unified Synapse Core Hub -> Right: Reachable Services
-  const computeDefaultLayout = useCallback((): Record<string, CanvasPos> => {
-    const next: Record<string, CanvasPos> = {};
-    const peerIds =
-      peerIdsKey !== "empty"
-        ? peerIdsKey.split(",").map((id) => `peer:${id}`)
-        : ["peer:empty"];
+  // Clean 3-column Hierarchical Layout:
+  // Left: Synapse Core Hub -> Center: Muscle Peers -> Right: Services grouped directly behind their owning Muscle
+  const buildHierarchicalLayout = useCallback(
+    (expanded: boolean): Record<string, CanvasPos> => {
+      const next: Record<string, CanvasPos> = {};
+      const rawPeerIds =
+        peerIdsKey !== "empty" ? peerIdsKey.split(",") : ["empty"];
+      const peerStep = expanded ? 205 : 118;
+      const svcStep = expanded ? 226 : 98;
 
-    const serviceIds =
-      serviceIdsKey !== "empty"
-        ? serviceIdsKey.split(",").map((id) => `svc:${id}`)
-        : ["svc:empty"];
+      const servicesByPeer = new Map<string, RegisteredService[]>();
+      for (const pid of rawPeerIds) {
+        servicesByPeer.set(pid, []);
+      }
+      for (const svc of registeredServices) {
+        const targetPeer =
+          svc.node_id && servicesByPeer.has(svc.node_id)
+            ? svc.node_id
+            : rawPeerIds[0];
+        servicesByPeer.get(targetPeer)?.push(svc);
+      }
 
-    const maxRows = Math.max(peerIds.length, serviceIds.length, 2);
-    const centerHeight = maxRows * 105;
-    const coreY = Math.max(150, Math.round(centerHeight / 2));
+      let cursorY = expanded ? 20 : 36;
+      const peerYs: number[] = [];
 
-    peerIds.forEach((id, idx) => {
-      const totalH = (peerIds.length - 1) * 115;
-      const startY = Math.max(40, coreY - Math.round(totalH / 2));
-      next[id] = { x: 48, y: startY + idx * 115 };
-    });
+      rawPeerIds.forEach((rawId) => {
+        const peerKey = `peer:${rawId}`;
+        const owned = servicesByPeer.get(rawId) || [];
+        if (owned.length > 0) {
+          const firstSvcY = cursorY;
+          owned.forEach((svc, idx) => {
+            next[`svc:${svc.service_id}`] = {
+              x: 790,
+              y: firstSvcY + idx * svcStep,
+            };
+          });
+          const lastSvcY = firstSvcY + (owned.length - 1) * svcStep;
+          const peerY = Math.round((firstSvcY + lastSvcY) / 2);
+          next[peerKey] = { x: 420, y: peerY };
+          peerYs.push(peerY);
+          cursorY = Math.max(lastSvcY + svcStep, peerY + peerStep) + 14;
+        } else {
+          const peerY = cursorY;
+          next[peerKey] = { x: 420, y: peerY };
+          peerYs.push(peerY);
+          cursorY += peerStep;
+        }
+      });
 
-    next["core:hub"] = { x: 420, y: coreY - 24 };
+      const minPeerY = peerYs.length > 0 ? Math.min(...peerYs) : 120;
+      const maxPeerY = peerYs.length > 0 ? Math.max(...peerYs) : 120;
+      const midPeerY = Math.round((minPeerY + maxPeerY) / 2);
 
-    serviceIds.forEach((id, idx) => {
-      const totalH = (serviceIds.length - 1) * 102;
-      const startY = Math.max(40, coreY - Math.round(totalH / 2));
-      next[id] = { x: 790, y: startY + idx * 102 };
-    });
+      next["core:hub"] = {
+        x: 48,
+        y: Math.max(36, midPeerY - (expanded ? 60 : 18)),
+      };
 
-    return next;
-  }, [peerIdsKey, serviceIdsKey]);
+      if (registeredServices.length === 0) {
+        next["svc:empty"] = { x: 790, y: midPeerY };
+      }
+
+      return next;
+    },
+    [peerIdsKey, registeredServices]
+  );
+
+  const computeDefaultLayout = useCallback(
+    (): Record<string, CanvasPos> => buildHierarchicalLayout(false),
+    [buildHierarchicalLayout]
+  );
 
   useEffect(() => {
-    const defaults = computeDefaultLayout();
-    setPositions((prev) => {
-      const merged: Record<string, CanvasPos> = { ...defaults };
-      for (const k of Object.keys(defaults)) {
-        if (prev[k]) {
-          merged[k] = prev[k];
-        }
-      }
-      return merged;
-    });
+    setPositions(computeDefaultLayout());
   }, [computeDefaultLayout]);
 
   const measureNodes = useCallback(() => {
@@ -364,32 +394,7 @@ export default function InteractiveControlCenterCanvas({
     });
     setExpandedNodes(next);
     // Adjust vertical spacing so expanded cards never overlap
-    setPositions(() => {
-      const peerIds =
-        peerIdsKey !== "empty"
-          ? peerIdsKey.split(",").map((id) => `peer:${id}`)
-          : ["peer:empty"];
-      const serviceIds =
-        serviceIdsKey !== "empty"
-          ? serviceIdsKey.split(",").map((id) => `svc:${id}`)
-          : ["svc:empty"];
-      const peerStep = target ? 205 : 115;
-      const svcStep = target ? 226 : 102;
-      const maxRows = Math.max(peerIds.length, serviceIds.length, 2);
-      const coreY = target ? 260 : Math.max(150, Math.round((maxRows * svcStep) / 2));
-      const updated: Record<string, CanvasPos> = {};
-      peerIds.forEach((id, idx) => {
-        const totalH = (peerIds.length - 1) * peerStep;
-        const startY = Math.max(24, coreY - Math.round(totalH / 2));
-        updated[id] = { x: 48, y: startY + idx * peerStep };
-      });
-      updated["core:hub"] = { x: 420, y: Math.max(40, coreY - (target ? 110 : 24)) };
-      serviceIds.forEach((id, idx) => {
-        const startY = target ? 16 : Math.max(36, coreY - Math.round(((serviceIds.length - 1) * svcStep) / 2));
-        updated[id] = { x: 790, y: startY + idx * svcStep };
-      });
-      return updated;
-    });
+    setPositions(() => buildHierarchicalLayout(target));
     if (target) {
       setZoom(0.75);
       setPan({ x: 64, y: 18 });
@@ -425,40 +430,51 @@ export default function InteractiveControlCenterCanvas({
     handleFitView();
   };
 
-  // Clean Hub-and-Spoke edges (no crossing spaghetti!)
+  // Clean 3-tier hierarchical edges:
+  // Core Hub (Left) -> Muscle Peer (Middle) -> Owned Services (Right)
   const edges = useMemo<CanvasEdge[]>(() => {
     const list: CanvasEdge[] = [];
-    const peerIds =
-      peerIdsKey !== "empty"
-        ? peerIdsKey.split(",").map((id) => `peer:${id}`)
-        : ["peer:empty"];
-    const serviceIds =
-      serviceIdsKey !== "empty"
-        ? serviceIdsKey.split(",").map((id) => `svc:${id}`)
-        : ["svc:empty"];
+    const rawPeerIds =
+      peerIdsKey !== "empty" ? peerIdsKey.split(",") : ["empty"];
+    const peerIds = rawPeerIds.map((id) => `peer:${id}`);
 
     for (const pid of peerIds) {
       list.push({
-        id: `${pid}->core:hub`,
-        from: pid,
-        to: "core:hub",
+        id: `core:hub->${pid}`,
+        from: "core:hub",
+        to: pid,
         color: "#f68330",
         active: pid !== "peer:empty",
       });
     }
 
-    for (const sid of serviceIds) {
+    if (registeredServices.length === 0) {
+      const firstPeer = peerIds[0] || "core:hub";
       list.push({
-        id: `core:hub->${sid}`,
-        from: "core:hub",
-        to: sid,
+        id: `${firstPeer}->svc:empty`,
+        from: firstPeer,
+        to: "svc:empty",
         color: "#38bdf8",
-        active: sid !== "svc:empty",
+        active: false,
       });
+    } else {
+      for (const svc of registeredServices) {
+        const ownerPeerKey =
+          svc.node_id && rawPeerIds.includes(svc.node_id)
+            ? `peer:${svc.node_id}`
+            : peerIds[0] || "core:hub";
+        list.push({
+          id: `${ownerPeerKey}->svc:${svc.service_id}`,
+          from: ownerPeerKey,
+          to: `svc:${svc.service_id}`,
+          color: "#38bdf8",
+          active: true,
+        });
+      }
     }
 
     return list;
-  }, [peerIdsKey, serviceIdsKey]);
+  }, [peerIdsKey, serviceIdsKey, registeredServices]);
 
   useEffect(() => {
     let rafId: number | null = null;
@@ -679,7 +695,8 @@ export default function InteractiveControlCenterCanvas({
                 hoveredNodeId &&
                   (edge.from === hoveredNodeId || edge.to === hoveredNodeId)
               );
-              const isPeerEdge = edge.from.startsWith("peer:");
+              const isPeerEdge =
+                edge.from === "core:hub" || edge.to === "core:hub";
               const secondaryColor = isPeerEdge ? "#fbbf24" : "#34d399";
 
               // IMPORTANT: Keep durations & delays 100% invariant across hover states so particles NEVER jump!
@@ -887,11 +904,11 @@ export default function InteractiveControlCenterCanvas({
           })()}
         </svg>
 
-        {/* 1. LEFT: INTERACTIVE SERVER CARDS (Draggable + Inline Expandable) */}
+        {/* 1. MIDDLE: INTERACTIVE MUSCLE SERVER CARDS (Draggable + Inline Expandable) */}
         {peerNodesToRender.map((gn) => {
           const nodeKey =
             gn.node_id === "empty" ? "peer:empty" : `peer:${gn.node_id}`;
-          const pos = positions[nodeKey] || { x: 48, y: 120 };
+          const pos = positions[nodeKey] || { x: 420, y: 120 };
           const hb = gn.last_heartbeat;
           const isSelected =
             inspected?.kind === "peer" && inspected.nodeId === gn.node_id;
@@ -1096,10 +1113,10 @@ export default function InteractiveControlCenterCanvas({
           );
         })}
 
-        {/* 2. CENTER: UNIFIED SYNAPSE CORE HUB NODE (Draggable + Inline Expandable) */}
+        {/* 2. LEFT: UNIFIED SYNAPSE CORE HUB NODE (Draggable + Inline Expandable) */}
         {(() => {
           const nodeKey = "core:hub";
-          const pos = positions[nodeKey] || { x: 420, y: 120 };
+          const pos = positions[nodeKey] || { x: 48, y: 120 };
           const isSelected = inspected?.kind === "core";
           const isExpanded = Boolean(expandedNodes[nodeKey]);
 
