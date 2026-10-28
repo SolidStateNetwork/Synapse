@@ -731,6 +731,31 @@ const EN_DICTIONARY: Record<string, string> = {
   "Was bedeutet das konkret?": "What does this mean in practice?",
   "Ergebnisse kopieren": "Copy Results",
   "Abschnitt kopieren": "Copy Section",
+  "Autonomer Microservice :4050": "Autonomous Microservice :4050",
+  "VPS2 Status-API": "VPS2 Status API",
+  "Pulse Analytics-API": "Pulse Analytics API",
+  "Pulse SQLite-Datenbank": "Pulse SQLite Database",
+  "Pulse Live-WebUI": "Pulse Live WebUI",
+  "Web-Oberfläche": "WebUI",
+  "Backend-API": "Backend API",
+  "Docker-First Bereitstellung": "Docker-First Deployment",
+  "Zero-Trust Netzwerk": "Zero-Trust Networking",
+  "Auto-TLS & Reverse-Proxy": "Auto-TLS & Reverse Proxy",
+  "Bare-Metal & Systemd": "Bare-Metal Systemd",
+  "Strikte Sicherheits- & Telemetrie-Header":
+    "Strict Security & Telemetry Headers",
+  "Verfügbare Aktionen & Endpunkte": "Available Actions & Endpoints",
+  "Alle Regeln →": "All Rules →",
+  "SPEICHER": "DISK",
+  "GET / (Übersicht)": "GET / (Overview)",
+  "POST / (JSON-Daten senden)": "POST / (Send JSON Input)",
+  "GET / (Dienst-Status)": "GET / (Service Status)",
+  "GET / (API-Status)": "GET / (API Status)",
+  "POST /api/events (Event hinzufügen)": "POST /api/events (Add Event)",
+  "SQL: pulse.db untersuchen": "SQL: Inspect pulse.db",
+  "Tabellen anzeigen (SQLite)": "Show Tables (SQLite)",
+  "Neueste Einträge abfragen": "Query Latest Rows",
+  "Test-Eintrag einfügen (SQL)": "Insert Test Row (SQL)",
 };
 
 /**
@@ -1096,6 +1121,35 @@ const EN_PATTERNS: PatternRule[] = [
     match: /^IP (.+) wurde erfolgreich freigegeben\.$/,
     replace: "IP $1 whitelisted successfully.",
   },
+  {
+    match: /^Datenbank · (.+)$/,
+    replace: "Database · $1",
+  },
+  {
+    match: /^Backend-API · (.+)$/,
+    replace: "Backend API · $1",
+  },
+  {
+    match: /^Web-Oberfläche · (.+)$/,
+    replace: "WebUI · $1",
+  },
+  {
+    match: /^(.+) · Stufe (\d+)$/,
+    replace: "$1 · Tier $2",
+  },
+  {
+    match: /^Erreichbare Backend-REST-API über den Synapse Reverse-Proxy \((.+)\)$/,
+    replace: "Reachable Backend REST API via Synapse Reverse Proxy ($1)",
+  },
+  {
+    match: /^Interaktive Datenbank & Speicher-Engine auf (.+) \((.+)\)$/,
+    replace: "Interactive Database & Storage Engine on $1 ($2)",
+  },
+  {
+    match: /^Interaktive Web-Oberfläche über den Synapse Reverse-Proxy erreichbar \((.+)\)$/,
+    replace:
+      "Interactive WebUI reachable from outside via Synapse Reverse Proxy ($1)",
+  },
 ];
 
 const DE_PATTERNS: PatternRule[] = [
@@ -1113,6 +1167,36 @@ const DE_PATTERNS: PatternRule[] = [
   { match: /^All (\d+) lines$/, replace: "Alle $1 Zeilen" },
   { match: /^(\d+) Rules active$/, replace: "$1 Regeln aktiv" },
   { match: /^FW · (\d+) shielded$/, replace: "FW · $1 gesperrt" },
+  {
+    match: /^Database · (.+)$/,
+    replace: "Datenbank · $1",
+  },
+  {
+    match: /^Backend API · (.+)$/,
+    replace: "Backend-API · $1",
+  },
+  {
+    match: /^WebUI · (.+)$/,
+    replace: "Web-Oberfläche · $1",
+  },
+  {
+    match: /^(.+) · Tier (\d+)$/,
+    replace: "$1 · Stufe $2",
+  },
+  {
+    match: /^Reachable Backend REST API via Synapse Reverse Proxy \((.+)\)$/,
+    replace:
+      "Erreichbare Backend-REST-API über den Synapse Reverse-Proxy ($1)",
+  },
+  {
+    match: /^Interactive Database & Storage Engine on (.+) \((.+)\)$/,
+    replace: "Interaktive Datenbank & Speicher-Engine auf $1 ($2)",
+  },
+  {
+    match: /^Interactive WebUI reachable from outside via Synapse Reverse Proxy \((.+)\)$/,
+    replace:
+      "Interaktive Web-Oberfläche über den Synapse Reverse-Proxy erreichbar ($1)",
+  },
   {
     match: /^2\. Live Port Radar \((\d+) active ports on (.+)\)$/,
     replace: "2. Live Port-Radar ($1 aktive Ports auf $2)",

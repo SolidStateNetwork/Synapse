@@ -36,6 +36,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 
 export type AutonomyTier =
   | "TIER_1_UNLEASHED"
@@ -182,6 +183,7 @@ export default function InteractiveControlCenterCanvas({
   firewallPolicies,
   onOpenFirewall,
 }: Props) {
+  const { t, translateText } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -212,17 +214,8 @@ export default function InteractiveControlCenterCanvas({
     moved: boolean;
   } | null>(null);
 
-  // Progressive Disclosure: Click any node to open its clean detail drawer, or expand inline on canvas
-  const [inspected, setInspected] = useState<InspectedTarget>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
-  const [inspectorPos, setInspectorPos] = useState<CanvasPos | null>(null);
-  const dragInspectorRef = useRef<{
-    startClientX: number;
-    startClientY: number;
-    origX: number;
-    origY: number;
-  } | null>(null);
 
   const peerIdsKey = useMemo(
     () =>
@@ -244,110 +237,95 @@ export default function InteractiveControlCenterCanvas({
 
   // Clean 3-column Hierarchical Layout with Pixel-Perfect Vertical Center Alignment:
   // Left (x=60): Synapse Core Hub -> Center (x=460): Muscle Peers -> Right (x=860): Services behind their owning Muscle
-  const buildHierarchicalLayout = useCallback(
-    (
-      expanded: boolean,
-      measuredSizes: Record<string, { w: number; h: number }> = sizes
-    ): Record<string, CanvasPos> => {
-      const next: Record<string, CanvasPos> = {};
-      const rawPeerIds =
-        peerIdsKey !== "empty" ? peerIdsKey.split(",") : ["empty"];
-      const peerStep = expanded ? 205 : 118;
-      const svcStep = expanded ? 226 : 98;
+  const buildHierarchicalLayout = useCallback((): Record<string, CanvasPos> => {
+    const next: Record<string, CanvasPos> = {};
+    const rawPeerIds =
+      peerIdsKey !== "empty" ? peerIdsKey.split(",") : ["empty"];
+    const peerStep = 118;
+    const svcStep = 94;
 
-      const getH = (key: string) => {
-        if (measuredSizes[key]?.h) return measuredSizes[key].h;
-        if (key === "core:hub") return expanded ? 240 : 108;
-        if (key.startsWith("peer:")) return expanded ? 185 : 88;
-        return expanded ? 200 : 62;
-      };
+    const CORE_BASE_H = 108;
+    const PEER_BASE_H = 88;
+    const SVC_BASE_H = 62;
 
-      const servicesByPeer = new Map<string, RegisteredService[]>();
-      for (const pid of rawPeerIds) {
-        servicesByPeer.set(pid, []);
-      }
-      for (const svc of registeredServices) {
-        const targetPeer =
-          svc.node_id && servicesByPeer.has(svc.node_id)
-            ? svc.node_id
-            : rawPeerIds[0];
-        servicesByPeer.get(targetPeer)?.push(svc);
-      }
+    const servicesByPeer = new Map<string, RegisteredService[]>();
+    for (const pid of rawPeerIds) {
+      servicesByPeer.set(pid, []);
+    }
+    for (const svc of registeredServices) {
+      const targetPeer =
+        svc.node_id && servicesByPeer.has(svc.node_id)
+          ? svc.node_id
+          : rawPeerIds[0];
+      servicesByPeer.get(targetPeer)?.push(svc);
+    }
 
-      let cursorY = expanded ? 28 : 48;
-      const peerCenterYs: number[] = [];
+    let cursorY = 48;
+    const peerCenterYs: number[] = [];
 
-      rawPeerIds.forEach((rawId) => {
-        const peerKey = `peer:${rawId}`;
-        const peerH = getH(peerKey);
-        const owned = servicesByPeer.get(rawId) || [];
-        if (owned.length > 0) {
-          let firstSvcY = cursorY;
-          const firstSvcKey = `svc:${owned[0].service_id}`;
-          const lastSvcKey = `svc:${owned[owned.length - 1].service_id}`;
-          const firstSvcH = getH(firstSvcKey);
-          const lastSvcH = getH(lastSvcKey);
+    rawPeerIds.forEach((rawId) => {
+      const peerKey = `peer:${rawId}`;
+      const owned = servicesByPeer.get(rawId) || [];
+      if (owned.length > 0) {
+        let firstSvcY = cursorY;
+        let lastSvcY = firstSvcY + (owned.length - 1) * svcStep;
+        let groupCenterY =
+          (firstSvcY + SVC_BASE_H / 2 + (lastSvcY + SVC_BASE_H / 2)) / 2;
+        let peerY = Math.round(groupCenterY - PEER_BASE_H / 2);
 
-          let lastSvcY = firstSvcY + (owned.length - 1) * svcStep;
-          let groupCenterY =
-            (firstSvcY + firstSvcH / 2 + (lastSvcY + lastSvcH / 2)) / 2;
-          let peerY = Math.round(groupCenterY - peerH / 2);
-
-          if (peerY < 28) {
-            const shift = 28 - peerY;
-            firstSvcY += shift;
-            lastSvcY += shift;
-            groupCenterY += shift;
-            peerY = 28;
-          }
-
-          owned.forEach((svc, idx) => {
-            next[`svc:${svc.service_id}`] = {
-              x: 860,
-              y: Math.round(firstSvcY + idx * svcStep),
-            };
-          });
-
-          next[peerKey] = { x: 460, y: peerY };
-          peerCenterYs.push(peerY + peerH / 2);
-          cursorY =
-            Math.max(lastSvcY + lastSvcH + 36, peerY + peerH + 36);
-        } else {
-          const peerY = cursorY;
-          next[peerKey] = { x: 460, y: peerY };
-          peerCenterYs.push(peerY + peerH / 2);
-          cursorY += Math.max(peerH + 36, peerStep);
+        if (peerY < 28) {
+          const shift = 28 - peerY;
+          firstSvcY += shift;
+          lastSvcY += shift;
+          groupCenterY += shift;
+          peerY = 28;
         }
-      });
 
-      const minCenterY =
-        peerCenterYs.length > 0 ? Math.min(...peerCenterYs) : 200;
-      const maxCenterY =
-        peerCenterYs.length > 0 ? Math.max(...peerCenterYs) : 200;
-      const midCenterY = (minCenterY + maxCenterY) / 2;
+        owned.forEach((svc, idx) => {
+          next[`svc:${svc.service_id}`] = {
+            x: 860,
+            y: Math.round(firstSvcY + idx * svcStep),
+          };
+        });
 
-      const coreH = getH("core:hub");
-      next["core:hub"] = {
-        x: 60,
-        y: Math.max(28, Math.round(midCenterY - coreH / 2)),
-      };
-
-      if (registeredServices.length === 0) {
-        const emptySvcH = getH("svc:empty");
-        next["svc:empty"] = {
-          x: 860,
-          y: Math.max(28, Math.round(midCenterY - emptySvcH / 2)),
-        };
+        next[peerKey] = { x: 460, y: peerY };
+        peerCenterYs.push(peerY + PEER_BASE_H / 2);
+        cursorY = Math.max(
+          lastSvcY + SVC_BASE_H + 36,
+          peerY + PEER_BASE_H + 36
+        );
+      } else {
+        const peerY = cursorY;
+        next[peerKey] = { x: 460, y: peerY };
+        peerCenterYs.push(peerY + PEER_BASE_H / 2);
+        cursorY += Math.max(PEER_BASE_H + 36, peerStep);
       }
+    });
 
-      return next;
-    },
-    [peerIdsKey, registeredServices, sizes]
-  );
+    const minCenterY =
+      peerCenterYs.length > 0 ? Math.min(...peerCenterYs) : 200;
+    const maxCenterY =
+      peerCenterYs.length > 0 ? Math.max(...peerCenterYs) : 200;
+    const midCenterY = (minCenterY + maxCenterY) / 2;
+
+    next["core:hub"] = {
+      x: 60,
+      y: Math.max(28, Math.round(midCenterY - CORE_BASE_H / 2)),
+    };
+
+    if (registeredServices.length === 0) {
+      next["svc:empty"] = {
+        x: 860,
+        y: Math.max(28, Math.round(midCenterY - SVC_BASE_H / 2)),
+      };
+    }
+
+    return next;
+  }, [peerIdsKey, registeredServices]);
 
   const computeDefaultLayout = useCallback(
-    (): Record<string, CanvasPos> => buildHierarchicalLayout(false, sizes),
-    [buildHierarchicalLayout, sizes]
+    (): Record<string, CanvasPos> => buildHierarchicalLayout(),
+    [buildHierarchicalLayout]
   );
 
   useEffect(() => {
@@ -366,7 +344,7 @@ export default function InteractiveControlCenterCanvas({
       const nextSizes: Record<string, { w: number; h: number }> = { ...prev };
       for (const [id, el] of Object.entries(nodeRefs.current)) {
         if (el) {
-          const w = el.offsetWidth || 255;
+          const w = el.offsetWidth || 300;
           const h = el.offsetHeight || 64;
           if (!prev[id] || prev[id].w !== w || prev[id].h !== h) {
             nextSizes[id] = { w, h };
@@ -388,34 +366,46 @@ export default function InteractiveControlCenterCanvas({
     };
   }, [measureNodes, gatewayNodes.length, registeredServices.length, expandedNodes]);
 
-  const toggleExpandNode = useCallback((nodeKey: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setExpandedNodes((prev) => {
-      const nextExpanded = !prev[nodeKey];
-      const next = { ...prev, [nodeKey]: nextExpanded };
-      // If a peer or service card is expanded/collapsed, shift cards below it in the same column so they never overlap
-      if (nodeKey.startsWith("svc:") || nodeKey.startsWith("peer:")) {
-        const prefix = nodeKey.startsWith("svc:") ? "svc:" : "peer:";
-        const deltaY = nextExpanded ? 120 : -120;
-        setPositions((posPrev) => {
-          const curY = posPrev[nodeKey]?.y ?? 0;
-          const nextPos = { ...posPrev };
-          for (const k of Object.keys(nextPos)) {
-            if (k.startsWith(prefix) && k !== nodeKey && (nextPos[k]?.y ?? 0) > curY) {
-              nextPos[k] = {
-                x: nextPos[k].x,
-                y: Math.max(24, nextPos[k].y + deltaY),
-              };
-            }
-          }
-          return nextPos;
-        });
+  // Compute effective positions: when any card is expanded downward as a single unified box,
+  // automatically push sibling cards below it in the same column down by the exact extra height!
+  const effectivePositions = useMemo(() => {
+    const out: Record<string, CanvasPos> = { ...positions };
+    const shiftColumn = (prefix: "peer:" | "svc:", baseH: number, fallbackExpandedH: number) => {
+      const keys = Object.keys(out)
+        .filter((k) => k.startsWith(prefix))
+        .sort((a, b) => (out[a]?.y ?? 0) - (out[b]?.y ?? 0));
+      let extraShiftY = 0;
+      for (const k of keys) {
+        const basePos = out[k];
+        if (!basePos) continue;
+        out[k] = {
+          x: basePos.x,
+          y: Math.round(basePos.y + extraShiftY),
+        };
+        if (expandedNodes[k]) {
+          const actualH = sizes[k]?.h || fallbackExpandedH;
+          const delta = Math.max(0, actualH - baseH);
+          extraShiftY += delta + 10;
+        }
       }
-      return next;
-    });
-    setTimeout(measureNodes, 30);
-    setTimeout(measureNodes, 120);
-  }, [measureNodes]);
+    };
+    shiftColumn("peer:", 88, 250);
+    shiftColumn("svc:", 62, 235);
+    return out;
+  }, [positions, expandedNodes, sizes]);
+
+  const toggleExpandNode = useCallback(
+    (nodeKey: string, e?: React.MouseEvent) => {
+      if (e) e.stopPropagation();
+      setExpandedNodes((prev) => ({
+        ...prev,
+        [nodeKey]: !prev[nodeKey],
+      }));
+      setTimeout(measureNodes, 25);
+      setTimeout(measureNodes, 110);
+    },
+    [measureNodes]
+  );
 
   const allExpanded = useMemo(() => {
     const keys = [
@@ -436,15 +426,6 @@ export default function InteractiveControlCenterCanvas({
       next[`svc:${s.service_id}`] = target;
     });
     setExpandedNodes(next);
-    hasUserDraggedRef.current = false;
-    const nextLayout = buildHierarchicalLayout(target, sizes);
-    setPositions(nextLayout);
-    if (target) {
-      setZoom(0.75);
-      setPan({ x: 64, y: 18 });
-    } else {
-      handleFitView(nextLayout);
-    }
     setTimeout(measureNodes, 40);
     setTimeout(measureNodes, 150);
   };
@@ -513,7 +494,6 @@ export default function InteractiveControlCenterCanvas({
   const handleResetLayout = () => {
     hasUserDraggedRef.current = false;
     setExpandedNodes({});
-    setInspectorPos(null);
     const fresh = computeDefaultLayout();
     setPositions(fresh);
     handleFitView(fresh);
@@ -574,15 +554,6 @@ export default function InteractiveControlCenterCanvas({
       const e = latestEvent;
       if (!e) return;
 
-      if (dragInspectorRef.current) {
-        const d = dragInspectorRef.current;
-        setInspectorPos({
-          x: Math.max(12, Math.round(d.origX + (e.clientX - d.startClientX))),
-          y: Math.max(12, Math.round(d.origY + (e.clientY - d.startClientY))),
-        });
-        return;
-      }
-
       if (dragNodeStartRef.current) {
         const d = dragNodeStartRef.current;
         const dx = (e.clientX - d.startClientX) / zoom;
@@ -612,11 +583,7 @@ export default function InteractiveControlCenterCanvas({
     }
 
     function onPointerMove(e: PointerEvent) {
-      if (
-        !dragInspectorRef.current &&
-        !dragNodeStartRef.current &&
-        !(isPanning && panStartRef.current)
-      ) {
+      if (!dragNodeStartRef.current && !(isPanning && panStartRef.current)) {
         return;
       }
       latestEvent = e;
@@ -631,9 +598,6 @@ export default function InteractiveControlCenterCanvas({
         rafId = null;
       }
       latestEvent = null;
-      if (dragInspectorRef.current) {
-        dragInspectorRef.current = null;
-      }
       if (dragNodeStartRef.current) {
         dragNodeStartRef.current = null;
         setDraggingNodeId(null);
@@ -685,32 +649,24 @@ export default function InteractiveControlCenterCanvas({
   }
 
   function getEdgeCoords(fromId: string, toId: string) {
-    const p1 = positions[fromId] || { x: 60, y: 120 };
-    const p2 = positions[toId] || { x: 430, y: 120 };
-    const defaultS1 =
-      fromId === "core:hub"
-        ? { w: 275, h: 108 }
-        : fromId.startsWith("peer:")
-        ? { w: 275, h: 88 }
-        : { w: 275, h: 62 };
-    const defaultS2 =
-      toId === "core:hub"
-        ? { w: 275, h: 108 }
-        : toId.startsWith("peer:")
-        ? { w: 275, h: 88 }
-        : { w: 275, h: 62 };
+    const p1 = effectivePositions[fromId] || { x: 60, y: 120 };
+    const p2 = effectivePositions[toId] || { x: 460, y: 120 };
+    const headerH1 =
+      fromId === "core:hub" ? 108 : fromId.startsWith("peer:") ? 88 : 62;
+    const headerH2 =
+      toId === "core:hub" ? 108 : toId.startsWith("peer:") ? 88 : 62;
 
-    const s1 = sizes[fromId] || defaultS1;
-    const s2 = sizes[toId] || defaultS2;
+    const w1 = sizes[fromId]?.w || 300;
+    const w2 = sizes[toId]?.w || 300;
 
-    const c1CenterX = p1.x + s1.w / 2;
-    const c2CenterX = p2.x + s2.w / 2;
+    const c1CenterX = p1.x + w1 / 2;
+    const c2CenterX = p2.x + w2 / 2;
     const leftToRight = c1CenterX <= c2CenterX;
 
-    const x1 = leftToRight ? p1.x + s1.w : p1.x;
-    const y1 = p1.y + s1.h / 2;
-    const x2 = leftToRight ? p2.x : p2.x + s2.w;
-    const y2 = p2.y + s2.h / 2;
+    const x1 = leftToRight ? p1.x + w1 : p1.x;
+    const y1 = p1.y + headerH1 / 2;
+    const x2 = leftToRight ? p2.x : p2.x + w2;
+    const y2 = p2.y + headerH2 / 2;
 
     const dx = Math.max(Math.abs(x2 - x1) * 0.45, 48);
     const c1x = leftToRight ? x1 + dx : x1 - dx;
@@ -733,24 +689,12 @@ export default function InteractiveControlCenterCanvas({
           } as GatewayNode,
         ];
 
-  const inspectedPeer =
-    inspected?.kind === "peer"
-      ? gatewayNodes.find((n) => n.node_id === inspected.nodeId) || null
-      : null;
-
-  const inspectedService =
-    inspected?.kind === "service"
-      ? registeredServices.find((s) => s.service_id === inspected.serviceId) ||
-        null
-      : null;
-
   return (
     <div
       ref={containerRef}
       onWheel={handleWheel}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
-        setInspected(null);
         setIsPanning(true);
         panStartRef.current = {
           startX: e.clientX,
@@ -994,15 +938,19 @@ export default function InteractiveControlCenterCanvas({
           })()}
         </svg>
 
-        {/* 1. MIDDLE: INTERACTIVE MUSCLE SERVER CARDS (Draggable + Inline Expandable) */}
+        {/* 1. MIDDLE: INTERACTIVE MUSCLE SERVER CARDS (Single Unified Expandable Box) */}
         {peerNodesToRender.map((gn) => {
           const nodeKey =
             gn.node_id === "empty" ? "peer:empty" : `peer:${gn.node_id}`;
-          const pos = positions[nodeKey] || { x: 460, y: 120 };
+          const pos = effectivePositions[nodeKey] || { x: 460, y: 120 };
           const hb = gn.last_heartbeat;
-          const isSelected =
-            inspected?.kind === "peer" && inspected.nodeId === gn.node_id;
           const isExpanded = Boolean(expandedNodes[nodeKey]);
+          const tierNum =
+            gn.tier === "TIER_1_UNLEASHED"
+              ? "1"
+              : gn.tier === "TIER_2_WORKSPACE_JAIL"
+              ? "2"
+              : "3";
 
           return (
             <div
@@ -1015,14 +963,11 @@ export default function InteractiveControlCenterCanvas({
                 top: 0,
                 transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
                 willChange: "transform",
-                zIndex: draggingNodeId === nodeKey ? 30 : isExpanded ? 20 : 10,
+                zIndex: draggingNodeId === nodeKey ? 30 : isExpanded ? 25 : 10,
               }}
               onPointerDown={(e) => startNodeDrag(e, nodeKey)}
               onMouseEnter={() => setHoveredNodeId(nodeKey)}
               onMouseLeave={() => setHoveredNodeId(null)}
-              onDoubleClick={(e) => {
-                if (gn.node_id !== "empty") toggleExpandNode(nodeKey, e);
-              }}
               onClick={(e) => {
                 e.stopPropagation();
                 if (lastDragMovedRef.current) {
@@ -1033,23 +978,27 @@ export default function InteractiveControlCenterCanvas({
                   onOpenAddPeer();
                 } else {
                   onSelectNode(gn.node_id);
-                  setInspected({ kind: "peer", nodeId: gn.node_id });
+                  toggleExpandNode(nodeKey, e);
                 }
               }}
-              className={`absolute w-[275px] rounded-xl border bg-nb-gray-940 px-4 py-3.5 shadow-lg transition-colors duration-150 ${
+              className={`absolute w-[300px] rounded-xl border bg-nb-gray-940 px-4 py-3.5 shadow-lg transition-colors duration-150 ${
                 draggingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-netbird shadow-2xl"
                   : "cursor-grab hover:border-nb-gray-700 hover:bg-nb-gray-930"
               } ${
-                isSelected
-                  ? "border-netbird/80 ring-1 ring-netbird/30"
+                isExpanded
+                  ? "border-netbird/80 ring-1 ring-netbird/30 shadow-2xl"
                   : "border-nb-gray-800"
               }`}
             >
               {gn.node_id === "empty" ? (
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-nb-gray-300">Kein Server verbunden</span>
-                  <span className="text-netbird font-medium">+ Verbinden</span>
+                  <span className="text-nb-gray-300">
+                    {t("Kein Server verbunden", "No server connected")}
+                  </span>
+                  <span className="text-netbird font-medium">
+                    {t("+ Verbinden", "+ Connect")}
+                  </span>
                 </div>
               ) : (
                 <div>
@@ -1072,16 +1021,13 @@ export default function InteractiveControlCenterCanvas({
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                           <span className="truncate text-[11px] text-nb-gray-400">
                             {hb?.private_ipv4 || "Online"} ·{" "}
-                            {gn.tier === "TIER_1_UNLEASHED"
-                              ? "Tier 1"
-                              : gn.tier === "TIER_2_WORKSPACE_JAIL"
-                              ? "Tier 2"
-                              : "Tier 3"}
+                            {t(`Stufe ${tierNum}`, `Tier ${tierNum}`)}
                           </span>
                           {(() => {
                             const fwPol = firewallPolicies?.[gn.node_id];
                             const prof = fwPol?.profile || "web_standard";
-                            const shieldedCount = fwPol?.shielded_ports?.length || 0;
+                            const shieldedCount =
+                              fwPol?.shielded_ports?.length || 0;
                             const isStealth = prof === "synapse_stealth";
                             return (
                               <button
@@ -1091,7 +1037,10 @@ export default function InteractiveControlCenterCanvas({
                                   onSelectNode(gn.node_id);
                                   onOpenFirewall?.(gn.node_id);
                                 }}
-                                title="Firewall & Port-Schutz für diesen Server öffnen"
+                                title={t(
+                                  "Firewall & Port-Schutz für diesen Server öffnen",
+                                  "Open Firewall & Port Shield for this server"
+                                )}
                                 className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9.5px] font-semibold transition ${
                                   isStealth
                                     ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
@@ -1103,10 +1052,13 @@ export default function InteractiveControlCenterCanvas({
                                 <Shield className="h-2.5 w-2.5 shrink-0" />
                                 <span>
                                   {isStealth
-                                    ? "Stealth-Firewall"
+                                    ? t("Stealth-Firewall", "Stealth Firewall")
                                     : shieldedCount > 0
-                                    ? `FW · ${shieldedCount} gesperrt`
-                                    : "Firewall aktiv"}
+                                    ? t(
+                                        `FW · ${shieldedCount} gesperrt`,
+                                        `FW · ${shieldedCount} shielded`
+                                      )
+                                    : t("Firewall aktiv", "Firewall active")}
                                 </span>
                               </button>
                             );
@@ -1119,8 +1071,11 @@ export default function InteractiveControlCenterCanvas({
                       onClick={(e) => toggleExpandNode(nodeKey, e)}
                       title={
                         isExpanded
-                          ? "Details einklappen"
-                          : "Details direkt im Knoten aufklappen"
+                          ? t("Details einklappen", "Collapse details")
+                          : t(
+                              "Details direkt im Knoten aufklappen",
+                              "Expand details inside node"
+                            )
                       }
                       className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white transition"
                     >
@@ -1132,9 +1087,39 @@ export default function InteractiveControlCenterCanvas({
                     </button>
                   </div>
 
-                  {/* INLINE EXPANDED PEER METRICS & QUICK ACTIONS */}
+                  {/* ATTACHED UNIFIED BOTTOM DETAILS FOR MUSCLE SERVER */}
                   {isExpanded && (
-                    <div className="mt-3 space-y-2.5 border-t border-nb-gray-800/80 pt-2.5 text-[11px]">
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-3 space-y-2.5 border-t border-nb-gray-800/90 pt-3 text-[11px]"
+                    >
+                      <div className="space-y-1.5 rounded-lg border border-nb-gray-800/80 bg-nb-gray-950/80 p-2.5 text-[11px]">
+                        <div className="flex items-center justify-between text-nb-gray-400">
+                          <span>{t("Betriebssystem", "Operating System")}</span>
+                          <span className="font-mono text-[10px] text-nb-gray-200 truncate max-w-[165px]">
+                            {hb?.os_info
+                              ? hb.os_info.split("(")[0].trim()
+                              : hb?.os_arch || "Linux x86_64"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-nb-gray-400">
+                          <span>{t("IPv4-Adresse", "IPv4 Address")}</span>
+                          <span className="font-mono text-white">
+                            {hb?.private_ipv4 || "127.0.0.1"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-nb-gray-400">
+                          <span>{t("Sicherheits-Stufe", "Autonomy Tier")}</span>
+                          <span className="font-mono text-netbird">
+                            {gn.tier === "TIER_1_UNLEASHED"
+                              ? t("Stufe 1 · Vollzugriff", "Tier 1 · Unleashed")
+                              : gn.tier === "TIER_2_WORKSPACE_JAIL"
+                              ? t("Stufe 2 · Workspace", "Tier 2 · Workspace")
+                              : t("Stufe 3 · Überwacht", "Tier 3 · Supervised")}
+                          </span>
+                        </div>
+                      </div>
+
                       {hb && (
                         <div className="grid grid-cols-3 gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[10px]">
                           <div>
@@ -1150,13 +1135,16 @@ export default function InteractiveControlCenterCanvas({
                             </div>
                           </div>
                           <div>
-                            <div className="text-nb-gray-400">DISK</div>
+                            <div className="text-nb-gray-400">
+                              {t("SPEICHER", "DISK")}
+                            </div>
                             <div className="font-semibold text-white">
                               {hb.disk_percent.toFixed(1)}%
                             </div>
                           </div>
                         </div>
                       )}
+
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
@@ -1165,10 +1153,10 @@ export default function InteractiveControlCenterCanvas({
                             onSelectNode(gn.node_id);
                             onOpenPty();
                           }}
-                          className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-netbird py-1.5 text-[11px] font-medium text-white hover:bg-netbird-500"
+                          className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-netbird py-1.5 text-[11px] font-medium text-white hover:bg-netbird-500 transition"
                         >
                           <TerminalIcon className="h-3 w-3" />
-                          <span>Terminal</span>
+                          <span>{t("Terminal", "Terminal")}</span>
                         </button>
                         <button
                           type="button"
@@ -1177,10 +1165,10 @@ export default function InteractiveControlCenterCanvas({
                             onSelectNode(gn.node_id);
                             onOpenRemoteFiles();
                           }}
-                          className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 py-1.5 text-[11px] text-nb-gray-200 hover:text-white"
+                          className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 py-1.5 text-[11px] text-nb-gray-200 hover:text-white transition"
                         >
                           <Code2 className="h-3 w-3 text-sky-400" />
-                          <span>Dateien</span>
+                          <span>{t("Dateien", "Files")}</span>
                         </button>
                         <button
                           type="button"
@@ -1189,10 +1177,10 @@ export default function InteractiveControlCenterCanvas({
                             onSelectNode(gn.node_id);
                             onOpenFirewall?.(gn.node_id);
                           }}
-                          className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-1.5 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20"
+                          className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-1.5 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20 transition"
                         >
                           <Shield className="h-3 w-3 text-emerald-400" />
-                          <span>Firewall</span>
+                          <span>{t("Firewall", "Firewall")}</span>
                         </button>
                       </div>
                     </div>
@@ -1203,11 +1191,10 @@ export default function InteractiveControlCenterCanvas({
           );
         })}
 
-        {/* 2. LEFT: UNIFIED SYNAPSE CORE HUB NODE (Draggable + Inline Expandable) */}
+        {/* 2. LEFT: UNIFIED SYNAPSE CORE HUB NODE (Single Unified Expandable Box) */}
         {(() => {
           const nodeKey = "core:hub";
-          const pos = positions[nodeKey] || { x: 60, y: 120 };
-          const isSelected = inspected?.kind === "core";
+          const pos = effectivePositions[nodeKey] || { x: 60, y: 120 };
           const isExpanded = Boolean(expandedNodes[nodeKey]);
 
           return (
@@ -1220,27 +1207,26 @@ export default function InteractiveControlCenterCanvas({
                 top: 0,
                 transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
                 willChange: "transform",
-                zIndex: draggingNodeId === nodeKey ? 30 : isExpanded ? 20 : 10,
+                zIndex: draggingNodeId === nodeKey ? 30 : isExpanded ? 25 : 10,
               }}
               onPointerDown={(e) => startNodeDrag(e, nodeKey)}
               onMouseEnter={() => setHoveredNodeId(nodeKey)}
               onMouseLeave={() => setHoveredNodeId(null)}
-              onDoubleClick={(e) => toggleExpandNode(nodeKey, e)}
               onClick={(e) => {
                 e.stopPropagation();
                 if (lastDragMovedRef.current) {
                   lastDragMovedRef.current = false;
                   return;
                 }
-                setInspected({ kind: "core" });
+                toggleExpandNode(nodeKey, e);
               }}
-              className={`absolute w-[275px] rounded-2xl border bg-nb-gray-940 p-4 shadow-xl transition-colors duration-150 ${
+              className={`absolute w-[300px] rounded-2xl border bg-nb-gray-940 p-4 shadow-xl transition-colors duration-150 ${
                 draggingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-netbird shadow-2xl"
                   : "cursor-grab hover:border-netbird/70 hover:bg-nb-gray-930"
               } ${
-                isSelected
-                  ? "border-netbird ring-2 ring-netbird/30"
+                isExpanded
+                  ? "border-netbird ring-2 ring-netbird/30 shadow-2xl"
                   : "border-nb-gray-800"
               }`}
             >
@@ -1263,8 +1249,11 @@ export default function InteractiveControlCenterCanvas({
                   onClick={(e) => toggleExpandNode(nodeKey, e)}
                   title={
                     isExpanded
-                      ? "Core Hub einklappen"
-                      : "Regeln & Brain Vault direkt aufklappen"
+                      ? t("Core Hub einklappen", "Collapse Core Hub")
+                      : t(
+                          "Regeln & Brain Vault direkt aufklappen",
+                          "Expand Rules & Brain Vault"
+                        )
                   }
                   className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white transition"
                 >
@@ -1279,78 +1268,117 @@ export default function InteractiveControlCenterCanvas({
               <div className="mt-3 flex items-center justify-between border-t border-nb-gray-800/80 pt-2.5 text-[11px] text-nb-gray-400">
                 <span className="flex items-center gap-1.5">
                   <Shield className="h-3.5 w-3.5 text-emerald-400" />
-                  <span>{activeCartridges.length} Regeln aktiv</span>
+                  <span>
+                    {t(
+                      `${activeCartridges.length} Regeln aktiv`,
+                      `${activeCartridges.length} Rules active`
+                    )}
+                  </span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <FolderGit2 className="h-3.5 w-3.5 text-sky-400" />
-                  <span>Brain Vault</span>
+                  <span>{t("Brain-Tresor", "Brain Vault")}</span>
                 </span>
               </div>
 
-              {/* INLINE EXPANDED CORE HUB CONTROLS */}
+              {/* ATTACHED UNIFIED BOTTOM DETAILS FOR SYNAPSE CORE HUB */}
               {isExpanded && (
-                <div className="mt-3 space-y-2.5 border-t border-nb-gray-800/80 pt-2.5 text-[11px]">
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenBrainDoc("Architecture.md");
-                      }}
-                      className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2 py-1.5 font-mono text-[10px] text-nb-gray-200 hover:border-netbird hover:text-white truncate"
-                    >
-                      Arch.md
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenBrainDoc("Memory.md");
-                      }}
-                      className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2 py-1.5 font-mono text-[10px] text-nb-gray-200 hover:border-netbird hover:text-white truncate"
-                    >
-                      Memory.md
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenSecretsVault();
-                      }}
-                      className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2 py-1.5 font-mono text-[10px] text-amber-300 hover:border-amber-500 truncate"
-                    >
-                      Vault ({secretKeysCount})
-                    </button>
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-3 space-y-3 border-t border-nb-gray-800/90 pt-3 text-[11px]"
+                >
+                  <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-2.5 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[10px] text-nb-gray-400">
+                        {t("Aktives KI-Modell", "Active AI Model")}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={onOpenAiSettings}
+                        className="text-[10.5px] font-medium text-netbird hover:underline"
+                      >
+                        {t("Ändern →", "Change →")}
+                      </button>
+                    </div>
+                    <div className="truncate font-mono text-[10px] text-nb-gray-300">
+                      {baseUrl}
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    {cartridges.slice(0, 4).map((c) => {
-                      const enabled = activeCartridges.includes(c.id);
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleCartridge(c.id);
-                          }}
-                          className="flex w-full items-center justify-between rounded-lg border border-nb-gray-800/80 bg-nb-gray-950 px-2.5 py-1 text-[10px] hover:border-nb-gray-700"
-                        >
-                          <span className="truncate text-nb-gray-200 pr-2">
-                            {c.name}
-                          </span>
-                          <span
-                            className={`rounded px-1.5 py-0.2 font-mono text-[9px] font-semibold ${
-                              enabled
-                                ? "bg-green-950 text-green-400"
-                                : "bg-nb-gray-900 text-nb-gray-500"
-                            }`}
+                  <div className="space-y-1.5">
+                    <div className="font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-400">
+                      {t(
+                        "Projekt-Dokumentation & Tresor",
+                        "Project Documentation & Vault"
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onOpenBrainDoc("Architecture.md")}
+                        className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2 py-1.5 font-mono text-[10px] text-nb-gray-200 hover:border-netbird hover:text-white truncate"
+                      >
+                        Arch.md
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onOpenBrainDoc("Memory.md")}
+                        className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2 py-1.5 font-mono text-[10px] text-nb-gray-200 hover:border-netbird hover:text-white truncate"
+                      >
+                        Memory.md
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onOpenSecretsVault}
+                        className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2 py-1.5 font-mono text-[10px] text-amber-300 hover:border-amber-500 truncate"
+                      >
+                        {t(
+                          `Tresor (${secretKeysCount})`,
+                          `Vault (${secretKeysCount})`
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-400">
+                        {t("Sicherheits-Cartridges", "Security Cartridges")}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={onOpenAccessControl}
+                        className="text-[10.5px] text-netbird hover:underline"
+                      >
+                        {t("Alle Regeln →", "All Rules →")}
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      {cartridges.map((c) => {
+                        const enabled = activeCartridges.includes(c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => onToggleCartridge(c.id)}
+                            className="flex w-full items-center justify-between rounded-lg border border-nb-gray-800/80 bg-nb-gray-950 px-2.5 py-1.5 text-[10.5px] hover:border-nb-gray-700 transition"
                           >
-                            {enabled ? "ON" : "OFF"}
-                          </span>
-                        </button>
-                      );
-                    })}
+                            <span className="truncate text-nb-gray-200 pr-2">
+                              {translateText(c.name)}
+                            </span>
+                            <span
+                              className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold ${
+                                enabled
+                                  ? "bg-green-950 text-green-400"
+                                  : "bg-nb-gray-900 text-nb-gray-500"
+                              }`}
+                            >
+                              {enabled ? t("AKTIV", "ON") : t("AUS", "OFF")}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1358,7 +1386,7 @@ export default function InteractiveControlCenterCanvas({
           );
         })()}
 
-        {/* 3. RIGHT: INTERACTIVE SERVICE CARDS (Draggable + Inline Expandable) */}
+        {/* 3. RIGHT: INTERACTIVE SERVICE CARDS (Single Unified Expandable Box) */}
         {(registeredServices.length > 0
           ? registeredServices
           : [
@@ -1373,14 +1401,17 @@ export default function InteractiveControlCenterCanvas({
         ).map((svc) => {
           const nodeKey =
             svc.service_id === "empty" ? "svc:empty" : `svc:${svc.service_id}`;
-          const pos = positions[nodeKey] || { x: 860, y: 120 };
+          const pos = effectivePositions[nodeKey] || { x: 860, y: 120 };
           const healthy =
             svc.healthy !== false && svc.health_check?.status !== "UNHEALTHY";
-          const isSelected =
-            inspected?.kind === "service" &&
-            inspected.serviceId === svc.service_id;
           const isExpanded = Boolean(expandedNodes[nodeKey]);
           const cat = svc.category || "backend";
+          const catLabel =
+            cat === "webui"
+              ? t("Web-Oberfläche", "WebUI")
+              : cat === "database"
+              ? t("Datenbank", "Database")
+              : t("Backend-API", "Backend API");
 
           return (
             <div
@@ -1393,14 +1424,11 @@ export default function InteractiveControlCenterCanvas({
                 top: 0,
                 transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
                 willChange: "transform",
-                zIndex: draggingNodeId === nodeKey ? 30 : isExpanded ? 20 : 10,
+                zIndex: draggingNodeId === nodeKey ? 30 : isExpanded ? 25 : 10,
               }}
               onPointerDown={(e) => startNodeDrag(e, nodeKey)}
               onMouseEnter={() => setHoveredNodeId(nodeKey)}
               onMouseLeave={() => setHoveredNodeId(null)}
-              onDoubleClick={(e) => {
-                if (svc.service_id !== "empty") toggleExpandNode(nodeKey, e);
-              }}
               onClick={(e) => {
                 e.stopPropagation();
                 if (lastDragMovedRef.current) {
@@ -1408,22 +1436,25 @@ export default function InteractiveControlCenterCanvas({
                   return;
                 }
                 if (svc.service_id !== "empty") {
-                  setInspected({ kind: "service", serviceId: svc.service_id });
+                  toggleExpandNode(nodeKey, e);
                 }
               }}
-              className={`absolute w-[275px] rounded-xl border bg-nb-gray-940 px-4 py-3 shadow-lg transition-colors duration-150 ${
+              className={`absolute w-[300px] rounded-xl border bg-nb-gray-940 px-4 py-3 shadow-lg transition-colors duration-150 ${
                 draggingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-sky-400 shadow-2xl"
                   : "cursor-grab hover:border-nb-gray-700 hover:bg-nb-gray-930"
               } ${
-                isSelected
-                  ? "border-sky-400 ring-1 ring-sky-400/30"
+                isExpanded
+                  ? "border-sky-400 ring-1 ring-sky-400/30 shadow-2xl"
                   : "border-nb-gray-800"
               }`}
             >
               {svc.service_id === "empty" ? (
                 <div className="text-xs text-nb-gray-400 py-1">
-                  Noch keine Dienste bereitgestellt
+                  {t(
+                    "Noch keine Dienste bereitgestellt",
+                    "No services deployed yet"
+                  )}
                 </div>
               ) : (
                 <div>
@@ -1448,16 +1479,11 @@ export default function InteractiveControlCenterCanvas({
                             }`}
                           />
                           <span className="truncate text-xs font-semibold text-white">
-                            {svc.name}
+                            {translateText(svc.name)}
                           </span>
                         </div>
                         <div className="font-mono text-[10px] text-nb-gray-400 mt-0.5 truncate">
-                          {cat === "webui"
-                            ? "WebUI"
-                            : cat === "database"
-                            ? "Datenbank"
-                            : "Backend API"}{" "}
-                          · {svc.node_id} · :{svc.port}
+                          {catLabel} · {svc.node_id} · :{svc.port}
                         </div>
                       </div>
                     </div>
@@ -1466,8 +1492,11 @@ export default function InteractiveControlCenterCanvas({
                       onClick={(e) => toggleExpandNode(nodeKey, e)}
                       title={
                         isExpanded
-                          ? "Service einklappen"
-                          : "Endpunkte & Aktionen direkt aufklappen"
+                          ? t("Service einklappen", "Collapse service")
+                          : t(
+                              "Endpunkte & Aktionen direkt aufklappen",
+                              "Expand endpoints & actions"
+                            )
                       }
                       className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white transition"
                     >
@@ -1479,12 +1508,27 @@ export default function InteractiveControlCenterCanvas({
                     </button>
                   </div>
 
-                  {/* INLINE EXPANDED SERVICE ENDPOINTS & TESTER BUTTON */}
+                  {/* ATTACHED UNIFIED BOTTOM DETAILS FOR SERVICE */}
                   {isExpanded && (
-                    <div className="mt-2.5 space-y-2 border-t border-nb-gray-800/80 pt-2 text-[11px]">
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-3 space-y-2.5 border-t border-nb-gray-800/90 pt-2.5 text-[11px]"
+                    >
+                      {svc.description && (
+                        <p className="text-[11px] text-nb-gray-300 leading-relaxed">
+                          {translateText(svc.description)}
+                        </p>
+                      )}
+
                       {svc.endpoints && svc.endpoints.length > 0 && (
                         <div className="space-y-1">
-                          {svc.endpoints.slice(0, 3).map((ep) => (
+                          <div className="font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-400">
+                            {t(
+                              "Verfügbare Aktionen & Endpunkte",
+                              "Available Actions & Endpoints"
+                            )}
+                          </div>
+                          {svc.endpoints.map((ep) => (
                             <button
                               key={ep.id}
                               type="button"
@@ -1492,30 +1536,53 @@ export default function InteractiveControlCenterCanvas({
                                 e.stopPropagation();
                                 onOpenReverseProxy(svc.port);
                               }}
-                              className="flex w-full items-center justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1 text-[10px] text-nb-gray-200 hover:border-sky-400"
+                              className="flex w-full items-center justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 text-[10.5px] text-nb-gray-200 hover:border-sky-400 transition"
                             >
                               <span className="truncate">
                                 <strong className="font-mono text-netbird mr-1.5">
                                   {ep.method}
                                 </strong>
-                                {ep.label}
+                                {translateText(ep.label)}
                               </span>
                               <ChevronRight className="h-3 w-3 shrink-0 text-nb-gray-500" />
                             </button>
                           ))}
                         </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenReverseProxy(svc.port);
-                        }}
-                        className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-netbird py-1.5 text-[11px] font-medium text-white hover:bg-netbird-500"
-                      >
-                        <Globe className="h-3 w-3" />
-                        <span>Tester &amp; Vorschau öffnen</span>
-                      </button>
+
+                      <div className="space-y-1.5 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenReverseProxy(svc.port);
+                          }}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-netbird py-2 text-[11px] font-medium text-white hover:bg-netbird-500 transition"
+                        >
+                          <Globe className="h-3.5 w-3.5" />
+                          <span>
+                            {t(
+                              "Vorschau & Tester öffnen",
+                              "Open Preview & Tester"
+                            )}
+                          </span>
+                        </button>
+                        {svc.healthy === false && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onHealService(svc.port);
+                            }}
+                            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-red-600 py-1.5 text-[11px] font-medium text-white hover:bg-red-500 transition"
+                          >
+                            <Wrench className="h-3.5 w-3.5" />
+                            <span>
+                              {t("Auto-Heal starten", "Start Auto-Heal")}
+                            </span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1524,350 +1591,6 @@ export default function InteractiveControlCenterCanvas({
           );
         })}
       </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          PROGRESSIVE DISCLOSURE: DRAGGABLE FLOATING DETAIL INSPECTOR
-      ═══════════════════════════════════════════════════════════════════ */}
-      {inspected && (
-        <div
-          onPointerDown={(e) => e.stopPropagation()}
-          style={
-            inspectorPos
-              ? {
-                  left: `${inspectorPos.x}px`,
-                  top: `${inspectorPos.y}px`,
-                  right: "auto",
-                  bottom: "auto",
-                  maxHeight: "calc(100% - 32px)",
-                }
-              : undefined
-          }
-          className={`pointer-events-auto absolute z-30 flex w-[340px] flex-col rounded-2xl border border-nb-gray-800 bg-nb-gray-940/95 p-4 shadow-2xl backdrop-blur overflow-y-auto ${
-            inspectorPos ? "" : "right-4 top-4 bottom-4"
-          }`}
-        >
-          {/* Draggable Window Handle */}
-          <div
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              const el = e.currentTarget.parentElement;
-              const rect = el?.getBoundingClientRect();
-              const parentRect = containerRef.current?.getBoundingClientRect();
-              const curX = inspectorPos
-                ? inspectorPos.x
-                : rect && parentRect
-                ? rect.left - parentRect.left
-                : 400;
-              const curY = inspectorPos
-                ? inspectorPos.y
-                : rect && parentRect
-                ? rect.top - parentRect.top
-                : 16;
-              dragInspectorRef.current = {
-                startClientX: e.clientX,
-                startClientY: e.clientY,
-                origX: curX,
-                origY: curY,
-              };
-            }}
-            className="mb-2 flex cursor-move items-center justify-between rounded-lg bg-nb-gray-950/70 px-2.5 py-1 text-[10px] text-nb-gray-400 hover:text-nb-gray-200"
-            title="Mit der Maus ziehen, um das Detailfenster frei zu verschieben"
-          >
-            <span className="flex items-center gap-1.5 font-mono">
-              <Move className="h-3 w-3 text-netbird" />
-              <span>Detail-Inspektor (frei verschiebbar)</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setInspected(null)}
-              className="rounded p-0.5 text-nb-gray-400 hover:text-white"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          {/* CASE 1: INSPECTING A MUSCLE SERVER */}
-          {inspectedPeer && (
-            <div className="space-y-4">
-              <div className="flex items-start justify-between border-b border-nb-gray-800 pb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`h-2.5 w-2.5 rounded-full ${
-                        inspectedPeer.online ? "bg-green-400" : "bg-nb-gray-500"
-                      }`}
-                    />
-                    <h3 className="font-mono text-sm font-semibold text-white">
-                      {inspectedPeer.node_id}
-                    </h3>
-                  </div>
-                  <p className="text-[11px] text-nb-gray-400 mt-0.5">
-                    {inspectedPeer.last_heartbeat?.os_info ||
-                      inspectedPeer.last_heartbeat?.os_arch ||
-                      "Linux x86_64"}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setInspected(null)}
-                  className="rounded-lg p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between text-nb-gray-400">
-                  <span>IPv4-Adresse</span>
-                  <span className="font-mono text-white">
-                    {inspectedPeer.last_heartbeat?.private_ipv4 || "127.0.0.1"}
-                  </span>
-                </div>
-                <div className="flex justify-between text-nb-gray-400">
-                  <span>Sicherheits-Stufe</span>
-                  <span className="font-mono text-netbird">
-                    {inspectedPeer.tier}
-                  </span>
-                </div>
-              </div>
-
-              {inspectedPeer.last_heartbeat && (
-                <div className="grid grid-cols-3 gap-2 rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-3 font-mono text-xs">
-                  <div>
-                    <div className="text-[10px] text-nb-gray-400">CPU</div>
-                    <div className="mt-0.5 font-semibold text-white">
-                      {inspectedPeer.last_heartbeat.cpu_percent.toFixed(1)}%
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-nb-gray-400">RAM</div>
-                    <div className="mt-0.5 font-semibold text-white">
-                      {inspectedPeer.last_heartbeat.ram_percent.toFixed(1)}%
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-nb-gray-400">DISK</div>
-                    <div className="mt-0.5 font-semibold text-white">
-                      {inspectedPeer.last_heartbeat.disk_percent.toFixed(1)}%
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2 pt-2">
-                <button
-                  onClick={() => {
-                    onSelectNode(inspectedPeer.node_id);
-                    onOpenPty();
-                  }}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-netbird py-2.5 text-xs font-medium text-white hover:bg-netbird-500 transition"
-                >
-                  <TerminalIcon className="h-3.5 w-3.5" />
-                  <span>Live Terminal öffnen</span>
-                </button>
-                <button
-                  onClick={() => {
-                    onSelectNode(inspectedPeer.node_id);
-                    onOpenRemoteFiles();
-                  }}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-nb-gray-800 bg-nb-gray-930 py-2.5 text-xs font-medium text-nb-gray-200 hover:text-white transition"
-                >
-                  <Code2 className="h-3.5 w-3.5 text-sky-400" />
-                  <span>Dateien durchsuchen</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* CASE 2: INSPECTING SYNAPSE CORE HUB */}
-          {inspected.kind === "core" && (
-            <div className="space-y-5">
-              <div className="flex items-start justify-between border-b border-nb-gray-800 pb-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-white">
-                    Synapse Core Hub
-                  </h3>
-                  <p className="text-[11px] text-nb-gray-400 mt-0.5">
-                    KI-Engine, Brain Vault &amp; aktive Sicherheitsregeln
-                  </p>
-                </div>
-                <button
-                  onClick={() => setInspected(null)}
-                  className="rounded-lg p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* AI Engine */}
-              <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-3.5 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium text-white">{modelName}</span>
-                  <button
-                    onClick={onOpenAiSettings}
-                    className="text-[11px] text-netbird hover:underline"
-                  >
-                    Ändern →
-                  </button>
-                </div>
-                <div className="truncate font-mono text-[10px] text-nb-gray-400">
-                  {baseUrl}
-                </div>
-              </div>
-
-              {/* Brain Vault */}
-              <div className="space-y-2">
-                <div className="font-mono text-[10px] uppercase tracking-wider text-nb-gray-400">
-                  Projekt-Dokumentation &amp; Tresor
-                </div>
-                <button
-                  onClick={() => onOpenBrainDoc("Architecture.md")}
-                  className="flex w-full items-center justify-between rounded-xl border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 text-xs text-nb-gray-200 hover:border-netbird"
-                >
-                  <span className="flex items-center gap-2">
-                    <FileText className="h-3.5 w-3.5 text-netbird" />
-                    <span>Architecture.md</span>
-                  </span>
-                  <ChevronRight className="h-3.5 w-3.5 text-nb-gray-500" />
-                </button>
-                <button
-                  onClick={() => onOpenBrainDoc("Memory.md")}
-                  className="flex w-full items-center justify-between rounded-xl border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 text-xs text-nb-gray-200 hover:border-netbird"
-                >
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="h-3.5 w-3.5 text-sky-400" />
-                    <span>Memory.md</span>
-                  </span>
-                  <ChevronRight className="h-3.5 w-3.5 text-nb-gray-500" />
-                </button>
-                <button
-                  onClick={onOpenSecretsVault}
-                  className="flex w-full items-center justify-between rounded-xl border border-nb-gray-800 bg-nb-gray-930 px-3 py-2 text-xs text-nb-gray-200 hover:border-netbird"
-                >
-                  <span className="flex items-center gap-2">
-                    <KeyRound className="h-3.5 w-3.5 text-amber-400" />
-                    <span>Secrets.enc ({secretKeysCount})</span>
-                  </span>
-                  <ChevronRight className="h-3.5 w-3.5 text-nb-gray-500" />
-                </button>
-              </div>
-
-              {/* Rule Cartridges Quick Toggle */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-nb-gray-400">
-                    Sicherheits-Cartridges
-                  </span>
-                  <button
-                    onClick={onOpenAccessControl}
-                    className="text-[11px] text-netbird hover:underline"
-                  >
-                    Details →
-                  </button>
-                </div>
-                <div className="space-y-1.5">
-                  {cartridges.map((c) => {
-                    const enabled = activeCartridges.includes(c.id);
-                    return (
-                      <div
-                        key={c.id}
-                        onClick={() => onToggleCartridge(c.id)}
-                        className="flex cursor-pointer items-center justify-between rounded-lg border border-nb-gray-800/80 bg-nb-gray-950 px-3 py-2 text-xs hover:border-nb-gray-700"
-                      >
-                        <span className="truncate text-nb-gray-200 pr-2">
-                          {c.name}
-                        </span>
-                        <span
-                          className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold ${
-                            enabled
-                              ? "bg-green-950 text-green-400"
-                              : "bg-nb-gray-900 text-nb-gray-500"
-                          }`}
-                        >
-                          {enabled ? "ON" : "OFF"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* CASE 3: INSPECTING A SERVICE */}
-          {inspectedService && (
-            <div className="space-y-4">
-              <div className="flex items-start justify-between border-b border-nb-gray-800 pb-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-white">
-                    {inspectedService.name}
-                  </h3>
-                  <p className="font-mono text-[11px] text-nb-gray-400 mt-0.5">
-                    {inspectedService.node_id}:{inspectedService.port}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setInspected(null)}
-                  className="rounded-lg p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              {inspectedService.description && (
-                <p className="text-xs text-nb-gray-300 leading-relaxed">
-                  {inspectedService.description}
-                </p>
-              )}
-
-              {inspectedService.endpoints &&
-                inspectedService.endpoints.length > 0 && (
-                  <div className="space-y-1.5">
-                    <div className="font-mono text-[10px] uppercase tracking-wider text-nb-gray-400">
-                      Verfügbare Aktionen
-                    </div>
-                    <div className="space-y-1.5">
-                      {inspectedService.endpoints.map((ep) => (
-                        <button
-                          key={ep.id}
-                          onClick={() =>
-                            onOpenReverseProxy(inspectedService.port)
-                          }
-                          className="flex w-full items-center justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 text-xs text-nb-gray-200 hover:border-netbird"
-                        >
-                          <span>
-                            <strong className="font-mono text-netbird mr-1.5">
-                              {ep.method}
-                            </strong>
-                            {ep.label}
-                          </span>
-                          <ChevronRight className="h-3.5 w-3.5 text-nb-gray-500" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              <div className="space-y-2 pt-2">
-                <button
-                  onClick={() => onOpenReverseProxy(inspectedService.port)}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-netbird py-2.5 text-xs font-medium text-white hover:bg-netbird-500 transition"
-                >
-                  <Globe className="h-3.5 w-3.5" />
-                  <span>Vorschau &amp; Tester öffnen</span>
-                </button>
-                {inspectedService.healthy === false && (
-                  <button
-                    onClick={() => onHealService(inspectedService.port)}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-2 text-xs font-medium text-white hover:bg-red-500"
-                  >
-                    <Wrench className="h-3.5 w-3.5" />
-                    <span>Auto-Heal starten</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Bottom-Left Zoom & Expand Controls */}
       <div
