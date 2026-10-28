@@ -344,12 +344,68 @@ export default function SynapseNetBirdControlCenter() {
   );
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(true);
   const [settingsTab, setSettingsTab] = useState<
+    | "system-update"
     | "setup-keys"
     | "secrets-vault"
     | "ai-providers"
     | "mcp-server"
     | "debug-console"
-  >("setup-keys");
+  >("system-update");
+  const [systemUpdateBusy, setSystemUpdateBusy] = useState(false);
+  const [systemUpdateActionLabel, setSystemUpdateActionLabel] = useState("");
+  const [systemUpdateStatus, setSystemUpdateStatus] = useState<{
+    checked_at: string;
+    git: {
+      branch: string;
+      local_short: string;
+      local_full: string;
+      local_date: string;
+      local_subject: string;
+      remote_short: string;
+      remote_full: string;
+      remote_date: string;
+      remote_subject: string;
+      commits_behind: number;
+      commits_ahead: number;
+      update_available: boolean;
+    };
+    binaries: {
+      core_gateway: {
+        exists: boolean;
+        path: string;
+        size_bytes: number;
+        updated_at: string | null;
+        sha256: string | null;
+      };
+      axon_linux_amd64: {
+        exists: boolean;
+        path: string;
+        size_bytes: number;
+        updated_at: string | null;
+        sha256: string | null;
+      };
+    };
+    nodes: Array<{
+      node_id: string;
+      online: boolean;
+      tier: string;
+      remote_addr: string;
+      os_arch?: string;
+      installed_sha256?: string | null;
+      installed_mtime?: string | null;
+      source_commit?: string | null;
+      systemd_status?: string | null;
+      up_to_date?: boolean;
+    }>;
+  } | null>(null);
+  const [systemUpdateSteps, setSystemUpdateSteps] = useState<
+    Array<{
+      step: string;
+      status: "ok" | "warn" | "error";
+      detail: string;
+      duration_ms: number;
+    }>
+  >([]);
   const [mcpKeyName, setMcpKeyName] = useState("External AI Agent (MCP)");
   const [mcpKeyScopeMode, setMcpKeyScopeMode] = useState<"read-exec" | "read-only">("read-exec");
   const [issuedMcpToken, setIssuedMcpToken] = useState<string | null>(null);
@@ -1934,6 +1990,88 @@ export default function SynapseNetBirdControlCenter() {
     }
   }
 
+  const fetchSystemUpdateStatus = useCallback(async (checkRemote = false, inspectNodes = true) => {
+    try {
+      const qs = new URLSearchParams();
+      if (checkRemote) qs.set("check_remote", "1");
+      if (inspectNodes) qs.set("inspect_nodes", "1");
+      const res = await fetch(`/api/system-update?${qs.toString()}`, {
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSystemUpdateStatus(data);
+      }
+    } catch {
+      // ignore transient error
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeNav === "settings" && settingsTab === "system-update") {
+      fetchSystemUpdateStatus(false, true);
+    }
+  }, [activeNav, settingsTab, fetchSystemUpdateStatus]);
+
+  async function handleRunSystemUpdate(
+    action: "check" | "update_core" | "update_muscle" | "update_all",
+    targetNodeId?: string
+  ) {
+    if (systemUpdateBusy) return;
+    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    setSystemUpdateBusy(true);
+    setSystemUpdateActionLabel(
+      action === "check"
+        ? "Prüfe Git & Muscle Versionen..."
+        : action === "update_core"
+        ? "Aktualisiere Core Plane..."
+        : action === "update_muscle"
+        ? targetNodeId
+          ? `OTA-Update auf ${targetNodeId}...`
+          : "OTA-Update auf allen Muscle-Knoten..."
+        : "Komplett-Update (Core + Muscle OTA)..."
+    );
+    try {
+      const res = await fetch("/api/system-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          project_id: pid,
+          node_id: targetNodeId,
+        }),
+      });
+      const data = await res.json();
+      if (data.status) {
+        setSystemUpdateStatus(data.status);
+      }
+      if (Array.isArray(data.steps)) {
+        setSystemUpdateSteps(data.steps);
+      }
+      setStatusToast(
+        data.success
+          ? action === "check"
+            ? "Versionsprüfung abgeschlossen"
+            : "System-Update erfolgreich durchgeführt!"
+          : "Update mit Hinweisen/Warnungen beendet"
+      );
+      setTimeout(() => setStatusToast(""), 4000);
+      await loadWorkspace(pid);
+    } catch (err) {
+      setSystemUpdateSteps([
+        {
+          step: "System-Update Anfrage",
+          status: "error",
+          detail: err instanceof Error ? err.message : String(err),
+          duration_ms: 0,
+        },
+      ]);
+    } finally {
+      setSystemUpdateBusy(false);
+      setSystemUpdateActionLabel("");
+    }
+  }
+
   function handleRunSystemScan() {
     if (chatBusy) return;
     setCopilotDrawerOpen(true);
@@ -2341,6 +2479,34 @@ export default function SynapseNetBirdControlCenter() {
             )}
 
             <button
+              onClick={() => {
+                setSettingsTab("system-update");
+                setActiveNav("settings");
+                fetchSystemUpdateStatus(true, true);
+              }}
+              title="Core & Muscle System-Update öffnen"
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                activeNav === "settings" && settingsTab === "system-update"
+                  ? "border-emerald-500/60 bg-emerald-950/60 text-emerald-300"
+                  : systemUpdateStatus?.git.update_available
+                  ? "border-amber-500/60 bg-amber-950/60 text-amber-300 hover:bg-amber-900/50"
+                  : "border-nb-gray-800/80 bg-nb-gray-930 text-nb-gray-300 hover:text-white"
+              }`}
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${
+                  systemUpdateBusy ? "animate-spin text-emerald-400" : ""
+                }`}
+              />
+              <span>Update</span>
+              {systemUpdateStatus?.git.update_available && (
+                <span className="rounded-full bg-amber-500/30 px-1.5 py-0.2 text-[9px] font-bold text-amber-200">
+                  +{systemUpdateStatus.git.commits_behind}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => setCopilotDrawerOpen((v) => !v)}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                 copilotDrawerOpen
@@ -2656,6 +2822,22 @@ export default function SynapseNetBirdControlCenter() {
                                   )}
                                 </td>
                                 <td className="py-3.5 px-4 text-right space-x-2">
+                                  <button
+                                    type="button"
+                                    disabled={systemUpdateBusy || !gn.online}
+                                    onClick={() => {
+                                      handleRunSystemUpdate(
+                                        "update_muscle",
+                                        gn.node_id
+                                      );
+                                    }}
+                                    title="Diesen Muscle-Server Over-the-Air (OTA) aktualisieren & neu starten"
+                                    className="rounded-md border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-900/50 disabled:opacity-40"
+                                  >
+                                    {systemUpdateBusy
+                                      ? "Update..."
+                                      : "⬆️ OTA Update"}
+                                  </button>
                                   <button
                                     onClick={() => {
                                       setSelectedNodeId(gn.node_id);
@@ -3929,16 +4111,22 @@ export default function SynapseNetBirdControlCenter() {
               <div className="mx-auto max-w-5xl p-6 space-y-6">
                 <div>
                   <h1 className="text-xl font-medium text-nb-gray-100">
-                    Settings
+                    Settings &amp; System-Update
                   </h1>
                   <p className="text-xs text-nb-gray-400 mt-0.5">
-                    Manage Setup Keys (One-Command Peer Enrollment), AES-256-GCM
-                    Encrypted Secrets Vault, and AI Providers.
+                    1-Click Over-the-Air (OTA) System-Update für Core &amp;
+                    Muscle, Setup Keys, AES-256-GCM Encrypted Secrets Vault und
+                    KI-Provider.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 border-b border-nb-gray-900 pb-3">
+                <div className="flex flex-wrap items-center gap-2 border-b border-nb-gray-900 pb-3">
                   {[
+                    {
+                      id: "system-update",
+                      label: "System-Update (Core & Muscle)",
+                      icon: RefreshCw,
+                    },
                     {
                       id: "setup-keys",
                       label: "Setup Keys (Peer Onboarding)",
@@ -3977,6 +4165,8 @@ export default function SynapseNetBirdControlCenter() {
                         onClick={() => {
                           setSettingsTab(t.id as typeof settingsTab);
                           if (t.id === "debug-console") fetchDebugSnapshot();
+                          if (t.id === "system-update")
+                            fetchSystemUpdateStatus(false, true);
                         }}
                         className={`flex items-center gap-2 rounded-md px-3.5 py-2 text-xs font-medium transition ${
                           active
@@ -3994,6 +4184,311 @@ export default function SynapseNetBirdControlCenter() {
                     );
                   })}
                 </div>
+
+                {settingsTab === "system-update" && (
+                  <div className="space-y-5">
+                    {/* Top Action Card: 1-Click Core + Muscle OTA Rollout */}
+                    <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2.5">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/40 bg-emerald-950/60 text-emerald-400">
+                              <RefreshCw
+                                className={`h-4 w-4 ${
+                                  systemUpdateBusy ? "animate-spin" : ""
+                                }`}
+                              />
+                            </span>
+                            <div>
+                              <h2 className="text-base font-semibold text-white">
+                                System-Update &amp; Over-the-Air (OTA) Rollout
+                              </h2>
+                              <p className="text-xs text-nb-gray-400">
+                                Aktualisiere bequem per 1-Klick die{" "}
+                                <strong className="text-nb-gray-200">
+                                  Core Plane
+                                </strong>{" "}
+                                (Git Fast-Forward, Next.js WebUI, Orchestrator
+                                &amp; Gateway) sowie alle verbundenen{" "}
+                                <strong className="text-nb-gray-200">
+                                  Muscle-Server
+                                </strong>{" "}
+                                (OTA Go-Kompilierung, Binary-Swap{" "}
+                                <code className="text-emerald-300">
+                                  /usr/local/bin/axon
+                                </code>{" "}
+                                &amp; Systemd-Neustart).
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {systemUpdateStatus && (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`rounded-full border px-3 py-1 font-mono text-[11px] font-semibold ${
+                                systemUpdateStatus.git.update_available
+                                  ? "border-amber-500/50 bg-amber-950/60 text-amber-300"
+                                  : "border-emerald-500/50 bg-emerald-950/60 text-emerald-300"
+                              }`}
+                            >
+                              {systemUpdateStatus.git.update_available
+                                ? `Update verfügbar (+${systemUpdateStatus.git.commits_behind} Commits)`
+                                : `Aktuell (${systemUpdateStatus.git.local_short})`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 4 Primary Action Buttons */}
+                      <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                        <button
+                          type="button"
+                          disabled={systemUpdateBusy}
+                          onClick={() => handleRunSystemUpdate("update_all")}
+                          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-50 transition"
+                        >
+                          <Zap className="h-3.5 w-3.5" />
+                          <span>
+                            🚀 Komplett-Update (Core + alle Muscles)
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={systemUpdateBusy}
+                          onClick={() => handleRunSystemUpdate("update_core")}
+                          className="flex items-center gap-2 rounded-lg border border-netbird-500/50 bg-netbird-950/70 px-3.5 py-2.5 text-xs font-medium text-netbird hover:bg-netbird-900/60 disabled:opacity-50 transition"
+                        >
+                          <Brain className="h-3.5 w-3.5" />
+                          <span>🧠 Nur Core updaten</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={systemUpdateBusy}
+                          onClick={() => handleRunSystemUpdate("update_muscle")}
+                          className="flex items-center gap-2 rounded-lg border border-purple-500/50 bg-purple-950/60 px-3.5 py-2.5 text-xs font-medium text-purple-300 hover:bg-purple-900/50 disabled:opacity-50 transition"
+                        >
+                          <Cpu className="h-3.5 w-3.5" />
+                          <span>💪 Alle Muscles (OTA) updaten</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={systemUpdateBusy}
+                          onClick={() => handleRunSystemUpdate("check")}
+                          className="flex items-center gap-2 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2.5 text-xs font-medium text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white disabled:opacity-50 transition"
+                        >
+                          <RefreshCw
+                            className={`h-3.5 w-3.5 ${
+                              systemUpdateBusy ? "animate-spin" : ""
+                            }`}
+                          />
+                          <span>🔄 Auf Updates prüfen</span>
+                        </button>
+                      </div>
+
+                      {systemUpdateBusy && (
+                        <div className="flex items-center gap-2.5 rounded-lg border border-emerald-500/40 bg-emerald-950/30 px-4 py-3 text-xs text-emerald-200">
+                          <RefreshCw className="h-4 w-4 animate-spin text-emerald-400 shrink-0" />
+                          <span>
+                            <strong>{systemUpdateActionLabel}</strong> — Bitte
+                            einen Moment warten, während Git-Commits, Binaries
+                            und Systemd-Daemons synchronisiert werden...
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Core & Muscle Status Grid */}
+                      {systemUpdateStatus && (
+                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 pt-2">
+                          {/* Left Card: Core Plane */}
+                          <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950/90 p-4 space-y-3">
+                            <div className="flex items-center justify-between border-b border-nb-gray-900 pb-2.5">
+                              <div className="flex items-center gap-2">
+                                <Brain className="h-4 w-4 text-netbird" />
+                                <span className="text-xs font-semibold text-white">
+                                  Core Plane (WebUI, Orchestrator &amp; Gateway)
+                                </span>
+                              </div>
+                              <span className="rounded border border-netbird-500/40 bg-netbird-950/60 px-2 py-0.5 font-mono text-[10px] text-netbird">
+                                Branch: {systemUpdateStatus.git.branch}
+                              </span>
+                            </div>
+
+                            <div className="space-y-2 text-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-nb-gray-400">
+                                  Installierter Commit:
+                                </span>
+                                <span className="font-mono font-semibold text-emerald-300">
+                                  {systemUpdateStatus.git.local_short}{" "}
+                                  <span className="text-[10px] font-normal text-nb-gray-400">
+                                    ({systemUpdateStatus.git.local_date.slice(0, 16)})
+                                  </span>
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-nb-gray-300 truncate font-mono bg-nb-gray-930/80 rounded px-2.5 py-1.5 border border-nb-gray-900">
+                                {systemUpdateStatus.git.local_subject}
+                              </div>
+                              <div className="flex items-center justify-between pt-1">
+                                <span className="text-nb-gray-400">
+                                  Remote (origin/main):
+                                </span>
+                                <span className="font-mono text-nb-gray-200">
+                                  {systemUpdateStatus.git.remote_short}
+                                  {systemUpdateStatus.git.commits_behind > 0
+                                    ? ` (${systemUpdateStatus.git.commits_behind} Commits voraus)`
+                                    : " (Synchron)"}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-nb-gray-400">
+                                  Core Gateway Binary:
+                                </span>
+                                <span className="font-mono text-[11px] text-nb-gray-200">
+                                  {systemUpdateStatus.binaries.core_gateway
+                                    .exists
+                                    ? `SHA-256 ${systemUpdateStatus.binaries.core_gateway.sha256} (${(
+                                        systemUpdateStatus.binaries.core_gateway
+                                          .size_bytes /
+                                        (1024 * 1024)
+                                      ).toFixed(1)} MB)`
+                                    : "Aktiv"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right Card: Muscle Plane Nodes */}
+                          <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950/90 p-4 space-y-3">
+                            <div className="flex items-center justify-between border-b border-nb-gray-900 pb-2.5">
+                              <div className="flex items-center gap-2">
+                                <Server className="h-4 w-4 text-purple-400" />
+                                <span className="text-xs font-semibold text-white">
+                                  Verbundene Muscle-Knoten (
+                                  {systemUpdateStatus.nodes.length})
+                                </span>
+                              </div>
+                              <span className="font-mono text-[10px] text-nb-gray-400">
+                                /usr/local/bin/axon
+                              </span>
+                            </div>
+
+                            <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                              {systemUpdateStatus.nodes.map((node) => (
+                                <div
+                                  key={node.node_id}
+                                  className="flex items-center justify-between gap-2 rounded-lg border border-nb-gray-900 bg-nb-gray-930/70 p-2.5 text-xs"
+                                >
+                                  <div className="space-y-0.5 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span
+                                        className={`h-2 w-2 rounded-full ${
+                                          node.online
+                                            ? "bg-emerald-400"
+                                            : "bg-red-400"
+                                        }`}
+                                      />
+                                      <span className="font-mono font-semibold text-white">
+                                        {node.node_id}
+                                      </span>
+                                      <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.2 font-mono text-[9px] text-nb-gray-300">
+                                        {node.systemd_status || "active"}
+                                      </span>
+                                      {node.up_to_date && (
+                                        <span className="rounded border border-emerald-500/40 bg-emerald-950/60 px-1.5 py-0.2 font-mono text-[9px] text-emerald-300">
+                                          Aktuell
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="font-mono text-[10px] text-nb-gray-400 truncate">
+                                      Commit:{" "}
+                                      <span className="text-nb-gray-200">
+                                        {node.source_commit || "n/a"}
+                                      </span>{" "}
+                                      · SHA:{" "}
+                                      <span className="text-nb-gray-200">
+                                        {node.installed_sha256 || "n/a"}
+                                      </span>{" "}
+                                      {node.installed_mtime
+                                        ? `· Build: ${node.installed_mtime}`
+                                        : ""}
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    disabled={systemUpdateBusy || !node.online}
+                                    onClick={() =>
+                                      handleRunSystemUpdate(
+                                        "update_muscle",
+                                        node.node_id
+                                      )
+                                    }
+                                    className="shrink-0 rounded-md border border-purple-500/40 bg-purple-950/50 px-2.5 py-1 text-[11px] font-medium text-purple-200 hover:bg-purple-900/60 disabled:opacity-40 transition"
+                                  >
+                                    ⬆️ OTA Update
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Step-by-Step Rollout Log */}
+                      {systemUpdateSteps.length > 0 && (
+                        <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950 p-4 space-y-2.5">
+                          <div className="flex items-center justify-between border-b border-nb-gray-900 pb-2">
+                            <span className="text-xs font-semibold text-white">
+                              Update-Protokoll (Letzter Lauf)
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setSystemUpdateSteps([])}
+                              className="text-[11px] text-nb-gray-400 hover:text-white"
+                            >
+                              Ausblenden
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {systemUpdateSteps.map((st, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-start justify-between gap-3 rounded-md border border-nb-gray-900 bg-nb-gray-930/60 p-2.5 text-xs"
+                              >
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-2 font-medium text-white">
+                                    <span
+                                      className={`rounded px-1.5 py-0.2 font-mono text-[10px] uppercase ${
+                                        st.status === "ok"
+                                          ? "bg-emerald-950 text-emerald-400 border border-emerald-500/40"
+                                          : st.status === "warn"
+                                          ? "bg-amber-950 text-amber-300 border border-amber-500/40"
+                                          : "bg-red-950 text-red-400 border border-red-500/40"
+                                      }`}
+                                    >
+                                      {st.status}
+                                    </span>
+                                    <span>{st.step}</span>
+                                  </div>
+                                  <p className="font-mono text-[11px] text-nb-gray-300 whitespace-pre-wrap">
+                                    {st.detail}
+                                  </p>
+                                </div>
+                                <span className="shrink-0 font-mono text-[10px] text-nb-gray-400">
+                                  {st.duration_ms} ms
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {settingsTab === "setup-keys" && (
                   <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-6 space-y-4">
