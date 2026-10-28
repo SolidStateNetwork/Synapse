@@ -158,6 +158,12 @@ const EN_DICTIONARY: Record<string, string> = {
   "Dienst entfernen": "Remove service",
   "Extern": "External",
   "Verfügbare Optionen": "Available Options",
+  "Verfügbare Endpunkte": "Available Endpoints",
+  "SQL-Abfrage": "SQL Query",
+  "Request-Body (JSON)": "Request Body (JSON)",
+  "Antwort": "Response",
+  "Im Browser über den Yamux-Reverse-Proxy öffnen":
+    "Open in browser via Yamux reverse proxy",
   "Sende rechts eine Anfrage an": "Send a request on the right to",
   "Antwort (": "Response (",
   "Pfad auf :": "Path on :",
@@ -165,6 +171,8 @@ const EN_DICTIONARY: Record<string, string> = {
   "Ausführen": "Execute",
   "Klicke links auf eine Option oder auf 'Ausführen'.":
     "Click an option on the left or press 'Execute'.",
+  "Klicke links auf einen Endpunkt oder oben auf 'Ausführen'.":
+    "Click an endpoint on the left or press 'Execute' above.",
   "Neu laden": "Reload",
 
   // Brain Vault & Workspace Files
