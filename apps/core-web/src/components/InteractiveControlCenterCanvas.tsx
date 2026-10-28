@@ -1906,7 +1906,7 @@ export default function InteractiveControlCenterCanvas({
         </button>
         <div className="h-3.5 w-[1px] bg-nb-gray-800 mx-0.5" />
         <button
-          onClick={handleFitView}
+          onClick={() => handleFitView()}
           className="rounded-lg p-1.5 text-nb-gray-300 hover:bg-nb-gray-900 hover:text-white"
           title="Ansicht zentrieren"
         >
