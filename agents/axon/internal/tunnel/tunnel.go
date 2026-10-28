@@ -644,6 +644,16 @@ func (a *Agent) connectAndServeTarget(ctx context.Context, target CoreTarget, he
 	}
 	defer session.Close()
 
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = session.Close()
+		case <-stopCh:
+		}
+	}()
+
 	log.Printf("[axon][%s] mTLS + Yamux Reverse Tunnel established with %s (node=%s, tier=%s, debug=%v)",
 		target.Name, target.CoreGateway, target.NodeID, target.Tier, DebugEnabled)
 
