@@ -2987,8 +2987,6 @@ export default function SynapseNetBirdControlCenter() {
                   icon={<Server className="h-5 w-5" />}
                   accentColor="indigo"
                   title="Server & Mesh-Netzwerk"
-                  badgeText={`${gatewayNodes.filter((n) => n.online).length} Online`}
-                  badgeTone="emerald"
                   description="Verwalte alle angeschlossenen Muscle-Server, verknüpfe Dienste über verschlüsselte P2P-Mesh-Tunnel oder stelle komplette Infrastruktur-Stacks und Cron-Playbooks per 1-Klick bereit."
                   actions={
                     <button
@@ -3772,8 +3770,6 @@ export default function SynapseNetBirdControlCenter() {
                       icon={<Globe className="h-5 w-5" />}
                       accentColor="sky"
                       title="Services & Reverse-Proxy Workbench"
-                      badgeText={`${allSvcs.length} Dienste aktiv`}
-                      badgeTone="sky"
                       description="Teste Web-Oberflächen, HTTP-Endpunkte und SQLite-Datenbanken deiner Server direkt im Browser über den verschlüsselten Synapse-Tunnel – auch wenn deren Ports in der Firewall nach außen gesperrt sind."
                     />
 
@@ -4265,8 +4261,6 @@ export default function SynapseNetBirdControlCenter() {
                   icon={<Brain className="h-5 w-5" />}
                   accentColor="purple"
                   title="Brain Vault (Architektur- & System-Gedächtnis)"
-                  badgeText={brainDocTab}
-                  badgeTone="purple"
                   description="Das persistente Langzeit-Gedächtnis deines Projekts. Der KI-Orchestrator liest und aktualisiert Architecture.md (Topologie, Ports, Dienste) und Memory.md (Runbooks, gelöste Fehler) vollautomatisch."
                   actions={
                     <>
@@ -4366,8 +4360,6 @@ export default function SynapseNetBirdControlCenter() {
                   icon={<FolderGit2 className="h-5 w-5" />}
                   accentColor="indigo"
                   title="Remote-Dateien & Code-Editor"
-                  badgeText={activeFilePath || remoteDir}
-                  badgeTone="indigo"
                   description="Durchsuche und bearbeite Dateien direkt im isolierten Server-Workspace (/opt/axon/workspaces) oder wende Unified-Diff-Patches mit automatischem Backup-Schutz an."
                   actions={
                     <>
@@ -4538,8 +4530,6 @@ export default function SynapseNetBirdControlCenter() {
                   icon={<Settings2 className="h-5 w-5" />}
                   accentColor="indigo"
                   title="System-Einstellungen, Tresor & KI-Konfiguration"
-                  badgeText={debugModeEnabled ? "Debug Aktiv" : "Produktiv"}
-                  badgeTone={debugModeEnabled ? "amber" : "emerald"}
                   description="Verwalte 1-Klick Over-the-Air System-Updates, Server-Koppelungsschlüssel, den AES-256-GCM Geheimnis-Tresor, KI-Modelle sowie den integrierten System-Selbsttest."
                   subTabs={
                     <SynapseSubTabs

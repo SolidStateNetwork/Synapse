@@ -69,8 +69,6 @@ export default function AccessRulesView({
         icon={<Shield className="h-5 w-5" />}
         accentColor="amber"
         title="Sicherheits-Regeln & KI-Richtlinien (Rule Cartridges)"
-        badgeText={`${activeCount} von ${cartridges.length} aktiv`}
-        badgeTone="amber"
         description="Steuere in verständlicher Sprache, welche Sicherheits- und Architektur-Leitplanken der KI-Agent auf deinen Servern strikt einhalten muss. Klicke auf eine Karte, um das Regelwerk aufzuklappen."
         actions={
           <button

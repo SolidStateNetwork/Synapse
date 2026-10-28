@@ -34,8 +34,6 @@ export default function AuditLogView({
         icon={<Activity className="h-5 w-5" />}
         accentColor="sky"
         title="Audit-Log & Sicherheits-Ereignisse"
-        badgeText={`${filteredLogs.length} von ${totalLogsCount} Einträgen`}
-        badgeTone="sky"
         description="Lückenlose Chronik aller KI-Aktionen, Benutzer-Befehle und blockierten Sicherheits-Richtlinien. Klicke auf eine Zeile, um die vollständigen Parameter und Ausgaben aufzuklappen."
       />
 

@@ -59,8 +59,6 @@ export function SynapseViewHeader({
   icon,
   accentColor = "indigo",
   title,
-  badgeText,
-  badgeTone = "indigo",
   description,
   actions,
   subTabs,
@@ -75,18 +73,9 @@ export function SynapseViewHeader({
             {icon}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h2 className="text-base font-bold tracking-tight text-white">
-                {title}
-              </h2>
-              {badgeText && (
-                <span
-                  className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${BADGE_TONE_CLASSES[badgeTone]}`}
-                >
-                  {badgeText}
-                </span>
-              )}
-            </div>
+            <h2 className="text-base font-bold tracking-tight text-white">
+              {title}
+            </h2>
             <p className="mt-1 text-xs leading-relaxed text-slate-400">
               {description}
             </p>

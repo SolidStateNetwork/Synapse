@@ -148,8 +148,6 @@ export default function FirewallView({
         icon={<ShieldCheck className="h-5 w-5" />}
         accentColor="emerald"
         title="Firewall & Port-Schutz"
-        badgeText="Anti-Lockout & 15s Rollback aktiv"
-        badgeTone="emerald"
         description="Sperre offene Ports mit 1 Klick nach außen für das öffentliche Internet, während deine Dienste über den verschlüsselten Synapse-Tunnel (127.0.0.1) weiterhin unter Services erreichbar bleiben."
         actions={
           <>
