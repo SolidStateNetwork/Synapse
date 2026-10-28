@@ -115,6 +115,7 @@ export default function SynapseNetBirdControlCenter() {
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(true);
   const [settingsTab, setSettingsTab] = useState<
     | "system-update"
+    | "watchdog-rbac"
     | "setup-keys"
     | "secrets-vault"
     | "ai-providers"
@@ -122,6 +123,54 @@ export default function SynapseNetBirdControlCenter() {
     | "debug-console"
     | "language"
   >("system-update");
+  const [settingsAlertConfig, setSettingsAlertConfig] = useState<{
+    enabled: boolean;
+    telegram_enabled: boolean;
+    telegram_bot_token: string;
+    telegram_chat_id: string;
+    discord_enabled: boolean;
+    discord_webhook_url: string;
+    webhook_enabled: boolean;
+    webhook_url: string;
+    cpu_threshold: number;
+    ram_threshold: number;
+    disk_threshold: number;
+    auto_heal_services: boolean;
+    events: Array<{
+      id: string;
+      timestamp: string;
+      severity: string;
+      title: string;
+      message: string;
+      dispatched_to: string[];
+    }>;
+  } | null>(null);
+  const [settingsAlertNotice, setSettingsAlertNotice] = useState<string | null>(
+    null
+  );
+  const [settingsAuthEnabled, setSettingsAuthEnabled] = useState(false);
+  const [settingsAdminPwd, setSettingsAdminPwd] = useState("");
+  const [settingsOperatorPwd, setSettingsOperatorPwd] = useState("");
+  const [settingsTotpPin, setSettingsTotpPin] = useState("");
+  const [settingsAuthNotice, setSettingsAuthNotice] = useState<string | null>(
+    null
+  );
+
+  useEffect(() => {
+    fetch("/api/alerts")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.config) setSettingsAlertConfig(d.config);
+      })
+      .catch(() => {});
+    fetch("/api/auth")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && typeof d.enabled === "boolean")
+          setSettingsAuthEnabled(d.enabled);
+      })
+      .catch(() => {});
+  }, []);
   const [systemUpdateBusy, setSystemUpdateBusy] = useState(false);
   const [systemUpdateActionLabel, setSystemUpdateActionLabel] = useState("");
   const [systemUpdateStatus, setSystemUpdateStatus] = useState<{
@@ -2911,6 +2960,20 @@ export default function SynapseNetBirdControlCenter() {
                   if (nodeId) setSelectedNodeId(nodeId);
                   setActiveNav("firewall");
                 }}
+                onOpenSettings={(tab) => {
+                  setSettingsTab(
+                    (tab as
+                      | "system-update"
+                      | "watchdog-rbac"
+                      | "setup-keys"
+                      | "secrets-vault"
+                      | "ai-providers"
+                      | "mcp-server"
+                      | "debug-console"
+                      | "language") || "watchdog-rbac"
+                  );
+                  setActiveNav("settings");
+                }}
               />
             )}
 
@@ -4492,6 +4555,11 @@ export default function SynapseNetBirdControlCenter() {
                           icon: <RefreshCw className="h-3.5 w-3.5" />,
                         },
                         {
+                          id: "watchdog-rbac",
+                          label: "Wächter & Login (RBAC)",
+                          icon: <Lock className="h-3.5 w-3.5" />,
+                        },
+                        {
                           id: "setup-keys",
                           label: "Server-Onboarding",
                           icon: <Server className="h-3.5 w-3.5" />,
@@ -5600,6 +5668,311 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                             Lade Live-Diagnose-Snapshot...
                           </div>
                         )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {settingsTab === "watchdog-rbac" && (
+                  <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                    {/* Left Card: 24/7 Watchdog & Multi-Channel Push Alerts */}
+                    <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
+                            <Activity className="h-4 w-4" />
+                          </span>
+                          <div>
+                            <h2 className="text-base font-semibold text-white">
+                              24/7 Wächter &amp; Push-Alarme
+                            </h2>
+                            <p className="text-xs text-nb-gray-400">
+                              Automatische Benachrichtigungen bei Server-Ausfällen, hoher Last oder Selbstheilungs-Aktionen.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setSettingsAlertNotice(null);
+                            const r = await fetch("/api/alerts", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                action: "test_alert",
+                                node_id: primaryNode || "vps2-muscle",
+                              }),
+                            });
+                            const d = await r.json();
+                            if (d.config) setSettingsAlertConfig(d.config);
+                            setSettingsAlertNotice(
+                              "🔔 Test-Alarm erfolgreich ausgelöst!"
+                            );
+                            setTimeout(() => setSettingsAlertNotice(null), 4000);
+                          }}
+                          className="shrink-0 rounded-lg border border-netbird/50 bg-netbird/15 px-3 py-1.5 font-mono text-xs font-semibold text-netbird hover:bg-netbird/25 transition"
+                        >
+                          Test-Alarm senden
+                        </button>
+                      </div>
+
+                      {settingsAlertNotice && (
+                        <div className="rounded-lg border border-emerald-500/40 bg-emerald-950/70 px-3 py-2 text-xs text-emerald-300">
+                          {settingsAlertNotice}
+                        </div>
+                      )}
+
+                      {settingsAlertConfig && (
+                        <div className="space-y-3 text-xs">
+                          <div>
+                            <label className="block text-nb-gray-300 mb-1">
+                              Telegram Bot-Token
+                            </label>
+                            <input
+                              type="text"
+                              value={settingsAlertConfig.telegram_bot_token}
+                              onChange={(e) =>
+                                setSettingsAlertConfig({
+                                  ...settingsAlertConfig,
+                                  telegram_bot_token: e.target.value,
+                                  telegram_enabled: Boolean(e.target.value),
+                                })
+                              }
+                              placeholder="123456:ABC-DEF..."
+                              className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-nb-gray-300 mb-1">
+                              Telegram Chat-ID
+                            </label>
+                            <input
+                              type="text"
+                              value={settingsAlertConfig.telegram_chat_id}
+                              onChange={(e) =>
+                                setSettingsAlertConfig({
+                                  ...settingsAlertConfig,
+                                  telegram_chat_id: e.target.value,
+                                })
+                              }
+                              placeholder="-1001234567890"
+                              className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-nb-gray-300 mb-1">
+                              Discord / Slack Webhook-URL
+                            </label>
+                            <input
+                              type="text"
+                              value={settingsAlertConfig.discord_webhook_url}
+                              onChange={(e) =>
+                                setSettingsAlertConfig({
+                                  ...settingsAlertConfig,
+                                  discord_webhook_url: e.target.value,
+                                  discord_enabled: Boolean(e.target.value),
+                                })
+                              }
+                              placeholder="https://discord.com/api/webhooks/..."
+                              className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const r = await fetch("/api/alerts", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  action: "configure",
+                                  ...settingsAlertConfig,
+                                }),
+                              });
+                              const d = await r.json();
+                              if (d.config) setSettingsAlertConfig(d.config);
+                              setSettingsAlertNotice(
+                                "✔ Alarm-Kanäle & Regeln gespeichert"
+                              );
+                              setTimeout(
+                                () => setSettingsAlertNotice(null),
+                                3500
+                              );
+                            }}
+                            className="rounded-lg bg-netbird px-4 py-2 text-xs font-semibold text-white hover:bg-netbird-500 transition"
+                          >
+                            Alarm-Kanäle speichern
+                          </button>
+
+                          {settingsAlertConfig.events &&
+                            settingsAlertConfig.events.length > 0 && (
+                              <div className="space-y-1.5 pt-2 border-t border-nb-gray-850">
+                                <div className="font-mono text-[10px] uppercase tracking-wider text-nb-gray-400">
+                                  Letzte Wächter-Ereignisse
+                                </div>
+                                {settingsAlertConfig.events
+                                  .slice(0, 4)
+                                  .map((ev) => (
+                                    <div
+                                      key={ev.id}
+                                      className="flex items-center justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 text-xs"
+                                    >
+                                      <div className="min-w-0">
+                                        <div className="font-medium text-white truncate">
+                                          {ev.title}
+                                        </div>
+                                        <div className="text-[11px] text-nb-gray-400 truncate">
+                                          {ev.message}
+                                        </div>
+                                      </div>
+                                      <span className="shrink-0 font-mono text-[10px] text-emerald-400 ml-2">
+                                        {ev.dispatched_to.join(", ")}
+                                      </span>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right Card: WebUI Login & RBAC Roles */}
+                    <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/40 bg-emerald-950/60 text-emerald-400">
+                            <Lock className="h-4 w-4" />
+                          </span>
+                          <div>
+                            <h2 className="text-base font-semibold text-white">
+                              WebUI Login &amp; Rollen (RBAC)
+                            </h2>
+                            <p className="text-xs text-nb-gray-400">
+                              Schütze das Control Center mit Admin-Passwort, Nur-Lesen-Operator-Passwort und optionaler 2FA-PIN.
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          className={`rounded-full border px-2.5 py-0.5 font-mono text-[10px] font-semibold ${
+                            settingsAuthEnabled
+                              ? "border-emerald-500/40 bg-emerald-950/60 text-emerald-300"
+                              : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400"
+                          }`}
+                        >
+                          {settingsAuthEnabled ? "AKTIV" : "AUS"}
+                        </span>
+                      </div>
+
+                      {settingsAuthNotice && (
+                        <div className="rounded-lg border border-emerald-500/40 bg-emerald-950/70 px-3 py-2 text-xs text-emerald-300">
+                          {settingsAuthNotice}
+                        </div>
+                      )}
+
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <label className="block text-nb-gray-300 mb-1">
+                            Neues Admin-Passwort (Vollzugriff)
+                          </label>
+                          <input
+                            type="password"
+                            value={settingsAdminPwd}
+                            onChange={(e) =>
+                              setSettingsAdminPwd(e.target.value)
+                            }
+                            placeholder="Neues Admin-Passwort..."
+                            className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-nb-gray-300 mb-1">
+                            Operator-Passwort (Nur-Lesen / Read-Only)
+                          </label>
+                          <input
+                            type="password"
+                            value={settingsOperatorPwd}
+                            onChange={(e) =>
+                              setSettingsOperatorPwd(e.target.value)
+                            }
+                            placeholder="Operator-Passwort (Nur-Lesen)..."
+                            className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-nb-gray-300 mb-1">
+                            Optionaler 2FA-PIN (z.B. 2408)
+                          </label>
+                          <input
+                            type="text"
+                            value={settingsTotpPin}
+                            onChange={(e) => setSettingsTotpPin(e.target.value)}
+                            placeholder="Optionaler 2FA-PIN..."
+                            className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const r = await fetch("/api/auth", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  action: "configure",
+                                  enabled: true,
+                                  admin_password:
+                                    settingsAdminPwd || "synapse-admin",
+                                  operator_password: settingsOperatorPwd,
+                                  totp_pin: settingsTotpPin,
+                                }),
+                              });
+                              const d = await r.json();
+                              if (d.ok) {
+                                setSettingsAuthEnabled(Boolean(d.enabled));
+                                setSettingsAuthNotice(
+                                  "🔒 WebUI Passwort-Schutz aktiviert"
+                                );
+                                setTimeout(
+                                  () => setSettingsAuthNotice(null),
+                                  3500
+                                );
+                              }
+                            }}
+                            className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition"
+                          >
+                            Passwort-Schutz speichern &amp; aktivieren
+                          </button>
+                          {settingsAuthEnabled && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const r = await fetch("/api/auth", {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                  },
+                                  body: JSON.stringify({
+                                    action: "configure",
+                                    enabled: false,
+                                  }),
+                                });
+                                const d = await r.json();
+                                if (d.ok) {
+                                  setSettingsAuthEnabled(false);
+                                  setSettingsAuthNotice(
+                                    "🔓 WebUI Passwort-Schutz deaktiviert"
+                                  );
+                                  setTimeout(
+                                    () => setSettingsAuthNotice(null),
+                                    3500
+                                  );
+                                }
+                              }}
+                              className="rounded-lg border border-nb-gray-700 bg-nb-gray-900 px-3.5 py-2 text-xs text-nb-gray-300 hover:text-white transition"
+                            >
+                              Schutz deaktivieren
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

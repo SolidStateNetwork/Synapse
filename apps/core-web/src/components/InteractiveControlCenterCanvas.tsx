@@ -270,6 +270,7 @@ interface Props {
     }
   >;
   onOpenFirewall?: (nodeId?: string) => void;
+  onOpenSettings?: (tab?: string) => void;
 }
 
 interface CanvasPos {
@@ -314,6 +315,7 @@ export default function InteractiveControlCenterCanvas({
   onHealService,
   firewallPolicies,
   onOpenFirewall,
+  onOpenSettings,
 }: Props) {
   const { t, translateText } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -2544,190 +2546,24 @@ export default function InteractiveControlCenterCanvas({
                     </div>
                   </div>
 
-                  {/* FEATURE 5: 24/7 PROACTIVE WATCHDOG & PUSH ALERTING */}
-                  <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-2.5 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
-                        <Bell className="h-3 w-3 text-netbird" />
-                        {t("24/7 Wächter & Push-Alarme", "24/7 Watchdog & Alerts")}
+                  {/* 1-CLICK SHORTCUT TO SETTINGS (WATCHDOG, PUSH ALERTS & WEBUI RBAC LOGIN) */}
+                  <button
+                    type="button"
+                    onClick={() => onOpenSettings?.("watchdog-rbac")}
+                    className="flex w-full items-center justify-between rounded-xl border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 text-[11px] font-medium text-nb-gray-200 hover:border-netbird hover:text-white transition"
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      <Bell className="h-3.5 w-3.5 text-netbird shrink-0" />
+                      <Lock className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                      <span className="truncate">
+                        {t(
+                          "Wächter, Alarme & Login (Einstellungen)",
+                          "Watchdog, Alerts & Login (Settings)"
+                        )}
                       </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          disabled={alertBusy}
-                          onClick={handleSendTestAlert}
-                          className="rounded border border-netbird/40 bg-netbird/15 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold text-netbird hover:bg-netbird/25 transition"
-                        >
-                          {t("Test-Alarm", "Test Alert")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowAlertChannels((v) => !v)}
-                          className="rounded border border-nb-gray-800 bg-nb-gray-900 px-1.5 py-0.5 font-mono text-[8.5px] text-nb-gray-300 hover:text-white"
-                        >
-                          {showAlertChannels
-                            ? t("Schließen", "Close")
-                            : t("Kanäle", "Channels")}
-                        </button>
-                      </div>
-                    </div>
-                    {alertNotice && (
-                      <div className="rounded bg-emerald-950/70 border border-emerald-500/40 px-2 py-1 text-[9.5px] text-emerald-300">
-                        {alertNotice}
-                      </div>
-                    )}
-                    {showAlertChannels && alertConfig && (
-                      <div className="space-y-1.5 border-t border-nb-gray-800 pt-2 text-[10px]">
-                        <input
-                          type="text"
-                          value={alertConfig.telegram_bot_token}
-                          onChange={(e) =>
-                            setAlertConfig({
-                              ...alertConfig,
-                              telegram_bot_token: e.target.value,
-                              telegram_enabled: Boolean(e.target.value),
-                            })
-                          }
-                          placeholder={t(
-                            "Telegram Bot-Token...",
-                            "Telegram Bot Token..."
-                          )}
-                          className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
-                        />
-                        <input
-                          type="text"
-                          value={alertConfig.telegram_chat_id}
-                          onChange={(e) =>
-                            setAlertConfig({
-                              ...alertConfig,
-                              telegram_chat_id: e.target.value,
-                            })
-                          }
-                          placeholder={t(
-                            "Telegram Chat-ID...",
-                            "Telegram Chat ID..."
-                          )}
-                          className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
-                        />
-                        <input
-                          type="text"
-                          value={alertConfig.discord_webhook_url}
-                          onChange={(e) =>
-                            setAlertConfig({
-                              ...alertConfig,
-                              discord_webhook_url: e.target.value,
-                              discord_enabled: Boolean(e.target.value),
-                            })
-                          }
-                          placeholder={t(
-                            "Discord / Slack Webhook-URL...",
-                            "Discord / Slack Webhook URL..."
-                          )}
-                          className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSaveAlertConfig(alertConfig)}
-                          className="w-full rounded bg-netbird py-1 font-medium text-white hover:bg-netbird-500 transition"
-                        >
-                          {t("Kanäle speichern", "Save Channels")}
-                        </button>
-                      </div>
-                    )}
-                    {alertConfig?.events && alertConfig.events.length > 0 && (
-                      <div className="rounded border border-nb-gray-800/80 bg-nb-gray-940/60 px-2 py-1 text-[9.5px] text-nb-gray-300">
-                        <div className="truncate font-medium text-white">
-                          {translateText(alertConfig.events[0].title)}
-                        </div>
-                        <div className="truncate font-mono text-[8.5px] text-nb-gray-400">
-                          {alertConfig.events[0].dispatched_to.join(", ")}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* FEATURE 3: WEBUI LOGIN PROTECTION & RBAC */}
-                  <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-2.5 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
-                        <Lock className="h-3 w-3 text-emerald-400" />
-                        {t("WebUI Login & Rollen (RBAC)", "WebUI Login & RBAC")}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setAuthLocked(true)}
-                          className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold text-amber-300 hover:bg-amber-500/25"
-                        >
-                          {t("🔒 Sperren", "🔒 Lock")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowAuthConfig((v) => !v)}
-                          className="rounded border border-nb-gray-800 bg-nb-gray-900 px-1.5 py-0.5 font-mono text-[8.5px] text-nb-gray-300 hover:text-white"
-                        >
-                          {t("Passwort", "Password")}
-                        </button>
-                      </div>
-                    </div>
-                    {authNotice && (
-                      <div className="rounded bg-emerald-950/70 border border-emerald-500/40 px-2 py-1 text-[9.5px] text-emerald-300">
-                        {authNotice}
-                      </div>
-                    )}
-                    {showAuthConfig && (
-                      <div className="space-y-1.5 border-t border-nb-gray-800 pt-2 text-[10px]">
-                        <input
-                          type="password"
-                          value={adminPwdInput}
-                          onChange={(e) => setAdminPwdInput(e.target.value)}
-                          placeholder={t(
-                            "Neues Admin-Passwort...",
-                            "New Admin Password..."
-                          )}
-                          className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
-                        />
-                        <input
-                          type="password"
-                          value={operatorPwdInput}
-                          onChange={(e) => setOperatorPwdInput(e.target.value)}
-                          placeholder={t(
-                            "Operator-Passwort (Nur-Lesen)...",
-                            "Operator Password (Read-Only)..."
-                          )}
-                          className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
-                        />
-                        <input
-                          type="text"
-                          value={totpPinInput}
-                          onChange={(e) => setTotpPinInput(e.target.value)}
-                          placeholder={t(
-                            "Optionaler 2FA-PIN (z.B. 2408)...",
-                            "Optional 2FA PIN (e.g. 2408)..."
-                          )}
-                          className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
-                        />
-                        <div className="flex gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleConfigureAuth(true)}
-                            className="flex-1 rounded bg-emerald-600 py-1 font-medium text-white hover:bg-emerald-500 transition"
-                          >
-                            {t("Schutz aktivieren", "Enable Protection")}
-                          </button>
-                          {authEnabled && (
-                            <button
-                              type="button"
-                              onClick={() => handleConfigureAuth(false)}
-                              className="rounded border border-nb-gray-700 bg-nb-gray-900 px-2 py-1 text-nb-gray-300 hover:text-white"
-                            >
-                              {t("Aus", "Off")}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 text-nb-gray-400 shrink-0" />
+                  </button>
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
