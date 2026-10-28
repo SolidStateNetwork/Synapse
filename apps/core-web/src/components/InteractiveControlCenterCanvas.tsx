@@ -202,6 +202,7 @@ export default function InteractiveControlCenterCanvas({
 
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const lastDragMovedRef = useRef<boolean>(false);
+  const hasUserDraggedRef = useRef<boolean>(false);
   const dragNodeStartRef = useRef<{
     nodeId: string;
     startClientX: number;
@@ -241,15 +242,25 @@ export default function InteractiveControlCenterCanvas({
     [registeredServices]
   );
 
-  // Clean 3-column Hierarchical Layout:
-  // Left: Synapse Core Hub -> Center: Muscle Peers -> Right: Services grouped directly behind their owning Muscle
+  // Clean 3-column Hierarchical Layout with Pixel-Perfect Vertical Center Alignment:
+  // Left (x=60): Synapse Core Hub -> Center (x=460): Muscle Peers -> Right (x=860): Services behind their owning Muscle
   const buildHierarchicalLayout = useCallback(
-    (expanded: boolean): Record<string, CanvasPos> => {
+    (
+      expanded: boolean,
+      measuredSizes: Record<string, { w: number; h: number }> = sizes
+    ): Record<string, CanvasPos> => {
       const next: Record<string, CanvasPos> = {};
       const rawPeerIds =
         peerIdsKey !== "empty" ? peerIdsKey.split(",") : ["empty"];
       const peerStep = expanded ? 205 : 118;
       const svcStep = expanded ? 226 : 98;
+
+      const getH = (key: string) => {
+        if (measuredSizes[key]?.h) return measuredSizes[key].h;
+        if (key === "core:hub") return expanded ? 240 : 108;
+        if (key.startsWith("peer:")) return expanded ? 185 : 88;
+        return expanded ? 200 : 62;
+      };
 
       const servicesByPeer = new Map<string, RegisteredService[]>();
       for (const pid of rawPeerIds) {
@@ -263,58 +274,90 @@ export default function InteractiveControlCenterCanvas({
         servicesByPeer.get(targetPeer)?.push(svc);
       }
 
-      let cursorY = expanded ? 20 : 36;
-      const peerYs: number[] = [];
+      let cursorY = expanded ? 28 : 48;
+      const peerCenterYs: number[] = [];
 
       rawPeerIds.forEach((rawId) => {
         const peerKey = `peer:${rawId}`;
+        const peerH = getH(peerKey);
         const owned = servicesByPeer.get(rawId) || [];
         if (owned.length > 0) {
-          const firstSvcY = cursorY;
+          let firstSvcY = cursorY;
+          const firstSvcKey = `svc:${owned[0].service_id}`;
+          const lastSvcKey = `svc:${owned[owned.length - 1].service_id}`;
+          const firstSvcH = getH(firstSvcKey);
+          const lastSvcH = getH(lastSvcKey);
+
+          let lastSvcY = firstSvcY + (owned.length - 1) * svcStep;
+          let groupCenterY =
+            (firstSvcY + firstSvcH / 2 + (lastSvcY + lastSvcH / 2)) / 2;
+          let peerY = Math.round(groupCenterY - peerH / 2);
+
+          if (peerY < 28) {
+            const shift = 28 - peerY;
+            firstSvcY += shift;
+            lastSvcY += shift;
+            groupCenterY += shift;
+            peerY = 28;
+          }
+
           owned.forEach((svc, idx) => {
             next[`svc:${svc.service_id}`] = {
-              x: 790,
-              y: firstSvcY + idx * svcStep,
+              x: 860,
+              y: Math.round(firstSvcY + idx * svcStep),
             };
           });
-          const lastSvcY = firstSvcY + (owned.length - 1) * svcStep;
-          const peerY = Math.round((firstSvcY + lastSvcY) / 2);
-          next[peerKey] = { x: 420, y: peerY };
-          peerYs.push(peerY);
-          cursorY = Math.max(lastSvcY + svcStep, peerY + peerStep) + 14;
+
+          next[peerKey] = { x: 460, y: peerY };
+          peerCenterYs.push(peerY + peerH / 2);
+          cursorY =
+            Math.max(lastSvcY + lastSvcH + 36, peerY + peerH + 36);
         } else {
           const peerY = cursorY;
-          next[peerKey] = { x: 420, y: peerY };
-          peerYs.push(peerY);
-          cursorY += peerStep;
+          next[peerKey] = { x: 460, y: peerY };
+          peerCenterYs.push(peerY + peerH / 2);
+          cursorY += Math.max(peerH + 36, peerStep);
         }
       });
 
-      const minPeerY = peerYs.length > 0 ? Math.min(...peerYs) : 120;
-      const maxPeerY = peerYs.length > 0 ? Math.max(...peerYs) : 120;
-      const midPeerY = Math.round((minPeerY + maxPeerY) / 2);
+      const minCenterY =
+        peerCenterYs.length > 0 ? Math.min(...peerCenterYs) : 200;
+      const maxCenterY =
+        peerCenterYs.length > 0 ? Math.max(...peerCenterYs) : 200;
+      const midCenterY = (minCenterY + maxCenterY) / 2;
 
+      const coreH = getH("core:hub");
       next["core:hub"] = {
-        x: 48,
-        y: Math.max(36, midPeerY - (expanded ? 60 : 18)),
+        x: 60,
+        y: Math.max(28, Math.round(midCenterY - coreH / 2)),
       };
 
       if (registeredServices.length === 0) {
-        next["svc:empty"] = { x: 790, y: midPeerY };
+        const emptySvcH = getH("svc:empty");
+        next["svc:empty"] = {
+          x: 860,
+          y: Math.max(28, Math.round(midCenterY - emptySvcH / 2)),
+        };
       }
 
       return next;
     },
-    [peerIdsKey, registeredServices]
+    [peerIdsKey, registeredServices, sizes]
   );
 
   const computeDefaultLayout = useCallback(
-    (): Record<string, CanvasPos> => buildHierarchicalLayout(false),
-    [buildHierarchicalLayout]
+    (): Record<string, CanvasPos> => buildHierarchicalLayout(false, sizes),
+    [buildHierarchicalLayout, sizes]
   );
 
   useEffect(() => {
-    setPositions(computeDefaultLayout());
+    hasUserDraggedRef.current = false;
+  }, [peerIdsKey, serviceIdsKey]);
+
+  useEffect(() => {
+    if (!hasUserDraggedRef.current) {
+      setPositions(computeDefaultLayout());
+    }
   }, [computeDefaultLayout]);
 
   const measureNodes = useCallback(() => {
@@ -393,41 +436,87 @@ export default function InteractiveControlCenterCanvas({
       next[`svc:${s.service_id}`] = target;
     });
     setExpandedNodes(next);
-    // Adjust vertical spacing so expanded cards never overlap
-    setPositions(() => buildHierarchicalLayout(target));
+    hasUserDraggedRef.current = false;
+    const nextLayout = buildHierarchicalLayout(target, sizes);
+    setPositions(nextLayout);
     if (target) {
       setZoom(0.75);
       setPan({ x: 64, y: 18 });
     } else {
-      handleFitView();
+      handleFitView(nextLayout);
     }
     setTimeout(measureNodes, 40);
     setTimeout(measureNodes, 150);
   };
 
-  const handleFitView = useCallback(() => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const targetW = 1110;
-    const targetH = 440;
-    const scaleX = (rect.width - 64) / targetW;
-    const scaleY = (rect.height - 64) / targetH;
-    const nextZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.72), 1.08);
-    const offsetX = Math.max(28, (rect.width - targetW * nextZoom) / 2);
-    const offsetY = Math.max(24, (rect.height - targetH * nextZoom) / 2.8);
-    setZoom(Number(nextZoom.toFixed(2)));
-    setPan({ x: Math.round(offsetX), y: Math.round(offsetY) });
-  }, []);
+  const handleFitView = useCallback(
+    (layoutOverride?: Record<string, CanvasPos>) => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const activeLayout =
+        layoutOverride && Object.keys(layoutOverride).length > 0
+          ? layoutOverride
+          : Object.keys(positions).length > 0
+          ? positions
+          : computeDefaultLayout();
+
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      for (const [key, pos] of Object.entries(activeLayout)) {
+        if (!pos) continue;
+        const w = sizes[key]?.w || 275;
+        const h =
+          sizes[key]?.h ||
+          (key === "core:hub" ? 108 : key.startsWith("peer:") ? 88 : 62);
+        if (pos.x < minX) minX = pos.x;
+        if (pos.y < minY) minY = pos.y;
+        if (pos.x + w > maxX) maxX = pos.x + w;
+        if (pos.y + h > maxY) maxY = pos.y + h;
+      }
+
+      if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
+        minX = 60;
+        minY = 48;
+        maxX = 1135;
+        maxY = 502;
+      }
+
+      const contentW = Math.max(400, maxX - minX);
+      const contentH = Math.max(240, maxY - minY);
+      const scaleX = (rect.width - 96) / contentW;
+      const scaleY = (rect.height - 96) / contentH;
+      const nextZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.72), 1.05);
+      const roundedZoom = Number(nextZoom.toFixed(2));
+
+      const panX = Math.round(
+        (rect.width - contentW * roundedZoom) / 2 - minX * roundedZoom
+      );
+      const panY = Math.round(
+        (rect.height - contentH * roundedZoom) / 2 - minY * roundedZoom
+      );
+
+      setZoom(roundedZoom);
+      setPan({ x: panX, y: panY });
+    },
+    [positions, sizes, computeDefaultLayout]
+  );
 
   useEffect(() => {
-    handleFitView();
+    if (!hasUserDraggedRef.current) {
+      handleFitView();
+    }
   }, [handleFitView]);
 
   const handleResetLayout = () => {
+    hasUserDraggedRef.current = false;
     setExpandedNodes({});
     setInspectorPos(null);
-    setPositions(computeDefaultLayout());
-    handleFitView();
+    const fresh = computeDefaultLayout();
+    setPositions(fresh);
+    handleFitView(fresh);
   };
 
   // Clean 3-tier hierarchical edges:
@@ -501,6 +590,7 @@ export default function InteractiveControlCenterCanvas({
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
           d.moved = true;
           lastDragMovedRef.current = true;
+          hasUserDraggedRef.current = true;
         }
         setPositions((prev) => ({
           ...prev,
@@ -599,16 +689,16 @@ export default function InteractiveControlCenterCanvas({
     const p2 = positions[toId] || { x: 430, y: 120 };
     const defaultS1 =
       fromId === "core:hub"
-        ? { w: 265, h: 108 }
+        ? { w: 275, h: 108 }
         : fromId.startsWith("peer:")
-        ? { w: 250, h: 66 }
-        : { w: 255, h: 62 };
+        ? { w: 275, h: 88 }
+        : { w: 275, h: 62 };
     const defaultS2 =
       toId === "core:hub"
-        ? { w: 265, h: 108 }
+        ? { w: 275, h: 108 }
         : toId.startsWith("peer:")
-        ? { w: 250, h: 66 }
-        : { w: 255, h: 62 };
+        ? { w: 275, h: 88 }
+        : { w: 275, h: 62 };
 
     const s1 = sizes[fromId] || defaultS1;
     const s2 = sizes[toId] || defaultS2;
@@ -908,7 +998,7 @@ export default function InteractiveControlCenterCanvas({
         {peerNodesToRender.map((gn) => {
           const nodeKey =
             gn.node_id === "empty" ? "peer:empty" : `peer:${gn.node_id}`;
-          const pos = positions[nodeKey] || { x: 420, y: 120 };
+          const pos = positions[nodeKey] || { x: 460, y: 120 };
           const hb = gn.last_heartbeat;
           const isSelected =
             inspected?.kind === "peer" && inspected.nodeId === gn.node_id;
@@ -946,7 +1036,7 @@ export default function InteractiveControlCenterCanvas({
                   setInspected({ kind: "peer", nodeId: gn.node_id });
                 }
               }}
-              className={`absolute w-[255px] rounded-xl border bg-nb-gray-940 px-4 py-3.5 shadow-lg transition-colors duration-150 ${
+              className={`absolute w-[275px] rounded-xl border bg-nb-gray-940 px-4 py-3.5 shadow-lg transition-colors duration-150 ${
                 draggingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-netbird shadow-2xl"
                   : "cursor-grab hover:border-nb-gray-700 hover:bg-nb-gray-930"
@@ -1116,7 +1206,7 @@ export default function InteractiveControlCenterCanvas({
         {/* 2. LEFT: UNIFIED SYNAPSE CORE HUB NODE (Draggable + Inline Expandable) */}
         {(() => {
           const nodeKey = "core:hub";
-          const pos = positions[nodeKey] || { x: 48, y: 120 };
+          const pos = positions[nodeKey] || { x: 60, y: 120 };
           const isSelected = inspected?.kind === "core";
           const isExpanded = Boolean(expandedNodes[nodeKey]);
 
@@ -1283,7 +1373,7 @@ export default function InteractiveControlCenterCanvas({
         ).map((svc) => {
           const nodeKey =
             svc.service_id === "empty" ? "svc:empty" : `svc:${svc.service_id}`;
-          const pos = positions[nodeKey] || { x: 790, y: 120 };
+          const pos = positions[nodeKey] || { x: 860, y: 120 };
           const healthy =
             svc.healthy !== false && svc.health_check?.status !== "UNHEALTHY";
           const isSelected =
