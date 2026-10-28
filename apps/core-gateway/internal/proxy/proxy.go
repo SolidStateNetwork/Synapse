@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/SolidStateNetwork/Synapse/apps/core-gateway/internal/hub"
 	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
@@ -54,6 +56,11 @@ func NewLivePreviewHandler(h *hub.Hub) http.HandlerFunc {
 				req.Header.Set("X-Forwarded-Prefix", fmt.Sprintf("/preview/%s/%s/%d", projectID, nodeID, portNum))
 			},
 			Transport: &http.Transport{
+				// DisableKeepAlives ensures the one-shot Yamux stream is closed immediately
+				// after each proxied HTTP request instead of leaking in an orphaned idle pool.
+				DisableKeepAlives:     true,
+				ResponseHeaderTimeout: 30 * time.Second,
+				IdleConnTimeout:       10 * time.Second,
 				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 					stream, _, err := h.OpenStream(nodeID, tunnelv1.StreamHeader{
 						StreamType: tunnelv1.StreamTypePortForward,
@@ -66,19 +73,37 @@ func NewLivePreviewHandler(h *hub.Hub) http.HandlerFunc {
 			ModifyResponse: func(resp *http.Response) error {
 				// Allow embedding inside the authenticated Core WebUI Live-Preview iframe
 				resp.Header.Del("X-Frame-Options")
-				resp.Header.Set("Access-Control-Allow-Origin", "*")
+				// Remove upstream CORS header so corsMiddleware in main.go emits a single clean header
+				resp.Header.Del("Access-Control-Allow-Origin")
 				return nil
 			},
 			ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
+				accept := req.Header.Get("Accept")
+				contentType := req.Header.Get("Content-Type")
+				if req.Method != http.MethodGet ||
+					strings.Contains(accept, "application/json") ||
+					strings.Contains(contentType, "application/json") {
+					rw.Header().Set("Content-Type", "application/json; charset=utf-8")
+					rw.WriteHeader(http.StatusBadGateway)
+					_ = json.NewEncoder(rw).Encode(map[string]any{
+						"ok":         false,
+						"error":      fmt.Sprintf("Live-Preview tunnel to 127.0.0.1:%d on %s unavailable: %v", portNum, nodeID, proxyErr),
+						"project_id": projectID,
+						"node_id":    nodeID,
+						"port":       portNum,
+					})
+					return
+				}
+
 				rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 				rw.WriteHeader(http.StatusBadGateway)
 				_, _ = fmt.Fprintf(rw, `<!DOCTYPE html>
 <html>
-<head><style>body{background:#090a0f;color:#e2e8f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}.card{border:1px solid #334155;background:#0f172a;padding:24px;border-radius:12px;max-width:520px}h2{color:#f87171;margin-top:0}code{color:#34d399;background:#1e293b;padding:2px 6px;border-radius:4px}</style></head>
+<head><style>body{background:#121417;color:#e4e7ec;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}.card{border:1px solid #2b3036;background:#181b1f;padding:24px;border-radius:12px;max-width:520px}h2{color:#f87171;margin-top:0}code{color:#34d399;background:#202429;padding:2px 6px;border-radius:4px}</style></head>
 <body><div class="card">
 <h2>Synapse Live-Preview Tunnel Unavailable</h2>
 <p>Could not reach <code>127.0.0.1:%d</code> on Axon Node <code>%s</code> (Project <code>%s</code>).</p>
-<p style="font-size:13px;color:#94a3b8">Details: %v</p>
+<p style="font-size:13px;color:#98a1ae">Details: %v</p>
 </div></body></html>`, portNum, nodeID, projectID, proxyErr)
 			},
 		}

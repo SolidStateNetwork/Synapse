@@ -579,7 +579,13 @@ fi
 	})
 
 	log.Printf("[core-gateway] HTTP Control & Live-Preview Reverse Proxy listening on %s (VaultRoot=%s, Debug=%v)", httpAddr, vaultRoot, nodeHub.IsDebugEnabled())
-	if err := http.ListenAndServe(httpAddr, corsMiddleware(mux)); err != nil {
+	httpServer := &http.Server{
+		Addr:              httpAddr,
+		Handler:           corsMiddleware(mux),
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	if err := httpServer.ListenAndServe(); err != nil {
 		log.Fatalf("[core-gateway] HTTP server error: %v", err)
 	}
 }
