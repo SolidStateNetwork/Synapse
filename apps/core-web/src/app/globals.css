@@ -73,3 +73,14 @@ code {
 ::-webkit-scrollbar-thumb:hover {
   background: #3f444b;
 }
+
+/* Hide floating Next.js dev indicator ("Static route") so it never overlaps the bottom-left sidebar */
+nextjs-portal,
+#__next-build-watcher,
+[data-nextjs-toast],
+[data-nextjs-dialog-overlay] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

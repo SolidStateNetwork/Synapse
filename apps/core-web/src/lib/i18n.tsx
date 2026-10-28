@@ -360,6 +360,10 @@ const EN_DICTIONARY: Record<string, string> = {
   "Code-, System- & UI-Suche": "Code, System & UI Search",
   "Durchsucht UI-Sitemap, Server-Dateien, Code-Zeilen, Ports, DBs & Brain Vault nach jeder gesuchten Funktion.":
     "Searches UI sitemap, server files, code lines, ports, DBs & Brain Vault for any requested feature.",
+  "System-Update & Versionsdetails öffnen":
+    "Open System Update & version details",
+  "Update verfügbar": "Update available",
+  "@Kontext einfügen": "Insert @Context Mention",
 
   // RichMarkdownDocument UI Chrome
   "Noch keine Inhalte vorhanden.": "No content documented yet.",

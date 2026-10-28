@@ -497,6 +497,7 @@ export default function SynapseNetBirdControlCenter() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const chatComposerRef = useRef<HTMLFormElement | null>(null);
   const [selectedChatSkill, setSelectedChatSkill] = useState<
     | "CheckSystem"
     | "CheckOpsec"
@@ -800,10 +801,28 @@ export default function SynapseNetBirdControlCenter() {
       } else if (e.key === "Escape") {
         setCommandPaletteOpen(false);
         setFocusedCanvasNode(null);
+        setMentionMenuOpen(false);
+        setSkillMenuOpen(false);
+        setChatInput((prev) => prev.replace(/(?:^|\s)@$/, ""));
+      }
+    }
+    function onPointerDown(e: MouseEvent) {
+      if (
+        chatComposerRef.current &&
+        e.target instanceof Node &&
+        !chatComposerRef.current.contains(e.target)
+      ) {
+        setMentionMenuOpen(false);
+        setSkillMenuOpen(false);
+        setChatInput((prev) => prev.replace(/(?:^|\s)@$/, ""));
       }
     }
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("mousedown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("mousedown", onPointerDown);
+    };
   }, []);
 
   useEffect(() => {
@@ -1179,6 +1198,7 @@ export default function SynapseNetBirdControlCenter() {
     const atMatch = val.match(/(?:^|\s)@([a-zA-Z0-9._:-]*)$/);
     if (atMatch) {
       setMentionFilter(atMatch[1] || "");
+      setSkillMenuOpen(false);
       setMentionMenuOpen(true);
     } else {
       setMentionMenuOpen(false);
@@ -1186,12 +1206,20 @@ export default function SynapseNetBirdControlCenter() {
   }
 
   function insertMentionToken(token: string) {
-    const replaced = chatInput.replace(
-      /(?:^|\s)@([a-zA-Z0-9._:-]*)$/,
-      (m) => (m.startsWith(" ") ? ` ${token} ` : `${token} `)
-    );
-    setChatInput(replaced);
+    if (/(?:^|\s)@([a-zA-Z0-9._:-]*)$/.test(chatInput)) {
+      const replaced = chatInput.replace(
+        /(?:^|\s)@([a-zA-Z0-9._:-]*)$/,
+        (m) => (m.startsWith(" ") ? ` ${token} ` : `${token} `)
+      );
+      setChatInput(replaced);
+    } else {
+      const prefix =
+        chatInput && !chatInput.endsWith(" ") ? `${chatInput} ` : chatInput;
+      setChatInput(`${prefix}${token} `);
+    }
     setMentionMenuOpen(false);
+    setMentionFilter("");
+    setTimeout(() => chatInputRef.current?.focus(), 30);
   }
 
   async function runStreamingPrompt(
@@ -2206,6 +2234,14 @@ export default function SynapseNetBirdControlCenter() {
   }, []);
 
   useEffect(() => {
+    fetchSystemUpdateStatus(true, true);
+    const timer = setInterval(() => {
+      fetchSystemUpdateStatus(true, true);
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [fetchSystemUpdateStatus]);
+
+  useEffect(() => {
     if (activeNav === "settings" && settingsTab === "system-update") {
       fetchSystemUpdateStatus(false, true);
     } else if (activeNav === "settings" && settingsTab === "debug-console") {
@@ -2463,9 +2499,6 @@ export default function SynapseNetBirdControlCenter() {
                     <span className="text-[15px] font-semibold tracking-tight text-white">
                       Synapse
                     </span>
-                    <span className="rounded bg-netbird-950 border border-netbird-500/40 px-1.5 py-0.5 font-mono text-[9px] text-netbird">
-                      v0.2
-                    </span>
                   </div>
                   <span className="mt-0.5 text-[10px] text-nb-gray-400">
                     Control Center
@@ -2590,43 +2623,169 @@ export default function SynapseNetBirdControlCenter() {
           </ul>
         </div>
 
-        {/* Minimalist Bottom Mesh Status Pill */}
-        <div className="p-3.5">
-          {sidebarCollapsed ? (
-            <div
-              className="flex justify-center py-1"
-              title={
-                activeProject?.planning_only
-                  ? "Planning-Only"
-                  : `mTLS 1.3 Mesh (${gatewayNodes.filter((n) => n.online).length} online)`
-              }
-            >
-              <span
-                className={`h-2.5 w-2.5 rounded-full ${
-                  activeProject?.planning_only
-                    ? "bg-amber-400"
-                    : "bg-green-400"
-                }`}
-              />
-            </div>
-          ) : (
-            <div className="flex items-center justify-between rounded-lg border border-nb-gray-900 bg-nb-gray-940/70 px-3 py-2 text-[11px] text-nb-gray-400">
-              <span className="flex items-center gap-2 text-nb-gray-200">
-                <span
-                  className={`h-2 w-2 rounded-full ${
+        {/* Bottom-Left NetBird-Style Mesh Status + Version & Update Footer */}
+        {(() => {
+          const coreUpdateAvailable = Boolean(
+            systemUpdateStatus?.git?.update_available ||
+              (systemUpdateStatus?.git?.commits_behind ?? 0) > 0
+          );
+          const outdatedNodes = (systemUpdateStatus?.nodes || []).filter(
+            (n) => n.online && n.up_to_date === false
+          );
+          const hasAnyUpdate = coreUpdateAvailable || outdatedNodes.length > 0;
+          const localShort = systemUpdateStatus?.git?.local_short || "latest";
+          const remoteShort = systemUpdateStatus?.git?.remote_short || localShort;
+
+          if (sidebarCollapsed) {
+            return (
+              <div className="space-y-2 p-2.5 border-t border-nb-gray-900/80">
+                <div
+                  className="flex justify-center py-1"
+                  title={
                     activeProject?.planning_only
-                      ? "bg-amber-400"
-                      : "bg-green-400"
+                      ? "Planning-Only"
+                      : `mTLS 1.3 Mesh (${gatewayNodes.filter((n) => n.online).length} online)`
+                  }
+                >
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full ${
+                      activeProject?.planning_only
+                        ? "bg-amber-400"
+                        : "bg-green-400"
+                    }`}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsTab("system-update");
+                    setActiveNav("settings");
+                    fetchSystemUpdateStatus(true, true);
+                  }}
+                  title={
+                    hasAnyUpdate
+                      ? `Synapse v0.2.0 (${localShort}) — Update verfügbar (${remoteShort})`
+                      : `Synapse v0.2.0 (${localShort}) — Aktuell`
+                  }
+                  className={`relative mx-auto flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
+                    hasAnyUpdate
+                      ? "border-amber-500/60 bg-amber-950/60 text-amber-300 hover:bg-amber-900/50"
+                      : "border-nb-gray-800/80 bg-nb-gray-940 text-nb-gray-400 hover:text-white"
                   }`}
-                />
-                {activeProject?.planning_only ? "Planning-Only" : "mTLS 1.3 Mesh"}
-              </span>
-              <span className="font-mono text-[10px] text-nb-gray-400">
-                {gatewayNodes.filter((n) => n.online).length} online
-              </span>
+                >
+                  <RefreshCw
+                    className={`h-3.5 w-3.5 ${
+                      systemUpdateBusy ? "animate-spin text-emerald-400" : ""
+                    }`}
+                  />
+                  {hasAnyUpdate && (
+                    <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse" />
+                  )}
+                </button>
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-2 border-t border-nb-gray-900/80 p-3">
+              {/* NetBird-Style Version & Update Card (Bottom-Left) */}
+              <div
+                className={`rounded-lg border px-3 py-2.5 text-[11px] transition-colors ${
+                  hasAnyUpdate
+                    ? "border-amber-500/50 bg-amber-950/25"
+                    : "border-nb-gray-900 bg-nb-gray-940/50"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSettingsTab("system-update");
+                      setActiveNav("settings");
+                      fetchSystemUpdateStatus(true, true);
+                    }}
+                    title="System-Update & Versionsdetails öffnen"
+                    className="flex items-center gap-1.5 text-left min-w-0 group"
+                  >
+                    <span className="font-semibold text-nb-gray-100 group-hover:text-white">
+                      Synapse v0.2.0
+                    </span>
+                    <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-400">
+                      {localShort}
+                    </span>
+                  </button>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {!hasAnyUpdate && (
+                      <span className="rounded border border-emerald-500/30 bg-emerald-950/40 px-1.5 py-0.5 font-mono text-[9px] text-emerald-400">
+                        Aktuell
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      disabled={systemUpdateBusy}
+                      onClick={() => handleRunSystemUpdate("check")}
+                      title="Auf Updates prüfen"
+                      className="rounded p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white disabled:opacity-40 transition-colors"
+                    >
+                      <RefreshCw
+                        className={`h-3 w-3 ${
+                          systemUpdateBusy ? "animate-spin text-netbird" : ""
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {hasAnyUpdate && (
+                  <div className="mt-2 flex items-center justify-between gap-2 border-t border-amber-500/30 pt-2">
+                    <div className="min-w-0 leading-tight">
+                      <div className="flex items-center gap-1.5 font-semibold text-[10px] text-amber-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                        <span className="truncate">Update verfügbar</span>
+                      </div>
+                      <div className="truncate font-mono text-[9px] text-amber-200/80 mt-0.5">
+                        {coreUpdateAvailable
+                          ? `Neu: ${remoteShort} (+${systemUpdateStatus?.git.commits_behind})`
+                          : `${outdatedNodes.length} Muscle-Node OTA`}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={systemUpdateBusy}
+                      onClick={() => handleRunSystemUpdate("update_all")}
+                      className="shrink-0 flex items-center gap-1 rounded-md bg-netbird px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm hover:bg-netbird-500 disabled:opacity-40 transition-colors"
+                    >
+                      <RefreshCw
+                        className={`h-2.5 w-2.5 ${
+                          systemUpdateBusy ? "animate-spin" : ""
+                        }`}
+                      />
+                      <span>Update</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Mesh Status Row */}
+              <div className="flex items-center justify-between rounded-lg border border-nb-gray-900 bg-nb-gray-940/70 px-3 py-1.5 text-[11px] text-nb-gray-400">
+                <span className="flex items-center gap-2 text-nb-gray-200">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      activeProject?.planning_only
+                        ? "bg-amber-400"
+                        : "bg-green-400"
+                    }`}
+                  />
+                  {activeProject?.planning_only ? "Planning-Only" : "mTLS 1.3 Mesh"}
+                </span>
+                <span className="font-mono text-[10px] text-nb-gray-400">
+                  {gatewayNodes.filter((n) => n.online).length} online
+                </span>
+              </div>
             </div>
-          )}
-        </div>
+          );
+        })()}
       </aside>
 
       {/* ═══════════════════════════════════════════════════════════════════════
@@ -2679,34 +2838,6 @@ export default function SynapseNetBirdControlCenter() {
             )}
 
             <LanguageSwitcher variant="header" />
-
-            <button
-              onClick={() => {
-                setSettingsTab("system-update");
-                setActiveNav("settings");
-                fetchSystemUpdateStatus(true, true);
-              }}
-              title="Core & Muscle System-Update öffnen"
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                activeNav === "settings" && settingsTab === "system-update"
-                  ? "border-emerald-500/60 bg-emerald-950/60 text-emerald-300"
-                  : systemUpdateStatus?.git.update_available
-                  ? "border-amber-500/60 bg-amber-950/60 text-amber-300 hover:bg-amber-900/50"
-                  : "border-nb-gray-800/80 bg-nb-gray-930 text-nb-gray-300 hover:text-white"
-              }`}
-            >
-              <RefreshCw
-                className={`h-3.5 w-3.5 ${
-                  systemUpdateBusy ? "animate-spin text-emerald-400" : ""
-                }`}
-              />
-              <span>Update</span>
-              {systemUpdateStatus?.git.update_available && (
-                <span className="rounded-full bg-amber-500/30 px-1.5 py-0.2 text-[9px] font-bold text-amber-200">
-                  +{systemUpdateStatus.git.commits_behind}
-                </span>
-              )}
-            </button>
 
             <button
               onClick={() => setCopilotDrawerOpen((v) => !v)}
@@ -7189,6 +7320,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
 
               {/* Multimodal Prompt Input Box with Selected Skill Card, Thumbnail Strip, @-Mentions & Drag-and-Drop */}
               <form
+                ref={chatComposerRef}
                 onSubmit={handleSendPrompt}
                 className="relative border-t border-nb-gray-900 bg-nb-gray-950 p-3 space-y-2"
               >
@@ -7375,9 +7507,23 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
 
                 {/* @-Context Mention Autocomplete Popover */}
                 {mentionMenuOpen && mentionCandidates.length > 0 && (
-                  <div className="absolute bottom-full left-3 right-3 mb-1.5 max-h-48 overflow-y-auto rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-1.5 shadow-2xl z-30">
-                    <div className="px-2 py-1 font-mono text-[10px] uppercase text-nb-gray-400">
-                      Insert @Context Mention
+                  <div className="absolute bottom-full left-3 right-3 mb-1.5 max-h-52 overflow-y-auto rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-1.5 shadow-2xl z-30">
+                    <div className="flex items-center justify-between px-2 py-1">
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-nb-gray-400">
+                        Insert @Context Mention
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMentionMenuOpen(false);
+                          setMentionFilter("");
+                          setChatInput((prev) => prev.replace(/(?:^|\s)@$/, ""));
+                        }}
+                        className="rounded p-0.5 text-nb-gray-400 hover:text-white"
+                        title="Schließen"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </div>
                     {mentionCandidates.map((cand) => (
                       <button
@@ -7465,22 +7611,34 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   <button
                     type="button"
                     onClick={() => {
-                      const next = chatInput.endsWith("@")
-                        ? chatInput
-                        : `${chatInput}${
-                            chatInput && !chatInput.endsWith(" ") ? " @" : "@"
-                          }`;
-                      handleChatInputChange(next);
+                      if (mentionMenuOpen) {
+                        setMentionMenuOpen(false);
+                        setMentionFilter("");
+                        setChatInput((prev) => prev.replace(/(?:^|\s)@$/, ""));
+                      } else {
+                        setSkillMenuOpen(false);
+                        setMentionFilter("");
+                        setMentionMenuOpen(true);
+                      }
                     }}
                     title="Mention a Peer, Service, or Brain Vault Doc (@)"
-                    className="flex h-[46px] w-[38px] shrink-0 items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white transition"
+                    className={`flex h-[46px] w-[38px] shrink-0 items-center justify-center rounded-md border transition ${
+                      mentionMenuOpen
+                        ? "border-netbird bg-netbird/15 text-netbird"
+                        : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white"
+                    }`}
                   >
                     <AtSign className="h-3.5 w-3.5" />
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setSkillMenuOpen((v) => !v)}
+                    onClick={() => {
+                      setMentionMenuOpen(false);
+                      setMentionFilter("");
+                      setChatInput((prev) => prev.replace(/(?:^|\s)@$/, ""));
+                      setSkillMenuOpen((v) => !v);
+                    }}
                     title="AI Skills auswählen (CheckSystem, CheckOpsec, SkillSearch)"
                     className={`flex h-[46px] shrink-0 items-center gap-1 rounded-md border px-2.5 text-[11px] font-medium transition ${
                       skillMenuOpen || selectedChatSkill
@@ -7496,6 +7654,12 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                     ref={chatInputRef}
                     rows={2}
                     value={chatInput}
+                    onClick={() => {
+                      setSkillMenuOpen(false);
+                      if (!/(?:^|\s)@([a-zA-Z0-9._:-]*)$/.test(chatInput)) {
+                        setMentionMenuOpen(false);
+                      }
+                    }}
                     onChange={(e) => handleChatInputChange(e.target.value)}
                     onPaste={handleChatPaste}
                     onKeyDown={(e) => {

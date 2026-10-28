@@ -16,18 +16,18 @@
   <rect width="1200" height="260" rx="14" fill="#16181b" stroke="#292d33" stroke-width="1.5" />
   <rect width="1200" height="260" rx="14" fill="url(#tier-dots)" />
 
-  <!-- TIER 1 CARD -->
+  <!-- TIER 3 CARD (SUPERVISED) -->
   <g transform="translate(28, 26)">
-    <rect x="0" y="0" width="364" height="208" rx="12" fill="#1d2024" stroke="#ef4444" stroke-width="1.2" />
-    <rect x="18" y="18" width="166" height="24" rx="6" fill="#3b0a0a" stroke="#ef4444" stroke-width="0.8" />
-    <circle cx="30" cy="30" r="3.5" fill="#ef4444" />
-    <text x="42" y="34" fill="#f87171" font-size="10.5" font-weight="700" class="f-mono">TIER_1_UNLEASHED</text>
-    <text x="18" y="68" fill="#ffffff" font-size="14" font-weight="700" class="f-sans">Full Autonomous Root Mode</text>
-    <text x="18" y="92" fill="#9ca3af" font-size="11.5" class="f-sans">Full system-level access for dedicated bare-metal</text>
-    <text x="18" y="110" fill="#9ca3af" font-size="11.5" class="f-sans">or disposable VPS servers.</text>
+    <rect x="0" y="0" width="364" height="208" rx="12" fill="#1d2024" stroke="#31c48d" stroke-width="1.2" />
+    <rect x="18" y="18" width="176" height="24" rx="6" fill="#052e16" stroke="#31c48d" stroke-width="0.8" />
+    <circle cx="30" cy="30" r="3.5" fill="#31c48d" />
+    <text x="42" y="34" fill="#31c48d" font-size="10.5" font-weight="700" class="f-mono">TIER_3_SUPERVISED</text>
+    <text x="18" y="68" fill="#ffffff" font-size="14" font-weight="700" class="f-sans">Supervised Approval Mode</text>
+    <text x="18" y="92" fill="#9ca3af" font-size="11.5" class="f-sans">AI can inspect and analyze freely, but pauses</text>
+    <text x="18" y="110" fill="#9ca3af" font-size="11.5" class="f-sans">for your 1-click approval before any change.</text>
     <rect x="18" y="128" width="328" height="62" rx="8" fill="#22252a" stroke="#2e3238" />
-    <text x="30" y="148" fill="#e4e7e9" font-size="10.5" class="f-mono">• Access to /etc, systemd, apt &amp; Docker</text>
-    <text x="30" y="166" fill="#31c48d" font-size="10.5" class="f-mono">• Protected by Self-Lockout Guardrail</text>
+    <text x="30" y="148" fill="#e4e7e9" font-size="10.5" class="f-mono">• Inline Command &amp; File Diff Preview</text>
+    <text x="30" y="166" fill="#31c48d" font-size="10.5" class="f-mono">• 1-Click [Approve] / [Reject] in WebUI</text>
   </g>
 
   <!-- TIER 2 CARD (DEFAULT / RECOMMENDED) -->
@@ -38,25 +38,25 @@
     <text x="42" y="34" fill="#f68330" font-size="10.5" font-weight="700" class="f-mono">TIER_2_WORKSPACE_JAIL</text>
     <rect x="278" y="20" width="68" height="20" rx="5" fill="#052e16" stroke="#31c48d" stroke-width="0.8" />
     <text x="288" y="33" fill="#31c48d" font-size="9" font-weight="700" class="f-mono">DEFAULT</text>
-    <text x="18" y="68" fill="#ffffff" font-size="14" font-weight="700" class="f-sans">Isolated Workspace Sandbox</text>
-    <text x="18" y="92" fill="#9ca3af" font-size="11.5" class="f-sans">Autonomous inside project workspace; host OS</text>
-    <text x="18" y="110" fill="#9ca3af" font-size="11.5" class="f-sans">mutations and ../ path escapes are blocked.</text>
+    <text x="18" y="68" fill="#ffffff" font-size="14" font-weight="700" class="f-sans">Project Folder Sandbox</text>
+    <text x="18" y="92" fill="#9ca3af" font-size="11.5" class="f-sans">AI works autonomously inside its own project</text>
+    <text x="18" y="110" fill="#9ca3af" font-size="11.5" class="f-sans">folder; the rest of the OS remains untouched.</text>
     <rect x="18" y="128" width="328" height="62" rx="8" fill="#22252a" stroke="#2e3238" />
     <text x="30" y="148" fill="#e4e7e9" font-size="10.5" class="f-mono">• Jailed to /opt/axon/workspaces/&lt;id&gt;</text>
     <text x="30" y="166" fill="#f68330" font-size="10.5" class="f-mono">• Zero host /etc or system mutations</text>
   </g>
 
-  <!-- TIER 3 CARD -->
+  <!-- TIER 1 CARD (FULL ACCESS) -->
   <g transform="translate(808, 26)">
-    <rect x="0" y="0" width="364" height="208" rx="12" fill="#1d2024" stroke="#38bdf8" stroke-width="1.2" />
-    <rect x="18" y="18" width="176" height="24" rx="6" fill="#082f49" stroke="#38bdf8" stroke-width="0.8" />
-    <circle cx="30" cy="30" r="3.5" fill="#38bdf8" />
-    <text x="42" y="34" fill="#38bdf8" font-size="10.5" font-weight="700" class="f-mono">TIER_3_SUPERVISED</text>
-    <text x="18" y="68" fill="#ffffff" font-size="14" font-weight="700" class="f-sans">Human-in-the-Loop Approval</text>
-    <text x="18" y="92" fill="#9ca3af" font-size="11.5" class="f-sans">Read operations run freely; every write, diff,</text>
-    <text x="18" y="110" fill="#9ca3af" font-size="11.5" class="f-sans">or shell command pauses for operator approval.</text>
+    <rect x="0" y="0" width="364" height="208" rx="12" fill="#1d2024" stroke="#ef4444" stroke-width="1.2" />
+    <rect x="18" y="18" width="166" height="24" rx="6" fill="#3b0a0a" stroke="#ef4444" stroke-width="0.8" />
+    <circle cx="30" cy="30" r="3.5" fill="#ef4444" />
+    <text x="42" y="34" fill="#f87171" font-size="10.5" font-weight="700" class="f-mono">TIER_1_UNLEASHED</text>
+    <text x="18" y="68" fill="#ffffff" font-size="14" font-weight="700" class="f-sans">Full Server Management</text>
+    <text x="18" y="92" fill="#9ca3af" font-size="11.5" class="f-sans">Full system access for dedicated VMs or VPS</text>
+    <text x="18" y="110" fill="#9ca3af" font-size="11.5" class="f-sans">nodes where AI manages packages &amp; services.</text>
     <rect x="18" y="128" width="328" height="62" rx="8" fill="#22252a" stroke="#2e3238" />
-    <text x="30" y="148" fill="#e4e7e9" font-size="10.5" class="f-mono">• Inline Command &amp; Unified Diff Preview</text>
-    <text x="30" y="166" fill="#38bdf8" font-size="10.5" class="f-mono">• 1-Click [Approve] / [Reject] in WebUI</text>
+    <text x="30" y="148" fill="#e4e7e9" font-size="10.5" class="f-mono">• Manages systemd, packages &amp; Docker</text>
+    <text x="30" y="166" fill="#31c48d" font-size="10.5" class="f-mono">• Protected by Self-Lockout Guardrail</text>
   </g>
 </svg>

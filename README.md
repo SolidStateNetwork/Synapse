@@ -1,134 +1,141 @@
 <div align="center">
 
-<img src="./docs/assets/synapse-hero-banner.svg" alt="Synapse — KI-gesteuertes Server- & Infrastruktur-Management" width="100%" />
+<img src="./docs/assets/synapse-hero-banner.svg" alt="Synapse — AI-Managed Linux Server & Infrastructure Control Center" width="100%" />
 
 <br />
+
+[![English (Active)](https://img.shields.io/badge/🇬🇧_Language-English_(Active)-f68330?style=for-the-badge&labelColor=181a1d)](./README.md)
+[![Auf Deutsch lesen](https://img.shields.io/badge/🇩🇪_Sprache-Auf_Deutsch_lesen_→-31c48d?style=for-the-badge&labelColor=181a1d)](./README.de.md)
 
 [![CI Pipeline](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SolidStateNetwork/Synapse?label=Release&color=f68330&labelColor=181a1d)](https://github.com/SolidStateNetwork/Synapse/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-9ca3af?labelColor=181a1d)](./LICENSE)
 
-### **Synapse — Dein KI-verwaltetes Server- & DevOps-Control-Center**
-Verwalte, überwache und repariere deine Linux-Server gemeinsam mit einer KI – über eine aufgeräumte grafische Oberfläche statt stundenlanger Fehlersuche im Terminal.
+### **Synapse — Your AI-Managed Linux Server & DevOps Control Center**
+Manage, monitor, and repair your Linux servers together with an AI — through a clean visual control center instead of hours of manual troubleshooting in the terminal.
 
-[Was ist Synapse?](#-was-ist-synapse) · [Die 5 Kernfunktionen](#-die-5-kernfunktionen) · [Wie ist Synapse aufgebaut?](#-wie-ist-synapse-aufgebaut-core--muscle) · [Schnellstart in 2 Schritten](#-schnellstart-in-2-schritten) · [Sicherheit & Kontrolle](#️-sicherheit--kontrolle)
+[What is Synapse?](#-what-is-synapse) · [The 5 Core Features](#-the-5-core-features) · [How It Works (Core & Muscle)](#-how-is-synapse-built-core--muscle) · [Security & Control](#️-security--control) · [Quick Start](#-quick-start-in-2-steps)
 
 </div>
 
 ---
 
-## 💡 Was ist Synapse?
+## 💡 What is Synapse?
 
-Wer einen oder mehrere Linux-Server betreibt, kennt den Alltag: Man verbindet sich per SSH, sucht in langen Log-Dateien nach Fehlern, passt Konfigurationsdateien von Hand an, spielt Updates ein und prüft danach mühsam, ob noch alle Dienste laufen.
+Anyone running one or more Linux servers knows the routine: connecting via SSH, digging through endless log files for errors, editing configuration files by hand, applying updates, and manually checking whether every service is still healthy afterward.
 
-**Synapse ist ein KI-gesteuertes Management-Tool (AI-Managed Infrastructure Tool), das dir diese Arbeit abnimmt.**
+**Synapse is an AI-Managed Infrastructure Tool designed to take that routine work off your shoulders.**
 
-Statt selbst Befehle im Terminal einzutippen, arbeitest du in einer visuellen Oberfläche mit einem integrierten KI-Systemadministrator zusammen. Die KI ist direkt mit deinen Servern verbunden: Sie kann den Zustand des Systems prüfen, Dienste einrichten, Sicherheitslücken aufspüren, Updates vorbereiten und Fehler beheben – während du jederzeit die volle Übersicht und das letzte Wort behältst.
+Instead of typing shell commands yourself, you work inside a visual dashboard (available in **English** and **German**) alongside an integrated AI system administrator. The AI is connected directly to your servers: it can inspect system health, deploy services, audit security, prepare updates, and fix issues — while you stay in full visual control and keep the final say on every change.
 
 ---
 
-## 🎯 Die 5 Kernfunktionen
+## 🎯 The 5 Core Features
 
-### 1. KI-Chat, fertige Prüf-Skills & interaktiver Interview-Modus
-Neben dem normalen Chat (in dem du der KI in Alltagssprache Aufgaben geben oder Screenshots hineinziehen kannst) bringt Synapse fertige **DevOps-Skills** mit, die du direkt neben dem Eingabefeld über den Button **`✨ Skills`** auswählst:
-- **`CheckSystem`:** Prüft deine Server gründlich auf Herz und Nieren (Auslastung, laufende Dienste, Datenbanken, Logs und Konfiguration).
-- **`CheckOpsec`:** Untersucht das System auf Sicherheitsrisiken (offene Ports, SSH-Einstellungen, Firewall, Dateirechte).
-- **`CheckUpdates`:** Prüft alle verbundenen Server, Dienste und Systempakete auf verfügbare Updates, fragt dich im Bericht um Freigabe und führt danach automatisch einen Funktionstest durch.
-- **`DeepForensics` & `SkillSearch`:** Findet versteckte Fehlerursachen in Logs oder zeigt dir sofort, wo sich eine bestimmte Datei, Einstellung oder Funktion im System befindet.
+### 1. Interactive AI Chat, 1-Click DevOps Skills & Interview Mode
+Beyond normal chat (where you can give instructions in plain language, reference servers with `@`, or drag and drop screenshots), Synapse includes ready-to-use **DevOps Skills** right inside the AI Copilot panel:
+- **`CheckSystem`:** Runs a deep health audit across your servers (CPU/RAM/disk, running services, SQLite databases, logs, and configuration).
+- **`CheckOpsec`:** Audits your servers for security risks (open ports, SSH configuration, firewall rules, file permissions, and HTTP headers).
+- **`CheckUpdates`:** Checks all connected servers, services, and system packages for available updates, asks for your approval, and automatically runs an end-to-end functional test afterward.
+- **`DeepForensics` & `SkillSearch`:** Finds hidden root causes in logs or immediately locates any file, port, database table, or feature across your infrastructure.
 
-> **Der Interview-Modus:** Wenn ein Skill seinen Bericht fertiggestellt hat, ändert die KI nichts ungefragt. Mit einem Klick auf **„Interview starten"** geht die KI jeden gefundenen Punkt einzeln mit dir durch und fragt dich: *„Jetzt beheben oder überspringen?"*
+> **Interactive Interview Mode:** After a skill finishes its report, the AI never modifies your system unprompted. Click **"Start Interview"** and the AI walks you through each finding one by one, asking: *"Fix this item now or skip?"*
 
-### 2. Visuelle Übersicht & direkter App-Tester im Browser
-Auf der Startseite (**Übersicht**) siehst du alle verbundenen Server, die KI-Zentrale und deine laufenden Anwendungen als interaktive Karten, die du mit der Maus aufklappen und frei anordnen kannst:
+### 2. Visual Topology Canvas & Built-In Browser App Tester
+On the main **Overview** screen, all connected servers, the AI hub, and your running applications appear as interactive cards that you can expand and arrange freely:
 
 <div align="center">
-  <img src="./docs/assets/control-center-ui-preview.svg" alt="Synapse Control Center Vorschau" width="100%" />
+  <img src="./docs/assets/control-center-ui-preview.svg" alt="Synapse Control Center Preview" width="100%" />
 </div>
 
-- **Sofort testen ohne Firewall-Stress:** Wenn die KI auf deinem Server eine Web-App, eine API oder eine Datenbank startet, kannst du sie unter **Services** direkt im Browser öffnen und testen – ganz ohne Ports in deiner Server-Firewall nach außen öffnen zu müssen.
-- **Eingebautes Live-Terminal & Datei-Explorer:** Wenn du doch einmal selbst nachsehen möchtest, kannst du am unteren Bildschirmrand jederzeit das Live-Terminal aufklappen oder unter **Dateien** direkt im Browser Dateien bearbeiten.
+- **Test Services Without Opening Firewall Ports:** When the AI deploys a web app, an API, or a SQLite database on your server, you can open and test it directly inside your browser under **Services** — without exposing public ports on your server's firewall.
+- **Built-In Live Terminal & File Explorer:** Whenever you want to inspect something yourself, expand the live Linux terminal at the bottom of the screen or edit files directly in the browser under **Files**.
 
-### 3. Bequeme 1-Klick Updates (Over-the-Air)
-Über den **`Update`**-Button oben in der Leiste (oder unter **Einstellungen → System-Update**) hältst du deine gesamte Umgebung aktuell:
-- **Core & Muscle per Klick aktualisieren:** Du siehst sofort, welcher Git-Stand installiert ist, und kannst sowohl die Steuerzentrale (**Core**) als auch alle verbundenen Linux-Server (**Muscle**) bequem über die Oberfläche aktualisieren und neu starten lassen.
+### 3. Effortless 1-Click Updates (Bottom-Left Sidebar)
+Just like NetBird, Synapse displays your current version and commit status right in the **bottom-left corner of the sidebar**:
+- **Instant Update Notification & Rollout:** Whenever a new update is available for the control center (**Core**) or your connected Linux servers (**Muscle**), an **`Update available`** badge and a **`Update`** button appear right in the bottom-left sidebar for 1-click over-the-air updates.
 
-### 4. Projekt-Gedächtnis (`Brain Vault`), das nichts vergisst
-Ein normaler KI-Chat vergisst nach jedem Gespräch, wie dein Server eingerichtet ist. Synapse führt für jedes Projekt automatisch zwei lebendige Dokumente unter **Brain Vault**:
-- **`Architecture.md`:** Eine übersichtliche Dokumentation deiner Server-Struktur, Ports und Pfade.
-- **`Memory.md`:** Ein technisches Tagebuch, in dem die KI festhält, welche Probleme bereits gelöst wurden und worauf bei deinem Server geachtet werden muss.
+### 4. Project Memory (`Brain Vault`) That Never Forgets
+A standard AI chat forgets how your server is set up as soon as you start a new conversation. Synapse automatically maintains two living documents for every project under **Brain Vault**:
+- **`Architecture.md`:** A clear documentation of your server topology, ports, and file paths (rendered with an interactive topology graph).
+- **`Memory.md`:** An engineering journal where the AI records past fixes, configuration details, and lessons learned for your server.
 
-### 5. Eigene Regeln per Klick aktivieren (`Regeln`)
-Unter **Regeln** kannst du fertige Vorgaben (sogenannte *Rule Cartridges*) einfach per Schalter auf `AKTIV` setzen – etwa *„Nutze immer Docker-Container"*, *„Öffne keine Ports direkt ins Internet"* oder *„Richte Dienste sauber über Systemd ein"*. Die KI hält sich dann bei jeder Aufgabe automatisch an deine Vorgaben.
+### 5. Enforce Your Own Rules with 1 Click (`Rules`)
+Under **Rules**, you can toggle ready-made policy guardrails (*Rule Cartridges*) to `ACTIVE` with a single click — such as *"Always use Docker containers"*, *"Never expose internal database ports to the public internet"*, or *"Manage services via hardened systemd units"*. The AI automatically follows your active rules on every task.
 
 ---
 
-## 🧠 Wie ist Synapse aufgebaut? (Core & Muscle)
+## 🧠 How is Synapse Built? (Core & Muscle)
 
-Synapse besteht aus zwei klar getrennten Teilen:
+Synapse is split into two clearly separated components:
 
-1. **Der Core („Das Gehirn" — `synapse-core`):**
-   Deine zentrale Weboberfläche inklusive KI-Steuerung und verschlüsseltem Passwort-Tresor. Auf dem Core selbst wird niemals fremder Programmcode ausgeführt.
-2. **Der Muscle („Die Hände" — `axon`):**
-   Ein kleines, schlankes Programm (eine einzige Datei ohne Abhängigkeiten), das du auf deinen Linux-Servern installierst. Es verbindet sich verschlüsselt mit deinem Core und führt dort genau die Befehle und Datei-Änderungen aus, die für deine Projekte nötig sind.
+1. **The Core ("The Brain" — `synapse-core`):**
+   Your central web dashboard, AI orchestrator, and encrypted secret vault. Untrusted code or shell commands are never executed on the Core itself.
+2. **The Muscle ("The Hands" — `axon`):**
+   A lightweight, dependency-free single Go binary that you install on your Linux servers. It connects outbound to your Core over an encrypted `mTLS 1.3` tunnel and executes the file operations, health checks, and shell commands required for your projects.
 
 <div align="center">
-  <img src="./docs/assets/brain-muscle-architecture.svg" alt="Synapse Core & Muscle Aufbau" width="100%" />
+  <img src="./docs/assets/brain-muscle-architecture.svg" alt="Synapse Core & Muscle Architecture" width="100%" />
 </div>
 
 ---
 
-## 🛡️ Sicherheit & Kontrolle
+## 🛡️ Security & Control
 
-Du entscheidest für jeden Server selbst, wie viel Spielraum die KI bekommt:
+You decide how much autonomy the AI gets on each connected server:
 
-1. 🟢 **Überwachter Modus (`TIER_3_SUPERVISED`):** Die KI darf lesen und analysieren, fragt dich aber vor jeder Datei-Änderung und vor jedem Befehl in der Oberfläche um Erlaubnis.
-2. 🟡 **Projekt-Ordner (`TIER_2_WORKSPACE_JAIL` — Standard):** Die KI darf innerhalb ihres eigenen Projekt-Ordners (`/opt/axon/workspaces/...`) selbstständig arbeiten, hat aber keinen Zugriff auf das restliche Betriebssystem.
-3. 🔴 **Vollzugriff (`TIER_1_UNLEASHED`):** Für eigene VMs oder Server, auf denen die KI auch Systempakete installieren, Dienste neu starten und die gesamte Maschine verwalten soll.
+<div align="center">
+  <img src="./docs/assets/security-autonomy-tiers.svg" alt="Synapse Security Autonomy Tiers" width="100%" />
+</div>
 
-Zusätzlich schützt sich Synapse selbst:
-- **Passwörter bleiben geheim:** Zugangsdaten werden verschlüsselt gespeichert (`AES-256-GCM`) und niemals im Klartext im Chat oder in Logs angezeigt.
-- **1-Klick Rückgängig (Rollback):** Vor jeder Datei-Änderung legt Synapse automatisch eine Sicherungskopie an, sodass du Änderungen im Chat mit einem Klick rückgängig machen kannst.
-- **Vollständiges Protokoll (`Audit-Log`):** Jede Aktion der KI wird nachvollziehbar im Audit-Log protokolliert.
+1. 🟢 **Supervised Mode (`TIER_3_SUPERVISED`):** The AI can read and analyze freely, but pauses and asks for your approval in the WebUI before every file change or shell command.
+2. 🟡 **Project Folder Sandbox (`TIER_2_WORKSPACE_JAIL` — Default):** The AI works autonomously inside its own project folder (`/opt/axon/workspaces/...`), while access to the rest of the operating system is blocked.
+3. 🔴 **Full Server Management (`TIER_1_UNLEASHED`):** For dedicated VMs or VPS nodes where you want the AI to install system packages, manage systemd services, and administer the entire machine.
+
+Built-in safety mechanisms protect your infrastructure at all times:
+- **Encrypted Secrets:** API keys and passwords are encrypted at rest (`AES-256-GCM` in `Secrets.enc`) and automatically redacted from chat outputs and logs.
+- **1-Click Rollback:** Before modifying any file, Synapse creates an automatic snapshot so you can revert changes with a single click right from the chat.
+- **Complete Audit Trail (`Audit Log`):** Every AI and operator action is logged chronologically.
 
 ---
 
-## 🚀 Schnellstart in 2 Schritten
+## 🚀 Quick Start in 2 Steps
 
-### Schritt 1 — Steuerzentrale (`Core`) mit Docker starten
-Führe diesen Befehl auf dem System aus, auf dem deine Weboberfläche laufen soll:
+### Step 1 — Start the Control Center (`Core`) with Docker
+Run this command on the machine that will host your WebUI:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/SolidStateNetwork/Synapse/main/scripts/deploy-core.sh | bash
 ```
 
-Danach erreichst du das **Synapse Control Center** im Browser unter `http://<DEINE_CORE_IP>:3000`.
+Once started, open the **Synapse Control Center** in your browser at `http://<YOUR_CORE_IP>:3000`.
 
-### Schritt 2 — Linux-Server (`Muscle`) verbinden
-Klicke oben rechts in der Weboberfläche auf **`+ Server`** und führe den angezeigten Einmal-Befehl auf deinem Linux-Server aus:
+### Step 2 — Connect a Linux Server (`Muscle`)
+Click **`+ Server`** in the top-right corner of the WebUI, click **"Generate Setup Key"**, and run the generated one-line command on your Linux server:
 
 ```bash
-curl -fsSL http://<DEINE_CORE_IP>:8081/install.sh | sudo sh -s -- <EINMAL_TOKEN> TIER_2_WORKSPACE_JAIL
+curl -fsSL http://<YOUR_CORE_IP>:8081/install.sh | sudo sh -s -- <ONE_TIME_TOKEN> TIER_2_WORKSPACE_JAIL
 ```
 
-Der Server verbindet sich automatisch im Hintergrund (ohne dass du eingehende Ports in deiner Firewall öffnen musst) und erscheint sofort live auf deiner Übersichtskarte.
+Your server connects automatically in the background (without opening any inbound firewall ports) and appears live on your topology canvas.
 
 ---
 
-## 🛠️ Manuelles Kompilieren & Testen (für Entwickler)
+## 🛠️ Manual Build & Test (For Developers)
 
 ```bash
-# 1. Go-Tests für Agent (axon) und Gateway (core-gateway) ausführen
+# 1. Run Go unit tests for Agent (axon) and Gateway (core-gateway)
 CGO_ENABLED=0 go test -v ./proto/... ./agents/axon/... ./apps/core-gateway/...
 
-# 2. Statische Binaries bauen
+# 2. Build static Go binaries
 CGO_ENABLED=0 go build -C agents/axon -o ../../bin/axon ./cmd/axon
 CGO_ENABLED=0 go build -C apps/core-gateway -o ../../bin/core-gateway .
 
-# 3. Next.js Weboberfläche starten / bauen
+# 3. Install & build Next.js 15 WebUI
 npm --prefix apps/core-web ci
 npm --prefix apps/core-web run build
 ```
 
-## 📄 Lizenz
+## 📄 License
 
-Veröffentlicht unter der [MIT-Lizenz](./LICENSE). Hinweise zur Sicherheit findest du in [SECURITY.md](./SECURITY.md).
+Released under the [MIT License](./LICENSE). See [SECURITY.md](./SECURITY.md) for security policy and reporting guidelines.
