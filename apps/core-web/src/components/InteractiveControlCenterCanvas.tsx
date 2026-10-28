@@ -350,6 +350,21 @@ export default function InteractiveControlCenterCanvas({
 
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
+  const DEFAULT_NODE_W = 340;
+  const MIN_NODE_W = 340;
+  const MAX_NODE_W = 680;
+  const [customDims, setCustomDims] = useState<
+    Record<string, { w: number; minH?: number }>
+  >({});
+  const [resizingNodeId, setResizingNodeId] = useState<string | null>(null);
+  const resizeStartRef = useRef<{
+    nodeId: string;
+    mode: "w" | "wh";
+    startClientX: number;
+    startClientY: number;
+    origW: number;
+    origH: number;
+  } | null>(null);
 
   // Feature 1: Merge registeredServices with real-time Auto-Discovered services from Muscle heartbeats
   const allServices = useMemo<RegisteredService[]>(() => {
@@ -1089,12 +1104,12 @@ export default function InteractiveControlCenterCanvas({
 
         owned.forEach((svc, idx) => {
           next[`svc:${svc.service_id}`] = {
-            x: 860,
+            x: 890,
             y: Math.round(firstSvcY + idx * svcStep),
           };
         });
 
-        next[peerKey] = { x: 460, y: peerY };
+        next[peerKey] = { x: 470, y: peerY };
         peerCenterYs.push(peerY + PEER_BASE_H / 2);
         cursorY = Math.max(
           lastSvcY + SVC_BASE_H + 36,
@@ -1102,7 +1117,7 @@ export default function InteractiveControlCenterCanvas({
         );
       } else {
         const peerY = cursorY;
-        next[peerKey] = { x: 460, y: peerY };
+        next[peerKey] = { x: 470, y: peerY };
         peerCenterYs.push(peerY + PEER_BASE_H / 2);
         cursorY += Math.max(PEER_BASE_H + 36, peerStep);
       }
@@ -1115,13 +1130,13 @@ export default function InteractiveControlCenterCanvas({
     const midCenterY = (minCenterY + maxCenterY) / 2;
 
     next["core:hub"] = {
-      x: 60,
+      x: 50,
       y: Math.max(28, Math.round(midCenterY - CORE_BASE_H / 2)),
     };
 
     if (allServices.length === 0) {
       next["svc:empty"] = {
-        x: 860,
+        x: 890,
         y: Math.max(28, Math.round(midCenterY - SVC_BASE_H / 2)),
       };
     }
@@ -1150,7 +1165,7 @@ export default function InteractiveControlCenterCanvas({
       const nextSizes: Record<string, { w: number; h: number }> = { ...prev };
       for (const [id, el] of Object.entries(nodeRefs.current)) {
         if (el) {
-          const w = el.offsetWidth || 300;
+          const w = el.offsetWidth || DEFAULT_NODE_W;
           const h = el.offsetHeight || 64;
           if (!prev[id] || prev[id].w !== w || prev[id].h !== h) {
             nextSizes[id] = { w, h };
@@ -1160,7 +1175,7 @@ export default function InteractiveControlCenterCanvas({
       }
       return changed ? nextSizes : prev;
     });
-  }, []);
+  }, [DEFAULT_NODE_W]);
 
   useEffect(() => {
     measureNodes();
@@ -1175,6 +1190,7 @@ export default function InteractiveControlCenterCanvas({
     gatewayNodes.length,
     allServices.length,
     expandedNodes,
+    customDims,
     serviceLogsMap,
     intrusionMap,
     offsiteBackups.length,
@@ -1184,11 +1200,29 @@ export default function InteractiveControlCenterCanvas({
     showAuthConfig,
   ]);
 
-  // Compute effective positions: when any card is expanded downward as a single unified box,
-  // automatically push sibling cards below it in the same column down by the exact extra height!
+  // Compute effective positions: when any card is expanded downward or resized wider,
+  // automatically push sibling cards below it (and columns to the right) so nothing overlaps!
   const effectivePositions = useMemo(() => {
     const out: Record<string, CanvasPos> = { ...positions };
-    const shiftColumn = (prefix: "peer:" | "svc:", baseH: number, fallbackExpandedH: number) => {
+    const coreExtraW = Math.max(
+      0,
+      (customDims["core:hub"]?.w || sizes["core:hub"]?.w || DEFAULT_NODE_W) -
+        DEFAULT_NODE_W
+    );
+    let maxPeerExtraW = 0;
+    for (const k of Object.keys(out)) {
+      if (k.startsWith("peer:")) {
+        const pw = customDims[k]?.w || sizes[k]?.w || DEFAULT_NODE_W;
+        maxPeerExtraW = Math.max(maxPeerExtraW, Math.max(0, pw - DEFAULT_NODE_W));
+      }
+    }
+
+    const shiftColumn = (
+      prefix: "peer:" | "svc:",
+      baseH: number,
+      fallbackExpandedH: number,
+      extraShiftX: number
+    ) => {
       const keys = Object.keys(out)
         .filter((k) => k.startsWith(prefix))
         .sort((a, b) => (out[a]?.y ?? 0) - (out[b]?.y ?? 0));
@@ -1197,20 +1231,20 @@ export default function InteractiveControlCenterCanvas({
         const basePos = out[k];
         if (!basePos) continue;
         out[k] = {
-          x: basePos.x,
+          x: Math.round(basePos.x + extraShiftX),
           y: Math.round(basePos.y + extraShiftY),
         };
-        if (expandedNodes[k]) {
+        if (expandedNodes[k] || customDims[k]?.minH) {
           const actualH = sizes[k]?.h || fallbackExpandedH;
           const delta = Math.max(0, actualH - baseH);
           extraShiftY += delta + 10;
         }
       }
     };
-    shiftColumn("peer:", 88, 250);
-    shiftColumn("svc:", 62, 235);
+    shiftColumn("peer:", 88, 250, coreExtraW);
+    shiftColumn("svc:", 62, 235, coreExtraW + maxPeerExtraW);
     return out;
-  }, [positions, expandedNodes, sizes]);
+  }, [positions, expandedNodes, sizes, customDims, DEFAULT_NODE_W]);
 
   const toggleExpandNode = useCallback(
     (nodeKey: string, e?: React.MouseEvent) => {
@@ -1266,7 +1300,7 @@ export default function InteractiveControlCenterCanvas({
 
       for (const [key, pos] of Object.entries(activeLayout)) {
         if (!pos) continue;
-        const w = sizes[key]?.w || 275;
+        const w = sizes[key]?.w || DEFAULT_NODE_W;
         const h =
           sizes[key]?.h ||
           (key === "core:hub" ? 108 : key.startsWith("peer:") ? 88 : 62);
@@ -1277,9 +1311,9 @@ export default function InteractiveControlCenterCanvas({
       }
 
       if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
-        minX = 60;
+        minX = 50;
         minY = 48;
-        maxX = 1135;
+        maxX = 1230;
         maxY = 502;
       }
 
@@ -1300,7 +1334,7 @@ export default function InteractiveControlCenterCanvas({
       setZoom(roundedZoom);
       setPan({ x: panX, y: panY });
     },
-    [positions, sizes, computeDefaultLayout]
+    [positions, sizes, computeDefaultLayout, DEFAULT_NODE_W]
   );
 
   useEffect(() => {
@@ -1312,6 +1346,7 @@ export default function InteractiveControlCenterCanvas({
   const handleResetLayout = () => {
     hasUserDraggedRef.current = false;
     setExpandedNodes({});
+    setCustomDims({});
     const fresh = computeDefaultLayout();
     setPositions(fresh);
     handleFitView(fresh);
@@ -1372,6 +1407,35 @@ export default function InteractiveControlCenterCanvas({
       const e = latestEvent;
       if (!e) return;
 
+      if (resizeStartRef.current) {
+        const r = resizeStartRef.current;
+        const dx = (e.clientX - r.startClientX) / zoom;
+        const dy = (e.clientY - r.startClientY) / zoom;
+        lastDragMovedRef.current = true;
+        const nextW = Math.round(
+          Math.min(MAX_NODE_W, Math.max(MIN_NODE_W, r.origW + dx))
+        );
+        const minBaseH =
+          r.nodeId === "core:hub"
+            ? 108
+            : r.nodeId.startsWith("peer:")
+            ? 88
+            : 64;
+        const nextMinH =
+          r.mode === "wh"
+            ? Math.round(Math.max(minBaseH, r.origH + dy))
+            : undefined;
+        setCustomDims((prev) => ({
+          ...prev,
+          [r.nodeId]: {
+            w: nextW,
+            minH: nextMinH !== undefined ? nextMinH : prev[r.nodeId]?.minH,
+          },
+        }));
+        measureNodes();
+        return;
+      }
+
       if (dragNodeStartRef.current) {
         const d = dragNodeStartRef.current;
         const dx = (e.clientX - d.startClientX) / zoom;
@@ -1401,7 +1465,11 @@ export default function InteractiveControlCenterCanvas({
     }
 
     function onPointerMove(e: PointerEvent) {
-      if (!dragNodeStartRef.current && !(isPanning && panStartRef.current)) {
+      if (
+        !resizeStartRef.current &&
+        !dragNodeStartRef.current &&
+        !(isPanning && panStartRef.current)
+      ) {
         return;
       }
       latestEvent = e;
@@ -1416,6 +1484,11 @@ export default function InteractiveControlCenterCanvas({
         rafId = null;
       }
       latestEvent = null;
+      if (resizeStartRef.current) {
+        resizeStartRef.current = null;
+        setResizingNodeId(null);
+        setTimeout(measureNodes, 20);
+      }
       if (dragNodeStartRef.current) {
         dragNodeStartRef.current = null;
         setDraggingNodeId(null);
@@ -1435,11 +1508,89 @@ export default function InteractiveControlCenterCanvas({
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
-  }, [zoom, isPanning]);
+  }, [zoom, isPanning, MIN_NODE_W, MAX_NODE_W, measureNodes]);
+
+  function startNodeResize(
+    e: React.PointerEvent,
+    nodeId: string,
+    mode: "w" | "wh"
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = nodeRefs.current[nodeId];
+    const origW = customDims[nodeId]?.w || el?.offsetWidth || DEFAULT_NODE_W;
+    const origH = el?.offsetHeight || 100;
+    lastDragMovedRef.current = true;
+    setResizingNodeId(nodeId);
+    resizeStartRef.current = {
+      nodeId,
+      mode,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      origW,
+      origH,
+    };
+  }
+
+  function resetNodeSize(e: React.MouseEvent, nodeId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setCustomDims((prev) => {
+      const next = { ...prev };
+      delete next[nodeId];
+      return next;
+    });
+    setTimeout(measureNodes, 25);
+  }
+
+  function renderResizeHandles(nodeId: string) {
+    return (
+      <>
+        {/* Right-edge width resize strip */}
+        <div
+          data-resize-handle="true"
+          onPointerDown={(e) => startNodeResize(e, nodeId, "w")}
+          onDoubleClick={(e) => resetNodeSize(e, nodeId)}
+          onClick={(e) => e.stopPropagation()}
+          title={t(
+            "Ziehen, um Breite zu ändern (Doppelklick = Standardgröße)",
+            "Drag to resize width (Double-click = reset size)"
+          )}
+          className="absolute top-2 bottom-4 right-0 w-2 cursor-ew-resize rounded-r-xl hover:bg-netbird/40 transition-colors z-20"
+        />
+        {/* Bottom-right corner 2D resize grip */}
+        <div
+          data-resize-handle="true"
+          onPointerDown={(e) => startNodeResize(e, nodeId, "wh")}
+          onDoubleClick={(e) => resetNodeSize(e, nodeId)}
+          onClick={(e) => e.stopPropagation()}
+          title={t(
+            "Ecke ziehen, um Größe frei zu ändern (Doppelklick = Zurücksetzen)",
+            "Drag corner to resize box (Double-click = reset)"
+          )}
+          className="absolute bottom-1 right-1 flex h-4 w-4 cursor-nwse-resize items-end justify-end p-0.5 text-nb-gray-500 hover:text-netbird transition-colors z-30"
+        >
+          <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+            <path
+              d="M8 1L1 8M8 4.5L4.5 8M8 8L8 8"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+          </svg>
+        </div>
+      </>
+    );
+  }
 
   function startNodeDrag(e: React.PointerEvent, nodeId: string) {
     const target = e.target as HTMLElement;
-    if (target.closest("button") || target.closest("a")) {
+    if (
+      target.closest("button") ||
+      target.closest("a") ||
+      target.closest("input") ||
+      target.closest("[data-resize-handle='true']")
+    ) {
       return;
     }
     e.stopPropagation();
@@ -1467,15 +1618,15 @@ export default function InteractiveControlCenterCanvas({
   }
 
   function getEdgeCoords(fromId: string, toId: string) {
-    const p1 = effectivePositions[fromId] || { x: 60, y: 120 };
-    const p2 = effectivePositions[toId] || { x: 460, y: 120 };
+    const p1 = effectivePositions[fromId] || { x: 50, y: 120 };
+    const p2 = effectivePositions[toId] || { x: 470, y: 120 };
     const headerH1 =
       fromId === "core:hub" ? 108 : fromId.startsWith("peer:") ? 88 : 62;
     const headerH2 =
       toId === "core:hub" ? 108 : toId.startsWith("peer:") ? 88 : 62;
 
-    const w1 = sizes[fromId]?.w || 300;
-    const w2 = sizes[toId]?.w || 300;
+    const w1 = customDims[fromId]?.w || sizes[fromId]?.w || DEFAULT_NODE_W;
+    const w2 = customDims[toId]?.w || sizes[toId]?.w || DEFAULT_NODE_W;
 
     const c1CenterX = p1.x + w1 / 2;
     const c2CenterX = p2.x + w2 / 2;
@@ -1763,8 +1914,10 @@ export default function InteractiveControlCenterCanvas({
             const p2 = effectivePositions[toKey];
             if (!p1 || !p2) return null;
 
-            const w1 = sizes[fromKey]?.w || 300;
-            const w2 = sizes[toKey]?.w || 300;
+            const w1 =
+              customDims[fromKey]?.w || sizes[fromKey]?.w || DEFAULT_NODE_W;
+            const w2 =
+              customDims[toKey]?.w || sizes[toKey]?.w || DEFAULT_NODE_W;
             const x1 = p1.x + w1;
             const y1 = p1.y + 31;
             const x2 = p2.x + w2;
@@ -1892,6 +2045,9 @@ export default function InteractiveControlCenterCanvas({
             (c) => !c.node_id || c.node_id === gn.node_id
           );
 
+          const customW = customDims[nodeKey]?.w || DEFAULT_NODE_W;
+          const customMinH = customDims[nodeKey]?.minH;
+
           return (
             <div
               key={nodeKey}
@@ -1901,9 +2057,17 @@ export default function InteractiveControlCenterCanvas({
               style={{
                 left: 0,
                 top: 0,
+                width: `${customW}px`,
+                minWidth: `${MIN_NODE_W}px`,
+                minHeight: customMinH ? `${customMinH}px` : undefined,
                 transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
-                willChange: "transform",
-                zIndex: draggingNodeId === nodeKey ? 30 : isExpanded ? 25 : 10,
+                willChange: "transform, width",
+                zIndex:
+                  draggingNodeId === nodeKey || resizingNodeId === nodeKey
+                    ? 30
+                    : isExpanded
+                    ? 25
+                    : 10,
               }}
               onPointerDown={(e) => startNodeDrag(e, nodeKey)}
               onMouseEnter={() => setHoveredNodeId(nodeKey)}
@@ -1921,8 +2085,8 @@ export default function InteractiveControlCenterCanvas({
                   toggleExpandNode(nodeKey, e);
                 }
               }}
-              className={`absolute w-[300px] rounded-xl border bg-nb-gray-940 px-4 py-3.5 shadow-lg transition-colors duration-150 ${
-                draggingNodeId === nodeKey
+              className={`absolute rounded-xl border bg-nb-gray-940 px-4 py-3.5 shadow-lg transition-colors duration-150 ${
+                draggingNodeId === nodeKey || resizingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-netbird shadow-2xl"
                   : "cursor-grab hover:border-nb-gray-700 hover:bg-nb-gray-930"
               } ${
@@ -1931,6 +2095,7 @@ export default function InteractiveControlCenterCanvas({
                   : "border-nb-gray-800"
               }`}
             >
+              {renderResizeHandles(nodeKey)}
               {gn.node_id === "empty" ? (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-nb-gray-300">
@@ -2085,10 +2250,10 @@ export default function InteractiveControlCenterCanvas({
                             </span>
                           </div>
                           <div className="grid grid-cols-3 gap-1.5">
-                            <div className="rounded border border-nb-gray-800/70 bg-nb-gray-940/60 p-1.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-nb-gray-400">CPU</span>
-                                <span className="font-semibold text-white">
+                            <div className="min-w-0 overflow-hidden rounded border border-nb-gray-800/70 bg-nb-gray-940/60 p-1.5">
+                              <div className="flex items-center justify-between gap-1 text-[9.5px]">
+                                <span className="truncate text-nb-gray-400">CPU</span>
+                                <span className="shrink-0 font-semibold text-white">
                                   {hb.cpu_percent.toFixed(1)}%
                                 </span>
                               </div>
@@ -2101,10 +2266,10 @@ export default function InteractiveControlCenterCanvas({
                                 />
                               </svg>
                             </div>
-                            <div className="rounded border border-nb-gray-800/70 bg-nb-gray-940/60 p-1.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-nb-gray-400">RAM</span>
-                                <span className="font-semibold text-white">
+                            <div className="min-w-0 overflow-hidden rounded border border-nb-gray-800/70 bg-nb-gray-940/60 p-1.5">
+                              <div className="flex items-center justify-between gap-1 text-[9.5px]">
+                                <span className="truncate text-nb-gray-400">RAM</span>
+                                <span className="shrink-0 font-semibold text-white">
                                   {hb.ram_percent.toFixed(1)}%
                                 </span>
                               </div>
@@ -2117,12 +2282,12 @@ export default function InteractiveControlCenterCanvas({
                                 />
                               </svg>
                             </div>
-                            <div className="rounded border border-nb-gray-800/70 bg-nb-gray-940/60 p-1.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-nb-gray-400">
+                            <div className="min-w-0 overflow-hidden rounded border border-nb-gray-800/70 bg-nb-gray-940/60 p-1.5">
+                              <div className="flex items-center justify-between gap-1 text-[9.5px]">
+                                <span className="truncate text-nb-gray-400">
                                   {t("SPEICHER", "DISK")}
                                 </span>
-                                <span className="font-semibold text-white">
+                                <span className="shrink-0 font-semibold text-white">
                                   {hb.disk_percent.toFixed(1)}%
                                 </span>
                               </div>
@@ -2402,6 +2567,8 @@ export default function InteractiveControlCenterCanvas({
           const nodeKey = "core:hub";
           const pos = effectivePositions[nodeKey] || { x: 60, y: 120 };
           const isExpanded = Boolean(expandedNodes[nodeKey]);
+          const customW = customDims[nodeKey]?.w || DEFAULT_NODE_W;
+          const customMinH = customDims[nodeKey]?.minH;
 
           return (
             <div
@@ -2411,9 +2578,17 @@ export default function InteractiveControlCenterCanvas({
               style={{
                 left: 0,
                 top: 0,
+                width: `${customW}px`,
+                minWidth: `${MIN_NODE_W}px`,
+                minHeight: customMinH ? `${customMinH}px` : undefined,
                 transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
-                willChange: "transform",
-                zIndex: draggingNodeId === nodeKey ? 30 : isExpanded ? 25 : 10,
+                willChange: "transform, width",
+                zIndex:
+                  draggingNodeId === nodeKey || resizingNodeId === nodeKey
+                    ? 30
+                    : isExpanded
+                    ? 25
+                    : 10,
               }}
               onPointerDown={(e) => startNodeDrag(e, nodeKey)}
               onMouseEnter={() => setHoveredNodeId(nodeKey)}
@@ -2426,8 +2601,8 @@ export default function InteractiveControlCenterCanvas({
                 }
                 toggleExpandNode(nodeKey, e);
               }}
-              className={`absolute w-[300px] rounded-2xl border bg-nb-gray-940 p-4 shadow-xl transition-colors duration-150 ${
-                draggingNodeId === nodeKey
+              className={`absolute rounded-2xl border bg-nb-gray-940 p-4 shadow-xl transition-colors duration-150 ${
+                draggingNodeId === nodeKey || resizingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-netbird shadow-2xl"
                   : "cursor-grab hover:border-netbird/70 hover:bg-nb-gray-930"
               } ${
@@ -2436,6 +2611,7 @@ export default function InteractiveControlCenterCanvas({
                   : "border-nb-gray-800"
               }`}
             >
+              {renderResizeHandles(nodeKey)}
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-netbird-500/40 bg-netbird-950 text-netbird">
@@ -2705,6 +2881,8 @@ export default function InteractiveControlCenterCanvas({
               : t("Backend-API", "Backend API");
           const latencyMs =
             svc.latency_ms ?? svc.health_check?.latency_ms ?? 1;
+          const customW = customDims[nodeKey]?.w || DEFAULT_NODE_W;
+          const customMinH = customDims[nodeKey]?.minH;
 
           return (
             <div
@@ -2715,9 +2893,17 @@ export default function InteractiveControlCenterCanvas({
               style={{
                 left: 0,
                 top: 0,
+                width: `${customW}px`,
+                minWidth: `${MIN_NODE_W}px`,
+                minHeight: customMinH ? `${customMinH}px` : undefined,
                 transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
-                willChange: "transform",
-                zIndex: draggingNodeId === nodeKey ? 30 : isExpanded ? 25 : 10,
+                willChange: "transform, width",
+                zIndex:
+                  draggingNodeId === nodeKey || resizingNodeId === nodeKey
+                    ? 30
+                    : isExpanded
+                    ? 25
+                    : 10,
               }}
               onPointerDown={(e) => startNodeDrag(e, nodeKey)}
               onMouseEnter={() => setHoveredNodeId(nodeKey)}
@@ -2732,8 +2918,8 @@ export default function InteractiveControlCenterCanvas({
                   toggleExpandNode(nodeKey, e);
                 }
               }}
-              className={`absolute w-[300px] rounded-xl border bg-nb-gray-940 px-4 py-3 shadow-lg transition-colors duration-150 ${
-                draggingNodeId === nodeKey
+              className={`absolute rounded-xl border bg-nb-gray-940 px-4 py-3 shadow-lg transition-colors duration-150 ${
+                draggingNodeId === nodeKey || resizingNodeId === nodeKey
                   ? "cursor-grabbing ring-2 ring-sky-400 shadow-2xl"
                   : "cursor-grab hover:border-nb-gray-700 hover:bg-nb-gray-930"
               } ${
@@ -2742,6 +2928,7 @@ export default function InteractiveControlCenterCanvas({
                   : "border-nb-gray-800"
               }`}
             >
+              {renderResizeHandles(nodeKey)}
               {svc.service_id === "empty" ? (
                 <div className="text-xs text-nb-gray-400 py-1">
                   {t(
