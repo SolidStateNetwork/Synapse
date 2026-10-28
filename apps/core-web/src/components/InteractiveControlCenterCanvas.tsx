@@ -1308,7 +1308,7 @@ export default function InteractiveControlCenterCanvas({
           sizes[key]?.h ||
           (key === "core:hub" ? 108 : key.startsWith("peer:") ? 88 : 62);
         const extraRight =
-          key.startsWith("svc:") && serviceLinks.length > 0 ? 84 : 0;
+          key.startsWith("svc:") && serviceLinks.length > 0 ? 155 : 0;
         if (pos.x < minX) minX = pos.x;
         if (pos.y < minY) minY = pos.y;
         if (pos.x + w + extraRight > maxX) maxX = pos.x + w + extraRight;
@@ -2002,18 +2002,31 @@ export default function InteractiveControlCenterCanvas({
             });
           })()}
 
-          {/* FEATURE 6: SERVICE-TO-SERVICE MESH DATA-FLOW ARCS (2-Pass Rendering: Paths first, Labels on top with collision avoidance) */}
+          {/* FEATURE 6: SERVICE-TO-SERVICE MESH DATA-FLOW ARCS (2-Pass Rendering: Paths first, Labels on top with non-crossing inner/outer tracks) */}
           {(() => {
             const labelItems: Array<{
               id: string;
               midX: number;
               midY: number;
+              badgeW: number;
               protocol: string;
               isHovered: boolean;
             }> = [];
             const usedYs: number[] = [];
 
-            const arcElements = serviceLinks.map((link, lIdx) => {
+            // Sort links by vertical span so shorter (adjacent) links use the inner track
+            // and longer links arch cleanly around the outside without crossing
+            const sortedLinks = [...serviceLinks].sort((a, b) => {
+              const pa1 = effectivePositions[`svc:${a.fromServiceId}`];
+              const pa2 = effectivePositions[`svc:${a.toServiceId}`];
+              const pb1 = effectivePositions[`svc:${b.fromServiceId}`];
+              const pb2 = effectivePositions[`svc:${b.toServiceId}`];
+              const spanA = pa1 && pa2 ? Math.abs(pa2.y - pa1.y) : 0;
+              const spanB = pb1 && pb2 ? Math.abs(pb2.y - pb1.y) : 0;
+              return spanA - spanB;
+            });
+
+            const arcElements = sortedLinks.map((link, lIdx) => {
               const fromKey = `svc:${link.fromServiceId}`;
               const toKey = `svc:${link.toServiceId}`;
               const p1 = effectivePositions[fromKey];
@@ -2031,24 +2044,58 @@ export default function InteractiveControlCenterCanvas({
               const x2 = p2.x + w2;
               const y2 = p2.y + 31;
 
-              const arcOffset = 46 + (lIdx % 3) * 22;
-              const ctrlX = Math.max(x1, x2) + arcOffset;
+              const baseRightX = Math.max(x1, x2);
+              const arcOffset = 78 + lIdx * 28;
+              const ctrlX = baseRightX + arcOffset;
               const d = `M ${x1} ${y1} C ${ctrlX} ${y1}, ${ctrlX} ${y2}, ${x2} ${y2}`;
-              // Exact cubic Bezier midpoint at t=0.5: x = 0.125*x1 + 0.75*ctrlX + 0.125*x2
-              const bezierMidX = Math.round(0.125 * x1 + 0.75 * ctrlX + 0.125 * x2);
-              let labelY = Math.round((y1 + y2) / 2);
-              while (usedYs.some((uy) => Math.abs(uy - labelY) < 22)) {
-                labelY += 22;
+
+              const evalBezier = (tParam: number) => {
+                const u = 1 - tParam;
+                const bx =
+                  u * u * u * x1 +
+                  3 * u * u * tParam * ctrlX +
+                  3 * u * tParam * tParam * ctrlX +
+                  tParam * tParam * tParam * x2;
+                const by =
+                  u * u * u * y1 +
+                  3 * u * u * tParam * y1 +
+                  3 * u * tParam * tParam * y2 +
+                  tParam * tParam * tParam * y2;
+                return { bx: Math.round(bx), by: Math.round(by) };
+              };
+
+              let chosenT = 0.5;
+              let pt = evalBezier(chosenT);
+              if (usedYs.some((uy) => Math.abs(uy - pt.by) < 34)) {
+                const cand1 = evalBezier(0.32);
+                const cand2 = evalBezier(0.68);
+                const dist1 = Math.min(
+                  ...usedYs.map((uy) => Math.abs(uy - cand1.by))
+                );
+                const dist2 = Math.min(
+                  ...usedYs.map((uy) => Math.abs(uy - cand2.by))
+                );
+                pt = dist1 >= dist2 ? cand1 : cand2;
               }
-              usedYs.push(labelY);
+              usedYs.push(pt.by);
+
+              const badgeW = Math.max(
+                68,
+                Math.round(link.protocol.length * 5.8 + 16)
+              );
+              const safeMidX = Math.max(
+                pt.bx,
+                baseRightX + Math.ceil(badgeW / 2) + 16
+              );
 
               const isHovered =
                 hoveredNodeId === fromKey || hoveredNodeId === toKey;
 
               labelItems.push({
                 id: link.id,
-                midX: bezierMidX,
-                midY: labelY,
+                midX: safeMidX,
+                midY: pt.by,
+                badgeW,
                 protocol: link.protocol,
                 isHovered,
               });
@@ -2100,14 +2147,14 @@ export default function InteractiveControlCenterCanvas({
                     key={`lbl-${lbl.id}`}
                     transform={`translate(${lbl.midX}, ${lbl.midY})`}
                     style={{
-                      opacity: lbl.isHovered ? 1 : 0.94,
+                      opacity: lbl.isHovered ? 1 : 0.96,
                       transition: "opacity 180ms ease",
                     }}
                   >
                     <rect
-                      x={-38}
+                      x={-Math.round(lbl.badgeW / 2)}
                       y={-9}
-                      width={76}
+                      width={lbl.badgeW}
                       height={18}
                       rx={6}
                       fill="#0f1115"
