@@ -635,6 +635,37 @@ export function buildDefaultServiceEndpoints(
     ];
   }
 
+  if (category === "webui") {
+    return [
+      {
+        id: "webui-home",
+        label: "GET / (Open WebUI)",
+        method: "GET",
+        path: basePath || "/",
+        description: "Load the main interactive WebUI in the Reverse Proxy.",
+      },
+      {
+        id: "webui-api",
+        label: "GET /api/status",
+        method: "GET",
+        path: "/api/status",
+        description: "Inspect WebUI backend status JSON.",
+      },
+      {
+        id: "webui-post",
+        label: "POST /api/action (Send Input)",
+        method: "POST",
+        path: "/api/action",
+        description: "Send interactive form/JSON input to the WebUI backend.",
+        sample_payload: JSON.stringify(
+          { action: "refresh_dashboard", actor: "operator" },
+          null,
+          2
+        ),
+      },
+    ];
+  }
+
   if (combined.includes("pulse") || combined.includes("event") || combined.includes("analytics")) {
     const pulseDbPath = dbPath || "/opt/axon/workspaces/pulse-analytics/pulse.db";
     return [
@@ -671,37 +702,6 @@ export function buildDefaultServiceEndpoints(
         path: pulseDbPath,
         description: "Run an interactive SQL query against pulse.db on the Muscle node.",
         sample_payload: "SELECT * FROM events ORDER BY id DESC LIMIT 10;",
-      },
-    ];
-  }
-
-  if (category === "webui") {
-    return [
-      {
-        id: "webui-home",
-        label: "GET / (Open WebUI)",
-        method: "GET",
-        path: basePath || "/",
-        description: "Load the main interactive WebUI in the Reverse Proxy.",
-      },
-      {
-        id: "webui-api",
-        label: "GET /api/status",
-        method: "GET",
-        path: "/api/status",
-        description: "Inspect WebUI backend status JSON.",
-      },
-      {
-        id: "webui-post",
-        label: "POST /api/action (Send Input)",
-        method: "POST",
-        path: "/api/action",
-        description: "Send interactive form/JSON input to the WebUI backend.",
-        sample_payload: JSON.stringify(
-          { action: "refresh_dashboard", actor: "operator" },
-          null,
-          2
-        ),
       },
     ];
   }

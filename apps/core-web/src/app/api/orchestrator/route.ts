@@ -945,30 +945,61 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _send(self, code, payload):
         body = json.dumps(payload, indent=2).encode("utf-8")
         self.send_response(code)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+    def _read_json(self):
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        raw = self.rfile.read(length).decode("utf-8", errors="replace") if length > 0 else "{}"
+        try:
+            return json.loads(raw) if raw.strip() else {}
+        except Exception:
+            return {"raw": raw}
     def do_GET(self):
         self._send(200, {
             "service": "${projectId}-autonomous-service",
             "status": "healthy",
+            "method": "GET",
             "port": PORT,
             "path": self.path,
             "node": "${primaryNode}",
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
         })
     def do_POST(self):
-        length = int(self.headers.get("Content-Length", "0") or "0")
-        raw = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
-        try:
-            data = json.loads(raw)
-        except Exception:
-            data = {"raw": raw}
+        data = self._read_json()
         self._send(200, {
             "service": "${projectId}-autonomous-service",
             "status": "healthy",
+            "method": "POST",
+            "port": PORT,
+            "path": self.path,
+            "node": "${primaryNode}",
             "received": data,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        })
+    def do_PUT(self):
+        data = self._read_json()
+        self._send(200, {
+            "service": "${projectId}-autonomous-service",
+            "status": "healthy",
+            "method": "PUT",
+            "port": PORT,
+            "path": self.path,
+            "node": "${primaryNode}",
+            "received": data,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        })
+    def do_DELETE(self):
+        self._send(200, {
+            "service": "${projectId}-autonomous-service",
+            "status": "healthy",
+            "method": "DELETE",
+            "port": PORT,
+            "path": self.path,
+            "node": "${primaryNode}",
+            "deleted": True,
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
         })
 
@@ -989,7 +1020,7 @@ if __name__ == "__main__":
       const step2 = await runStep("node_pty_exec", {
         node_id: primaryNode,
         session_id: `default-${projectId}`,
-        command: `(pkill -f "service/server_${port}.py" 2>/dev/null || true); nohup python3 service/server_${port}.py >/tmp/synapse-svc-${port}.log 2>&1 & sleep 0.5 && curl -sf http://127.0.0.1:${port}/`,
+        command: `(fuser -k ${port}/tcp 2>/dev/null || pkill -f "service/server_${port}.py" 2>/dev/null || pkill -f "service/server.py" 2>/dev/null || true); cp -f service/server_${port}.py service/server.py 2>/dev/null || true; nohup python3 service/server_${port}.py >/tmp/synapse-svc-${port}.log 2>&1 </dev/null & sleep 0.5 && curl -sf http://127.0.0.1:${port}/`,
         wait_timeout_ms: 10000,
       });
       if (step2.status !== "executed") {
@@ -1046,31 +1077,65 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _send(self, code, payload):
         body = json.dumps(payload, indent=2).encode("utf-8")
         self.send_response(code)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+    def _read_json(self):
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        raw = self.rfile.read(length).decode("utf-8", errors="replace") if length > 0 else "{}"
+        try:
+            return json.loads(raw) if raw.strip() else {}
+        except Exception:
+            return {"raw": raw}
     def do_GET(self):
         self._send(200, {
             "service": "${projectId}-autonomous-service",
             "status": "healthy",
             "healed": True,
+            "method": "GET",
             "port": PORT,
             "path": self.path,
             "node": "${targetNode}",
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
         })
     def do_POST(self):
-        length = int(self.headers.get("Content-Length", "0") or "0")
-        raw = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
-        try:
-            data = json.loads(raw)
-        except Exception:
-            data = {"raw": raw}
+        data = self._read_json()
         self._send(200, {
             "service": "${projectId}-autonomous-service",
             "status": "healthy",
+            "healed": True,
+            "method": "POST",
+            "port": PORT,
+            "path": self.path,
+            "node": "${targetNode}",
             "received": data,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        })
+    def do_PUT(self):
+        data = self._read_json()
+        self._send(200, {
+            "service": "${projectId}-autonomous-service",
+            "status": "healthy",
+            "healed": True,
+            "method": "PUT",
+            "port": PORT,
+            "path": self.path,
+            "node": "${targetNode}",
+            "received": data,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        })
+    def do_DELETE(self):
+        self._send(200, {
+            "service": "${projectId}-autonomous-service",
+            "status": "healthy",
+            "healed": True,
+            "method": "DELETE",
+            "port": PORT,
+            "path": self.path,
+            "node": "${targetNode}",
+            "deleted": True,
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
         })
 
@@ -1089,7 +1154,7 @@ if __name__ == "__main__":
     const diagStep = await runStep("node_pty_exec", {
       node_id: targetNode,
       session_id: `default-${projectId}`,
-      command: `(pkill -f "server_${port}.py" 2>/dev/null || true); (nohup python3 service/server_${port}.py >/tmp/synapse-svc-${port}.log 2>&1 &); sleep 0.6; curl -sf http://127.0.0.1:${port}/`,
+      command: `(fuser -k ${port}/tcp 2>/dev/null || pkill -f "server_${port}.py" 2>/dev/null || pkill -f "service/server.py" 2>/dev/null || true); cp -f service/server_${port}.py service/server.py 2>/dev/null || true; (nohup python3 service/server_${port}.py >/tmp/synapse-svc-${port}.log 2>&1 </dev/null &); sleep 0.6; curl -sf http://127.0.0.1:${port}/`,
       wait_timeout_ms: 10000,
     });
     if (diagStep.status !== "executed") {

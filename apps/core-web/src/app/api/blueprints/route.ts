@@ -31,15 +31,28 @@ const SERVICE_BLUEPRINTS: ServiceBlueprint[] = [
 import http.server, json, time, socket
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args): pass
-    def do_GET(self):
+    def _send(self, payload):
+        body = json.dumps(payload, indent=2).encode("utf-8")
         self.send_response(200)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(json.dumps({"status": "healthy", "service": "uptime-beacon-4060", "host": socket.gethostname(), "ts": int(time.time())}).encode())
+        self.wfile.write(body)
+    def do_GET(self):
+        self._send({"status": "healthy", "service": "uptime-beacon-4060", "method": "GET", "path": self.path, "host": socket.gethostname(), "ts": int(time.time())})
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        raw = self.rfile.read(length).decode("utf-8", errors="ignore") if length > 0 else "{}"
+        try: data = json.loads(raw)
+        except Exception: data = {"raw": raw}
+        self._send({"status": "healthy", "service": "uptime-beacon-4060", "method": "POST", "path": self.path, "received": data, "host": socket.gethostname(), "ts": int(time.time())})
+    def do_PUT(self): self.do_POST()
+    def do_DELETE(self): self._send({"status": "healthy", "service": "uptime-beacon-4060", "deleted": True})
 if __name__ == "__main__":
-    http.server.HTTPServer(("127.0.0.1", 4060), Handler).serve_forever()
+    http.server.ThreadingHTTPServer(("127.0.0.1", 4060), Handler).serve_forever()
 EOF
-if ! ss -tln | grep -q ':4060 '; then nohup python3 /var/lib/synapse/blueprints/beacon/server.py >/var/lib/synapse/blueprints/beacon/beacon.log 2>&1 & sleep 1; fi
+fuser -k 4060/tcp 2>/dev/null || true
+nohup python3 /var/lib/synapse/blueprints/beacon/server.py >/var/lib/synapse/blueprints/beacon/beacon.log 2>&1 </dev/null & sleep 1
 echo "BLUEPRINT_DEPLOYED_4060"`,
   },
   {
@@ -55,23 +68,31 @@ import http.server, json, time
 EVENTS = [{"id": 1, "event": "sink.ready", "ts": int(time.time())}]
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args): pass
+    def _send(self, payload):
+        body = json.dumps(payload, indent=2).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
     def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps({"status": "ok", "service": "webhook-sink-4065", "events": EVENTS[-20:]}).encode())
+        self._send({"status": "ok", "service": "webhook-sink-4065", "events": EVENTS[-20:]})
     def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
+        length = int(self.headers.get("Content-Length", 0) or 0)
         raw = self.rfile.read(length).decode("utf-8", errors="ignore") if length > 0 else "{}"
-        EVENTS.append({"id": len(EVENTS)+1, "payload": raw, "ts": int(time.time())})
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps({"received": True, "total": len(EVENTS)}).encode())
+        try: parsed = json.loads(raw)
+        except Exception: parsed = raw
+        EVENTS.append({"id": len(EVENTS)+1, "payload": parsed, "ts": int(time.time())})
+        self._send({"status": "ok", "service": "webhook-sink-4065", "received": parsed, "total": len(EVENTS)})
+    def do_PUT(self): self.do_POST()
+    def do_DELETE(self):
+        EVENTS.clear()
+        self._send({"status": "ok", "service": "webhook-sink-4065", "cleared": True})
 if __name__ == "__main__":
-    http.server.HTTPServer(("127.0.0.1", 4065), Handler).serve_forever()
+    http.server.ThreadingHTTPServer(("127.0.0.1", 4065), Handler).serve_forever()
 EOF
-if ! ss -tln | grep -q ':4065 '; then nohup python3 /var/lib/synapse/blueprints/webhook/server.py >/var/lib/synapse/blueprints/webhook/webhook.log 2>&1 & sleep 1; fi
+fuser -k 4065/tcp 2>/dev/null || true
+nohup python3 /var/lib/synapse/blueprints/webhook/server.py >/var/lib/synapse/blueprints/webhook/webhook.log 2>&1 </dev/null & sleep 1
 echo "BLUEPRINT_DEPLOYED_4065"`,
   },
   {
@@ -87,15 +108,33 @@ import http.server, json, time
 STORE = {"synapse:boot": "ok", "cache:mode": "in-memory"}
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args): pass
-    def do_GET(self):
+    def _send(self, payload):
+        body = json.dumps(payload, indent=2).encode("utf-8")
         self.send_response(200)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(json.dumps({"status": "healthy", "service": "kv-memory-store-6380", "keys": len(STORE), "data": STORE}).encode())
+        self.wfile.write(body)
+    def do_GET(self):
+        self._send({"status": "healthy", "service": "kv-memory-store-6380", "keys": len(STORE), "data": STORE})
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        raw = self.rfile.read(length).decode("utf-8", errors="ignore") if length > 0 else "{}"
+        try:
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                for k, v in data.items(): STORE[str(k)] = v
+        except Exception:
+            data = {"raw": raw}
+        self._send({"status": "healthy", "service": "kv-memory-store-6380", "updated": data, "keys": len(STORE), "data": STORE})
+    def do_PUT(self): self.do_POST()
+    def do_DELETE(self):
+        self._send({"status": "healthy", "service": "kv-memory-store-6380", "keys": len(STORE)})
 if __name__ == "__main__":
-    http.server.HTTPServer(("127.0.0.1", 6380), Handler).serve_forever()
+    http.server.ThreadingHTTPServer(("127.0.0.1", 6380), Handler).serve_forever()
 EOF
-if ! ss -tln | grep -q ':6380 '; then nohup python3 /var/lib/synapse/blueprints/kvstore/server.py >/var/lib/synapse/blueprints/kvstore/kv.log 2>&1 & sleep 1; fi
+fuser -k 6380/tcp 2>/dev/null || true
+nohup python3 /var/lib/synapse/blueprints/kvstore/server.py >/var/lib/synapse/blueprints/kvstore/kv.log 2>&1 </dev/null & sleep 1
 echo "BLUEPRINT_DEPLOYED_6380"`,
   },
 ];
