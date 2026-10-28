@@ -1440,6 +1440,83 @@ export default function SynapseNetBirdControlCenter() {
     await runStreamingPrompt(text, undefined, atts);
   }
 
+  async function handleStartSkillInterview(reportContent: string) {
+    if (!activeProject || chatBusy) return;
+    const node = primaryNode || "vps2-muscle";
+    const interviewPrompt = [
+      `Starte jetzt den interaktiven **DevOps-Interview-Modus** zu deinem folgenden Analyse- & Skill-Bericht auf \`@${node}\`:`,
+      `<skill_report>`,
+      reportContent.slice(0, 6000),
+      `</skill_report>`,
+      ``,
+      `WICHTIGE REGELN FÜR DAS INTERVIEW:`,
+      `1. Extrahiere alle gefundenen Verbesserungsvorschläge, Warnungen, Fehlkonfigurationen oder Sicherheitslücken aus dem Bericht und nummeriere sie intern durch (**Punkt 1 von N**, **Punkt 2 von N**, ...).`,
+      `2. Gehe **immer nur EINEN einzigen Punkt pro Nachricht** mit mir durch!`,
+      `3. Stelle mir **jetzt ausschließlich Punkt 1 von N** kurz, präzise und verständlich auf Deutsch vor:`,
+      `   - **Befund / Problem:** Was genau hast du gefunden (inkl. Server/Port/Datei)?`,
+      `   - **Geplante Behebung:** Was genau würdest du ausführen oder ändern, um das Problem sauber zu lösen?`,
+      `   - **Auswirkung / Nutzen:** Warum ist diese Änderung sinnvoll?`,
+      `4. Führe **NOCH KEINE Änderung** aus, sondern frage mich am Ende: **„Soll ich diesen Punkt jetzt beheben oder überspringen?“**`,
+    ].join("\n");
+
+    const displayMsg = `🎙️ **[Interview-Modus]** Lass uns alle Punkte aus dem Bericht einzeln durchgehen und entscheiden, ob sie behoben werden sollen.`;
+    await runStreamingPrompt(interviewPrompt, undefined, undefined, displayMsg);
+  }
+
+  async function handleInterviewStepResponse(
+    decision: "fix" | "skip" | "fix_all" | "stop"
+  ) {
+    if (!activeProject || chatBusy) return;
+    const node = primaryNode || "vps2-muscle";
+    if (decision === "fix") {
+      const prompt = [
+        `Der Nutzer hat entschieden: **JA, DIESEN PUNKT JETZT BEHEBEN.**`,
+        `1. Führe die besprochene Behebung für den aktuellen Punkt jetzt sofort live auf \`@${node}\` mit deinen Tools (\`node_fs_operation\`, \`node_pty_exec\`, \`core_register_service\`, \`core_update_brain_doc\`) durch und verifiziere kurz, dass die Änderung erfolgreich aktiv ist.`,
+        `2. Bestätige in 1–2 Sätzen, was du behoben hast.`,
+        `3. Stelle mir direkt darunter den **nächsten offenen Punkt (Punkt X von N)** aus dem ursprünglichen Bericht vor und frage wieder: **„Soll ich diesen Punkt jetzt beheben oder überspringen?“** (Falls alle Punkte abgearbeitet sind, gib eine kurze Abschluss-Zusammenfassung).`,
+      ].join("\n");
+      await runStreamingPrompt(
+        prompt,
+        undefined,
+        undefined,
+        `✅ **[Interview-Antwort]** Ja, diesen Punkt jetzt beheben und danach den nächsten Punkt vorstellen.`
+      );
+    } else if (decision === "skip") {
+      const prompt = [
+        `Der Nutzer hat entschieden: **DIESEN PUNKT ÜBERSPRINGEN (NICHT BEHEBEN).**`,
+        `Nimm an diesem Punkt KEINE Änderungen vor. Stelle mir jetzt direkt den **nächsten offenen Punkt (Punkt X von N)** aus dem Bericht vor (Befund, geplante Behebung, Auswirkung) und frage: **„Soll ich diesen Punkt jetzt beheben oder überspringen?“** (Falls keine weiteren Punkte offen sind, gib eine kurze Abschluss-Zusammenfassung).`,
+      ].join("\n");
+      await runStreamingPrompt(
+        prompt,
+        undefined,
+        undefined,
+        `⏭️ **[Interview-Antwort]** Diesen Punkt überspringen – bitte nächsten Punkt vorstellen.`
+      );
+    } else if (decision === "fix_all") {
+      const prompt = [
+        `Der Nutzer hat entschieden: **ALLE RESTLICHEN PUNKTE AUTOMATISCH BEHEBEN.**`,
+        `Gehe jetzt alle noch offenen Punkte aus dem Bericht nacheinander durch, setze die Behebungen live auf \`@${node}\` mit deinen Tools um, aktualisiere bei Bedarf \`Memory.md\` / \`Architecture.md\` und erstelle einen abschließenden Erfolgsbericht über alle durchgeführten Korrekturen.`,
+      ].join("\n");
+      await runStreamingPrompt(
+        prompt,
+        undefined,
+        undefined,
+        `⚡ **[Interview-Antwort]** Alle restlichen Punkte aus dem Bericht jetzt automatisch beheben.`
+      );
+    } else {
+      const prompt = [
+        `Der Nutzer beendet das Interview.`,
+        `Fasse kurz und übersichtlich auf Deutsch zusammen, welche Punkte im Rahmen des Interviews bereits behoben wurden und welche Punkte übersprungen / offen gelassen wurden.`,
+      ].join("\n");
+      await runStreamingPrompt(
+        prompt,
+        undefined,
+        undefined,
+        `⏹️ **[Interview-Antwort]** Interview beenden & Zusammenfassung anzeigen.`
+      );
+    }
+  }
+
   async function handleQuickAction(actionPrompt: string) {
     if (!activeProject || chatBusy) return;
     setCopilotDrawerOpen(true);
@@ -4662,6 +4739,117 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         markdown={msg.content}
                         variant="chat"
                       />
+
+                      {/* Post-Skill-Report "Interview" Button & Active Interview Step Controls */}
+                      {msg.role === "assistant" && (() => {
+                        const prevUserContent =
+                          idx > 0 && chatHistory[idx - 1]?.role === "user"
+                            ? chatHistory[idx - 1].content || ""
+                            : "";
+                        const isInterviewTurn =
+                          (prevUserContent.includes("[Interview-Modus]") ||
+                            prevUserContent.includes("[Interview-Antwort]")) &&
+                          !prevUserContent.includes("Interview beenden") &&
+                          !prevUserContent.includes("Alle restlichen Punkte");
+                        const asksToFixOrSkip =
+                          /beheben oder überspringen|soll ich diesen punkt/i.test(
+                            msg.content
+                          );
+                        const showInterviewControls =
+                          isInterviewTurn || asksToFixOrSkip;
+
+                        const isSkillReport =
+                          !showInterviewControls &&
+                          !prevUserContent.includes("[Interview-") &&
+                          (prevUserContent.includes("[Skill: CheckSystem]") ||
+                            prevUserContent.includes("[Skill: CheckOpsec]") ||
+                            prevUserContent.includes("[Skill: DeepForensics]") ||
+                            (msg.content.length > 400 &&
+                              (msg.toolResults?.length || 0) >= 2 &&
+                              /Empfehlung|Härtung|Befund|OpSec|Verbesserung|CheckSystem|CheckOpsec|Forensik/i.test(
+                                msg.content
+                              )));
+
+                        if (showInterviewControls) {
+                          return (
+                            <div className="mt-3 rounded-lg border border-netbird-500/40 bg-nb-gray-940 p-2.5 space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-netbird">
+                                  <Sparkles className="h-3 w-3" />
+                                  <span>DevOps Interview-Modus: Deine Entscheidung</span>
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={chatBusy}
+                                  onClick={() => handleInterviewStepResponse("fix")}
+                                  className="flex items-center gap-1.5 rounded-md border border-emerald-500/50 bg-emerald-950/50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-900/70 hover:text-white disabled:opacity-40 transition"
+                                >
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                                  <span>Ja, jetzt beheben</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={chatBusy}
+                                  onClick={() => handleInterviewStepResponse("skip")}
+                                  className="flex items-center gap-1.5 rounded-md border border-nb-gray-700 bg-nb-gray-900 px-2.5 py-1.5 text-[11px] font-medium text-nb-gray-200 hover:border-nb-gray-500 hover:text-white disabled:opacity-40 transition"
+                                >
+                                  <ChevronRight className="h-3.5 w-3.5 text-nb-gray-400" />
+                                  <span>Nicht beheben (Nächster Punkt)</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={chatBusy}
+                                  onClick={() => handleInterviewStepResponse("fix_all")}
+                                  className="flex items-center gap-1.5 rounded-md border border-netbird-500/40 bg-netbird/15 px-2.5 py-1.5 text-[11px] font-medium text-netbird hover:bg-netbird/25 hover:text-white disabled:opacity-40 transition"
+                                >
+                                  <Zap className="h-3.5 w-3.5" />
+                                  <span>Alle restlichen beheben</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={chatBusy}
+                                  onClick={() => handleInterviewStepResponse("stop")}
+                                  className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-950 px-2 py-1.5 text-[11px] text-nb-gray-400 hover:border-red-500/40 hover:text-red-300 disabled:opacity-40 transition"
+                                >
+                                  <X className="h-3 w-3" />
+                                  <span>Interview beenden</span>
+                                </button>
+                              </div>
+                              <p className="text-[10px] text-nb-gray-400">
+                                Tipp: Du kannst auch direkt ins Textfeld schreiben, wenn die KI diesen Punkt auf eine bestimmte Weise anpassen soll.
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        if (isSkillReport) {
+                          return (
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-netbird-500/40 bg-nb-gray-940 px-3 py-2">
+                              <div className="min-w-0">
+                                <div className="font-semibold text-xs text-white">
+                                  Befunde &amp; Empfehlungen Schritt für Schritt durchgehen?
+                                </div>
+                                <div className="text-[11px] text-nb-gray-400">
+                                  Im Interview-Modus stellt dir die KI jeden Punkt einzeln vor und fragt dich, ob sie ihn direkt beheben soll.
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={chatBusy}
+                                onClick={() => handleStartSkillInterview(msg.content)}
+                                className="flex shrink-0 items-center gap-1.5 rounded-md bg-netbird px-3 py-1.5 text-xs font-semibold text-white hover:bg-netbird-500 disabled:opacity-40 transition shadow-sm"
+                              >
+                                <Sparkles className="h-3.5 w-3.5" />
+                                <span>Interview starten</span>
+                              </button>
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      })()}
 
                       {/* Per-Turn Cache Savings Footer */}
                       {msg.cacheMetrics && (
