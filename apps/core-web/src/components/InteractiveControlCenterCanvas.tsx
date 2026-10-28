@@ -266,6 +266,7 @@ interface Props {
     {
       profile: "web_standard" | "synapse_stealth" | "custom";
       shielded_ports?: number[];
+      detected_ports?: Array<{ port: number; shielded?: boolean }>;
       ip_rules?: unknown[];
     }
   >;
@@ -2327,8 +2328,13 @@ export default function InteractiveControlCenterCanvas({
                           {(() => {
                             const fwPol = firewallPolicies?.[gn.node_id];
                             const prof = fwPol?.profile || "web_standard";
+                            const detectedShielded =
+                              fwPol?.detected_ports?.filter((p) => p.shielded)
+                                .length || 0;
                             const shieldedCount =
-                              fwPol?.shielded_ports?.length || 0;
+                              detectedShielded ||
+                              fwPol?.shielded_ports?.length ||
+                              0;
                             const isStealth = prof === "synapse_stealth";
                             return (
                               <button
@@ -2356,8 +2362,8 @@ export default function InteractiveControlCenterCanvas({
                                     ? t("Stealth-Firewall", "Stealth Firewall")
                                     : shieldedCount > 0
                                     ? t(
-                                        `FW · ${shieldedCount} gesperrt`,
-                                        `FW · ${shieldedCount} shielded`
+                                        `${shieldedCount} gesperrt`,
+                                        `${shieldedCount} shielded`
                                       )
                                     : t("Firewall aktiv", "Firewall active")}
                                 </span>
