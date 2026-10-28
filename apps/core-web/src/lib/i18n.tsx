@@ -363,6 +363,7 @@ const EN_DICTIONARY: Record<string, string> = {
   "System-Update & Versionsdetails öffnen":
     "Open System Update & version details",
   "Update verfügbar": "Update available",
+  "Sprache & Region": "Language & Region",
   "@Kontext einfügen": "Insert @Context Mention",
 
   // RichMarkdownDocument UI Chrome
@@ -1066,7 +1067,8 @@ export function LanguageSwitcher({
 
   return (
     <div
-      className="flex items-center rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-0.5 text-xs"
+      className="flex h-8 items-center rounded-lg border border-nb-gray-800/80 bg-nb-gray-930 text-xs font-medium"
+      style={{ paddingLeft: "10px", paddingRight: "4px", gap: "4px" }}
       data-no-i18n="true"
       title={
         locale === "de"
@@ -1074,7 +1076,10 @@ export function LanguageSwitcher({
           : "Switch language (Deutsch / English)"
       }
     >
-      <Globe className="ml-1.5 mr-1 h-3.5 w-3.5 text-nb-gray-400 shrink-0" />
+      <Globe
+        className="h-3.5 w-3.5 text-nb-gray-400 shrink-0"
+        style={{ marginRight: "4px" }}
+      />
       {locales.map((loc) => {
         const active = locale === loc.code;
         return (
@@ -1082,7 +1087,8 @@ export function LanguageSwitcher({
             key={loc.code}
             type="button"
             onClick={() => setLocale(loc.code)}
-            className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
+            style={{ height: "22px", paddingLeft: "9px", paddingRight: "9px" }}
+            className={`flex items-center justify-center rounded-md font-mono text-[11px] font-semibold leading-none transition-colors ${
               active
                 ? "bg-netbird text-white shadow-sm"
                 : "text-nb-gray-400 hover:text-white"

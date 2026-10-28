@@ -450,7 +450,14 @@ export default function InteractiveControlCenterCanvas({
   }, [peerIdsKey, serviceIdsKey]);
 
   useEffect(() => {
-    function onPointerMove(e: PointerEvent) {
+    let rafId: number | null = null;
+    let latestEvent: PointerEvent | null = null;
+
+    function flushPointerMove() {
+      rafId = null;
+      const e = latestEvent;
+      if (!e) return;
+
       if (dragInspectorRef.current) {
         const d = dragInspectorRef.current;
         setInspectorPos({
@@ -487,7 +494,26 @@ export default function InteractiveControlCenterCanvas({
       }
     }
 
+    function onPointerMove(e: PointerEvent) {
+      if (
+        !dragInspectorRef.current &&
+        !dragNodeStartRef.current &&
+        !(isPanning && panStartRef.current)
+      ) {
+        return;
+      }
+      latestEvent = e;
+      if (rafId === null) {
+        rafId = window.requestAnimationFrame(flushPointerMove);
+      }
+    }
+
     function onPointerUp() {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      latestEvent = null;
       if (dragInspectorRef.current) {
         dragInspectorRef.current = null;
       }
@@ -501,9 +527,12 @@ export default function InteractiveControlCenterCanvas({
       }
     }
 
-    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
     window.addEventListener("pointerup", onPointerUp);
     return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
@@ -622,85 +651,229 @@ export default function InteractiveControlCenterCanvas({
         style={{
           transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
           transformOrigin: "0 0",
+          willChange: "transform",
         }}
         className="absolute left-0 top-0 h-[1000px] w-[1400px]"
       >
-        {/* CLEAN BEZIER EDGES (Zero-Lag Solid Base + Smooth Directional Flow) */}
+        {/* GPU-ACCELERATED MULTI-LAYER NEURAL / MESH FLOW EDGES (Zero SVG Filters, Zero Hover Jump) */}
         <svg
           className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
           style={{ zIndex: 1 }}
         >
-          {edges.map((edge) => {
-            const { x1, y1, x2, y2, d } = getEdgeCoords(edge.from, edge.to);
-            const isHovered =
-              hoveredNodeId &&
-              (edge.from === hoveredNodeId || edge.to === hoveredNodeId);
+          {(() => {
+            const renderedPorts = new Set<string>();
+            return edges.map((edge, idx) => {
+              const { x1, y1, x2, y2, d } = getEdgeCoords(edge.from, edge.to);
+              const isHovered = Boolean(
+                hoveredNodeId &&
+                  (edge.from === hoveredNodeId || edge.to === hoveredNodeId)
+              );
+              const isPeerEdge = edge.from.startsWith("peer:");
+              const secondaryColor = isPeerEdge ? "#fbbf24" : "#34d399";
 
-            return (
-              <g
-                key={edge.id}
-                style={{
-                  opacity: isHovered ? 1 : edge.active ? 0.85 : 0.3,
-                }}
-              >
-                {/* Solid underlying connection track (never jitters while dragging) */}
-                <path
-                  d={d}
-                  fill="none"
-                  stroke={edge.color}
-                  strokeOpacity={isHovered ? 0.45 : 0.22}
-                  strokeWidth={isHovered ? 2.4 : 1.6}
-                />
-                {/* Clean dashed guide line */}
-                <path
-                  d={d}
-                  fill="none"
-                  stroke={edge.color}
-                  strokeOpacity={isHovered ? 0.85 : 0.55}
-                  strokeWidth={isHovered ? 2.2 : 1.6}
-                  strokeLinecap="round"
-                  strokeDasharray="6 6"
-                />
-                {/* Smooth ping-pong travelling packet pulse with 1.6s pause (hidden) at each end */}
-                {edge.active && (
-                  <circle r={3.2} fill={edge.color}>
-                    <animateMotion
-                      dur="6.8s"
-                      repeatCount="indefinite"
-                      keyPoints="0;1;1;0;0"
-                      keyTimes="0;0.26;0.5;0.76;1"
-                      calcMode="linear"
-                      path={d}
+              // IMPORTANT: Keep durations & delays 100% invariant across hover states so particles NEVER jump!
+              const staggerSec = ((idx * 0.77) % 3.1).toFixed(2);
+              const reverseStaggerSec = (((idx + 2) * 1.15) % 3.9).toFixed(2);
+              const forwardDur = `${(3.2 + (idx % 3) * 0.42).toFixed(2)}s`;
+              const reverseDur = `${(4.4 + (idx % 2) * 0.55).toFixed(2)}s`;
+
+              const port1Key = `${Math.round(x1)},${Math.round(y1)}`;
+              const port2Key = `${Math.round(x2)},${Math.round(y2)}`;
+              const drawPort1 = !renderedPorts.has(port1Key);
+              const drawPort2 = !renderedPorts.has(port2Key);
+              renderedPorts.add(port1Key);
+              renderedPorts.add(port2Key);
+
+              return (
+                <g
+                  key={edge.id}
+                  style={{
+                    opacity: isHovered ? 1 : edge.active ? 0.92 : 0.3,
+                    transition: "opacity 180ms ease",
+                  }}
+                >
+                  {/* 1. Ambient Outer Glow Conduit (Pure Vector — Zero Filter Lag) */}
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke={edge.color}
+                    strokeOpacity={isHovered ? 0.28 : 0.09}
+                    strokeWidth={isHovered ? 8 : 5}
+                    strokeLinecap="round"
+                    style={{
+                      transition: "stroke-opacity 180ms ease, stroke-width 180ms ease",
+                    }}
+                  />
+
+                  {/* 2. Solid Grounded Base Track */}
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke={edge.color}
+                    strokeOpacity={isHovered ? 0.55 : 0.24}
+                    strokeWidth={isHovered ? 2.2 : 1.5}
+                    strokeLinecap="round"
+                    style={{
+                      transition: "stroke-opacity 180ms ease, stroke-width 180ms ease",
+                    }}
+                  />
+
+                  {/* 3. Continuous Flowing Stream Wave (GPU CSS Keyframes) */}
+                  {edge.active && (
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke={edge.color}
+                      strokeOpacity={isHovered ? 0.95 : 0.62}
+                      strokeWidth={isHovered ? 2.1 : 1.6}
+                      strokeLinecap="round"
+                      strokeDasharray="6 10"
+                      className="cc-animated-edge"
+                      style={{
+                        transition: "stroke-opacity 180ms ease, stroke-width 180ms ease",
+                      }}
                     />
-                    <animate
-                      attributeName="opacity"
-                      values="0;1;1;0;0;1;1;0;0"
-                      keyTimes="0;0.03;0.24;0.26;0.5;0.53;0.74;0.76;1"
-                      dur="6.8s"
-                      repeatCount="indefinite"
-                    />
-                  </circle>
-                )}
-                {/* Port anchor dots */}
-                <circle
-                  cx={x1}
-                  cy={y1}
-                  r={3.2}
-                  fill="#181a1d"
-                  stroke={edge.color}
-                  strokeWidth={1.8}
-                />
-                <circle
-                  cx={x2}
-                  cy={y2}
-                  r={3.2}
-                  fill="#181a1d"
-                  stroke={edge.color}
-                  strokeWidth={1.8}
-                />
-              </g>
-            );
-          })}
+                  )}
+
+                  {/* 4. Traveling Energy Streak (Dual-Layer Vector Comet — Zero Filter Lag) */}
+                  {edge.active && (
+                    <g>
+                      <path
+                        d={d}
+                        fill="none"
+                        stroke={secondaryColor}
+                        strokeOpacity={isHovered ? 0.35 : 0.2}
+                        strokeWidth={isHovered ? 6.5 : 5}
+                        strokeLinecap="round"
+                        pathLength={100}
+                        strokeDasharray="11 110"
+                        className="synapse-comet-path"
+                        style={{
+                          animationDuration: forwardDur,
+                          animationDelay: `-${staggerSec}s`,
+                        }}
+                      />
+                      <path
+                        d={d}
+                        fill="none"
+                        stroke={secondaryColor}
+                        strokeOpacity={isHovered ? 0.98 : 0.82}
+                        strokeWidth={isHovered ? 2.6 : 2}
+                        strokeLinecap="round"
+                        pathLength={100}
+                        strokeDasharray="11 110"
+                        className="synapse-comet-path"
+                        style={{
+                          animationDuration: forwardDur,
+                          animationDelay: `-${staggerSec}s`,
+                        }}
+                      />
+                    </g>
+                  )}
+
+                  {/* 5. Primary Forward Data Packet (GPU CSS Motion Path + Concentric Vector Glow) */}
+                  {edge.active && (
+                    <g
+                      className="synapse-packet-fwd"
+                      style={{
+                        offsetPath: `path("${d}")`,
+                        animationDuration: forwardDur,
+                        animationDelay: `-${staggerSec}s`,
+                      }}
+                    >
+                      <circle
+                        r={isHovered ? 8.5 : 7}
+                        fill={edge.color}
+                        fillOpacity={isHovered ? 0.26 : 0.16}
+                      />
+                      <circle
+                        r={isHovered ? 4.8 : 4}
+                        fill={edge.color}
+                        fillOpacity={isHovered ? 0.65 : 0.48}
+                      />
+                      <circle r={isHovered ? 2.4 : 2} fill="#ffffff" />
+                    </g>
+                  )}
+
+                  {/* 6. Bi-Directional Return / Telemetry Heartbeat Pulse (Reverse GPU CSS Motion Path) */}
+                  {edge.active && (
+                    <g
+                      className="synapse-packet-rev"
+                      style={{
+                        offsetPath: `path("${d}")`,
+                        animationDuration: reverseDur,
+                        animationDelay: `-${reverseStaggerSec}s`,
+                      }}
+                    >
+                      <circle
+                        r={isHovered ? 6 : 5}
+                        fill={secondaryColor}
+                        fillOpacity={isHovered ? 0.28 : 0.18}
+                      />
+                      <circle
+                        r={isHovered ? 2.6 : 2.1}
+                        fill={secondaryColor}
+                        fillOpacity={0.95}
+                      />
+                    </g>
+                  )}
+
+                  {/* 7. Deduplicated Port Socket Rings (Drawn Once per Unique Port Coordinate) */}
+                  {drawPort1 && (
+                    <g>
+                      {edge.active && (
+                        <circle
+                          cx={x1}
+                          cy={y1}
+                          r={3.8}
+                          fill="none"
+                          stroke={edge.color}
+                          strokeWidth={1.2}
+                          className="synapse-port-ring"
+                          style={{ animationDelay: `-${staggerSec}s` }}
+                        />
+                      )}
+                      <circle
+                        cx={x1}
+                        cy={y1}
+                        r={3.6}
+                        fill="#181a1d"
+                        stroke={edge.color}
+                        strokeWidth={2}
+                      />
+                      <circle cx={x1} cy={y1} r={1.5} fill={edge.color} />
+                    </g>
+                  )}
+
+                  {drawPort2 && (
+                    <g>
+                      {edge.active && (
+                        <circle
+                          cx={x2}
+                          cy={y2}
+                          r={3.8}
+                          fill="none"
+                          stroke={edge.color}
+                          strokeWidth={1.2}
+                          className="synapse-port-ring"
+                          style={{ animationDelay: `-${reverseStaggerSec}s` }}
+                        />
+                      )}
+                      <circle
+                        cx={x2}
+                        cy={y2}
+                        r={3.6}
+                        fill="#181a1d"
+                        stroke={edge.color}
+                        strokeWidth={2}
+                      />
+                      <circle cx={x2} cy={y2} r={1.5} fill={edge.color} />
+                    </g>
+                  )}
+                </g>
+              );
+            });
+          })()}
         </svg>
 
         {/* 1. LEFT: INTERACTIVE SERVER CARDS (Draggable + Inline Expandable) */}

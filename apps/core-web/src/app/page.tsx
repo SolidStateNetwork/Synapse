@@ -358,6 +358,7 @@ export default function SynapseNetBirdControlCenter() {
     | "ai-providers"
     | "mcp-server"
     | "debug-console"
+    | "language"
   >("system-update");
   const [systemUpdateBusy, setSystemUpdateBusy] = useState(false);
   const [systemUpdateActionLabel, setSystemUpdateActionLabel] = useState("");
@@ -2707,8 +2708,8 @@ export default function SynapseNetBirdControlCenter() {
                     title="System-Update & Versionsdetails öffnen"
                     className="flex items-center gap-1.5 text-left min-w-0 group"
                   >
-                    <span className="font-semibold text-nb-gray-100 group-hover:text-white">
-                      Synapse v0.2.0
+                    <span className="whitespace-nowrap font-semibold text-nb-gray-100 group-hover:text-white">
+                      v0.2.0
                     </span>
                     <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-400">
                       {localShort}
@@ -2841,7 +2842,7 @@ export default function SynapseNetBirdControlCenter() {
 
             <button
               onClick={() => setCopilotDrawerOpen((v) => !v)}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
                 copilotDrawerOpen
                   ? "border-netbird-500/60 bg-netbird-950 text-netbird"
                   : "border-nb-gray-800/80 bg-nb-gray-930 text-nb-gray-300 hover:text-white"
@@ -2856,7 +2857,7 @@ export default function SynapseNetBirdControlCenter() {
                 setAddPeerModalOpen(true);
                 if (!issuedToken) handleGenerateJoinToken();
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-netbird px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-netbird-500 transition-colors"
+              className="flex h-8 items-center gap-1.5 rounded-lg border border-transparent bg-netbird px-3 text-xs font-medium text-white shadow-sm hover:bg-netbird-500 transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Server</span>
@@ -4711,6 +4712,11 @@ export default function SynapseNetBirdControlCenter() {
                       })`,
                       icon: Activity,
                     },
+                    {
+                      id: "language",
+                      label: "Sprache & Region",
+                      icon: Globe,
+                    },
                   ].map((t) => {
                     const Icon = t.icon;
                     const active = settingsTab === t.id;
@@ -4738,20 +4744,6 @@ export default function SynapseNetBirdControlCenter() {
                       </button>
                     );
                   })}
-                </div>
-
-                {/* Language & Localization Card (Always visible in Settings) */}
-                <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 px-5 py-4">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-white">
-                      <Globe className="h-3.5 w-3.5 text-netbird" />
-                      <span>Sprache &amp; Lokalisierung</span>
-                    </div>
-                    <p className="text-[11px] text-nb-gray-400">
-                      Wähle die Anzeigesprache der Benutzeroberfläche. Weitere Sprachen können jederzeit über das Sprach-Register ergänzt werden.
-                    </p>
-                  </div>
-                  <LanguageSwitcher variant="settings" />
                 </div>
 
                 {settingsTab === "system-update" && (
@@ -5793,6 +5785,27 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                             Lade Live-Diagnose-Snapshot...
                           </div>
                         )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {settingsTab === "language" && (
+                  <div className="space-y-5">
+                    <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
+                      <div className="flex flex-wrap items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2.5 text-base font-semibold text-white">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
+                              <Globe className="h-4 w-4" />
+                            </span>
+                            <span>Sprache &amp; Lokalisierung</span>
+                          </div>
+                          <p className="text-xs text-nb-gray-400">
+                            Wähle die Anzeigesprache der Benutzeroberfläche. Weitere Sprachen können jederzeit über das Sprach-Register ergänzt werden.
+                          </p>
+                        </div>
+                        <LanguageSwitcher variant="settings" />
                       </div>
                     </div>
                   </div>

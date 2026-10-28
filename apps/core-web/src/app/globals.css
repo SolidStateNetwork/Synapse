@@ -29,7 +29,7 @@ code {
   background-size: 22px 22px;
 }
 
-/* Smooth directional flow along SVG curves */
+/* Smooth directional flow along SVG curves (GPU-accelerated, zero SVG filter overhead) */
 @keyframes cc-edge-dash {
   from {
     stroke-dashoffset: 32;
@@ -39,8 +39,102 @@ code {
   }
 }
 
+@keyframes synapse-comet-streak {
+  0% {
+    stroke-dashoffset: 108;
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.95;
+  }
+  88% {
+    opacity: 0.95;
+  }
+  100% {
+    stroke-dashoffset: -12;
+    opacity: 0;
+  }
+}
+
+@keyframes synapse-packet-forward {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes synapse-packet-reverse {
+  0% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.9;
+  }
+  86% {
+    opacity: 0.9;
+  }
+  100% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+}
+
+@keyframes synapse-port-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.85);
+    opacity: 0;
+  }
+}
+
 .cc-animated-edge {
-  animation: cc-edge-dash 1.3s linear infinite;
+  animation: cc-edge-dash 1.35s linear infinite;
+  will-change: stroke-dashoffset;
+}
+
+.synapse-comet-path {
+  animation-name: synapse-comet-streak;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-iteration-count: infinite;
+  will-change: stroke-dashoffset, opacity;
+}
+
+.synapse-packet-fwd {
+  offset-rotate: 0deg;
+  animation-name: synapse-packet-forward;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-iteration-count: infinite;
+  will-change: offset-distance, opacity;
+}
+
+.synapse-packet-rev {
+  offset-rotate: 0deg;
+  animation-name: synapse-packet-reverse;
+  animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
+  animation-iteration-count: infinite;
+  will-change: offset-distance, opacity;
+}
+
+.synapse-port-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: synapse-port-pulse 2.6s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 @keyframes slow-ping {
