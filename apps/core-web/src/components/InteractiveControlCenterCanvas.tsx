@@ -1608,6 +1608,21 @@ export default function InteractiveControlCenterCanvas({
   }
 
   function handleWheel(e: React.WheelEvent) {
+    // Allow natural vertical/horizontal scrolling inside any scrollable list or box section
+    if (!e.ctrlKey && !e.metaKey) {
+      let el = e.target as HTMLElement | null;
+      while (el && el !== containerRef.current) {
+        if (
+          el.dataset?.scrollable === "true" ||
+          el.classList.contains("overflow-y-auto") ||
+          el.classList.contains("overflow-auto")
+        ) {
+          return;
+        }
+        el = el.parentElement;
+      }
+    }
+
     if (e.ctrlKey || e.metaKey || Math.abs(e.deltaY) > 0) {
       e.preventDefault();
       const factor = e.deltaY < 0 ? 1.07 : 0.93;
@@ -2327,8 +2342,12 @@ export default function InteractiveControlCenterCanvas({
                             {checkpointNotice}
                           </div>
                         )}
-                        <div className="space-y-1 max-h-28 overflow-y-auto pr-0.5">
-                          {nodeCheckpoints.slice(0, 3).map((chk) => (
+                        <div
+                          data-scrollable="true"
+                          onWheel={(e) => e.stopPropagation()}
+                          className="space-y-1 max-h-28 overflow-y-auto pr-0.5 overscroll-contain"
+                        >
+                          {nodeCheckpoints.map((chk) => (
                             <div
                               key={chk.id}
                               className="flex items-center justify-between gap-1.5 rounded border border-nb-gray-800/80 bg-nb-gray-940/70 px-2 py-1 text-[10px]"
@@ -2402,9 +2421,12 @@ export default function InteractiveControlCenterCanvas({
                                 </strong>
                               </span>
                             </div>
-                            {intrusionMap[gn.node_id].top_attackers
-                              .slice(0, 3)
-                              .map((att) => {
+                            <div
+                              data-scrollable="true"
+                              onWheel={(e) => e.stopPropagation()}
+                              className="space-y-1 max-h-24 overflow-y-auto pr-0.5 overscroll-contain"
+                            >
+                              {intrusionMap[gn.node_id].top_attackers.map((att) => {
                                 const isBlocked =
                                   intrusionMap[gn.node_id].blocked_ips.includes(
                                     att.ip
@@ -2447,6 +2469,7 @@ export default function InteractiveControlCenterCanvas({
                                   </div>
                                 );
                               })}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -2480,10 +2503,13 @@ export default function InteractiveControlCenterCanvas({
                             {backupNotice}
                           </div>
                         )}
-                        <div className="space-y-1 max-h-24 overflow-y-auto pr-0.5">
+                        <div
+                          data-scrollable="true"
+                          onWheel={(e) => e.stopPropagation()}
+                          className="space-y-1 max-h-28 overflow-y-auto pr-0.5 overscroll-contain"
+                        >
                           {offsiteBackups
                             .filter((b) => b.node_id === gn.node_id)
-                            .slice(0, 2)
                             .map((bkp) => (
                               <div
                                 key={bkp.id}
@@ -2799,7 +2825,11 @@ export default function InteractiveControlCenterCanvas({
                           {blueprintNotice}
                         </div>
                       )}
-                      <div className="space-y-1">
+                      <div
+                        data-scrollable="true"
+                        onWheel={(e) => e.stopPropagation()}
+                        className="space-y-1 max-h-36 overflow-y-auto pr-0.5 overscroll-contain"
+                      >
                         {blueprints.map((bp) => {
                           const isDeployed = allServices.some(
                             (s) => s.service_id === bp.id || s.port === bp.port
@@ -3167,9 +3197,13 @@ export default function InteractiveControlCenterCanvas({
                               {t("Fehler", "Errors")}
                             </span>
                           </div>
-                          <div className="max-h-28 overflow-y-auto space-y-0.5 rounded bg-black/50 p-1.5 text-[8.5px] text-nb-gray-300">
+                          <div
+                            data-scrollable="true"
+                            onWheel={(e) => e.stopPropagation()}
+                            className="max-h-32 overflow-y-auto space-y-0.5 rounded bg-black/50 p-1.5 text-[8.5px] text-nb-gray-300 overscroll-contain"
+                          >
                             {serviceLogsMap[svc.service_id].lines
-                              .slice(-12)
+                              .slice(-40)
                               .map((line, idx) => (
                                 <div
                                   key={idx}
