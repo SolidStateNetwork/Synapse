@@ -359,27 +359,32 @@ async function runOpenAICompatibleAgentLoop(
     });
 
     let completion: Record<string, unknown> | null = null;
-    try {
-      const llmRes = await fetch(endpoint, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          model,
-          messages: conversation,
-          tools: SYNAPSE_TOOL_SCHEMAS,
-          tool_choice: "auto",
-        }),
-      });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const llmRes = await fetch(endpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model,
+            messages: conversation,
+            tools: SYNAPSE_TOOL_SCHEMAS,
+            tool_choice: "auto",
+          }),
+        });
 
-      if (!llmRes.ok) {
-        if (allToolResults.length > 0) {
+        if (llmRes.ok) {
+          completion = (await llmRes.json()) as Record<string, unknown>;
           break;
         }
-        return null;
+      } catch {
+        // retry on transient network error
       }
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+    }
 
-      completion = (await llmRes.json()) as Record<string, unknown>;
-    } catch {
+    if (!completion) {
       if (allToolResults.length > 0) {
         break;
       }
@@ -978,7 +983,7 @@ if __name__ == "__main__":
       }
     }
   } else if (
-    lower.includes("diagnose") ||
+    lower.startsWith("diagnose ") ||
     lower.includes("auto-heal") ||
     lower.includes("heal service")
   ) {
