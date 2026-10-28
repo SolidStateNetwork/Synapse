@@ -160,6 +160,14 @@ func (m *Manager) GetOrCreateSession(sessionID string, projectID string, tier tu
 	}
 
 	go sess.readLoop()
+	// Reap child shell process on exit so defunct zombie processes never accumulate
+	go func(c *exec.Cmd, s *Session, p *os.File) {
+		_ = c.Wait()
+		_ = p.Close()
+		s.subMu.Lock()
+		s.closed = true
+		s.subMu.Unlock()
+	}(cmd, sess, ptmx)
 
 	// Disable terminal echo and wait deterministically for shell readiness
 	_, _ = ptmx.Write([]byte("stty -echo 2>/dev/null; export PS1=''; unset PROMPT_COMMAND; printf \"__SYNAPSE_INIT_\"\"READY__\\n\"\n"))
@@ -348,6 +356,10 @@ func (m *Manager) Execute(req tunnelv1.PtyExecRequest) tunnelv1.PtyExecResponse 
 	sigUpper := strings.ToUpper(strings.TrimSpace(req.SendSignal))
 	if sigUpper == "SIGINT" {
 		_, _ = sess.Ptmx.Write([]byte{0x03}) // Ctrl+C to foreground process group
+		signalShellChildren(sess.ShellPID, syscall.SIGINT)
+		sess.mu.Lock()
+		sess.runningCmd = ""
+		sess.mu.Unlock()
 		sess.broadcastLive([]byte("^C\r\n"))
 		if strings.TrimSpace(req.Command) == "" {
 			return tunnelv1.PtyExecResponse{
@@ -359,7 +371,15 @@ func (m *Manager) Execute(req tunnelv1.PtyExecRequest) tunnelv1.PtyExecResponse 
 			}
 		}
 	} else if sigUpper == "SIGTERM" || sigUpper == "SIGKILL" {
+		sig := syscall.SIGTERM
+		if sigUpper == "SIGKILL" {
+			sig = syscall.SIGKILL
+		}
 		_, _ = sess.Ptmx.Write([]byte{0x03})
+		signalShellChildren(sess.ShellPID, sig)
+		sess.mu.Lock()
+		sess.runningCmd = ""
+		sess.mu.Unlock()
 		if strings.TrimSpace(req.Command) == "" {
 			return tunnelv1.PtyExecResponse{
 				CmdID:     cmdID,
@@ -374,9 +394,16 @@ func (m *Manager) Execute(req tunnelv1.PtyExecRequest) tunnelv1.PtyExecResponse 
 	sess.execMu.Lock()
 	defer sess.execMu.Unlock()
 
+	// If a previous command timed out and left a foreground child running, interrupt it before starting the new command
 	sess.mu.Lock()
+	wasRunning := sess.runningCmd != ""
 	sess.runningCmd = req.Command
 	sess.mu.Unlock()
+	if wasRunning && strings.TrimSpace(req.Command) != "" {
+		_, _ = sess.Ptmx.Write([]byte{0x03, '\n'})
+		signalShellChildren(sess.ShellPID, syscall.SIGINT)
+		time.Sleep(60 * time.Millisecond)
+	}
 
 	// Mirror the command line into attached xterm.js live streams
 	sess.broadcastLive([]byte(fmt.Sprintf("\r\n\x1b[32m[synapse-ai]$\x1b[0m %s\r\n", req.Command)))
@@ -508,9 +535,26 @@ func (m *Manager) CloseAll() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, s := range m.sessions {
+		if s.ShellPID > 0 {
+			signalShellChildren(s.ShellPID, syscall.SIGTERM)
+		}
 		_ = s.Ptmx.Close()
 		if s.Cmd != nil && s.Cmd.Process != nil {
 			_ = s.Cmd.Process.Signal(syscall.SIGTERM)
+		}
+	}
+}
+
+func signalShellChildren(shellPID int, sig syscall.Signal) {
+	if shellPID <= 1 {
+		return
+	}
+	childrenPath := fmt.Sprintf("/proc/%d/task/%d/children", shellPID, shellPID)
+	if data, err := os.ReadFile(childrenPath); err == nil {
+		for _, field := range strings.Fields(string(data)) {
+			if childPID, convErr := strconv.Atoi(field); convErr == nil && childPID > 1 && childPID != shellPID {
+				_ = syscall.Kill(childPID, sig)
+			}
 		}
 	}
 }

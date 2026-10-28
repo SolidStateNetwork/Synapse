@@ -11,7 +11,10 @@ import (
 	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
 )
 
-const DefaultWorkspaceRoot = "/opt/axon/workspaces"
+const (
+	DefaultWorkspaceRoot = "/opt/axon/workspaces"
+	MaxReadFileBytes     = 12 * 1024 * 1024 // 12 MiB safety cap (under 16 MiB MaxFramePayloadSize)
+)
 
 // Engine executes atomic file operations while enforcing node autonomy tiers.
 type Engine struct {
@@ -89,6 +92,16 @@ func (e *Engine) Execute(req tunnelv1.FsRequest) tunnelv1.FsResponse {
 
 	switch req.Operation {
 	case tunnelv1.FsOpReadFile:
+		info, statErr := os.Stat(resolved)
+		if statErr != nil {
+			return failResp(req.RequestID, statErr)
+		}
+		if info.IsDir() {
+			return failResp(req.RequestID, fmt.Errorf("cannot read directory %q as a file; use list_dir instead", resolved))
+		}
+		if info.Size() > MaxReadFileBytes {
+			return failResp(req.RequestID, fmt.Errorf("file %q size (%d bytes) exceeds maximum allowed read size (%d bytes)", resolved, info.Size(), MaxReadFileBytes))
+		}
 		data, err := os.ReadFile(resolved)
 		if err != nil {
 			return failResp(req.RequestID, err)
@@ -172,8 +185,8 @@ func (e *Engine) Execute(req tunnelv1.FsRequest) tunnelv1.FsResponse {
 		}
 
 	case tunnelv1.FsOpDelete:
-		if resolved == "/" || resolved == e.WorkspaceRoot {
-			return failResp(req.RequestID, fmt.Errorf("refusing to delete root directory %q", resolved))
+		if isProtectedSystemPath(resolved, e.WorkspaceRoot) {
+			return failResp(req.RequestID, fmt.Errorf("refusing to delete protected root/system directory %q", resolved))
 		}
 		if err := os.RemoveAll(resolved); err != nil {
 			return failResp(req.RequestID, err)
@@ -194,6 +207,26 @@ func failResp(reqID string, err error) tunnelv1.FsResponse {
 		Success:   false,
 		Error:     err.Error(),
 	}
+}
+
+func isProtectedSystemPath(resolved string, workspaceRoot string) bool {
+	cleaned := filepath.Clean(resolved)
+	wsClean := filepath.Clean(workspaceRoot)
+	if cleaned == "/" || cleaned == wsClean {
+		return true
+	}
+	protectedRoots := []string{
+		"/bin", "/boot", "/dev", "/etc", "/home", "/lib", "/lib64",
+		"/opt", "/opt/axon", "/proc", "/root", "/run", "/sbin",
+		"/srv", "/sys", "/usr", "/usr/bin", "/usr/local", "/usr/local/bin",
+		"/usr/local/bin/axon", "/var",
+	}
+	for _, p := range protectedRoots {
+		if cleaned == p {
+			return true
+		}
+	}
+	return false
 }
 
 func parseOctalFileMode(modeStr string, fallback os.FileMode) os.FileMode {
