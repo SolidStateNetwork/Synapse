@@ -74,11 +74,11 @@ export default function AuditLogView({
         <table className="w-full text-left text-xs">
           <thead className="border-b border-nb-gray-900 bg-nb-gray-930/70 text-[11px] font-medium uppercase text-nb-gray-400">
             <tr>
-              <th className="py-3 px-3">Zeitstempel</th>
-              <th className="py-3 px-3">Akteur</th>
-              <th className="py-3 px-3">Tool / Ereignis</th>
-              <th className="py-3 px-3">Zusammenfassung</th>
-              <th className="py-3 px-3 text-right">Status</th>
+              <th className="py-3 px-3 whitespace-nowrap">Zeitstempel</th>
+              <th className="py-3 px-3 whitespace-nowrap">Akteur</th>
+              <th className="py-3 px-3 whitespace-nowrap">Tool / Ereignis</th>
+              <th className="py-3 px-3 w-full">Zusammenfassung</th>
+              <th className="py-3 px-3 text-right whitespace-nowrap">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-nb-gray-900 font-mono">
@@ -111,12 +111,12 @@ export default function AuditLogView({
                         )}
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-nb-gray-200 max-w-[420px] xl:max-w-[560px] truncate">
+                    <td className="py-3 px-3 text-nb-gray-200 w-full max-w-0 truncate">
                       {log.summary}
                     </td>
                     <td className="py-3 px-3 text-right whitespace-nowrap">
                       <span
-                        className={`rounded border px-2 py-0.5 text-[10px] uppercase ${
+                        className={`inline-block rounded border px-2 py-0.5 text-[10px] uppercase ${
                           log.status === "executed" || log.status === "approved"
                             ? "border-green-500/50 bg-green-950 text-green-400"
                             : log.status === "blocked" ||
