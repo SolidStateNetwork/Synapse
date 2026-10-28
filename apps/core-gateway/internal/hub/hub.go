@@ -54,6 +54,7 @@ type NodeSummary struct {
 type Hub struct {
 	VaultRoot     string
 	mu            sync.RWMutex
+	vaultMu       sync.Mutex
 	nodes         map[string]*ConnectedNode
 	historyByNode map[string][]tunnelv1.TelemetrySample
 	debugEnabled  bool
@@ -151,12 +152,14 @@ func (h *Hub) handleConnection(rawConn net.Conn) {
 		_ = rawConn.Close()
 		return
 	}
+	_ = rawConn.SetDeadline(time.Now().Add(10 * time.Second))
 	if err := tlsConn.Handshake(); err != nil {
 		log.Printf("[core-gateway] mTLS handshake failed from %s: %v", rawConn.RemoteAddr(), err)
 		h.RecordEvent("mtls", "", fmt.Sprintf("mTLS handshake failed from %s: %v", rawConn.RemoteAddr(), err), time.Since(start).Milliseconds(), nil)
 		_ = rawConn.Close()
 		return
 	}
+	_ = rawConn.SetDeadline(time.Time{})
 
 	state := tlsConn.ConnectionState()
 	if len(state.PeerCertificates) == 0 {
@@ -236,10 +239,12 @@ func (h *Hub) handleConnection(rawConn net.Conn) {
 func (h *Hub) handleNodeInitiatedStream(node *ConnectedNode, stream net.Conn) {
 	defer stream.Close()
 
+	_ = stream.SetReadDeadline(time.Now().Add(10 * time.Second))
 	var hdr tunnelv1.StreamHeader
 	if err := tunnelv1.ReadFrame(stream, &hdr); err != nil {
 		return
 	}
+	_ = stream.SetReadDeadline(time.Time{})
 
 	if hdr.StreamType != tunnelv1.StreamTypeTelemetry {
 		return
@@ -317,10 +322,12 @@ func (h *Hub) OpenStream(nodeID string, hdr tunnelv1.StreamHeader) (net.Conn, *C
 		return nil, nil, fmt.Errorf("open yamux stream to node %q: %w", nodeID, err)
 	}
 
+	_ = stream.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	if err := tunnelv1.WriteFrame(stream, hdr); err != nil {
 		_ = stream.Close()
 		return nil, nil, fmt.Errorf("write stream header to node %q: %w", nodeID, err)
 	}
+	_ = stream.SetWriteDeadline(time.Time{})
 	return stream, node, nil
 }
 
@@ -336,6 +343,7 @@ func (h *Hub) ExecFs(nodeID string, req tunnelv1.FsRequest) (tunnelv1.FsResponse
 		return tunnelv1.FsResponse{}, err
 	}
 	defer stream.Close()
+	_ = stream.SetDeadline(time.Now().Add(30 * time.Second))
 
 	if req.Tier == "" || req.Tier == tunnelv1.AutonomyTierUnspecified {
 		req.Tier = node.Tier
@@ -369,6 +377,7 @@ func (h *Hub) ExecPty(nodeID string, req tunnelv1.PtyExecRequest) (tunnelv1.PtyE
 		return tunnelv1.PtyExecResponse{}, err
 	}
 	defer stream.Close()
+	_ = stream.SetDeadline(time.Now().Add(10 * time.Minute))
 
 	if req.Tier == "" || req.Tier == tunnelv1.AutonomyTierUnspecified {
 		req.Tier = node.Tier
@@ -398,14 +407,17 @@ func (h *Hub) PushHealthTargets(nodeID string, targets []tunnelv1.ServiceHealthT
 	if !ok {
 		return fmt.Errorf("node %q not connected", nodeID)
 	}
-	node.mu.RLock()
+	node.mu.Lock()
+	defer node.mu.Unlock()
 	conn := node.telemetryConn
-	node.mu.RUnlock()
 	if conn == nil {
 		return fmt.Errorf("telemetry stream not active for node %q", nodeID)
 	}
 	h.RecordEvent("telemetry", nodeID, fmt.Sprintf("Pushed %d ServiceHealthTarget(s)", len(targets)), 0, nil)
-	return tunnelv1.WriteFrame(conn, targets)
+	_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	err := tunnelv1.WriteFrame(conn, targets)
+	_ = conn.SetWriteDeadline(time.Time{})
+	return err
 }
 
 // ListNodes returns a snapshot of all currently connected Axon nodes and their latest telemetry.
@@ -439,6 +451,8 @@ func (h *Hub) EnsureNodeAssignedToProject(projectID string, nodeID string, tier 
 	if h.VaultRoot == "" || projectID == "" || nodeID == "" {
 		return
 	}
+	h.vaultMu.Lock()
+	defer h.vaultMu.Unlock()
 	projDir := filepath.Join(h.VaultRoot, projectID)
 	_ = os.MkdirAll(projDir, 0o755)
 	statePath := filepath.Join(projDir, "State.json")
@@ -507,6 +521,8 @@ func (h *Hub) syncTelemetryToProjectVaults(nodeID string, beat *tunnelv1.NodeHea
 	if h.VaultRoot == "" {
 		return
 	}
+	h.vaultMu.Lock()
+	defer h.vaultMu.Unlock()
 	entries, err := os.ReadDir(h.VaultRoot)
 	if err != nil {
 		return
