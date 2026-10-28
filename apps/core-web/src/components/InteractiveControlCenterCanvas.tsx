@@ -323,6 +323,11 @@ export default function InteractiveControlCenterCanvas({
 
   const [pan, setPan] = useState<CanvasPos>({ x: 60, y: 60 });
   const [zoom, setZoom] = useState<number>(1);
+  const panRef = useRef<CanvasPos>({ x: 60, y: 60 });
+  const zoomRef = useRef<number>(1);
+  panRef.current = pan;
+  zoomRef.current = zoom;
+
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef<{
     startX: number;
@@ -339,6 +344,8 @@ export default function InteractiveControlCenterCanvas({
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const lastDragMovedRef = useRef<boolean>(false);
   const hasUserDraggedRef = useRef<boolean>(false);
+  const hasUserViewportAdjustedRef = useRef<boolean>(false);
+  const lastTopologyKeyRef = useRef<string>("");
   const dragNodeStartRef = useRef<{
     nodeId: string;
     startClientX: number;
@@ -1056,6 +1063,9 @@ export default function InteractiveControlCenterCanvas({
     [allServices]
   );
 
+  const allServicesRef = useRef(allServices);
+  allServicesRef.current = allServices;
+
   // Clean 3-column Hierarchical Layout with Pixel-Perfect Vertical Center Alignment:
   // Left (x=60): Synapse Core Hub -> Center (x=460): Muscle Peers -> Right (x=860): Services behind their owning Muscle
   const buildHierarchicalLayout = useCallback((): Record<string, CanvasPos> => {
@@ -1069,11 +1079,12 @@ export default function InteractiveControlCenterCanvas({
     const PEER_BASE_H = 88;
     const SVC_BASE_H = 62;
 
+    const currentServices = allServicesRef.current;
     const servicesByPeer = new Map<string, RegisteredService[]>();
     for (const pid of rawPeerIds) {
       servicesByPeer.set(pid, []);
     }
-    for (const svc of allServices) {
+    for (const svc of currentServices) {
       const targetPeer =
         svc.node_id && servicesByPeer.has(svc.node_id)
           ? svc.node_id
@@ -1134,7 +1145,7 @@ export default function InteractiveControlCenterCanvas({
       y: Math.max(28, Math.round(midCenterY - CORE_BASE_H / 2)),
     };
 
-    if (allServices.length === 0) {
+    if (currentServices.length === 0) {
       next["svc:empty"] = {
         x: 824,
         y: Math.max(28, Math.round(midCenterY - SVC_BASE_H / 2)),
@@ -1142,22 +1153,12 @@ export default function InteractiveControlCenterCanvas({
     }
 
     return next;
-  }, [peerIdsKey, allServices]);
+  }, [peerIdsKey, serviceIdsKey]);
 
   const computeDefaultLayout = useCallback(
     (): Record<string, CanvasPos> => buildHierarchicalLayout(),
     [buildHierarchicalLayout]
   );
-
-  useEffect(() => {
-    hasUserDraggedRef.current = false;
-  }, [peerIdsKey, serviceIdsKey]);
-
-  useEffect(() => {
-    if (!hasUserDraggedRef.current) {
-      setPositions(computeDefaultLayout());
-    }
-  }, [computeDefaultLayout]);
 
   const measureNodes = useCallback(() => {
     setSizes((prev) => {
@@ -1335,10 +1336,53 @@ export default function InteractiveControlCenterCanvas({
         (rect.height - contentH * roundedZoom) / 2 - minY * roundedZoom
       );
 
+      const nextPan = { x: panX, y: Math.max(16, panY) };
+      zoomRef.current = roundedZoom;
+      panRef.current = nextPan;
       setZoom(roundedZoom);
-      setPan({ x: panX, y: Math.max(16, panY) });
+      setPan(nextPan);
     },
     [positions, sizes, computeDefaultLayout, DEFAULT_NODE_W, serviceLinks.length]
+  );
+
+  const applyZoomAtPoint = useCallback(
+    (targetZoomRaw: number, clientX?: number, clientY?: number) => {
+      const prevZoom = zoomRef.current;
+      const prevPan = panRef.current;
+      const nextZoom = Number(
+        Math.min(Math.max(targetZoomRaw, 0.25), 3.0).toFixed(3)
+      );
+      if (nextZoom === prevZoom) return;
+
+      const rect = containerRef.current?.getBoundingClientRect();
+      const anchorX =
+        clientX !== undefined && rect
+          ? clientX - rect.left
+          : rect
+          ? rect.width / 2
+          : window.innerWidth / 2;
+      const anchorY =
+        clientY !== undefined && rect
+          ? clientY - rect.top
+          : rect
+          ? rect.height / 2
+          : window.innerHeight / 2;
+
+      const worldX = (anchorX - prevPan.x) / prevZoom;
+      const worldY = (anchorY - prevPan.y) / prevZoom;
+
+      const nextPan = {
+        x: Math.round(anchorX - worldX * nextZoom),
+        y: Math.round(anchorY - worldY * nextZoom),
+      };
+
+      hasUserViewportAdjustedRef.current = true;
+      zoomRef.current = nextZoom;
+      panRef.current = nextPan;
+      setZoom(nextZoom);
+      setPan(nextPan);
+    },
+    []
   );
 
   const handleToggleExpandAll = () => {
@@ -1354,20 +1398,29 @@ export default function InteractiveControlCenterCanvas({
     setTimeout(measureNodes, 35);
     setTimeout(() => {
       measureNodes();
-      if (!target) {
+      if (!target && !hasUserViewportAdjustedRef.current) {
         handleFitView();
       }
     }, 150);
   };
 
   useEffect(() => {
-    if (!hasUserDraggedRef.current) {
-      handleFitView();
+    const topoKey = `${peerIdsKey}|${serviceIdsKey}`;
+    if (lastTopologyKeyRef.current !== topoKey) {
+      lastTopologyKeyRef.current = topoKey;
+      if (!hasUserDraggedRef.current) {
+        const fresh = computeDefaultLayout();
+        setPositions(fresh);
+        if (!hasUserViewportAdjustedRef.current) {
+          handleFitView(fresh);
+        }
+      }
     }
-  }, [handleFitView]);
+  }, [peerIdsKey, serviceIdsKey, computeDefaultLayout, handleFitView]);
 
   const handleResetLayout = () => {
     hasUserDraggedRef.current = false;
+    hasUserViewportAdjustedRef.current = false;
     setExpandedNodes({});
     setCustomDims({});
     const fresh = computeDefaultLayout();
@@ -1480,10 +1533,17 @@ export default function InteractiveControlCenterCanvas({
 
       if (isPanning && panStartRef.current) {
         const p = panStartRef.current;
-        setPan({
-          x: p.panX + (e.clientX - p.startX),
-          y: p.panY + (e.clientY - p.startY),
-        });
+        const dx = e.clientX - p.startX;
+        const dy = e.clientY - p.startY;
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+          hasUserViewportAdjustedRef.current = true;
+        }
+        const nextPan = {
+          x: p.panX + dx,
+          y: p.panY + dy,
+        };
+        panRef.current = nextPan;
+        setPan(nextPan);
       }
     }
 
@@ -1632,30 +1692,22 @@ export default function InteractiveControlCenterCanvas({
     };
   }
 
-  function handleWheel(e: React.WheelEvent) {
-    // Allow natural vertical/horizontal scrolling inside any scrollable list or box section
-    if (!e.ctrlKey && !e.metaKey) {
-      let el = e.target as HTMLElement | null;
-      while (el && el !== containerRef.current) {
-        if (
-          el.dataset?.scrollable === "true" ||
-          el.classList.contains("overflow-y-auto") ||
-          el.classList.contains("overflow-auto")
-        ) {
-          return;
-        }
-        el = el.parentElement;
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onNativeWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey || Math.abs(e.deltaY) > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        const factor = e.deltaY < 0 ? 1.1 : 0.91;
+        applyZoomAtPoint(zoomRef.current * factor, e.clientX, e.clientY);
       }
-    }
-
-    if (e.ctrlKey || e.metaKey || Math.abs(e.deltaY) > 0) {
-      e.preventDefault();
-      const factor = e.deltaY < 0 ? 1.07 : 0.93;
-      setZoom((prev) =>
-        Number(Math.min(Math.max(prev * factor, 0.5), 1.6).toFixed(2))
-      );
-    }
-  }
+    };
+    el.addEventListener("wheel", onNativeWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onNativeWheel);
+    };
+  }, [applyZoomAtPoint]);
 
   function getEdgeCoords(fromId: string, toId: string) {
     const p1 = effectivePositions[fromId] || { x: 50, y: 120 };
@@ -1705,7 +1757,6 @@ export default function InteractiveControlCenterCanvas({
   return (
     <div
       ref={containerRef}
-      onWheel={handleWheel}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
         setIsPanning(true);
@@ -3497,9 +3548,7 @@ export default function InteractiveControlCenterCanvas({
         className="pointer-events-auto absolute bottom-4 left-5 z-20 flex items-center gap-1 rounded-xl border border-nb-gray-800 bg-nb-gray-940/90 p-1 shadow-lg backdrop-blur"
       >
         <button
-          onClick={() =>
-            setZoom((z) => Number(Math.min(z + 0.12, 1.6).toFixed(2)))
-          }
+          onClick={() => applyZoomAtPoint(zoomRef.current * 1.15)}
           className="rounded-lg p-1.5 text-nb-gray-300 hover:bg-nb-gray-900 hover:text-white"
           title="Zoom In"
         >
@@ -3509,9 +3558,7 @@ export default function InteractiveControlCenterCanvas({
           {Math.round(zoom * 100)}%
         </span>
         <button
-          onClick={() =>
-            setZoom((z) => Number(Math.max(z - 0.12, 0.5).toFixed(2)))
-          }
+          onClick={() => applyZoomAtPoint(zoomRef.current / 1.15)}
           className="rounded-lg p-1.5 text-nb-gray-300 hover:bg-nb-gray-900 hover:text-white"
           title="Zoom Out"
         >
