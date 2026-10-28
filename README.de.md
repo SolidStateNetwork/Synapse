@@ -52,7 +52,7 @@ Auf der Startseite (**Übersicht**) siehst du alle verbundenen Server, die KI-Ze
 - **Eingebautes Live-Terminal & Datei-Explorer:** Wenn du doch einmal selbst nachsehen möchtest, kannst du am unteren Bildschirmrand jederzeit das Live-Terminal aufklappen oder unter **Dateien** direkt im Browser Dateien bearbeiten.
 
 ### 3. Versionsanzeige & 1-Klick Updates unten links (wie bei NetBird)
-Unten links in der Seitenleiste siehst du jederzeit die aktuell installierte Version und den Commit-Stand (`Synapse v0.2.0`):
+Unten links in der Seitenleiste siehst du jederzeit die aktuell installierte Version und den Commit-Stand:
 - **Sofort sehen, wenn ein Update bereitsteht:** Sobald für die Steuerzentrale (**Core**) oder deine verbundenen Linux-Server (**Muscle**) ein Update verfügbar ist, erscheint direkt unten links der Hinweis **`Update verfügbar`** samt **`Update`**-Button, mit dem du alles mit einem Klick aktualisieren kannst.
 
 ### 4. Projekt-Gedächtnis (`Brain Vault`), das nichts vergisst

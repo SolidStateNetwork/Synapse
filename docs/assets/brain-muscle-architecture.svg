@@ -1,120 +1,109 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 450" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="100%" height="100%">
   <defs>
-    <pattern id="arch-dots" width="22" height="22" patternUnits="userSpaceOnUse">
-      <circle cx="11" cy="11" r="1.25" fill="#2e3238" />
+    <pattern id="arch-dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="12" r="1.2" fill="#272b33" />
     </pattern>
     <style>
       @keyframes stream-dash {
-        from { stroke-dashoffset: 24; }
+        from { stroke-dashoffset: 28; }
         to { stroke-dashoffset: 0; }
       }
       .s-edge {
-        stroke-dasharray: 6 6;
-        animation: stream-dash 0.9s linear infinite;
+        stroke-dasharray: 7 7;
+        animation: stream-dash 1.1s linear infinite;
       }
-      .f-sans {
+      .sans {
         font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
-      }
-      .f-mono {
-        font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
       }
     </style>
   </defs>
 
-  <!-- Canvas Background -->
-  <rect width="1200" height="450" rx="14" fill="#16181b" stroke="#292d33" stroke-width="1.5" />
-  <rect width="1200" height="450" rx="14" fill="url(#arch-dots)" />
+  <!-- Outer Frame -->
+  <rect width="1200" height="420" rx="18" fill="#14161a" stroke="#2b3038" stroke-width="1.5" />
+  <rect width="1200" height="420" rx="18" fill="url(#arch-dots)" />
 
-  <!-- LEFT: THE BRAIN (synapse-core) -->
-  <g transform="translate(32, 32)">
-    <rect x="0" y="0" width="380" height="386" rx="12" fill="#1d2024" stroke="#f68330" stroke-width="1.5" />
-    <rect x="16" y="16" width="104" height="22" rx="5" fill="#341b09" stroke="#f68330" stroke-width="0.8" />
-    <text x="26" y="31" fill="#f68330" font-size="10" font-weight="700" class="f-mono">THE BRAIN</text>
-    <text x="132" y="31" fill="#ffffff" font-size="13" font-weight="700" class="f-sans">synapse-core (Control Plane)</text>
+  <!-- LEFT CARD: THE BRAIN (Control Center) -->
+  <g transform="translate(36, 32)">
+    <rect x="0" y="0" width="380" height="356" rx="16" fill="#1b1e24" stroke="#f68330" stroke-width="1.8" />
 
-    <!-- Box 1: Next.js 15 Control Center & AI Skills -->
-    <rect x="16" y="52" width="348" height="96" rx="8" fill="#22252a" stroke="#2e3238" />
-    <text x="28" y="74" fill="#ffffff" font-size="12" font-weight="600" class="f-sans">core-web (WebUI, AI Skills &amp; Interview Mode)</text>
-    <text x="28" y="94" fill="#9ca3af" font-size="10.5" class="f-mono">• Interactive Topology, DE/EN i18n &amp; Live PTY</text>
-    <text x="28" y="112" fill="#9ca3af" font-size="10.5" class="f-mono">• 1-Click Skills (CheckSystem, OpSec, Updates)</text>
-    <text x="28" y="130" fill="#9ca3af" font-size="10.5" class="f-mono">• Step-by-Step Interview &amp; 1-Click OTA Rollout</text>
+    <!-- Header Badge -->
+    <rect x="22" y="20" width="122" height="28" rx="14" fill="#341b09" stroke="#f68330" stroke-width="1" />
+    <text x="83" y="38" text-anchor="middle" fill="#fdba74" font-size="12" font-weight="700" class="sans">🧠 THE BRAIN</text>
+    <text x="158" y="39" fill="#ffffff" font-size="16" font-weight="700" class="sans">Control Center</text>
+    <text x="22" y="68" fill="#9ca3af" font-size="13" class="sans">Thinks, plans tasks, and keeps all passwords safe.</text>
 
-    <!-- Box 2: Go Core Gateway -->
-    <rect x="16" y="160" width="348" height="92" rx="8" fill="#22252a" stroke="#2e3238" />
-    <text x="28" y="182" fill="#f68330" font-size="12" font-weight="600" class="f-sans">core-gateway (Go mTLS 1.3 + Yamux Hub)</text>
-    <text x="28" y="202" fill="#9ca3af" font-size="10.5" class="f-mono">• X.509 Root CA &amp; One-Time Enrollment Keys</text>
-    <text x="28" y="220" fill="#9ca3af" font-size="10.5" class="f-mono">• Outbound mTLS (:8443) + Yamux Multiplexer</text>
-    <text x="28" y="238" fill="#9ca3af" font-size="10.5" class="f-mono">• Zero-Port Live App &amp; SQLite Tester (:8081)</text>
+    <!-- Item 1: Visual Dashboard -->
+    <rect x="22" y="86" width="336" height="74" rx="12" fill="#22262e" stroke="#323842" />
+    <text x="40" y="116" fill="#ffffff" font-size="14.5" font-weight="700" class="sans">🖥️  Visual Dashboard</text>
+    <text x="40" y="140" fill="#9ca3af" font-size="12.5" class="sans">See all your servers, websites, and files in one place.</text>
 
-    <!-- Box 3: Project Brain Vault -->
-    <rect x="16" y="264" width="348" height="104" rx="8" fill="#22252a" stroke="#31c48d" stroke-width="1" />
-    <text x="28" y="286" fill="#31c48d" font-size="12" font-weight="600" class="f-sans">Project Brain Vault (/projects/&lt;id&gt;/)</text>
-    <text x="28" y="306" fill="#e4e7e9" font-size="10.5" class="f-mono">├── Architecture.md   ├── Memory.md</text>
-    <text x="28" y="324" fill="#e4e7e9" font-size="10.5" class="f-mono">├── State.json        ├── Audit.jsonl</text>
-    <text x="28" y="342" fill="#f68330" font-size="10.5" class="f-mono">└── Secrets.enc (AES-256-GCM Encrypted)</text>
+    <!-- Item 2: Smart AI Assistant -->
+    <rect x="22" y="172" width="336" height="74" rx="12" fill="#22262e" stroke="#323842" />
+    <text x="40" y="202" fill="#ffffff" font-size="14.5" font-weight="700" class="sans">✨  Smart AI Assistant</text>
+    <text x="40" y="226" fill="#9ca3af" font-size="12.5" class="sans">Plans the work step by step and asks for your approval.</text>
+
+    <!-- Item 3: Safe Memory & Password Vault -->
+    <rect x="22" y="258" width="336" height="76" rx="12" fill="#22262e" stroke="#31c48d" stroke-opacity="0.6" />
+    <text x="40" y="288" fill="#6ee7b7" font-size="14.5" font-weight="700" class="sans">🔒  Project Memory &amp; Safe Vault</text>
+    <text x="40" y="312" fill="#d1d5db" font-size="12.5" class="sans">Remembers your setup; secrets never leave the Brain.</text>
   </g>
 
-  <!-- CENTER: 4 MULTIPLEXED YAMUX STREAMS OVER SINGLE OUTBOUND mTLS 1.3 TUNNEL -->
-  <g transform="translate(412, 0)">
-    <!-- Tunnel Header -->
-    <rect x="74" y="36" width="228" height="30" rx="15" fill="#1d2024" stroke="#f68330" stroke-width="1.2" />
-    <text x="92" y="55" fill="#ffffff" font-size="10.5" font-weight="600" class="f-mono">Outbound mTLS 1.3 (:8443)</text>
+  <!-- CENTER: SECURE ENCRYPTED TUNNEL -->
+  <g transform="translate(416, 0)">
+    <!-- Top Pill -->
+    <rect x="64" y="48" width="240" height="34" rx="17" fill="#1e2228" stroke="#f68330" stroke-width="1.2" />
+    <text x="184" y="70" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="700" class="sans">🔐  Encrypted Tunnel</text>
 
-    <!-- Stream 1 -->
-    <path d="M 0 124 C 120 124, 256 124, 376 124" fill="none" stroke="#f68330" stroke-width="2.2" class="s-edge" />
-    <circle cx="0" cy="124" r="4" fill="#181a1d" stroke="#f68330" stroke-width="2" />
-    <circle cx="376" cy="124" r="4" fill="#181a1d" stroke="#f68330" stroke-width="2" />
-    <rect x="58" y="100" width="260" height="22" rx="6" fill="#1d2024" stroke="#2e3238" />
-    <text x="72" y="115" fill="#f68330" font-size="10" font-weight="600" class="f-mono">Stream 1: Atomic FS &amp; Snapshot Rollback</text>
+    <!-- 3 Clean Visual Streams -->
+    <!-- Stream 1: Tasks & Files -->
+    <line x1="0" y1="148" x2="368" y2="148" stroke="#f68330" stroke-width="2.5" class="s-edge" />
+    <circle cx="0" cy="148" r="4.5" fill="#14161a" stroke="#f68330" stroke-width="2.2" />
+    <circle cx="368" cy="148" r="4.5" fill="#14161a" stroke="#f68330" stroke-width="2.2" />
+    <rect x="74" y="131" width="220" height="34" rx="10" fill="#1e2228" stroke="#323842" />
+    <text x="184" y="153" text-anchor="middle" fill="#fdba74" font-size="12.5" font-weight="600" class="sans">⚡ Commands &amp; File Changes</text>
 
-    <!-- Stream 2 -->
-    <path d="M 0 199 C 120 199, 256 199, 376 199" fill="none" stroke="#31c48d" stroke-width="2.2" class="s-edge" />
-    <circle cx="0" cy="199" r="4" fill="#181a1d" stroke="#31c48d" stroke-width="2" />
-    <circle cx="376" cy="199" r="4" fill="#181a1d" stroke="#31c48d" stroke-width="2" />
-    <rect x="58" y="175" width="260" height="22" rx="6" fill="#1d2024" stroke="#2e3238" />
-    <text x="72" y="190" fill="#31c48d" font-size="10" font-weight="600" class="f-mono">Stream 2: Persistent PTY &amp; Deep-Search</text>
+    <!-- Stream 2: Live Apps & Terminal -->
+    <line x1="0" y1="224" x2="368" y2="224" stroke="#38bdf8" stroke-width="2.5" class="s-edge" />
+    <circle cx="0" cy="224" r="4.5" fill="#14161a" stroke="#38bdf8" stroke-width="2.2" />
+    <circle cx="368" cy="224" r="4.5" fill="#14161a" stroke="#38bdf8" stroke-width="2.2" />
+    <rect x="74" y="207" width="220" height="34" rx="10" fill="#1e2228" stroke="#323842" />
+    <text x="184" y="229" text-anchor="middle" fill="#7dd3fc" font-size="12.5" font-weight="600" class="sans">🌐 Live Apps &amp; Terminal</text>
 
-    <!-- Stream 3 -->
-    <path d="M 0 274 C 120 274, 256 274, 376 274" fill="none" stroke="#38bdf8" stroke-width="2.2" class="s-edge" />
-    <circle cx="0" cy="274" r="4" fill="#181a1d" stroke="#38bdf8" stroke-width="2" />
-    <circle cx="376" cy="274" r="4" fill="#181a1d" stroke="#38bdf8" stroke-width="2" />
-    <rect x="58" y="250" width="260" height="22" rx="6" fill="#1d2024" stroke="#2e3238" />
-    <text x="72" y="265" fill="#38bdf8" font-size="10" font-weight="600" class="f-mono">Stream 3: 127.0.0.1 App &amp; P2P Tunnel</text>
+    <!-- Stream 3: Health & Status -->
+    <line x1="0" y1="300" x2="368" y2="300" stroke="#31c48d" stroke-width="2.5" class="s-edge" />
+    <circle cx="0" cy="300" r="4.5" fill="#14161a" stroke="#31c48d" stroke-width="2.2" />
+    <circle cx="368" cy="300" r="4.5" fill="#14161a" stroke="#31c48d" stroke-width="2.2" />
+    <rect x="74" y="283" width="220" height="34" rx="10" fill="#1e2228" stroke="#323842" />
+    <text x="184" y="305" text-anchor="middle" fill="#6ee7b7" font-size="12.5" font-weight="600" class="sans">🩺 Live Health Checks</text>
 
-    <!-- Stream 4 -->
-    <path d="M 0 349 C 120 349, 256 349, 376 349" fill="none" stroke="#a855f7" stroke-width="2.2" class="s-edge" />
-    <circle cx="0" cy="349" r="4" fill="#181a1d" stroke="#a855f7" stroke-width="2" />
-    <circle cx="376" cy="349" r="4" fill="#181a1d" stroke="#a855f7" stroke-width="2" />
-    <rect x="58" y="325" width="260" height="22" rx="6" fill="#1d2024" stroke="#2e3238" />
-    <text x="72" y="340" fill="#c084fc" font-size="10" font-weight="600" class="f-mono">Stream 4: 5s Telemetry &amp; Health Probes</text>
+    <!-- Bottom Reassurance Note -->
+    <rect x="48" y="346" width="272" height="30" rx="8" fill="#052e16" fill-opacity="0.5" stroke="#10b981" stroke-opacity="0.4" />
+    <text x="184" y="366" text-anchor="middle" fill="#6ee7b7" font-size="12" font-weight="600" class="sans">✓ Works Without Opening Firewall Ports</text>
   </g>
 
-  <!-- RIGHT: THE MUSCLE (axon Single-Binary Agent) -->
-  <g transform="translate(788, 32)">
-    <rect x="0" y="0" width="380" height="386" rx="12" fill="#1d2024" stroke="#31c48d" stroke-width="1.5" />
-    <rect x="16" y="16" width="110" height="22" rx="5" fill="#052e16" stroke="#31c48d" stroke-width="0.8" />
-    <text x="26" y="31" fill="#31c48d" font-size="10" font-weight="700" class="f-mono">THE MUSCLE</text>
-    <text x="138" y="31" fill="#ffffff" font-size="13" font-weight="700" class="f-sans">axon (Single-Binary Go Node)</text>
+  <!-- RIGHT CARD: THE MUSCLE (Server Helper) -->
+  <g transform="translate(784, 32)">
+    <rect x="0" y="0" width="380" height="356" rx="16" fill="#1b1e24" stroke="#31c48d" stroke-width="1.8" />
 
-    <!-- Box 1: Native FS, PTY & Deep-Search Engine -->
-    <rect x="16" y="52" width="348" height="96" rx="8" fill="#22252a" stroke="#2e3238" />
-    <text x="28" y="74" fill="#ffffff" font-size="12" font-weight="600" class="f-sans">Stateful PTY, Atomic FS &amp; Deep-Search</text>
-    <text x="28" y="94" fill="#9ca3af" font-size="10.5" class="f-mono">• Persistent bash (/dev/ptmx + /proc/pid/cwd)</text>
-    <text x="28" y="112" fill="#9ca3af" font-size="10.5" class="f-mono">• Atomic write, Unified Diff &amp; SQLite Inspect</text>
-    <text x="28" y="130" fill="#9ca3af" font-size="10.5" class="f-mono">• Process/Port Map, Log Forensics &amp; OpSec Scan</text>
+    <!-- Header Badge -->
+    <rect x="22" y="20" width="134" height="28" rx="14" fill="#052e16" stroke="#31c48d" stroke-width="1" />
+    <text x="89" y="38" text-anchor="middle" fill="#6ee7b7" font-size="12" font-weight="700" class="sans">🦾 THE MUSCLE</text>
+    <text x="170" y="39" fill="#ffffff" font-size="16" font-weight="700" class="sans">Your Linux Server</text>
+    <text x="22" y="68" fill="#9ca3af" font-size="13" class="sans">A lightweight helper on your server that does the work.</text>
 
-    <!-- Box 2: Hardcoded Deterministic Guardrails -->
-    <rect x="16" y="160" width="348" height="92" rx="8" fill="#22252a" stroke="#38bdf8" stroke-width="1" />
-    <text x="28" y="182" fill="#38bdf8" font-size="12" font-weight="600" class="f-sans">Hardcoded Deterministic Guardrails</text>
-    <text x="28" y="202" fill="#e4e7e9" font-size="10.5" class="f-mono">• Self-Lockout Protection (PID/Unit/Firewall)</text>
-    <text x="28" y="220" fill="#e4e7e9" font-size="10.5" class="f-mono">• Tier-2 Canonical Workspace Sandbox Jail</text>
-    <text x="28" y="238" fill="#e4e7e9" font-size="10.5" class="f-mono">• Real-time Secret Redaction Pipeline</text>
+    <!-- Item 1: Runs Tasks -->
+    <rect x="22" y="86" width="336" height="74" rx="12" fill="#22262e" stroke="#323842" />
+    <text x="40" y="116" fill="#ffffff" font-size="14.5" font-weight="700" class="sans">🛠️  Carries Out Your Tasks</text>
+    <text x="40" y="140" fill="#9ca3af" font-size="12.5" class="sans">Installs software, edits files, and restarts services.</text>
 
-    <!-- Box 3: Loopback Proxy & Telemetry Collector -->
-    <rect x="16" y="264" width="348" height="104" rx="8" fill="#22252a" stroke="#2e3238" />
-    <text x="28" y="286" fill="#ffffff" font-size="12" font-weight="600" class="f-sans">Loopback Dialer &amp; Health Collector</text>
-    <text x="28" y="306" fill="#9ca3af" font-size="10.5" class="f-mono">• Zero-Firewall 127.0.0.1:&lt;port&gt; forwarding</text>
-    <text x="28" y="324" fill="#9ca3af" font-size="10.5" class="f-mono">• 5s CPU / RAM / Disk telemetry (gopsutil)</text>
-    <text x="28" y="342" fill="#31c48d" font-size="10.5" class="f-mono">• Automated HTTP / TCP Service Health Probes</text>
+    <!-- Item 2: Built-In Safety Shield -->
+    <rect x="22" y="172" width="336" height="74" rx="12" fill="#22262e" stroke="#38bdf8" stroke-opacity="0.6" />
+    <text x="40" y="202" fill="#7dd3fc" font-size="14.5" font-weight="700" class="sans">🛡️  Built-In Safety Shield</text>
+    <text x="40" y="226" fill="#d1d5db" font-size="12.5" class="sans">Blocks dangerous commands and prevents lockouts.</text>
+
+    <!-- Item 3: Instant App Preview -->
+    <rect x="22" y="258" width="336" height="76" rx="12" fill="#22262e" stroke="#323842" />
+    <text x="40" y="288" fill="#ffffff" font-size="14.5" font-weight="700" class="sans">🚀  Private App Preview</text>
+    <text x="40" y="312" fill="#9ca3af" font-size="12.5" class="sans">Open apps running on your server right in your browser.</text>
   </g>
 </svg>

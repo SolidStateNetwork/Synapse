@@ -1,158 +1,133 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 380" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" width="100%" height="100%">
   <defs>
-    <pattern id="dot-grid" width="22" height="22" patternUnits="userSpaceOnUse">
-      <circle cx="11" cy="11" r="1.25" fill="#2e3238" />
+    <pattern id="dot-grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="12" r="1.2" fill="#262930" />
     </pattern>
     <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#16181b" />
-      <stop offset="50%" stop-color="#181a1d" />
-      <stop offset="100%" stop-color="#141619" />
+      <stop offset="0%" stop-color="#141619" />
+      <stop offset="50%" stop-color="#181b20" />
+      <stop offset="100%" stop-color="#131518" />
     </linearGradient>
-    <linearGradient id="accent-glow" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#f68330" stop-opacity="0.14" />
-      <stop offset="50%" stop-color="#38bdf8" stop-opacity="0.05" />
-      <stop offset="100%" stop-color="#31c48d" stop-opacity="0.14" />
+    <linearGradient id="card-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#20242a" />
+      <stop offset="100%" stop-color="#191c21" />
     </linearGradient>
     <style>
-      @keyframes dash-flow {
-        from { stroke-dashoffset: 24; }
+      @keyframes flow {
+        from { stroke-dashoffset: 28; }
         to { stroke-dashoffset: 0; }
       }
-      @keyframes pulse-dot {
-        0%, 100% { opacity: 1; r: 4; }
-        50% { opacity: 0.45; r: 6; }
+      .flow-line {
+        stroke-dasharray: 7 7;
+        animation: flow 1.1s linear infinite;
       }
-      .anim-edge {
-        stroke-dasharray: 6 6;
-        animation: dash-flow 0.9s linear infinite;
-      }
-      .pulse {
-        animation: pulse-dot 2s ease-in-out infinite;
-      }
-      .font-sans {
+      .sans {
         font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
-      }
-      .font-mono {
-        font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
       }
     </style>
   </defs>
 
-  <!-- Outer Frame -->
-  <rect width="1200" height="380" rx="16" fill="url(#bg-grad)" stroke="#292d33" stroke-width="1.5" />
-  <rect width="1200" height="380" rx="16" fill="url(#dot-grid)" />
-  <rect width="1200" height="380" rx="16" fill="url(#accent-glow)" />
+  <!-- Background Frame -->
+  <rect width="1200" height="360" rx="18" fill="url(#bg-grad)" stroke="#2b3038" stroke-width="1.5" />
+  <rect width="1200" height="360" rx="18" fill="url(#dot-grid)" />
 
-  <!-- TOP SECTION: BRAND HEADER & AI-MANAGED TAGLINE -->
-  <g transform="translate(48, 30)">
-    <!-- Logo Icon -->
-    <rect x="0" y="0" width="56" height="56" rx="14" fill="#341b09" stroke="#f68330" stroke-width="1.5" />
-    <circle cx="28" cy="18" r="4" fill="#f68330" />
-    <circle cx="17" cy="37" r="4" fill="#f68330" />
-    <circle cx="39" cy="37" r="4" fill="#f68330" />
-    <path d="M 28 22 L 19 34 M 28 22 L 37 34 M 21 37 L 35 37" stroke="#f68330" stroke-width="2.2" />
+  <!-- Top Brand Header -->
+  <g transform="translate(52, 34)">
+    <!-- Synapse Icon -->
+    <rect x="0" y="0" width="54" height="54" rx="14" fill="#341b09" stroke="#f68330" stroke-width="1.5" />
+    <circle cx="27" cy="17" r="4.2" fill="#f68330" />
+    <circle cx="16" cy="36" r="4.2" fill="#f68330" />
+    <circle cx="38" cy="36" r="4.2" fill="#f68330" />
+    <path d="M 27 21 L 18 33 M 27 21 L 36 33 M 20 36 L 34 36" stroke="#f68330" stroke-width="2.2" stroke-linecap="round" />
 
-    <!-- Brand Name + Version Badge -->
-    <text x="72" y="39" fill="#ffffff" font-size="38" font-weight="700" letter-spacing="-0.8" class="font-sans">Synapse</text>
-    <rect x="236" y="14" width="66" height="24" rx="6" fill="#341b09" stroke="#f68330" stroke-width="1" />
-    <text x="249" y="30" fill="#f68330" font-size="11.5" font-weight="600" class="font-mono">v0.2.0</text>
-    <rect x="310" y="14" width="76" height="24" rx="6" fill="#1d2024" stroke="#2e3238" stroke-width="1" />
-    <text x="322" y="30" fill="#e4e7e9" font-size="10.5" font-weight="600" class="font-mono">DE | EN</text>
+    <!-- Brand Name & Tagline -->
+    <text x="72" y="34" fill="#ffffff" font-size="34" font-weight="800" letter-spacing="-0.6" class="sans">Synapse</text>
+    <text x="228" y="33" fill="#9ca3af" font-size="18" font-weight="500" class="sans">— Your AI System Administrator for Linux Servers</text>
 
-    <!-- Right-Aligned Status Pill -->
-    <rect x="740" y="12" width="364" height="30" rx="15" fill="#1d2024" stroke="#2e3238" stroke-width="1" />
-    <circle cx="758" cy="27" r="4" fill="#31c48d" class="pulse" />
-    <text x="772" y="31" fill="#ffffff" font-size="11" font-weight="600" class="font-sans">AI-MANAGED CONTROL CENTER</text>
-    <text x="954" y="31" fill="#5e6570" font-size="11" class="font-sans">|</text>
-    <text x="966" y="31" fill="#f68330" font-size="11" font-weight="600" class="font-mono">mTLS 1.3 + Yamux</text>
-
-    <!-- Main Headline & Subtitle -->
-    <text x="0" y="86" fill="#ffffff" font-size="19.5" font-weight="600" class="font-sans">
-      Your AI-Managed Linux Server &amp; DevOps Control Center
-    </text>
-    <text x="0" y="112" fill="#9ca3af" font-size="13.5" class="font-sans">
-      Inspect, deploy, secure, and repair your Linux servers alongside an interactive AI system administrator — with full visual control.
+    <!-- Simple 1-line explanation -->
+    <text x="72" y="58" fill="#d1d5db" font-size="14.5" class="sans">
+      Tell the AI what you need in plain language. Synapse plans the steps, checks your safety rules, and manages your servers visually.
     </text>
   </g>
 
-  <!-- Divider Line -->
-  <line x1="48" y1="168" x2="1152" y2="168" stroke="#25282d" stroke-width="1" />
+  <!-- Subtle Divider -->
+  <line x1="52" y1="116" x2="1148" y2="116" stroke="#262a32" stroke-width="1" />
 
-  <!-- BOTTOM SECTION: 3-COLUMN TOPOLOGY PREVIEW (Servers -> Core Brain Hub -> Exposed Services & AI Copilot) -->
-  <!-- Animated Connector Edges: Left Servers (x=358) -> Center Core Hub (x=450) -->
-  <path d="M 358 232 C 400 232, 405 268, 450 268" fill="none" stroke="#f68330" stroke-width="2" class="anim-edge" />
-  <path d="M 358 312 C 400 312, 405 268, 450 268" fill="none" stroke="#f68330" stroke-width="2" class="anim-edge" />
+  <!-- Flow Connectors between the 3 Steps -->
+  <g>
+    <!-- Connector 1 -> 2 -->
+    <line x1="382" y1="228" x2="438" y2="228" stroke="#f68330" stroke-width="2.5" class="flow-line" />
+    <polygon points="436,222 446,228 436,234" fill="#f68330" />
 
-  <!-- Animated Connector Edges: Center Core Hub (x=750) -> Right Services & AI Skills (x=842) -->
-  <path d="M 750 248 C 795 248, 800 222, 842 222" fill="none" stroke="#38bdf8" stroke-width="2" class="anim-edge" />
-  <path d="M 750 268 C 795 268, 800 272, 842 272" fill="none" stroke="#31c48d" stroke-width="2" class="anim-edge" />
-  <path d="M 750 288 C 795 288, 800 322, 842 322" fill="none" stroke="#a855f7" stroke-width="2" class="anim-edge" />
-
-  <!-- 1. LEFT COLUMN: CONNECTED MUSCLE SERVERS (`axon`) -->
-  <g transform="translate(48, 194)">
-    <rect x="0" y="0" width="310" height="72" rx="12" fill="#1d2024" stroke="#2e3238" stroke-width="1.5" />
-    <rect x="14" y="18" width="34" height="34" rx="8" fill="#16181b" stroke="#292d33" />
-    <circle cx="62" cy="27" r="3.5" fill="#31c48d" />
-    <text x="72" y="31" fill="#ffffff" font-size="13" font-weight="700" class="font-mono">vps2-muscle</text>
-    <text x="58" y="49" fill="#9ca3af" font-size="10.5" class="font-mono">217.154.20.24 · Tier 1 · CPU 0.5%</text>
-    <circle cx="310" cy="38" r="4" fill="#181a1d" stroke="#f68330" stroke-width="2" />
+    <!-- Connector 2 -> 3 -->
+    <line x1="758" y1="228" x2="814" y2="228" stroke="#31c48d" stroke-width="2.5" class="flow-line" />
+    <polygon points="812,222 822,228 812,234" fill="#31c48d" />
   </g>
 
-  <g transform="translate(48, 276)">
-    <rect x="0" y="0" width="310" height="72" rx="12" fill="#1d2024" stroke="#2e3238" stroke-width="1.5" />
-    <rect x="14" y="18" width="34" height="34" rx="8" fill="#16181b" stroke="#292d33" />
-    <circle cx="62" cy="27" r="3.5" fill="#31c48d" />
-    <text x="72" y="31" fill="#ffffff" font-size="13" font-weight="700" class="font-mono">vps2-db-node</text>
-    <text x="58" y="49" fill="#9ca3af" font-size="10.5" class="font-mono">217.154.20.24 · Tier 2 Sandbox</text>
-    <circle cx="310" cy="36" r="4" fill="#181a1d" stroke="#f68330" stroke-width="2" />
+  <!-- STEP 1: YOU ASK IN CHAT -->
+  <g transform="translate(52, 144)">
+    <rect x="0" y="0" width="330" height="172" rx="16" fill="url(#card-grad)" stroke="#323842" stroke-width="1.5" />
+
+    <!-- Step Pill -->
+    <rect x="22" y="20" width="90" height="26" rx="13" fill="#1e293b" stroke="#38bdf8" stroke-width="1" />
+    <text x="67" y="37" text-anchor="middle" fill="#7dd3fc" font-size="11.5" font-weight="700" class="sans">1. YOU ASK</text>
+
+    <!-- Chat Icon -->
+    <circle cx="290" cy="33" r="16" fill="#172536" stroke="#38bdf8" stroke-width="1.2" />
+    <path d="M 283 28 H 297 V 36 H 288 L 283 40 Z" fill="none" stroke="#38bdf8" stroke-width="1.6" stroke-linejoin="round" />
+
+    <!-- Headline -->
+    <text x="22" y="74" fill="#ffffff" font-size="18" font-weight="700" class="sans">Chat in Plain Language</text>
+    <text x="22" y="97" fill="#9ca3af" font-size="13" class="sans">No complex terminal commands needed.</text>
+
+    <!-- Example Bubble -->
+    <rect x="22" y="114" width="286" height="38" rx="10" fill="#14171b" stroke="#2b3038" />
+    <text x="36" y="138" fill="#e5e7eb" font-size="13" font-weight="500" class="sans">“Check my server and deploy my website”</text>
   </g>
 
-  <!-- 2. CENTER CARD: SYNAPSE CORE HUB (BRAIN VAULT + AI ORCHESTRATOR) -->
-  <g transform="translate(450, 200)">
-    <rect x="0" y="0" width="300" height="140" rx="14" fill="#1d2024" stroke="#f68330" stroke-width="1.5" />
-    <rect x="16" y="16" width="38" height="38" rx="10" fill="#341b09" stroke="#f68330" stroke-width="1" />
-    <circle cx="35" cy="35" r="6" fill="#f68330" />
-    <text x="66" y="31" fill="#ffffff" font-size="14" font-weight="700" class="font-sans">Synapse Core Hub</text>
-    <text x="66" y="48" fill="#f68330" font-size="11" font-weight="600" class="font-mono">AI Orchestrator · Brain Vault</text>
+  <!-- STEP 2: SYNAPSE AI PLANS & PROTECTS -->
+  <g transform="translate(446, 144)">
+    <rect x="0" y="0" width="312" height="172" rx="16" fill="url(#card-grad)" stroke="#f68330" stroke-width="1.5" />
 
-    <line x1="16" y1="66" x2="284" y2="66" stroke="#292d33" />
+    <!-- Step Pill -->
+    <rect x="22" y="20" width="114" height="26" rx="13" fill="#341b09" stroke="#f68330" stroke-width="1" />
+    <text x="79" y="37" text-anchor="middle" fill="#fdba74" font-size="11.5" font-weight="700" class="sans">2. SYNAPSE AI</text>
 
-    <rect x="16" y="78" width="128" height="24" rx="6" fill="#052e16" stroke="#31c48d" stroke-width="0.8" />
-    <text x="26" y="94" fill="#31c48d" font-size="10" font-weight="600" class="font-mono">✓ Rules Active</text>
+    <!-- Brain / Sparkle Icon -->
+    <circle cx="272" cy="33" r="16" fill="#341b09" stroke="#f68330" stroke-width="1.2" />
+    <path d="M 272 24 L 274.5 30.5 L 281 33 L 274.5 35.5 L 272 42 L 269.5 35.5 L 263 33 L 269.5 30.5 Z" fill="#f68330" />
 
-    <rect x="154" y="78" width="130" height="24" rx="6" fill="#082f49" stroke="#38bdf8" stroke-width="0.8" />
-    <text x="164" y="94" fill="#38bdf8" font-size="10" font-weight="600" class="font-mono">⚡ Prompt Cache</text>
+    <!-- Headline -->
+    <text x="22" y="74" fill="#ffffff" font-size="18" font-weight="700" class="sans">Thinks, Plans &amp; Checks Rules</text>
+    <text x="22" y="97" fill="#9ca3af" font-size="13" class="sans">Knows your project and respects your limits.</text>
 
-    <text x="16" y="122" fill="#9ca3af" font-size="10.5" class="font-mono">Architecture.md · Memory.md · Secrets.enc</text>
+    <!-- Visual Badges -->
+    <rect x="22" y="114" width="130" height="38" rx="10" fill="#14171b" stroke="#2b3038" />
+    <text x="87" y="138" text-anchor="middle" fill="#fdba74" font-size="12.5" font-weight="600" class="sans">🧠 Project Memory</text>
 
-    <circle cx="0" cy="68" r="4" fill="#181a1d" stroke="#f68330" stroke-width="2" />
-    <circle cx="300" cy="48" r="4" fill="#181a1d" stroke="#38bdf8" stroke-width="2" />
-    <circle cx="300" cy="68" r="4" fill="#181a1d" stroke="#31c48d" stroke-width="2" />
-    <circle cx="300" cy="88" r="4" fill="#181a1d" stroke="#a855f7" stroke-width="2" />
+    <rect x="160" y="114" width="130" height="38" rx="10" fill="#14171b" stroke="#2b3038" />
+    <text x="225" y="138" text-anchor="middle" fill="#6ee7b7" font-size="12.5" font-weight="600" class="sans">🛡️ Safety Shield</text>
   </g>
 
-  <!-- 3. RIGHT COLUMN: INTERACTIVE AI SKILLS, SERVICES & INTERVIEW MODE -->
-  <g transform="translate(842, 198)">
-    <rect x="0" y="0" width="310" height="44" rx="10" fill="#1d2024" stroke="#38bdf8" stroke-width="1.2" />
-    <circle cx="0" cy="22" r="3.5" fill="#181a1d" stroke="#38bdf8" stroke-width="1.8" />
-    <circle cx="18" cy="22" r="4" fill="#38bdf8" />
-    <text x="32" y="26" fill="#ffffff" font-size="11.5" font-weight="600" class="font-sans">Live Service &amp; SQLite Proxy</text>
-    <text x="232" y="26" fill="#38bdf8" font-size="10" font-weight="600" class="font-mono">ZERO-PORT</text>
-  </g>
+  <!-- STEP 3: YOUR SERVERS RUN IT -->
+  <g transform="translate(822, 144)">
+    <rect x="0" y="0" width="326" height="172" rx="16" fill="url(#card-grad)" stroke="#31c48d" stroke-width="1.5" />
 
-  <g transform="translate(842, 250)">
-    <rect x="0" y="0" width="310" height="44" rx="10" fill="#1d2024" stroke="#31c48d" stroke-width="1.2" />
-    <circle cx="0" cy="22" r="3.5" fill="#181a1d" stroke="#31c48d" stroke-width="1.8" />
-    <circle cx="18" cy="22" r="4" fill="#31c48d" />
-    <text x="32" y="26" fill="#ffffff" font-size="11.5" font-weight="600" class="font-sans">1-Click DevOps Skills &amp; Audits</text>
-    <text x="236" y="26" fill="#31c48d" font-size="10" font-weight="600" class="font-mono">4 SKILLS</text>
-  </g>
+    <!-- Step Pill -->
+    <rect x="22" y="20" width="132" height="26" rx="13" fill="#052e16" stroke="#31c48d" stroke-width="1" />
+    <text x="88" y="37" text-anchor="middle" fill="#6ee7b7" font-size="11.5" font-weight="700" class="sans">3. YOUR SERVERS</text>
 
-  <g transform="translate(842, 302)">
-    <rect x="0" y="0" width="310" height="44" rx="10" fill="#1d2024" stroke="#a855f7" stroke-width="1.2" />
-    <circle cx="0" cy="22" r="3.5" fill="#181a1d" stroke="#a855f7" stroke-width="1.8" />
-    <circle cx="18" cy="22" r="4" fill="#c084fc" />
-    <text x="32" y="26" fill="#ffffff" font-size="11.5" font-weight="600" class="font-sans">Step-by-Step Interview Mode</text>
-    <text x="230" y="26" fill="#c084fc" font-size="10" font-weight="600" class="font-mono">APPROVAL</text>
+    <!-- Server Check Icon -->
+    <circle cx="286" cy="33" r="16" fill="#052e16" stroke="#31c48d" stroke-width="1.2" />
+    <path d="M 279 33 L 284 38 L 293 28" fill="none" stroke="#31c48d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Headline -->
+    <text x="22" y="74" fill="#ffffff" font-size="18" font-weight="700" class="sans">Done Safely &amp; Visually</text>
+    <text x="22" y="97" fill="#9ca3af" font-size="13" class="sans">Apps, files, and databases stay healthy.</text>
+
+    <!-- Status Row -->
+    <rect x="22" y="114" width="282" height="38" rx="10" fill="#052e16" fill-opacity="0.5" stroke="#31c48d" stroke-opacity="0.5" />
+    <circle cx="42" cy="133" r="5" fill="#31c48d" />
+    <text x="56" y="138" fill="#ecfdf5" font-size="13" font-weight="600" class="sans">Website, Database &amp; Server Healthy</text>
   </g>
 </svg>
