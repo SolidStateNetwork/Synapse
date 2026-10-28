@@ -1248,13 +1248,13 @@ export default function InteractiveControlCenterCanvas({
           x: Math.round(basePos.x + extraShiftX),
           y: Math.round(startY + extraShiftY),
         };
-        if (expandedNodes[k] || customDims[k]?.minH) {
+        if (expandedNodes[k]) {
           const actualH =
             sizes[k]?.h ||
             customDims[k]?.minH ||
-            (expandedNodes[k] ? fallbackExpandedH : baseH);
+            fallbackExpandedH;
           const delta = Math.max(0, actualH - baseH);
-          extraShiftY += delta + (expandedNodes[k] ? 10 : 0);
+          extraShiftY += delta + 10;
         }
       });
     };
@@ -1609,15 +1609,18 @@ export default function InteractiveControlCenterCanvas({
     e.preventDefault();
     e.stopPropagation();
     const el = nodeRefs.current[nodeId];
+    const effectiveMode: "w" | "wh" = expandedNodes[nodeId] ? mode : "w";
     const origW =
       customDims[nodeId]?.w || el?.offsetWidth || DEFAULT_NODE_W;
     const origH =
-      customDims[nodeId]?.minH || el?.offsetHeight || 66;
+      (expandedNodes[nodeId] ? customDims[nodeId]?.minH : undefined) ||
+      el?.offsetHeight ||
+      66;
     lastDragMovedRef.current = false;
     setResizingNodeId(nodeId);
     resizeStartRef.current = {
       nodeId,
-      mode,
+      mode: effectiveMode,
       startClientX: e.clientX,
       startClientY: e.clientY,
       origW,
@@ -1636,10 +1639,10 @@ export default function InteractiveControlCenterCanvas({
     setTimeout(measureNodes, 25);
   }
 
-  function renderResizeHandles(nodeId: string) {
+  function renderResizeHandles(nodeId: string, isExpanded: boolean) {
     return (
       <>
-        {/* Right-edge width resize strip (flush with parent rounded-2xl card) */}
+        {/* Right-edge width resize strip (flush with parent rounded-xl card) */}
         <div
           data-resize-handle="true"
           onPointerDown={(e) => startNodeResize(e, nodeId, "w")}
@@ -1649,19 +1652,30 @@ export default function InteractiveControlCenterCanvas({
             "Ziehen, um Breite zu ändern (Doppelklick = Standardgröße)",
             "Drag to resize width (Double-click = reset size)"
           )}
-          className="absolute inset-y-0 right-0 w-2 cursor-ew-resize rounded-r-[15px] hover:bg-netbird/35 transition-colors z-20"
+          className="absolute inset-y-0 right-0 w-2 cursor-ew-resize rounded-r-xl hover:bg-netbird/35 transition-colors z-20"
         />
-        {/* Bottom-right corner 2D resize grip */}
+        {/* Bottom-right corner resize grip (width-only when collapsed, 2D width+height when expanded) */}
         <div
           data-resize-handle="true"
-          onPointerDown={(e) => startNodeResize(e, nodeId, "wh")}
+          onPointerDown={(e) =>
+            startNodeResize(e, nodeId, isExpanded ? "wh" : "w")
+          }
           onDoubleClick={(e) => resetNodeSize(e, nodeId)}
           onClick={(e) => e.stopPropagation()}
-          title={t(
-            "Ecke ziehen, um Größe frei zu ändern (Doppelklick = Zurücksetzen)",
-            "Drag corner to resize box (Double-click = reset)"
-          )}
-          className="absolute bottom-1 right-1 flex h-4 w-4 cursor-nwse-resize items-end justify-end p-0.5 text-nb-gray-500 hover:text-netbird transition-colors z-30"
+          title={
+            isExpanded
+              ? t(
+                  "Ecke ziehen, um Breite & Höhe frei zu ändern (Doppelklick = Zurücksetzen)",
+                  "Drag corner to resize width & height (Double-click = reset)"
+                )
+              : t(
+                  "Ziehen, um Breite zu ändern (Doppelklick = Zurücksetzen)",
+                  "Drag to resize width (Double-click = reset)"
+                )
+          }
+          className={`absolute bottom-1 right-1 flex h-4 w-4 ${
+            isExpanded ? "cursor-nwse-resize" : "cursor-ew-resize"
+          } items-end justify-end p-0.5 text-nb-gray-500 hover:text-netbird transition-colors z-30`}
         >
           <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
             <path
@@ -2257,7 +2271,7 @@ export default function InteractiveControlCenterCanvas({
                 top: `${Math.round(pos.y)}px`,
                 width: `${customW}px`,
                 minWidth: `${MIN_NODE_W}px`,
-                minHeight: customMinH ? `${customMinH}px` : undefined,
+                minHeight: isExpanded && customMinH ? `${customMinH}px` : undefined,
                 zIndex:
                   draggingNodeId === nodeKey || resizingNodeId === nodeKey
                     ? 30
@@ -2291,7 +2305,7 @@ export default function InteractiveControlCenterCanvas({
                   : "border-nb-gray-800"
               }`}
             >
-              {renderResizeHandles(nodeKey)}
+              {renderResizeHandles(nodeKey, isExpanded)}
               {gn.node_id === "empty" ? (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-nb-gray-300">
@@ -2803,7 +2817,7 @@ export default function InteractiveControlCenterCanvas({
                 top: `${Math.round(pos.y)}px`,
                 width: `${customW}px`,
                 minWidth: `${MIN_NODE_W}px`,
-                minHeight: customMinH ? `${customMinH}px` : undefined,
+                minHeight: isExpanded && customMinH ? `${customMinH}px` : undefined,
                 zIndex:
                   draggingNodeId === nodeKey || resizingNodeId === nodeKey
                     ? 30
@@ -2832,7 +2846,7 @@ export default function InteractiveControlCenterCanvas({
                   : "border-nb-gray-800"
               }`}
             >
-              {renderResizeHandles(nodeKey)}
+              {renderResizeHandles(nodeKey, isExpanded)}
                       <div className="flex items-center justify-between gap-2">
                         <div className=" flex items-center gap-3 min-w-0">
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-netbird-500/40 bg-netbird-950 text-netbird">
@@ -3125,7 +3139,7 @@ export default function InteractiveControlCenterCanvas({
                 top: `${Math.round(pos.y)}px`,
                 width: `${customW}px`,
                 minWidth: `${MIN_NODE_W}px`,
-                minHeight: customMinH ? `${customMinH}px` : undefined,
+                minHeight: isExpanded && customMinH ? `${customMinH}px` : undefined,
                 zIndex:
                   draggingNodeId === nodeKey || resizingNodeId === nodeKey
                     ? 30
@@ -3156,7 +3170,7 @@ export default function InteractiveControlCenterCanvas({
                   : "border-nb-gray-800"
               }`}
             >
-              {renderResizeHandles(nodeKey)}
+              {renderResizeHandles(nodeKey, isExpanded)}
               {svc.service_id === "empty" ? (
                 <div className="text-xs text-nb-gray-400 py-1">
                   {t(
