@@ -22,6 +22,11 @@ code {
   user-select: text;
 }
 
+button:focus,
+button:focus-visible {
+  outline: none;
+}
+
 /* NetBird Control Center Dot-Grid Canvas Background */
 .nb-canvas-grid {
   background-color: #14161a;

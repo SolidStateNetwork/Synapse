@@ -2352,7 +2352,7 @@ export default function InteractiveControlCenterCanvas({
                               "Expand details inside node"
                             )
                       }
-                      className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white transition"
+                      className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white focus:outline-none focus-visible:outline-none transition"
                     >
                       {isExpanded ? (
                         <ChevronUp className="h-4 w-4" />
@@ -2881,7 +2881,7 @@ export default function InteractiveControlCenterCanvas({
                                   "Expand Core Hub details"
                                 )
                           }
-                          className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white transition"
+                          className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white focus:outline-none focus-visible:outline-none transition"
                         >
                           {isExpanded ? (
                             <ChevronUp className="h-4 w-4" />
@@ -3228,7 +3228,7 @@ export default function InteractiveControlCenterCanvas({
                               "Expand endpoints & actions"
                             )
                       }
-                      className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white transition"
+                      className="rounded-md p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white focus:outline-none focus-visible:outline-none transition"
                     >
                       {isExpanded ? (
                         <ChevronUp className="h-4 w-4" />
