@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import {
   Activity,
+  ArrowLeftRight,
   Bell,
   Bot,
   ChevronDown,
@@ -2440,15 +2441,17 @@ export default function InteractiveControlCenterCanvas({
                       {/* FEATURE 2: LIVE TIME-SERIES TELEMETRY SPARKLINES */}
                       {hb && (
                         <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[10px] space-y-1.5">
-                          <div className="flex items-center justify-between text-[9px] text-nb-gray-400">
-                            <span className="flex items-center gap-1">
-                              <Activity className="h-3 w-3 text-netbird" />
-                              {t(
-                                "Live-Zeitreihen (Telemetrie)",
-                                "Live Time-Series Telemetry"
-                              )}
+                          <div className="flex items-center justify-between text-[9px] leading-none text-nb-gray-400">
+                            <span className="inline-flex items-center gap-1.5 leading-none">
+                              <Activity className="h-3 w-3 shrink-0 text-netbird" />
+                              <span>
+                                {t(
+                                  "Live-Zeitreihen (Telemetrie)",
+                                  "Live Time-Series Telemetry"
+                                )}
+                              </span>
                             </span>
-                            <span className="text-emerald-400">
+                            <span className="text-emerald-400 leading-none">
                               {history.length || 1} {t("Messpunkte", "Samples")}
                             </span>
                           </div>
@@ -2510,19 +2513,22 @@ export default function InteractiveControlCenterCanvas({
                       {/* FEATURE 4: 1-CLICK SNAP & ROLLBACK TIME-MACHINE CHECKPOINTS */}
                       <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
-                            <History className="h-3 w-3 text-amber-400" />
-                            {t("Time-Machine Checkpoints", "Time-Machine Checkpoints")}
+                          <span className="inline-flex items-center gap-1.5 font-mono text-[9.5px] leading-none uppercase tracking-wider text-nb-gray-300">
+                            <History className="h-3 w-3 shrink-0 text-amber-400" />
+                            <span>{t("Time-Machine Checkpoints", "Time-Machine Checkpoints")}</span>
                           </span>
                           <button
                             type="button"
                             disabled={checkpointBusyId === "create" || authRole === "operator"}
                             onClick={() => handleCreateCheckpoint(gn.node_id)}
-                            className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-amber-300 hover:bg-amber-500/25 disabled:opacity-50 transition"
+                            className="inline-flex items-center justify-center gap-1 rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1 font-mono text-[9px] leading-none font-semibold text-amber-300 hover:bg-amber-500/25 disabled:opacity-50 transition"
                           >
-                            {checkpointBusyId === "create"
-                              ? t("Speichert...", "Saving...")
-                              : t("+ Snapshot", "+ Snapshot")}
+                            <Plus className="h-2.5 w-2.5 shrink-0" />
+                            <span>
+                              {checkpointBusyId === "create"
+                                ? t("Speichert...", "Saving...")
+                                : t("Snapshot", "Snapshot")}
+                            </span>
                           </button>
                         </div>
                         {checkpointNotice && (
@@ -2571,15 +2577,15 @@ export default function InteractiveControlCenterCanvas({
                       {/* ROUND-2 FEATURE 3: LIVE SSH-INTRUSION-RADAR & AUTO-ATTACKER BLOCKER */}
                       <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
-                            <Shield className="h-3 w-3 text-red-400" />
-                            {t("SSH-Intrusion-Radar", "SSH Intrusion Radar")}
+                          <span className="inline-flex items-center gap-1.5 font-mono text-[9.5px] leading-none uppercase tracking-wider text-nb-gray-300">
+                            <Shield className="h-3 w-3 shrink-0 text-red-400" />
+                            <span>{t("SSH-Intrusion-Radar", "SSH Intrusion Radar")}</span>
                           </span>
                           <button
                             type="button"
                             disabled={intrusionBusyNode === gn.node_id}
                             onClick={() => handleScanIntrusions(gn.node_id)}
-                            className="rounded border border-red-500/40 bg-red-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-red-300 hover:bg-red-500/25 disabled:opacity-50 transition"
+                            className="inline-flex items-center justify-center rounded border border-red-500/40 bg-red-500/15 px-2 py-1 font-mono text-[9px] leading-none font-semibold text-red-300 hover:bg-red-500/25 disabled:opacity-50 transition"
                           >
                             {intrusionBusyNode === gn.node_id
                               ? t("Scannt...", "Scanning...")
@@ -2661,12 +2667,14 @@ export default function InteractiveControlCenterCanvas({
                       {/* ROUND-2 FEATURE 4: AUTOMATED ENCRYPTED OFFSITE BACKUPS (AES-256-GCM) */}
                       <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
-                            <KeyRound className="h-3 w-3 text-sky-400" />
-                            {t(
-                              "Offsite Core-Backups (AES-256)",
-                              "Offsite Core Backups (AES-256)"
-                            )}
+                          <span className="inline-flex items-center gap-1.5 font-mono text-[9.5px] leading-none uppercase tracking-wider text-nb-gray-300">
+                            <KeyRound className="h-3 w-3 shrink-0 text-sky-400" />
+                            <span>
+                              {t(
+                                "Offsite Core-Backups (AES-256)",
+                                "Offsite Core Backups (AES-256)"
+                              )}
+                            </span>
                           </span>
                           <button
                             type="button"
@@ -2675,11 +2683,14 @@ export default function InteractiveControlCenterCanvas({
                               authRole === "operator"
                             }
                             onClick={() => handleCreateOffsiteBackup(gn.node_id)}
-                            className="rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-sky-300 hover:bg-sky-500/25 disabled:opacity-50 transition"
+                            className="inline-flex items-center justify-center gap-1 rounded border border-sky-500/40 bg-sky-500/15 px-2 py-1 font-mono text-[9px] leading-none font-semibold text-sky-300 hover:bg-sky-500/25 disabled:opacity-50 transition"
                           >
-                            {backupBusyId === "create"
-                              ? t("Verschlüsselt...", "Encrypting...")
-                              : t("+ Core-Backup", "+ Core Backup")}
+                            <Plus className="h-2.5 w-2.5 shrink-0" />
+                            <span>
+                              {backupBusyId === "create"
+                                ? t("Verschlüsselt...", "Encrypting...")
+                                : t("Core-Backup", "Core Backup")}
+                            </span>
                           </button>
                         </div>
                         {backupNotice && (
@@ -2930,11 +2941,11 @@ export default function InteractiveControlCenterCanvas({
                           {/* 2. SECURITY CARTRIDGES TOGGLE LIST */}
                           <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
-                                <Shield className="h-3 w-3 text-emerald-400" />
-                                {t("Sicherheits-Cartridges", "Security Cartridges")}
+                              <span className="inline-flex items-center gap-1.5 font-mono text-[9.5px] leading-none uppercase tracking-wider text-nb-gray-300">
+                                <Shield className="h-3 w-3 shrink-0 text-emerald-400" />
+                                <span>{t("Sicherheits-Cartridges", "Security Cartridges")}</span>
                               </span>
-                              <span className="font-mono text-[9px] text-emerald-400">
+                              <span className="font-mono text-[9px] leading-none text-emerald-400">
                                 {activeCartridges.length}/{cartridges.length}{" "}
                                 {t("aktiv", "active")}
                               </span>
@@ -2971,11 +2982,11 @@ export default function InteractiveControlCenterCanvas({
                           {blueprints.length > 0 && (
                             <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
                               <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
-                                  <Sparkles className="h-3 w-3 text-sky-400" />
-                                  {t("1-Click Blueprints", "1-Click Blueprints")}
+                                <span className="inline-flex items-center gap-1.5 font-mono text-[9.5px] leading-none uppercase tracking-wider text-nb-gray-300">
+                                  <Sparkles className="h-3 w-3 shrink-0 text-sky-400" />
+                                  <span>{t("1-Click Blueprints", "1-Click Blueprints")}</span>
                                 </span>
-                                <span className="font-mono text-[9px] text-nb-gray-400">
+                                <span className="font-mono text-[9px] leading-none text-nb-gray-400">
                                   {blueprints.length} {t("Vorlagen", "Templates")}
                                 </span>
                               </div>
@@ -3222,23 +3233,26 @@ export default function InteractiveControlCenterCanvas({
                       {/* FEATURE 1: AUTO-DISCOVERY RUNTIME & CONTAINER BADGES */}
                       <div className="flex flex-wrap items-center gap-1.5">
                         {svc.auto_discovered && (
-                          <span className="rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-sky-300">
+                          <span className="inline-flex items-center justify-center rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-1 font-mono text-[9px] leading-none font-semibold text-sky-300">
                             {t("AUTO-ERKANNT", "AUTO-DISCOVERED")}
                           </span>
                         )}
                         {svc.container_name && (
-                          <span className="rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[9px] text-sky-300 truncate max-w-[180px]">
-                            🐳 {svc.container_name}
+                          <span className="inline-flex items-center gap-1 rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-1 font-mono text-[9px] leading-none text-sky-300 truncate max-w-[180px]">
+                            <Server className="h-2.5 w-2.5 shrink-0 text-sky-400" />
+                            <span className="truncate">{svc.container_name}</span>
                           </span>
                         )}
                         {svc.process_name && (
-                          <span className="rounded border border-nb-gray-700 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-300">
-                            ⚙ {svc.process_name}
+                          <span className="inline-flex items-center gap-1 rounded border border-nb-gray-700 bg-nb-gray-950 px-1.5 py-1 font-mono text-[9px] leading-none text-nb-gray-300">
+                            <Cpu className="h-2.5 w-2.5 shrink-0 text-nb-gray-400" />
+                            <span>{svc.process_name}</span>
                           </span>
                         )}
                         {domainBindings[svc.service_id]?.domain && (
-                          <span className="rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[9px] text-emerald-300 truncate max-w-[200px]">
-                            🔒 https://{domainBindings[svc.service_id].domain}
+                          <span className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-1 font-mono text-[9px] leading-none text-emerald-300 truncate max-w-[200px]">
+                            <Lock className="h-2.5 w-2.5 shrink-0 text-emerald-400" />
+                            <span className="truncate">https://{domainBindings[svc.service_id].domain}</span>
                           </span>
                         )}
                       </div>
@@ -3283,15 +3297,17 @@ export default function InteractiveControlCenterCanvas({
 
                       {/* FEATURE 6: SERVICE-TO-SERVICE MESH LINKS */}
                       {allServices.length > 1 && (
-                        <div className="space-y-1 rounded-lg border border-nb-gray-800/80 bg-nb-gray-950 p-2">
-                          <div className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider text-sky-300">
-                            <Link2 className="h-3 w-3" />
-                            {t(
-                              "Service-Mesh Datenfluss-Verbindungen",
-                              "Service-Mesh Data Flow Links"
-                            )}
+                        <div className="space-y-2 rounded-lg border border-nb-gray-800/80 bg-nb-gray-950 p-2.5">
+                          <div className="flex items-center gap-1.5 font-mono text-[9.5px] leading-none uppercase tracking-wider text-sky-300">
+                            <Link2 className="h-3 w-3 shrink-0 text-sky-400" />
+                            <span>
+                              {t(
+                                "Service-Mesh Datenfluss-Verbindungen",
+                                "Service-Mesh Data Flow Links"
+                              )}
+                            </span>
                           </div>
-                          <div className="flex flex-wrap gap-1 pt-0.5">
+                          <div className="flex flex-wrap gap-1.5">
                             {allServices
                               .filter((other) => other.service_id !== svc.service_id)
                               .map((other) => {
@@ -3310,14 +3326,20 @@ export default function InteractiveControlCenterCanvas({
                                         other.service_id
                                       )
                                     }
-                                    className={`rounded border px-1.5 py-0.5 font-mono text-[9px] transition ${
+                                    className={`inline-flex items-center justify-center gap-1.5 rounded-md border px-2 py-1 font-mono text-[9.5px] leading-none transition ${
                                       linked
-                                        ? "border-sky-500/60 bg-sky-500/20 text-sky-200"
-                                        : "border-nb-gray-800 bg-nb-gray-900 text-nb-gray-400 hover:text-white"
+                                        ? "border-sky-500/60 bg-sky-500/20 text-sky-200 font-medium"
+                                        : "border-nb-gray-800 bg-nb-gray-900 text-nb-gray-300 hover:border-nb-gray-700 hover:text-white"
                                     }`}
                                   >
-                                    {linked ? "⇄ " : "+ "}
-                                    {translateText(other.name)}
+                                    {linked ? (
+                                      <ArrowLeftRight className="h-2.5 w-2.5 shrink-0 text-sky-300" />
+                                    ) : (
+                                      <Plus className="h-2.5 w-2.5 shrink-0 text-nb-gray-400" />
+                                    )}
+                                    <span className="leading-none">
+                                      {translateText(other.name)}
+                                    </span>
                                   </button>
                                 );
                               })}
@@ -3331,9 +3353,9 @@ export default function InteractiveControlCenterCanvas({
                           type="button"
                           disabled={logBusyId === svc.service_id}
                           onClick={() => handleTailServiceLogs(svc)}
-                          className="flex items-center justify-center gap-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 py-1.5 font-mono text-[9.5px] text-nb-gray-200 hover:border-sky-400 hover:text-white transition"
+                          className="flex items-center justify-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-950 py-1.5 font-mono text-[9.5px] leading-none text-nb-gray-200 hover:border-sky-400 hover:text-white transition"
                         >
-                          <FileText className="h-3 w-3 text-sky-400" />
+                          <FileText className="h-3 w-3 shrink-0 text-sky-400" />
                           <span>
                             {logBusyId === svc.service_id
                               ? "..."
@@ -3348,9 +3370,9 @@ export default function InteractiveControlCenterCanvas({
                               [svc.service_id]: !prev[svc.service_id],
                             }))
                           }
-                          className="flex items-center justify-center gap-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 py-1.5 font-mono text-[9.5px] text-nb-gray-200 hover:border-emerald-400 hover:text-white transition"
+                          className="flex items-center justify-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-950 py-1.5 font-mono text-[9.5px] leading-none text-nb-gray-200 hover:border-emerald-400 hover:text-white transition"
                         >
-                          <Lock className="h-3 w-3 text-emerald-400" />
+                          <Lock className="h-3 w-3 shrink-0 text-emerald-400" />
                           <span>{t("Domain/TLS", "Domain/TLS")}</span>
                         </button>
                         <button
@@ -3360,9 +3382,9 @@ export default function InteractiveControlCenterCanvas({
                             authRole === "operator"
                           }
                           onClick={() => handleRunChaosTest(svc)}
-                          className="flex items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/15 py-1.5 font-mono text-[9.5px] font-semibold text-amber-300 hover:bg-amber-500/25 disabled:opacity-50 transition"
+                          className="flex items-center justify-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 py-1.5 font-mono text-[9.5px] leading-none font-semibold text-amber-300 hover:bg-amber-500/25 disabled:opacity-50 transition"
                         >
-                          <Zap className="h-3 w-3 text-amber-400" />
+                          <Zap className="h-3 w-3 shrink-0 text-amber-400" />
                           <span>
                             {chaosBusyId === svc.service_id
                               ? "..."
