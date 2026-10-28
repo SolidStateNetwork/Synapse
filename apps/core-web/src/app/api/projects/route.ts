@@ -627,8 +627,21 @@ export async function POST(req: NextRequest) {
           : `/opt/axon/workspaces/${projectId}/pulse.db`;
       const sqlQuery =
         payload.trim() || "SELECT name, type FROM sqlite_master WHERE type='table';";
-      const pyScript = `import sqlite3, json, sys
+      const pyScript = `import sqlite3, json, sys, os, glob
 db_path = ${JSON.stringify(dbPath)}
+if not os.path.exists(db_path) or os.path.getsize(db_path) == 0:
+    base_name = os.path.basename(db_path) or "pulse.db"
+    candidates = [
+        p for p in glob.glob(f"/opt/axon/workspaces*/*/{base_name}") + glob.glob("/opt/axon/workspaces*/*/*.db")
+        if os.path.isfile(p) and os.path.getsize(p) > 0
+    ]
+    if candidates:
+        if os.path.exists(db_path) and os.path.getsize(db_path) == 0:
+            try:
+                os.remove(db_path)
+            except OSError:
+                pass
+        db_path = candidates[0]
 query = ${JSON.stringify(sqlQuery)}
 conn = sqlite3.connect(db_path)
 conn.row_factory = sqlite3.Row

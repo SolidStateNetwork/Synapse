@@ -574,12 +574,35 @@ export function buildDefaultServiceEndpoints(
   const combined = `${serviceId} ${name} ${projectId}`.toLowerCase();
 
   if (category === "database") {
+    if (serviceId === "vps2-db-mesh" || combined.includes("mesh db")) {
+      return [
+        {
+          id: "mesh-db-root",
+          label: "GET / (Mesh DB Status & Records)",
+          method: "GET",
+          path: "/",
+          description: "Fetch encrypted mesh database node status and record count via Reverse Proxy.",
+        },
+        {
+          id: "db-http-probe",
+          label: "GET /query (Mesh Probe)",
+          method: "GET",
+          path: "/query",
+          description: "Probe HTTP/JSON database endpoint via Reverse Proxy.",
+        },
+      ];
+    }
+    const defaultDbPath =
+      dbPath ||
+      (combined.includes("pulse")
+        ? "/opt/axon/workspaces/pulse-analytics/pulse.db"
+        : `/opt/axon/workspaces/${projectId}/pulse.db`);
     return [
       {
         id: "sql-tables",
         label: "Show Tables (SQLite)",
         method: "SQL",
-        path: dbPath || `/opt/axon/workspaces/${projectId}/pulse.db`,
+        path: defaultDbPath,
         description: "List all database tables and schemas.",
         sample_payload:
           "SELECT name, type, sql FROM sqlite_master WHERE type='table';",
@@ -588,7 +611,7 @@ export function buildDefaultServiceEndpoints(
         id: "sql-select",
         label: "Query Latest Rows",
         method: "SQL",
-        path: dbPath || `/opt/axon/workspaces/${projectId}/pulse.db`,
+        path: defaultDbPath,
         description: "Inspect recent records stored in the database.",
         sample_payload: "SELECT * FROM events ORDER BY id DESC LIMIT 15;",
       },
@@ -596,22 +619,23 @@ export function buildDefaultServiceEndpoints(
         id: "sql-insert",
         label: "Insert Test Row (SQL)",
         method: "SQL",
-        path: dbPath || `/opt/axon/workspaces/${projectId}/pulse.db`,
+        path: defaultDbPath,
         description: "Insert a new record directly into the database.",
         sample_payload:
           "INSERT INTO events (event, source) VALUES ('manual_db_test', 'core_ui_box'); SELECT * FROM events ORDER BY id DESC LIMIT 5;",
       },
       {
         id: "db-http-probe",
-        label: "GET /query (Mesh Probe)",
+        label: "GET / (API Status)",
         method: "GET",
-        path: "/query",
+        path: "/",
         description: "Probe HTTP/JSON database endpoint via Reverse Proxy.",
       },
     ];
   }
 
   if (combined.includes("pulse") || combined.includes("event") || combined.includes("analytics")) {
+    const pulseDbPath = dbPath || "/opt/axon/workspaces/pulse-analytics/pulse.db";
     return [
       {
         id: "get-root",
@@ -643,7 +667,7 @@ export function buildDefaultServiceEndpoints(
         id: "sql-events",
         label: "SQL: Inspect pulse.db",
         method: "SQL",
-        path: dbPath || `/opt/axon/workspaces/${projectId}/pulse.db`,
+        path: pulseDbPath,
         description: "Run an interactive SQL query against pulse.db on the Muscle node.",
         sample_payload: "SELECT * FROM events ORDER BY id DESC LIMIT 10;",
       },

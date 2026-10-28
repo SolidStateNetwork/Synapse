@@ -1344,13 +1344,13 @@ export default function InteractiveControlCenterCanvas({
                             {svc.name}
                           </span>
                         </div>
-                        <div className="font-mono text-[10px] text-nb-gray-400 mt-0.5">
+                        <div className="font-mono text-[10px] text-nb-gray-400 mt-0.5 truncate">
                           {cat === "webui"
                             ? "WebUI"
                             : cat === "database"
                             ? "Datenbank"
                             : "Backend API"}{" "}
-                          · :{svc.port}
+                          · {svc.node_id} · :{svc.port}
                         </div>
                       </div>
                     </div>
