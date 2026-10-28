@@ -2138,51 +2138,11 @@ export default function InteractiveControlCenterCanvas({
                             {gn.node_id}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <div className="flex items-center gap-1.5 mt-0.5">
                           <span className="truncate text-[11px] text-nb-gray-400">
                             {hb?.private_ipv4 || "Online"} ·{" "}
                             {t(`Stufe ${tierNum}`, `Tier ${tierNum}`)}
                           </span>
-                          {(() => {
-                            const fwPol = firewallPolicies?.[gn.node_id];
-                            const prof = fwPol?.profile || "web_standard";
-                            const shieldedCount =
-                              fwPol?.shielded_ports?.length || 0;
-                            const isStealth = prof === "synapse_stealth";
-                            return (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onSelectNode(gn.node_id);
-                                  onOpenFirewall?.(gn.node_id);
-                                }}
-                                title={t(
-                                  "Firewall & Port-Schutz für diesen Server öffnen",
-                                  "Open Firewall & Port Shield for this server"
-                                )}
-                                className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9.5px] font-semibold transition ${
-                                  isStealth
-                                    ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
-                                    : shieldedCount > 0
-                                    ? "border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25"
-                                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
-                                }`}
-                              >
-                                <Shield className="h-2.5 w-2.5 shrink-0" />
-                                <span>
-                                  {isStealth
-                                    ? t("Stealth-Firewall", "Stealth Firewall")
-                                    : shieldedCount > 0
-                                    ? t(
-                                        `FW · ${shieldedCount} gesperrt`,
-                                        `FW · ${shieldedCount} shielded`
-                                      )
-                                    : t("Firewall aktiv", "Firewall active")}
-                                </span>
-                              </button>
-                            );
-                          })()}
                         </div>
                       </div>
                     </div>
@@ -2237,6 +2197,49 @@ export default function InteractiveControlCenterCanvas({
                               ? t("Stufe 2 · Workspace", "Tier 2 · Workspace")
                               : t("Stufe 3 · Überwacht", "Tier 3 · Supervised")}
                           </span>
+                        </div>
+                        <div className="flex items-center justify-between text-nb-gray-400">
+                          <span>{t("Firewall-Status", "Firewall Status")}</span>
+                          {(() => {
+                            const fwPol = firewallPolicies?.[gn.node_id];
+                            const prof = fwPol?.profile || "web_standard";
+                            const shieldedCount =
+                              fwPol?.shielded_ports?.length || 0;
+                            const isStealth = prof === "synapse_stealth";
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSelectNode(gn.node_id);
+                                  onOpenFirewall?.(gn.node_id);
+                                }}
+                                title={t(
+                                  "Firewall & Port-Schutz für diesen Server öffnen",
+                                  "Open Firewall & Port Shield for this server"
+                                )}
+                                className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9.5px] font-semibold transition ${
+                                  isStealth
+                                    ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
+                                    : shieldedCount > 0
+                                    ? "border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25"
+                                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                                }`}
+                              >
+                                <Shield className="h-2.5 w-2.5 shrink-0" />
+                                <span>
+                                  {isStealth
+                                    ? t("Stealth-Firewall", "Stealth Firewall")
+                                    : shieldedCount > 0
+                                    ? t(
+                                        `FW · ${shieldedCount} gesperrt`,
+                                        `FW · ${shieldedCount} shielded`
+                                      )
+                                    : t("Firewall aktiv", "Firewall active")}
+                                </span>
+                              </button>
+                            );
+                          })()}
                         </div>
                         {(hb?.load_avg_1 !== undefined || hb?.uptime_sec) && (
                           <div className="flex items-center justify-between text-nb-gray-400">
