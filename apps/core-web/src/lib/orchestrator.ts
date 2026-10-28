@@ -26,6 +26,7 @@ import {
   type ServiceEndpointAction,
 } from "./vault";
 import { listCartridges } from "./cartridges";
+import { recordCheckpoint } from "./checkpoints";
 import {
   executeFirewallAction,
   type FirewallActionInput,
@@ -1948,6 +1949,29 @@ elif MODE == "security_forensics":
           cachedAt: Date.now(),
           response: data,
         });
+      }
+
+      if (!isReadOnlyOp && data.success) {
+        try {
+          recordCheckpoint(projectId, {
+            node_id: targetNodeId,
+            title: `AI ${operation}: ${targetPath}`,
+            actor: "Synapse AI",
+            summary: `Pre-mutation snapshot before ${operation} on ${targetPath}`,
+            files_backed_up: [`${targetPath}.synapse.bak`],
+            services_snapshot: (state.registered_services || [])
+              .filter((s) => s.node_id === targetNodeId)
+              .map((s) => ({
+                service_id: s.service_id,
+                name: s.name,
+                port: s.port,
+                healthy: Boolean(s.healthy),
+              })),
+            rollback_cmd: `if [ -f "${targetPath}.synapse.bak" ]; then cp -f "${targetPath}.synapse.bak" "${targetPath}"; fi && echo 'CHECKPOINT_RESTORED_OK'`,
+          });
+        } catch {
+          // non-fatal
+        }
       }
 
       appendAuditLog(projectId, {

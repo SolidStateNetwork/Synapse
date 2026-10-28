@@ -89,6 +89,18 @@ export interface ServiceHealthStatus {
   status_code?: number;
   latency_ms: number;
   last_error?: string;
+  auto_discovered?: boolean;
+  process_name?: string;
+  container_name?: string;
+  category?: string;
+}
+
+export interface TelemetrySample {
+  ts: number;
+  cpu: number;
+  ram: number;
+  disk: number;
+  latency_ms: number;
 }
 
 export interface NodeHeartbeat {
@@ -106,8 +118,11 @@ export interface NodeHeartbeat {
   disk_percent: number;
   disk_used_bytes: number;
   disk_total_bytes: number;
+  load_avg_1?: number;
+  uptime_sec?: number;
   timestamp_unix: number;
   services: ServiceHealthStatus[];
+  telemetry_history?: TelemetrySample[];
   active_pty_sessions: string[];
   pty_session_details?: PtySessionMeta[];
 }

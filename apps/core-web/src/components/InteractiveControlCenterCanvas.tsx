@@ -8,6 +8,8 @@ import React, {
   useState,
 } from "react";
 import {
+  Activity,
+  Bell,
   Bot,
   ChevronDown,
   ChevronRight,
@@ -20,7 +22,10 @@ import {
   FileText,
   FolderGit2,
   Globe,
+  History,
   KeyRound,
+  Link2,
+  Lock,
   Maximize2,
   MonitorSmartphone,
   Move,
@@ -30,6 +35,7 @@ import {
   Shield,
   Sparkles,
   Terminal as TerminalIcon,
+  Unlock,
   Wrench,
   X,
   Zap,
@@ -45,6 +51,29 @@ export type AutonomyTier =
 
 export type FlowView = "peers" | "ai-agent" | "groups" | "networks";
 
+interface HeartbeatServiceStatus {
+  service_id: string;
+  name: string;
+  port: number;
+  protocol?: string;
+  healthy: boolean;
+  status_code?: number;
+  latency_ms?: number;
+  last_error?: string;
+  auto_discovered?: boolean;
+  process_name?: string;
+  container_name?: string;
+  category?: string;
+}
+
+interface TelemetrySample {
+  ts: number;
+  cpu: number;
+  ram: number;
+  disk: number;
+  latency_ms: number;
+}
+
 interface NodeHeartbeat {
   node_id: string;
   hostname: string;
@@ -56,6 +85,10 @@ interface NodeHeartbeat {
   cpu_percent: number;
   ram_percent: number;
   disk_percent: number;
+  load_avg_1?: number;
+  uptime_sec?: number;
+  services?: HeartbeatServiceStatus[];
+  telemetry_history?: TelemetrySample[];
   active_pty_sessions: string[];
   timestamp_unix: number;
 }
@@ -84,6 +117,10 @@ interface RegisteredService {
   category?: "webui" | "backend" | "database" | "worker";
   description?: string;
   db_path?: string;
+  latency_ms?: number;
+  auto_discovered?: boolean;
+  process_name?: string;
+  container_name?: string;
   endpoints?: Array<{
     id: string;
     label: string;
@@ -102,8 +139,60 @@ interface RegisteredService {
     interval_sec: number;
     status: "HEALTHY" | "UNHEALTHY" | "UNKNOWN";
     last_checked?: string;
+    latency_ms?: number;
     last_error?: string;
   };
+}
+
+interface CheckpointItem {
+  id: string;
+  node_id: string;
+  timestamp: string;
+  title: string;
+  actor: string;
+  summary: string;
+  files_backed_up: string[];
+  services_snapshot: Array<{
+    service_id: string;
+    name: string;
+    port: number;
+    healthy: boolean;
+  }>;
+  restored_at?: string;
+  last_restore_output?: string;
+}
+
+interface AlertEventItem {
+  id: string;
+  timestamp: string;
+  severity: "CRITICAL" | "WARNING" | "INFO" | "RESOLVED";
+  title: string;
+  message: string;
+  node_id?: string;
+  dispatched_to: string[];
+}
+
+interface AlertConfigState {
+  enabled: boolean;
+  telegram_enabled: boolean;
+  telegram_bot_token: string;
+  telegram_chat_id: string;
+  discord_enabled: boolean;
+  discord_webhook_url: string;
+  webhook_enabled: boolean;
+  webhook_url: string;
+  cpu_threshold: number;
+  ram_threshold: number;
+  disk_threshold: number;
+  auto_heal_services: boolean;
+  events: AlertEventItem[];
+}
+
+interface ServiceMeshLink {
+  id: string;
+  fromServiceId: string;
+  toServiceId: string;
+  protocol: string;
 }
 
 interface Props {
@@ -217,6 +306,330 @@ export default function InteractiveControlCenterCanvas({
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
 
+  // Feature 1: Merge registeredServices with real-time Auto-Discovered services from Muscle heartbeats
+  const allServices = useMemo<RegisteredService[]>(() => {
+    const map = new Map<string, RegisteredService>();
+    for (const s of registeredServices) {
+      map.set(s.service_id, { ...s });
+    }
+    for (const gn of gatewayNodes) {
+      const hbServices = gn.last_heartbeat?.services || [];
+      for (const live of hbServices) {
+        if (!live.service_id || !live.port) continue;
+        const existing =
+          map.get(live.service_id) ||
+          Array.from(map.values()).find(
+            (item) => item.node_id === gn.node_id && item.port === live.port
+          );
+        if (existing) {
+          existing.healthy = live.healthy;
+          existing.latency_ms = live.latency_ms;
+          if (live.process_name) existing.process_name = live.process_name;
+          if (live.container_name) existing.container_name = live.container_name;
+          if (
+            live.auto_discovered ||
+            live.service_id.startsWith("auto-")
+          ) {
+            existing.auto_discovered = true;
+          }
+        } else {
+          const lower = `${live.service_id} ${live.name}`.toLowerCase();
+          const cat: "webui" | "backend" | "database" =
+            live.category === "webui" ||
+            live.category === "database" ||
+            live.category === "backend"
+              ? live.category
+              : lower.includes("db") ||
+                lower.includes("sqlite") ||
+                lower.includes("postgres") ||
+                lower.includes("redis")
+              ? "database"
+              : lower.includes("web") || lower.includes("ui")
+              ? "webui"
+              : "backend";
+          map.set(live.service_id, {
+            service_id: live.service_id,
+            node_id: gn.node_id,
+            name: live.name,
+            category: cat,
+            port: live.port,
+            protocol: "http",
+            path: "/",
+            healthy: live.healthy,
+            latency_ms: live.latency_ms,
+            auto_discovered: true,
+            process_name: live.process_name,
+            container_name: live.container_name,
+          });
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [registeredServices, gatewayNodes]);
+
+  // Feature 3: WebUI Auth & RBAC State
+  const [authEnabled, setAuthEnabled] = useState(false);
+  const [authLocked, setAuthLocked] = useState(false);
+  const [authRole, setAuthRole] = useState<"admin" | "operator">("admin");
+  const [showAuthConfig, setShowAuthConfig] = useState(false);
+  const [adminPwdInput, setAdminPwdInput] = useState("");
+  const [operatorPwdInput, setOperatorPwdInput] = useState("");
+  const [totpPinInput, setTotpPinInput] = useState("");
+  const [unlockPwdInput, setUnlockPwdInput] = useState("");
+  const [unlockPinInput, setUnlockPinInput] = useState("");
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
+
+  // Feature 4: 1-Click Snap & Rollback Checkpoints State
+  const [checkpoints, setCheckpoints] = useState<CheckpointItem[]>([]);
+  const [checkpointBusyId, setCheckpointBusyId] = useState<string | null>(null);
+  const [checkpointNotice, setCheckpointNotice] = useState<string | null>(null);
+
+  // Feature 5: 24/7 Proactive Watchdog & Multi-Channel Alerting State
+  const [alertConfig, setAlertConfig] = useState<AlertConfigState | null>(null);
+  const [showAlertChannels, setShowAlertChannels] = useState(false);
+  const [alertBusy, setAlertBusy] = useState(false);
+  const [alertNotice, setAlertNotice] = useState<string | null>(null);
+
+  // Feature 6: Service-to-Service Mesh Data-Flow Links
+  const [serviceLinks, setServiceLinks] = useState<ServiceMeshLink[]>([
+    {
+      id: "pulse-webui->pulse-analytics-api",
+      fromServiceId: "pulse-webui",
+      toServiceId: "pulse-analytics-api",
+      protocol: "HTTP REST",
+    },
+    {
+      id: "pulse-analytics-api->pulse-sqlite-db",
+      fromServiceId: "pulse-analytics-api",
+      toServiceId: "pulse-sqlite-db",
+      protocol: "SQLite WAL",
+    },
+    {
+      id: "auto-svc-4050->pulse-analytics-api",
+      fromServiceId: "auto-svc-4050",
+      toServiceId: "pulse-analytics-api",
+      protocol: "JSON Telemetry",
+    },
+  ]);
+
+  useEffect(() => {
+    fetch("/api/auth")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && typeof d.enabled === "boolean") {
+          setAuthEnabled(d.enabled);
+        }
+      })
+      .catch(() => {});
+    fetch("/api/checkpoints")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && Array.isArray(d.checkpoints)) {
+          setCheckpoints(d.checkpoints);
+        }
+      })
+      .catch(() => {});
+    fetch("/api/alerts")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.config) {
+          setAlertConfig(d.config);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleCreateCheckpoint = async (nodeId: string) => {
+    setCheckpointBusyId("create");
+    setCheckpointNotice(null);
+    try {
+      const res = await fetch("/api/checkpoints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          node_id: nodeId,
+          title: `Manual Snapshot (${nodeId})`,
+          actor: "Admin",
+        }),
+      });
+      const data = await res.json();
+      if (data.checkpoints) setCheckpoints(data.checkpoints);
+      setCheckpointNotice(
+        t("✔ Snapshot erfolgreich gespeichert!", "✔ Snapshot saved successfully!")
+      );
+    } catch {
+      setCheckpointNotice(t("Fehler beim Snapshot", "Snapshot failed"));
+    } finally {
+      setCheckpointBusyId(null);
+      setTimeout(() => setCheckpointNotice(null), 4000);
+    }
+  };
+
+  const handleRollbackCheckpoint = async (chk: CheckpointItem) => {
+    setCheckpointBusyId(chk.id);
+    setCheckpointNotice(null);
+    try {
+      const res = await fetch("/api/checkpoints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "rollback",
+          checkpoint_id: chk.id,
+        }),
+      });
+      const data = await res.json();
+      if (data.checkpoints) setCheckpoints(data.checkpoints);
+      setCheckpointNotice(
+        data.ok
+          ? t(
+              `⏪ Rollback auf "${chk.title}" ausgeführt!`,
+              `⏪ Rolled back to "${chk.title}"!`
+            )
+          : t("Rollback-Warnung geprüft", "Rollback warning checked")
+      );
+    } catch {
+      setCheckpointNotice(t("Rollback fehlgeschlagen", "Rollback failed"));
+    } finally {
+      setCheckpointBusyId(null);
+      setTimeout(() => setCheckpointNotice(null), 4500);
+    }
+  };
+
+  const handleSendTestAlert = async () => {
+    setAlertBusy(true);
+    setAlertNotice(null);
+    try {
+      const res = await fetch("/api/alerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "test_alert",
+          node_id: primaryNode || "vps2-muscle",
+        }),
+      });
+      const data = await res.json();
+      if (data.config) setAlertConfig(data.config);
+      setAlertNotice(
+        t("🔔 Test-Alarm erfolgreich ausgelöst!", "🔔 Test alert dispatched!")
+      );
+    } catch {
+      setAlertNotice(t("Fehler beim Test-Alarm", "Test alert error"));
+    } finally {
+      setAlertBusy(false);
+      setTimeout(() => setAlertNotice(null), 4000);
+    }
+  };
+
+  const handleSaveAlertConfig = async (patch: Partial<AlertConfigState>) => {
+    if (!alertConfig) return;
+    const next = { ...alertConfig, ...patch };
+    setAlertConfig(next);
+    setAlertBusy(true);
+    try {
+      const res = await fetch("/api/alerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "configure",
+          ...next,
+        }),
+      });
+      const data = await res.json();
+      if (data.config) setAlertConfig(data.config);
+      setAlertNotice(t("✔ Alarm-Regeln gespeichert", "✔ Alert rules saved"));
+    } finally {
+      setAlertBusy(false);
+      setTimeout(() => setAlertNotice(null), 3500);
+    }
+  };
+
+  const handleConfigureAuth = async (enableProtection: boolean) => {
+    setAuthNotice(null);
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "configure",
+          enabled: enableProtection,
+          admin_password: adminPwdInput || "synapse-admin",
+          operator_password: operatorPwdInput,
+          totp_pin: totpPinInput,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setAuthEnabled(Boolean(data.enabled));
+        setAuthNotice(
+          data.enabled
+            ? t("🔒 WebUI Passwort-Schutz aktiviert", "🔒 WebUI Password Protection enabled")
+            : t("🔓 WebUI Passwort-Schutz deaktiviert", "🔓 WebUI Password Protection disabled")
+        );
+      } else {
+        setAuthNotice(data.error || "Auth error");
+      }
+    } catch {
+      setAuthNotice("Auth config error");
+    }
+    setTimeout(() => setAuthNotice(null), 4000);
+  };
+
+  const handleUnlockDashboard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthNotice(null);
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "login",
+          password: unlockPwdInput,
+          pin: unlockPinInput,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setAuthRole(data.role || "admin");
+        setAuthLocked(false);
+        setUnlockPwdInput("");
+        setUnlockPinInput("");
+      } else {
+        setAuthNotice(
+          t(
+            "Falsches Passwort oder 2FA-PIN",
+            "Invalid password or 2FA PIN"
+          )
+        );
+      }
+    } catch {
+      setAuthNotice(t("Anmeldung fehlgeschlagen", "Login failed"));
+    }
+  };
+
+  const handleToggleServiceLink = (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    const linkId = `${fromId}->${toId}`;
+    setServiceLinks((prev) => {
+      const exists = prev.some((l) => l.id === linkId);
+      if (exists) {
+        return prev.filter((l) => l.id !== linkId);
+      }
+      const targetSvc = allServices.find((s) => s.service_id === toId);
+      const proto =
+        targetSvc?.category === "database" ? "SQLite / TCP" : "HTTP REST";
+      return [
+        ...prev,
+        {
+          id: linkId,
+          fromServiceId: fromId,
+          toServiceId: toId,
+          protocol: proto,
+        },
+      ];
+    });
+  };
+
   const peerIdsKey = useMemo(
     () =>
       gatewayNodes.length > 0
@@ -227,12 +640,12 @@ export default function InteractiveControlCenterCanvas({
 
   const serviceIdsKey = useMemo(
     () =>
-      registeredServices.length > 0
-        ? registeredServices
+      allServices.length > 0
+        ? allServices
             .map((s) => `${s.service_id}@${s.node_id || ""}`)
             .join(",")
         : "empty",
-    [registeredServices]
+    [allServices]
   );
 
   // Clean 3-column Hierarchical Layout with Pixel-Perfect Vertical Center Alignment:
@@ -252,7 +665,7 @@ export default function InteractiveControlCenterCanvas({
     for (const pid of rawPeerIds) {
       servicesByPeer.set(pid, []);
     }
-    for (const svc of registeredServices) {
+    for (const svc of allServices) {
       const targetPeer =
         svc.node_id && servicesByPeer.has(svc.node_id)
           ? svc.node_id
@@ -313,7 +726,7 @@ export default function InteractiveControlCenterCanvas({
       y: Math.max(28, Math.round(midCenterY - CORE_BASE_H / 2)),
     };
 
-    if (registeredServices.length === 0) {
+    if (allServices.length === 0) {
       next["svc:empty"] = {
         x: 860,
         y: Math.max(28, Math.round(midCenterY - SVC_BASE_H / 2)),
@@ -321,7 +734,7 @@ export default function InteractiveControlCenterCanvas({
     }
 
     return next;
-  }, [peerIdsKey, registeredServices]);
+  }, [peerIdsKey, allServices]);
 
   const computeDefaultLayout = useCallback(
     (): Record<string, CanvasPos> => buildHierarchicalLayout(),
@@ -364,7 +777,7 @@ export default function InteractiveControlCenterCanvas({
       clearTimeout(timer);
       window.removeEventListener("resize", measureNodes);
     };
-  }, [measureNodes, gatewayNodes.length, registeredServices.length, expandedNodes]);
+  }, [measureNodes, gatewayNodes.length, allServices.length, expandedNodes]);
 
   // Compute effective positions: when any card is expanded downward as a single unified box,
   // automatically push sibling cards below it in the same column down by the exact extra height!
@@ -411,10 +824,10 @@ export default function InteractiveControlCenterCanvas({
     const keys = [
       "core:hub",
       ...gatewayNodes.map((n) => `peer:${n.node_id}`),
-      ...registeredServices.map((s) => `svc:${s.service_id}`),
+      ...allServices.map((s) => `svc:${s.service_id}`),
     ];
     return keys.length > 0 && keys.every((k) => expandedNodes[k]);
-  }, [gatewayNodes, registeredServices, expandedNodes]);
+  }, [gatewayNodes, allServices, expandedNodes]);
 
   const handleToggleExpandAll = () => {
     const target = !allExpanded;
@@ -422,7 +835,7 @@ export default function InteractiveControlCenterCanvas({
     gatewayNodes.forEach((n) => {
       next[`peer:${n.node_id}`] = target;
     });
-    registeredServices.forEach((s) => {
+    allServices.forEach((s) => {
       next[`svc:${s.service_id}`] = target;
     });
     setExpandedNodes(next);
@@ -517,7 +930,7 @@ export default function InteractiveControlCenterCanvas({
       });
     }
 
-    if (registeredServices.length === 0) {
+    if (allServices.length === 0) {
       const firstPeer = peerIds[0] || "core:hub";
       list.push({
         id: `${firstPeer}->svc:empty`,
@@ -527,7 +940,7 @@ export default function InteractiveControlCenterCanvas({
         active: false,
       });
     } else {
-      for (const svc of registeredServices) {
+      for (const svc of allServices) {
         const ownerPeerKey =
           svc.node_id && rawPeerIds.includes(svc.node_id)
             ? `peer:${svc.node_id}`
@@ -543,7 +956,7 @@ export default function InteractiveControlCenterCanvas({
     }
 
     return list;
-  }, [peerIdsKey, serviceIdsKey, registeredServices]);
+  }, [peerIdsKey, serviceIdsKey, allServices]);
 
   useEffect(() => {
     let rafId: number | null = null;
@@ -936,6 +1349,91 @@ export default function InteractiveControlCenterCanvas({
               );
             });
           })()}
+
+          {/* FEATURE 6: SERVICE-TO-SERVICE MESH DATA-FLOW ARCS */}
+          {serviceLinks.map((link, lIdx) => {
+            const fromKey = `svc:${link.fromServiceId}`;
+            const toKey = `svc:${link.toServiceId}`;
+            const p1 = effectivePositions[fromKey];
+            const p2 = effectivePositions[toKey];
+            if (!p1 || !p2) return null;
+
+            const w1 = sizes[fromKey]?.w || 300;
+            const w2 = sizes[toKey]?.w || 300;
+            const x1 = p1.x + w1;
+            const y1 = p1.y + 31;
+            const x2 = p2.x + w2;
+            const y2 = p2.y + 31;
+
+            const arcOffset = 52 + (lIdx % 3) * 26;
+            const ctrlX = Math.max(x1, x2) + arcOffset;
+            const d = `M ${x1} ${y1} C ${ctrlX} ${y1}, ${ctrlX} ${y2}, ${x2} ${y2}`;
+            const midX = ctrlX - 10;
+            const midY = (y1 + y2) / 2;
+            const isHovered =
+              hoveredNodeId === fromKey || hoveredNodeId === toKey;
+
+            return (
+              <g
+                key={link.id}
+                style={{
+                  opacity: isHovered ? 1 : 0.78,
+                  transition: "opacity 180ms ease",
+                }}
+              >
+                <path
+                  d={d}
+                  fill="none"
+                  stroke="#a855f7"
+                  strokeOpacity={isHovered ? 0.35 : 0.14}
+                  strokeWidth={isHovered ? 6 : 3.5}
+                  strokeLinecap="round"
+                />
+                <path
+                  d={d}
+                  fill="none"
+                  stroke="#a855f7"
+                  strokeOpacity={isHovered ? 0.95 : 0.65}
+                  strokeWidth={1.6}
+                  strokeDasharray="4 6"
+                  className="cc-animated-edge"
+                />
+                <g
+                  className="synapse-packet-fwd"
+                  style={{
+                    offsetPath: `path("${d}")`,
+                    animationDuration: `${(2.8 + lIdx * 0.4).toFixed(2)}s`,
+                  }}
+                >
+                  <circle r={4.5} fill="#a855f7" fillOpacity={0.45} />
+                  <circle r={2} fill="#f3e8ff" />
+                </g>
+                <g transform={`translate(${midX}, ${midY})`}>
+                  <rect
+                    x={-38}
+                    y={-9}
+                    width={76}
+                    height={18}
+                    rx={6}
+                    fill="#141619"
+                    stroke="#a855f7"
+                    strokeOpacity={0.55}
+                    strokeWidth={1}
+                  />
+                  <text
+                    x={0}
+                    y={3}
+                    textAnchor="middle"
+                    fill="#e9d5ff"
+                    fontSize={8.5}
+                    fontFamily="monospace"
+                  >
+                    {link.protocol}
+                  </text>
+                </g>
+              </g>
+            );
+          })}
         </svg>
 
         {/* 1. MIDDLE: INTERACTIVE MUSCLE SERVER CARDS (Single Unified Expandable Box) */}
@@ -951,6 +1449,43 @@ export default function InteractiveControlCenterCanvas({
               : gn.tier === "TIER_2_WORKSPACE_JAIL"
               ? "2"
               : "3";
+          const history = hb?.telemetry_history || [];
+
+          const buildSparklinePoints = (
+            selector: (s: TelemetrySample) => number
+          ) => {
+            const pts =
+              history.length >= 2
+                ? history.map(selector)
+                : [
+                    selector({
+                      ts: 0,
+                      cpu: hb?.cpu_percent || 1,
+                      ram: hb?.ram_percent || 2,
+                      disk: hb?.disk_percent || 1,
+                      latency_ms: 1,
+                    }),
+                    selector({
+                      ts: 1,
+                      cpu: hb?.cpu_percent || 1,
+                      ram: hb?.ram_percent || 2,
+                      disk: hb?.disk_percent || 1,
+                      latency_ms: 1,
+                    }),
+                  ];
+            const maxVal = Math.max(20, ...pts);
+            return pts
+              .map((v, idx) => {
+                const x = (idx / Math.max(1, pts.length - 1)) * 72;
+                const y = 20 - Math.min(18, Math.max(2, (v / maxVal) * 18));
+                return `${x.toFixed(1)},${y.toFixed(1)}`;
+              })
+              .join(" ");
+          };
+
+          const nodeCheckpoints = checkpoints.filter(
+            (c) => !c.node_id || c.node_id === gn.node_id
+          );
 
           return (
             <div
@@ -1118,32 +1653,145 @@ export default function InteractiveControlCenterCanvas({
                               : t("Stufe 3 · Überwacht", "Tier 3 · Supervised")}
                           </span>
                         </div>
+                        {(hb?.load_avg_1 !== undefined || hb?.uptime_sec) && (
+                          <div className="flex items-center justify-between text-nb-gray-400">
+                            <span>{t("System-Last & Uptime", "Load & Uptime")}</span>
+                            <span className="font-mono text-[10px] text-emerald-400">
+                              Load {(hb?.load_avg_1 ?? 0.01).toFixed(2)} ·{" "}
+                              {Math.max(1, Math.round((hb?.uptime_sec || 3600) / 3600))}h
+                            </span>
+                          </div>
+                        )}
                       </div>
 
+                      {/* FEATURE 2: LIVE TIME-SERIES TELEMETRY SPARKLINES */}
                       {hb && (
-                        <div className="grid grid-cols-3 gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[10px]">
-                          <div>
-                            <div className="text-nb-gray-400">CPU</div>
-                            <div className="font-semibold text-white">
-                              {hb.cpu_percent.toFixed(1)}%
-                            </div>
+                        <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[10px] space-y-1.5">
+                          <div className="flex items-center justify-between text-[9px] text-nb-gray-400">
+                            <span className="flex items-center gap-1">
+                              <Activity className="h-3 w-3 text-netbird" />
+                              {t(
+                                "Live-Zeitreihen (Telemetrie)",
+                                "Live Time-Series Telemetry"
+                              )}
+                            </span>
+                            <span className="text-emerald-400">
+                              {history.length || 1} {t("Messpunkte", "Samples")}
+                            </span>
                           </div>
-                          <div>
-                            <div className="text-nb-gray-400">RAM</div>
-                            <div className="font-semibold text-white">
-                              {hb.ram_percent.toFixed(1)}%
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <div className="rounded border border-nb-gray-800/70 bg-nb-gray-940/60 p-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-nb-gray-400">CPU</span>
+                                <span className="font-semibold text-white">
+                                  {hb.cpu_percent.toFixed(1)}%
+                                </span>
+                              </div>
+                              <svg className="mt-1 h-5 w-full overflow-visible" viewBox="0 0 72 22">
+                                <polyline
+                                  fill="none"
+                                  stroke="#f68330"
+                                  strokeWidth="1.6"
+                                  points={buildSparklinePoints((s) => s.cpu)}
+                                />
+                              </svg>
                             </div>
-                          </div>
-                          <div>
-                            <div className="text-nb-gray-400">
-                              {t("SPEICHER", "DISK")}
+                            <div className="rounded border border-nb-gray-800/70 bg-nb-gray-940/60 p-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-nb-gray-400">RAM</span>
+                                <span className="font-semibold text-white">
+                                  {hb.ram_percent.toFixed(1)}%
+                                </span>
+                              </div>
+                              <svg className="mt-1 h-5 w-full overflow-visible" viewBox="0 0 72 22">
+                                <polyline
+                                  fill="none"
+                                  stroke="#38bdf8"
+                                  strokeWidth="1.6"
+                                  points={buildSparklinePoints((s) => s.ram)}
+                                />
+                              </svg>
                             </div>
-                            <div className="font-semibold text-white">
-                              {hb.disk_percent.toFixed(1)}%
+                            <div className="rounded border border-nb-gray-800/70 bg-nb-gray-940/60 p-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-nb-gray-400">
+                                  {t("SPEICHER", "DISK")}
+                                </span>
+                                <span className="font-semibold text-white">
+                                  {hb.disk_percent.toFixed(1)}%
+                                </span>
+                              </div>
+                              <svg className="mt-1 h-5 w-full overflow-visible" viewBox="0 0 72 22">
+                                <polyline
+                                  fill="none"
+                                  stroke="#34d399"
+                                  strokeWidth="1.6"
+                                  points={buildSparklinePoints((s) => s.disk)}
+                                />
+                              </svg>
                             </div>
                           </div>
                         </div>
                       )}
+
+                      {/* FEATURE 4: 1-CLICK SNAP & ROLLBACK TIME-MACHINE CHECKPOINTS */}
+                      <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
+                            <History className="h-3 w-3 text-amber-400" />
+                            {t("Time-Machine Checkpoints", "Time-Machine Checkpoints")}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={checkpointBusyId === "create" || authRole === "operator"}
+                            onClick={() => handleCreateCheckpoint(gn.node_id)}
+                            className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-amber-300 hover:bg-amber-500/25 disabled:opacity-50 transition"
+                          >
+                            {checkpointBusyId === "create"
+                              ? t("Speichert...", "Saving...")
+                              : t("+ Snapshot", "+ Snapshot")}
+                          </button>
+                        </div>
+                        {checkpointNotice && (
+                          <div className="rounded bg-emerald-950/70 border border-emerald-500/40 px-2 py-1 text-[9.5px] text-emerald-300">
+                            {checkpointNotice}
+                          </div>
+                        )}
+                        <div className="space-y-1 max-h-28 overflow-y-auto pr-0.5">
+                          {nodeCheckpoints.slice(0, 3).map((chk) => (
+                            <div
+                              key={chk.id}
+                              className="flex items-center justify-between gap-1.5 rounded border border-nb-gray-800/80 bg-nb-gray-940/70 px-2 py-1 text-[10px]"
+                            >
+                              <div className="min-w-0">
+                                <div className="truncate font-medium text-nb-gray-200">
+                                  {translateText(chk.title)}
+                                </div>
+                                <div className="font-mono text-[8.5px] text-nb-gray-400">
+                                  {new Date(chk.timestamp).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}{" "}
+                                  · {chk.actor}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={
+                                  checkpointBusyId === chk.id ||
+                                  authRole === "operator"
+                                }
+                                onClick={() => handleRollbackCheckpoint(chk)}
+                                className="shrink-0 rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-sky-300 hover:bg-sky-500/25 disabled:opacity-50 transition"
+                              >
+                                {checkpointBusyId === chk.id
+                                  ? "..."
+                                  : t("⏪ Rollback", "⏪ Rollback")}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
                       <div className="flex items-center gap-1.5">
                         <button
@@ -1340,6 +1988,191 @@ export default function InteractiveControlCenterCanvas({
                     </div>
                   </div>
 
+                  {/* FEATURE 5: 24/7 PROACTIVE WATCHDOG & PUSH ALERTING */}
+                  <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-2.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
+                        <Bell className="h-3 w-3 text-netbird" />
+                        {t("24/7 Wächter & Push-Alarme", "24/7 Watchdog & Alerts")}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={alertBusy}
+                          onClick={handleSendTestAlert}
+                          className="rounded border border-netbird/40 bg-netbird/15 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold text-netbird hover:bg-netbird/25 transition"
+                        >
+                          {t("Test-Alarm", "Test Alert")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAlertChannels((v) => !v)}
+                          className="rounded border border-nb-gray-800 bg-nb-gray-900 px-1.5 py-0.5 font-mono text-[8.5px] text-nb-gray-300 hover:text-white"
+                        >
+                          {showAlertChannels
+                            ? t("Schließen", "Close")
+                            : t("Kanäle", "Channels")}
+                        </button>
+                      </div>
+                    </div>
+                    {alertNotice && (
+                      <div className="rounded bg-emerald-950/70 border border-emerald-500/40 px-2 py-1 text-[9.5px] text-emerald-300">
+                        {alertNotice}
+                      </div>
+                    )}
+                    {showAlertChannels && alertConfig && (
+                      <div className="space-y-1.5 border-t border-nb-gray-800 pt-2 text-[10px]">
+                        <input
+                          type="text"
+                          value={alertConfig.telegram_bot_token}
+                          onChange={(e) =>
+                            setAlertConfig({
+                              ...alertConfig,
+                              telegram_bot_token: e.target.value,
+                              telegram_enabled: Boolean(e.target.value),
+                            })
+                          }
+                          placeholder={t(
+                            "Telegram Bot-Token...",
+                            "Telegram Bot Token..."
+                          )}
+                          className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
+                        />
+                        <input
+                          type="text"
+                          value={alertConfig.telegram_chat_id}
+                          onChange={(e) =>
+                            setAlertConfig({
+                              ...alertConfig,
+                              telegram_chat_id: e.target.value,
+                            })
+                          }
+                          placeholder={t(
+                            "Telegram Chat-ID...",
+                            "Telegram Chat ID..."
+                          )}
+                          className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
+                        />
+                        <input
+                          type="text"
+                          value={alertConfig.discord_webhook_url}
+                          onChange={(e) =>
+                            setAlertConfig({
+                              ...alertConfig,
+                              discord_webhook_url: e.target.value,
+                              discord_enabled: Boolean(e.target.value),
+                            })
+                          }
+                          placeholder={t(
+                            "Discord / Slack Webhook-URL...",
+                            "Discord / Slack Webhook URL..."
+                          )}
+                          className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveAlertConfig(alertConfig)}
+                          className="w-full rounded bg-netbird py-1 font-medium text-white hover:bg-netbird-500 transition"
+                        >
+                          {t("Kanäle speichern", "Save Channels")}
+                        </button>
+                      </div>
+                    )}
+                    {alertConfig?.events && alertConfig.events.length > 0 && (
+                      <div className="rounded border border-nb-gray-800/80 bg-nb-gray-940/60 px-2 py-1 text-[9.5px] text-nb-gray-300">
+                        <div className="truncate font-medium text-white">
+                          {translateText(alertConfig.events[0].title)}
+                        </div>
+                        <div className="truncate font-mono text-[8.5px] text-nb-gray-400">
+                          {alertConfig.events[0].dispatched_to.join(", ")}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* FEATURE 3: WEBUI LOGIN PROTECTION & RBAC */}
+                  <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-2.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-300">
+                        <Lock className="h-3 w-3 text-emerald-400" />
+                        {t("WebUI Login & Rollen (RBAC)", "WebUI Login & RBAC")}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setAuthLocked(true)}
+                          className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold text-amber-300 hover:bg-amber-500/25"
+                        >
+                          {t("🔒 Sperren", "🔒 Lock")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAuthConfig((v) => !v)}
+                          className="rounded border border-nb-gray-800 bg-nb-gray-900 px-1.5 py-0.5 font-mono text-[8.5px] text-nb-gray-300 hover:text-white"
+                        >
+                          {t("Passwort", "Password")}
+                        </button>
+                      </div>
+                    </div>
+                    {authNotice && (
+                      <div className="rounded bg-emerald-950/70 border border-emerald-500/40 px-2 py-1 text-[9.5px] text-emerald-300">
+                        {authNotice}
+                      </div>
+                    )}
+                    {showAuthConfig && (
+                      <div className="space-y-1.5 border-t border-nb-gray-800 pt-2 text-[10px]">
+                        <input
+                          type="password"
+                          value={adminPwdInput}
+                          onChange={(e) => setAdminPwdInput(e.target.value)}
+                          placeholder={t(
+                            "Neues Admin-Passwort...",
+                            "New Admin Password..."
+                          )}
+                          className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
+                        />
+                        <input
+                          type="password"
+                          value={operatorPwdInput}
+                          onChange={(e) => setOperatorPwdInput(e.target.value)}
+                          placeholder={t(
+                            "Operator-Passwort (Nur-Lesen)...",
+                            "Operator Password (Read-Only)..."
+                          )}
+                          className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
+                        />
+                        <input
+                          type="text"
+                          value={totpPinInput}
+                          onChange={(e) => setTotpPinInput(e.target.value)}
+                          placeholder={t(
+                            "Optionaler 2FA-PIN (z.B. 2408)...",
+                            "Optional 2FA PIN (e.g. 2408)..."
+                          )}
+                          className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 px-2 py-1 font-mono text-[9.5px] text-white"
+                        />
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleConfigureAuth(true)}
+                            className="flex-1 rounded bg-emerald-600 py-1 font-medium text-white hover:bg-emerald-500 transition"
+                          >
+                            {t("Schutz aktivieren", "Enable Protection")}
+                          </button>
+                          {authEnabled && (
+                            <button
+                              type="button"
+                              onClick={() => handleConfigureAuth(false)}
+                              className="rounded border border-nb-gray-700 bg-nb-gray-900 px-2 py-1 text-nb-gray-300 hover:text-white"
+                            >
+                              {t("Aus", "Off")}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-[9.5px] uppercase tracking-wider text-nb-gray-400">
@@ -1387,8 +2220,8 @@ export default function InteractiveControlCenterCanvas({
         })()}
 
         {/* 3. RIGHT: INTERACTIVE SERVICE CARDS (Single Unified Expandable Box) */}
-        {(registeredServices.length > 0
-          ? registeredServices
+        {(allServices.length > 0
+          ? allServices
           : [
               {
                 service_id: "empty",
@@ -1412,6 +2245,8 @@ export default function InteractiveControlCenterCanvas({
               : cat === "database"
               ? t("Datenbank", "Database")
               : t("Backend-API", "Backend API");
+          const latencyMs =
+            svc.latency_ms ?? svc.health_check?.latency_ms ?? 1;
 
           return (
             <div
@@ -1470,7 +2305,7 @@ export default function InteractiveControlCenterCanvas({
                         )}
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <span
                             className={`h-2 w-2 shrink-0 rounded-full ${
                               healthy
@@ -1482,8 +2317,13 @@ export default function InteractiveControlCenterCanvas({
                             {translateText(svc.name)}
                           </span>
                         </div>
-                        <div className="font-mono text-[10px] text-nb-gray-400 mt-0.5 truncate">
-                          {catLabel} · {svc.node_id} · :{svc.port}
+                        <div className="flex items-center gap-1.5 font-mono text-[10px] text-nb-gray-400 mt-0.5 truncate">
+                          <span className="truncate">
+                            {catLabel} · {svc.node_id} · :{svc.port}
+                          </span>
+                          <span className="shrink-0 rounded bg-emerald-950/90 border border-emerald-500/30 px-1 py-0.2 text-[8.5px] text-emerald-300">
+                            {latencyMs <= 0 ? "<1 ms" : `${latencyMs} ms`}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -1514,6 +2354,25 @@ export default function InteractiveControlCenterCanvas({
                       onClick={(e) => e.stopPropagation()}
                       className="mt-3 space-y-2.5 border-t border-nb-gray-800/90 pt-2.5 text-[11px]"
                     >
+                      {/* FEATURE 1: AUTO-DISCOVERY RUNTIME & CONTAINER BADGES */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {svc.auto_discovered && (
+                          <span className="rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-sky-300">
+                            {t("AUTO-ERKANNT", "AUTO-DISCOVERED")}
+                          </span>
+                        )}
+                        {svc.container_name && (
+                          <span className="rounded border border-purple-500/40 bg-purple-500/15 px-1.5 py-0.5 font-mono text-[9px] text-purple-300 truncate max-w-[180px]">
+                            🐳 {svc.container_name}
+                          </span>
+                        )}
+                        {svc.process_name && (
+                          <span className="rounded border border-nb-gray-700 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-300">
+                            ⚙ {svc.process_name}
+                          </span>
+                        )}
+                      </div>
+
                       {svc.description && (
                         <p className="text-[11px] text-nb-gray-300 leading-relaxed">
                           {translateText(svc.description)}
@@ -1547,6 +2406,50 @@ export default function InteractiveControlCenterCanvas({
                               <ChevronRight className="h-3 w-3 shrink-0 text-nb-gray-500" />
                             </button>
                           ))}
+                        </div>
+                      )}
+
+                      {/* FEATURE 6: SERVICE-TO-SERVICE MESH LINKS */}
+                      {allServices.length > 1 && (
+                        <div className="space-y-1 rounded-lg border border-nb-gray-800/80 bg-nb-gray-950 p-2">
+                          <div className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider text-purple-300">
+                            <Link2 className="h-3 w-3" />
+                            {t(
+                              "Service-Mesh Datenfluss-Verbindungen",
+                              "Service-Mesh Data Flow Links"
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1 pt-0.5">
+                            {allServices
+                              .filter((other) => other.service_id !== svc.service_id)
+                              .map((other) => {
+                                const linked = serviceLinks.some(
+                                  (l) =>
+                                    l.fromServiceId === svc.service_id &&
+                                    l.toServiceId === other.service_id
+                                );
+                                return (
+                                  <button
+                                    key={other.service_id}
+                                    type="button"
+                                    onClick={() =>
+                                      handleToggleServiceLink(
+                                        svc.service_id,
+                                        other.service_id
+                                      )
+                                    }
+                                    className={`rounded border px-1.5 py-0.5 font-mono text-[9px] transition ${
+                                      linked
+                                        ? "border-purple-500/60 bg-purple-500/20 text-purple-200"
+                                        : "border-nb-gray-800 bg-nb-gray-900 text-nb-gray-400 hover:text-white"
+                                    }`}
+                                  >
+                                    {linked ? "⇄ " : "+ "}
+                                    {translateText(other.name)}
+                                  </button>
+                                );
+                              })}
+                          </div>
                         </div>
                       )}
 
@@ -1592,7 +2495,75 @@ export default function InteractiveControlCenterCanvas({
         })}
       </div>
 
-      {/* Bottom-Left Zoom & Expand Controls */}
+      {/* FEATURE 3: ZERO-TRUST WEBUI LOCK OVERLAY */}
+      {authLocked && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute inset-0 z-50 flex items-center justify-center bg-nb-gray-950/90 backdrop-blur-md p-4"
+        >
+          <form
+            onSubmit={handleUnlockDashboard}
+            className="w-full max-w-sm rounded-2xl border border-nb-gray-800 bg-nb-gray-940 p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-netbird/40 bg-netbird-950 text-netbird">
+                <Lock className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-white">
+                  {t(
+                    "Synapse Control Center gesperrt",
+                    "Synapse Control Center Locked"
+                  )}
+                </h3>
+                <p className="text-xs text-nb-gray-400">
+                  {t(
+                    "Bitte mit Admin- oder Operator-Passwort entsperren",
+                    "Unlock with Admin or Operator password"
+                  )}
+                </p>
+              </div>
+            </div>
+            {authNotice && (
+              <div className="rounded-lg border border-red-500/40 bg-red-950/60 px-3 py-2 text-xs text-red-300">
+                {authNotice}
+              </div>
+            )}
+            <div className="space-y-2.5">
+              <input
+                type="password"
+                value={unlockPwdInput}
+                onChange={(e) => setUnlockPwdInput(e.target.value)}
+                placeholder={t(
+                  "Passwort eingeben...",
+                  "Enter password..."
+                )}
+                className="w-full rounded-xl border border-nb-gray-800 bg-nb-gray-950 px-3.5 py-2.5 text-xs text-white focus:border-netbird focus:outline-none"
+                autoFocus
+              />
+              <input
+                type="text"
+                value={unlockPinInput}
+                onChange={(e) => setUnlockPinInput(e.target.value)}
+                placeholder={t(
+                  "2FA-PIN (falls aktiviert)...",
+                  "2FA PIN (if enabled)..."
+                )}
+                className="w-full rounded-xl border border-nb-gray-800 bg-nb-gray-950 px-3.5 py-2 text-xs text-white focus:border-netbird focus:outline-none"
+              />
+            </div>
+            <button
+              type="submit"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-netbird py-2.5 text-xs font-semibold text-white hover:bg-netbird-500 transition"
+            >
+              <Unlock className="h-4 w-4" />
+              <span>{t("Control Center entsperren", "Unlock Control Center")}</span>
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Bottom-Left Zoom, Expand & Lock Controls */}
       <div
         onPointerDown={(e) => e.stopPropagation()}
         className="pointer-events-auto absolute bottom-4 left-5 z-20 flex items-center gap-1 rounded-xl border border-nb-gray-800 bg-nb-gray-940/90 p-1 shadow-lg backdrop-blur"
@@ -1622,23 +2593,43 @@ export default function InteractiveControlCenterCanvas({
         <button
           onClick={handleToggleExpandAll}
           className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-nb-gray-300 hover:bg-nb-gray-900 hover:text-white"
-          title="Alle Knoten auf dem Canvas auf- oder zuklappen"
+          title={t(
+            "Alle Knoten auf dem Canvas auf- oder zuklappen",
+            "Expand or collapse all canvas nodes"
+          )}
         >
           <ChevronsUpDown className="h-3.5 w-3.5 text-netbird" />
-          <span>{allExpanded ? "Alle einklappen" : "Alle erweitern"}</span>
+          <span>
+            {allExpanded
+              ? t("Alle einklappen", "Collapse all")
+              : t("Alle erweitern", "Expand all")}
+          </span>
+        </button>
+        <div className="h-3.5 w-[1px] bg-nb-gray-800 mx-0.5" />
+        <button
+          onClick={() => setAuthLocked(true)}
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-emerald-300 hover:bg-nb-gray-900"
+          title={t("Dashboard sperren (RBAC)", "Lock Dashboard (RBAC)")}
+        >
+          <Lock className="h-3.5 w-3.5" />
+          <span>
+            {authRole === "operator"
+              ? t("Operator (Nur-Lesen)", "Operator (Read-Only)")
+              : t("Sperren", "Lock")}
+          </span>
         </button>
         <div className="h-3.5 w-[1px] bg-nb-gray-800 mx-0.5" />
         <button
           onClick={() => handleFitView()}
           className="rounded-lg p-1.5 text-nb-gray-300 hover:bg-nb-gray-900 hover:text-white"
-          title="Ansicht zentrieren"
+          title={t("Ansicht zentrieren", "Center view")}
         >
           <Maximize2 className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={handleResetLayout}
           className="rounded-lg p-1.5 text-nb-gray-300 hover:bg-nb-gray-900 hover:text-white"
-          title="Layout zurücksetzen"
+          title={t("Layout zurücksetzen", "Reset layout")}
         >
           <RotateCcw className="h-3.5 w-3.5" />
         </button>

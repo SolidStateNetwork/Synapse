@@ -35,13 +35,28 @@ export interface NodeHeartbeat {
     cwd: string;
     running_cmd?: string | null;
   }>;
+  load_avg_1?: number;
+  uptime_sec?: number;
+  telemetry_history?: Array<{
+    ts: number;
+    cpu: number;
+    ram: number;
+    disk: number;
+    latency_ms: number;
+  }>;
   services?: Array<{
     service_id: string;
     name: string;
     port: number;
-    protocol: string;
+    protocol?: string;
     healthy: boolean;
+    status_code?: number;
+    latency_ms?: number;
     last_error?: string;
+    auto_discovered?: boolean;
+    process_name?: string;
+    container_name?: string;
+    category?: string;
   }>;
   timestamp_unix: number;
 }

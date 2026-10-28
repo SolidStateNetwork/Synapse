@@ -115,23 +115,39 @@ type PtyLiveFrame struct {
 }
 
 type ServiceHealthTarget struct {
-	ServiceID   string `json:"service_id"`
-	Name        string `json:"name"`
-	Protocol    string `json:"protocol"` // "tcp", "http", "exec"
-	Port        uint32 `json:"port"`
-	Path        string `json:"path,omitempty"`
-	Target      string `json:"target,omitempty"`
-	IntervalSec uint32 `json:"interval_sec,omitempty"`
+	ServiceID      string `json:"service_id"`
+	Name           string `json:"name"`
+	Protocol       string `json:"protocol"` // "tcp", "http", "exec"
+	Port           uint32 `json:"port"`
+	Path           string `json:"path,omitempty"`
+	Target         string `json:"target,omitempty"`
+	IntervalSec    uint32 `json:"interval_sec,omitempty"`
+	AutoDiscovered bool   `json:"auto_discovered,omitempty"`
+	ProcessName    string `json:"process_name,omitempty"`
+	ContainerName  string `json:"container_name,omitempty"`
+	Category       string `json:"category,omitempty"`
 }
 
 type ServiceHealthStatus struct {
-	ServiceID  string `json:"service_id"`
-	Name       string `json:"name"`
-	Port       uint32 `json:"port"`
-	Healthy    bool   `json:"healthy"`
-	StatusCode int    `json:"status_code,omitempty"`
-	LatencyMs  int64  `json:"latency_ms"`
-	LastError  string `json:"last_error,omitempty"`
+	ServiceID      string `json:"service_id"`
+	Name           string `json:"name"`
+	Port           uint32 `json:"port"`
+	Healthy        bool   `json:"healthy"`
+	StatusCode     int    `json:"status_code,omitempty"`
+	LatencyMs      int64  `json:"latency_ms"`
+	LastError      string `json:"last_error,omitempty"`
+	AutoDiscovered bool   `json:"auto_discovered,omitempty"`
+	ProcessName    string `json:"process_name,omitempty"`
+	ContainerName  string `json:"container_name,omitempty"`
+	Category       string `json:"category,omitempty"`
+}
+
+type TelemetrySample struct {
+	TimestampUnix int64   `json:"ts"`
+	CPUPercent    float64 `json:"cpu"`
+	RAMPercent    float64 `json:"ram"`
+	DiskPercent   float64 `json:"disk"`
+	AvgLatencyMs  int64   `json:"latency_ms"`
 }
 
 type NodeHeartbeat struct {
@@ -149,8 +165,11 @@ type NodeHeartbeat struct {
 	DiskPercent       float64               `json:"disk_percent"`
 	DiskUsedBytes     uint64                `json:"disk_used_bytes"`
 	DiskTotalBytes    uint64                `json:"disk_total_bytes"`
+	LoadAvg1          float64               `json:"load_avg_1,omitempty"`
+	UptimeSec         uint64                `json:"uptime_sec,omitempty"`
 	TimestampUnix     int64                 `json:"timestamp_unix"`
 	Services          []ServiceHealthStatus `json:"services"`
+	TelemetryHistory  []TelemetrySample     `json:"telemetry_history,omitempty"`
 	ActivePtySessions []string              `json:"active_pty_sessions"`
 	PtySessionDetails []PtySessionMeta      `json:"pty_session_details,omitempty"`
 }

@@ -52,21 +52,23 @@ type NodeSummary struct {
 
 // Hub manages all active mTLS Yamux node sessions and synchronizes telemetry into Project Brain Vaults.
 type Hub struct {
-	VaultRoot    string
-	mu           sync.RWMutex
-	nodes        map[string]*ConnectedNode
-	debugEnabled bool
-	debugEvents  []DebugEvent
+	VaultRoot     string
+	mu            sync.RWMutex
+	nodes         map[string]*ConnectedNode
+	historyByNode map[string][]tunnelv1.TelemetrySample
+	debugEnabled  bool
+	debugEvents   []DebugEvent
 }
 
 // NewHub creates a Yamux Hub backed by the given VaultRoot (/var/lib/synapse/projects).
 func NewHub(vaultRoot string) *Hub {
 	dbg := os.Getenv("SYNAPSE_DEBUG") == "1" || strings.EqualFold(os.Getenv("SYNAPSE_DEBUG"), "true")
 	return &Hub{
-		VaultRoot:    vaultRoot,
-		nodes:        make(map[string]*ConnectedNode),
-		debugEnabled: dbg,
-		debugEvents:  make([]DebugEvent, 0, 256),
+		VaultRoot:     vaultRoot,
+		nodes:         make(map[string]*ConnectedNode),
+		historyByNode: make(map[string][]tunnelv1.TelemetrySample),
+		debugEnabled:  dbg,
+		debugEvents:   make([]DebugEvent, 0, 256),
 	}
 }
 
@@ -255,8 +257,41 @@ func (h *Hub) handleNodeInitiatedStream(node *ConnectedNode, stream net.Conn) {
 		if err := tunnelv1.ReadFrame(stream, &beat); err != nil {
 			return
 		}
+		var totalLatency int64
+		var latencyCount int64
+		for _, svc := range beat.Services {
+			if svc.LatencyMs >= 0 {
+				totalLatency += svc.LatencyMs
+				latencyCount++
+			}
+		}
+		var avgLatency int64
+		if latencyCount > 0 {
+			avgLatency = totalLatency / latencyCount
+		}
+		sample := tunnelv1.TelemetrySample{
+			TimestampUnix: beat.TimestampUnix,
+			CPUPercent:    beat.CPUPercent,
+			RAMPercent:    beat.RAMPercent,
+			DiskPercent:   beat.DiskPercent,
+			AvgLatencyMs:  avgLatency,
+		}
+
+		h.mu.Lock()
+		hist := h.historyByNode[node.NodeID]
+		if len(hist) >= 60 {
+			hist = append(hist[1:], sample)
+		} else {
+			hist = append(hist, sample)
+		}
+		h.historyByNode[node.NodeID] = hist
+		histSnapshot := make([]tunnelv1.TelemetrySample, len(hist))
+		copy(histSnapshot, hist)
+		h.mu.Unlock()
+
 		node.mu.Lock()
 		beatCopy := beat
+		beatCopy.TelemetryHistory = histSnapshot
 		node.LastHeartbeat = &beatCopy
 		node.mu.Unlock()
 
@@ -536,17 +571,39 @@ func (h *Hub) syncTelemetryToProjectVaults(nodeID string, beat *tunnelv1.NodeHea
 					if m["node_id"] == nodeID && m["service_id"] == liveSvc.ServiceID {
 						foundSvc = true
 						m["healthy"] = liveSvc.Healthy
+						m["latency_ms"] = liveSvc.LatencyMs
+						if liveSvc.ProcessName != "" {
+							m["process_name"] = liveSvc.ProcessName
+						}
+						if liveSvc.ContainerName != "" {
+							m["container_name"] = liveSvc.ContainerName
+						}
+						if liveSvc.AutoDiscovered {
+							m["auto_discovered"] = true
+						}
+						if hc, ok := m["health_check"].(map[string]any); ok {
+							if liveSvc.Healthy {
+								hc["status"] = "HEALTHY"
+							} else {
+								hc["status"] = "UNHEALTHY"
+							}
+							hc["last_checked"] = nowISO
+							hc["latency_ms"] = liveSvc.LatencyMs
+						}
 						break
 					}
 				}
 				if !foundSvc {
 					lowerMeta := strings.ToLower(liveSvc.ServiceID + " " + liveSvc.Name)
-					category := "backend"
-					switch {
-					case strings.Contains(lowerMeta, "db") || strings.Contains(lowerMeta, "sqlite") || strings.Contains(lowerMeta, "postgres") || strings.Contains(lowerMeta, "mysql") || strings.Contains(lowerMeta, "redis") || strings.Contains(lowerMeta, "sql"):
-						category = "database"
-					case strings.Contains(lowerMeta, "web") || strings.Contains(lowerMeta, "ui") || strings.Contains(lowerMeta, "frontend") || strings.Contains(lowerMeta, "dashboard") || strings.Contains(lowerMeta, "portal"):
-						category = "webui"
+					category := liveSvc.Category
+					if category == "" {
+						category = "backend"
+						switch {
+						case strings.Contains(lowerMeta, "db") || strings.Contains(lowerMeta, "sqlite") || strings.Contains(lowerMeta, "postgres") || strings.Contains(lowerMeta, "mysql") || strings.Contains(lowerMeta, "redis") || strings.Contains(lowerMeta, "sql"):
+							category = "database"
+						case strings.Contains(lowerMeta, "web") || strings.Contains(lowerMeta, "ui") || strings.Contains(lowerMeta, "frontend") || strings.Contains(lowerMeta, "dashboard") || strings.Contains(lowerMeta, "portal"):
+							category = "webui"
+						}
 					}
 					statusStr := "UNHEALTHY"
 					if liveSvc.Healthy {
@@ -561,6 +618,10 @@ func (h *Hub) syncTelemetryToProjectVaults(nodeID string, beat *tunnelv1.NodeHea
 						"path":                 "/",
 						"category":             category,
 						"healthy":              liveSvc.Healthy,
+						"latency_ms":           liveSvc.LatencyMs,
+						"auto_discovered":      liveSvc.AutoDiscovered,
+						"process_name":         liveSvc.ProcessName,
+						"container_name":       liveSvc.ContainerName,
 						"consecutive_failures": 0,
 						"registered_at":        nowISO,
 						"health_check": map[string]any{
@@ -569,6 +630,7 @@ func (h *Hub) syncTelemetryToProjectVaults(nodeID string, beat *tunnelv1.NodeHea
 							"interval_sec": 15,
 							"status":       statusStr,
 							"last_checked": nowISO,
+							"latency_ms":   liveSvc.LatencyMs,
 							"last_error":   liveSvc.LastError,
 						},
 					})

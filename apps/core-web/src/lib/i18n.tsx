@@ -756,6 +756,10 @@ const EN_DICTIONARY: Record<string, string> = {
   "Tabellen anzeigen (SQLite)": "Show Tables (SQLite)",
   "Neueste Einträge abfragen": "Query Latest Rows",
   "Test-Eintrag einfügen (SQL)": "Insert Test Row (SQL)",
+  "Verifizierte Multi-Core Produktions-Basis": "Verified Multi-Core Production Baseline",
+  "24/7 Wächter & Alarm-Engine aktiv": "24/7 Watchdog & Alert Engine Armed",
+  "Test-Push-Benachrichtigung": "Test Push Notification",
+  "Manueller Server-Snapshot": "Manual Server Snapshot",
 };
 
 /**
@@ -967,6 +971,11 @@ const DE_DICTIONARY: Record<string, string> = {
   "Copied!": "Kopiert!",
   "Copy CLI": "CLI kopieren",
   "Copied CLI!": "CLI kopiert!",
+  "Verified Multi-Core Production Baseline": "Verifizierte Multi-Core Produktions-Basis",
+  "24/7 Watchdog & Alert Engine Armed": "24/7 Wächter & Alarm-Engine aktiv",
+  "Test Push Notification": "Test-Push-Benachrichtigung",
+  "Manual Server Snapshot": "Manueller Server-Snapshot",
+  "Manual Snapshot (vps2-muscle)": "Manueller Snapshot (vps2-muscle)",
 };
 
 const EN_PATTERNS: PatternRule[] = [

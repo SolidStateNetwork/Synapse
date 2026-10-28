@@ -131,16 +131,33 @@ func (c *Collector) Collect(activePtySessions []string, sessionDetails ...[]tunn
 	c.mu.RLock()
 	targets := make([]tunnelv1.ServiceHealthTarget, 0, len(c.targets))
 	coveredPorts := make(map[uint32]bool, len(c.targets))
+	coveredIDs := make(map[string]bool, len(c.targets))
 	for _, t := range c.targets {
 		targets = append(targets, t)
 		if t.Port > 0 {
 			coveredPorts[t.Port] = true
 		}
+		if t.ServiceID != "" {
+			coveredIDs[t.ServiceID] = true
+		}
 	}
 	c.mu.RUnlock()
 
-	for _, autoTarget := range c.discoverLocalTargets(coveredPorts) {
+	portContainers, portProcesses := inspectPortRuntimeMeta()
+	for _, autoTarget := range c.discoverLocalTargets(coveredPorts, coveredIDs, portContainers, portProcesses) {
 		targets = append(targets, autoTarget)
+	}
+	for i := range targets {
+		if targets[i].ContainerName == "" {
+			if cname, ok := portContainers[targets[i].Port]; ok {
+				targets[i].ContainerName = cname
+			}
+		}
+		if targets[i].ProcessName == "" {
+			if pname, ok := portProcesses[targets[i].Port]; ok {
+				targets[i].ProcessName = pname
+			}
+		}
 	}
 	sort.Slice(targets, func(i, j int) bool {
 		if targets[i].Port != targets[j].Port {
@@ -159,6 +176,8 @@ func (c *Collector) Collect(activePtySessions []string, sessionDetails ...[]tunn
 		details = sessionDetails[0]
 	}
 
+	loadAvg1, uptimeSec := readLinuxLoadAndUptime()
+
 	return tunnelv1.NodeHeartbeat{
 		NodeID:            c.NodeID,
 		Hostname:          hostname,
@@ -173,6 +192,8 @@ func (c *Collector) Collect(activePtySessions []string, sessionDetails ...[]tunn
 		DiskPercent:       diskPct,
 		DiskUsedBytes:     diskUsed,
 		DiskTotalBytes:    diskTotal,
+		LoadAvg1:          loadAvg1,
+		UptimeSec:         uptimeSec,
 		TimestampUnix:     time.Now().Unix(),
 		Services:          statuses,
 		ActivePtySessions: activePtySessions,
@@ -183,9 +204,13 @@ func (c *Collector) Collect(activePtySessions []string, sessionDetails ...[]tunn
 func (c *Collector) probeService(target tunnelv1.ServiceHealthTarget) tunnelv1.ServiceHealthStatus {
 	start := time.Now()
 	status := tunnelv1.ServiceHealthStatus{
-		ServiceID: target.ServiceID,
-		Name:      target.Name,
-		Port:      target.Port,
+		ServiceID:      target.ServiceID,
+		Name:           target.Name,
+		Port:           target.Port,
+		AutoDiscovered: target.AutoDiscovered,
+		ProcessName:    target.ProcessName,
+		ContainerName:  target.ContainerName,
+		Category:       target.Category,
 	}
 
 	if strings.EqualFold(target.Protocol, "exec") && strings.TrimSpace(target.Target) != "" {
@@ -270,16 +295,145 @@ func detectPrivateIPv4() string {
 	return "127.0.0.1"
 }
 
-// discoverLocalTargets inspects /proc/net/tcp and /proc/net/tcp6 on Linux to auto-discover
-// active local application and database ports (4000..4999 for compute Muscle nodes,
-// 5400..5999 for database Muscle nodes) that are not yet registered in coveredPorts.
-func (c *Collector) discoverLocalTargets(coveredPorts map[uint32]bool) []tunnelv1.ServiceHealthTarget {
+// readLinuxLoadAndUptime reads /proc/loadavg and /proc/uptime on Linux.
+func readLinuxLoadAndUptime() (float64, uint64) {
+	if runtime.GOOS != "linux" {
+		return 0, 0
+	}
+	var load1 float64
+	if raw, err := os.ReadFile("/proc/loadavg"); err == nil {
+		fields := strings.Fields(string(raw))
+		if len(fields) > 0 {
+			load1, _ = strconv.ParseFloat(fields[0], 64)
+		}
+	}
+	var uptime uint64
+	if raw, err := os.ReadFile("/proc/uptime"); err == nil {
+		fields := strings.Fields(string(raw))
+		if len(fields) > 0 {
+			if f, err := strconv.ParseFloat(fields[0], 64); err == nil && f > 0 {
+				uptime = uint64(f)
+			}
+		}
+	}
+	return load1, uptime
+}
+
+// inspectPortRuntimeMeta gathers running Docker container port bindings and ss -tulpn process names.
+func inspectPortRuntimeMeta() (map[uint32]string, map[uint32]string) {
+	containers := make(map[uint32]string)
+	processes := make(map[uint32]string)
+	if runtime.GOOS != "linux" {
+		return containers, processes
+	}
+
+	// 1. Inspect running Docker containers: Name|Image|Ports
+	ctxDocker, cancelDocker := context.WithTimeout(context.Background(), 1200*time.Millisecond)
+	defer cancelDocker()
+	if out, err := exec.CommandContext(ctxDocker, "docker", "ps", "--format", "{{.Names}}|{{.Image}}|{{.Ports}}").Output(); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			parts := strings.Split(line, "|")
+			if len(parts) < 3 {
+				continue
+			}
+			cName := strings.TrimSpace(parts[0])
+			portsStr := parts[2]
+			for _, seg := range strings.Split(portsStr, ",") {
+				seg = strings.TrimSpace(seg)
+				if arrowIdx := strings.Index(seg, "->"); arrowIdx > 0 {
+					hostPart := seg[:arrowIdx]
+					if colonIdx := strings.LastIndex(hostPart, ":"); colonIdx >= 0 {
+						pStr := hostPart[colonIdx+1:]
+						if p64, err := strconv.ParseUint(pStr, 10, 32); err == nil && p64 > 0 {
+							containers[uint32(p64)] = cName
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 2. Inspect ss -tulpn for process names per listening TCP port
+	ctxSS, cancelSS := context.WithTimeout(context.Background(), 1200*time.Millisecond)
+	defer cancelSS()
+	if out, err := exec.CommandContext(ctxSS, "ss", "-tlnp").Output(); err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			if !strings.Contains(line, "LISTEN") {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) < 4 {
+				continue
+			}
+			localAddr := fields[3]
+			colonIdx := strings.LastIndex(localAddr, ":")
+			if colonIdx < 0 {
+				continue
+			}
+			p64, err := strconv.ParseUint(localAddr[colonIdx+1:], 10, 32)
+			if err != nil || p64 == 0 {
+				continue
+			}
+			port := uint32(p64)
+			if uIdx := strings.Index(line, `users:(("`); uIdx >= 0 {
+				rest := line[uIdx+len(`users:(("`):]
+				if qIdx := strings.Index(rest, `"`); qIdx > 0 {
+					procName := rest[:qIdx]
+					if procName != "" {
+						processes[port] = procName
+					}
+				}
+			}
+		}
+	}
+
+	return containers, processes
+}
+
+func isIgnoredSystemPortOrProcess(port uint32, procName string) bool {
+	// Ignore SSH, DNS, mDNS/LLMNR, Synapse Core/Tunnel ports, and high ephemeral ports
+	switch port {
+	case 22, 53, 68, 546, 5353, 5355, 8081, 8443, 9081, 9443:
+		return true
+	}
+	if port >= 32768 {
+		return true
+	}
+	lowerProc := strings.ToLower(procName)
+	switch lowerProc {
+	case "sshd", "sshd-session", "systemd-resolve", "systemd-network", "containerd", "dockerd", "axon":
+		return true
+	}
+	return false
+}
+
+// discoverLocalTargets inspects /proc/net/tcp, /proc/net/tcp6, Docker containers, and known SQLite databases
+// on Linux to auto-discover active local application, web, and database services not yet in coveredPorts.
+func (c *Collector) discoverLocalTargets(coveredPorts map[uint32]bool, coveredIDs map[string]bool, portContainers map[uint32]string, portProcesses map[uint32]string) []tunnelv1.ServiceHealthTarget {
 	if runtime.GOOS != "linux" {
 		return nil
 	}
 	isDBNode := strings.Contains(strings.ToLower(c.NodeID), "db")
 	seenPorts := make(map[uint32]bool)
 	var discovered []tunnelv1.ServiceHealthTarget
+
+	// Check if local Pulse SQLite database file exists and is not yet registered
+	if !isDBNode && !coveredIDs["pulse-sqlite-db"] && !coveredPorts[3001] {
+		if info, err := os.Stat("/var/lib/synapse/pulse-stack/pulse.db"); err == nil && info.Size() > 0 {
+			seenPorts[3001] = true
+			discovered = append(discovered, tunnelv1.ServiceHealthTarget{
+				ServiceID:      "pulse-sqlite-db",
+				Name:           "Pulse SQLite Database",
+				Protocol:       "exec",
+				Port:           3001,
+				Path:           "/var/lib/synapse/pulse-stack/pulse.db",
+				Target:         "test -s /var/lib/synapse/pulse-stack/pulse.db",
+				AutoDiscovered: true,
+				ProcessName:    "sqlite3",
+				Category:       "database",
+			})
+		}
+	}
 
 	for _, procFile := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
 		raw, err := os.ReadFile(procFile)
@@ -311,6 +465,12 @@ func (c *Collector) discoverLocalTargets(coveredPorts map[uint32]bool) []tunnelv
 			if coveredPorts[port] || seenPorts[port] {
 				continue
 			}
+			procName := portProcesses[port]
+			cName := portContainers[port]
+			if isIgnoredSystemPortOrProcess(port, procName) {
+				continue
+			}
+
 			if isDBNode {
 				if port < 5400 || port > 5999 {
 					continue
@@ -323,36 +483,62 @@ func (c *Collector) discoverLocalTargets(coveredPorts map[uint32]bool) []tunnelv
 					svcName = "VPS2 Encrypted Mesh DB"
 				}
 				discovered = append(discovered, tunnelv1.ServiceHealthTarget{
-					ServiceID: svcID,
-					Name:      svcName,
-					Protocol:  "http",
-					Port:      port,
-					Path:      "/",
+					ServiceID:      svcID,
+					Name:           svcName,
+					Protocol:       "http",
+					Port:           port,
+					Path:           "/",
+					AutoDiscovered: true,
+					ProcessName:    procName,
+					ContainerName:  cName,
+					Category:       "database",
 				})
 			} else {
-				if port < 4000 || port > 4999 {
+				// Discover any user service in 80, 443, 3000..9999, or standard DB ports (3306, 5432, 6379, 27017)
+				isStandardPort := (port >= 3000 && port <= 9999) || port == 80 || port == 443 || port == 3306 || port == 5432 || port == 6379 || port == 27017
+				if !isStandardPort && cName == "" {
 					continue
 				}
 				seenPorts[port] = true
 				svcID := fmt.Sprintf("auto-svc-%d", port)
 				svcName := fmt.Sprintf("Autonomous Microservice :%d", port)
+				proto := "http"
+				category := "backend"
+
+				if cName != "" {
+					svcName = fmt.Sprintf("Docker %s :%d", cName, port)
+				} else if procName != "" && procName != "python3" && procName != "node" {
+					svcName = fmt.Sprintf("%s Service :%d", strings.Title(procName), port)
+				}
+
 				switch port {
+				case 3306, 5432, 6379, 27017:
+					proto = "tcp"
+					category = "database"
+					svcID = fmt.Sprintf("auto-db-%d", port)
 				case 4070:
 					svcID = "vps2-status-api"
 					svcName = "VPS2 Status API"
+					category = "backend"
 				case 4085:
 					svcID = "pulse-analytics-api"
 					svcName = "Pulse Analytics API"
+					category = "backend"
 				case 4090:
 					svcID = "pulse-webui"
 					svcName = "Pulse Live WebUI"
+					category = "webui"
 				}
 				discovered = append(discovered, tunnelv1.ServiceHealthTarget{
-					ServiceID: svcID,
-					Name:      svcName,
-					Protocol:  "http",
-					Port:      port,
-					Path:      "/",
+					ServiceID:      svcID,
+					Name:           svcName,
+					Protocol:       proto,
+					Port:           port,
+					Path:           "/",
+					AutoDiscovered: true,
+					ProcessName:    procName,
+					ContainerName:  cName,
+					Category:       category,
 				})
 			}
 		}
