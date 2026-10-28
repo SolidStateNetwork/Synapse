@@ -52,12 +52,27 @@ function summarizeToolCallDetail(
   fnName: string,
   fnArgs: Record<string, unknown>
 ): string {
+  if (fnName === "node_deep_search") {
+    const mode = String(fnArgs.search_mode || "scan");
+    const q = String(fnArgs.query || fnArgs.file_glob || "*").trim();
+    const node = String(fnArgs.node_id || "");
+    return `${node ? `${node}: ` : ""}[${mode}] ${q.slice(0, 56)}`;
+  }
+  if (fnName === "core_vault_search") {
+    const scope = String(fnArgs.scope || "all");
+    const q = String(fnArgs.query || "*").trim();
+    return `Vault Search [${scope}]: ${q.slice(0, 56)}`;
+  }
   if (fnName === "node_pty_exec") {
     const cmd = String(fnArgs.command || "").trim().replace(/\s+/g, " ");
     const node = String(fnArgs.node_id || "");
     return `${node ? `${node}: ` : ""}${cmd.slice(0, 72)}${cmd.length > 72 ? "…" : ""}`;
   }
-  if (fnName === "node_fs_read" || fnName === "node_fs_write") {
+  if (
+    fnName === "node_fs_operation" ||
+    fnName === "node_fs_read" ||
+    fnName === "node_fs_write"
+  ) {
     const op = String(fnArgs.operation || "read_file");
     const p = String(fnArgs.path || "");
     return `${op} ${p}`;
@@ -73,7 +88,7 @@ function summarizeToolCallDetail(
 
 type StepProgressCallback = (event: OrchestratorStreamEvent) => void;
 
-const MAX_AGENT_ITERATIONS = 12;
+const MAX_AGENT_ITERATIONS = 30;
 
 /**
  * Expands `@` context mentions in the user prompt (e.g. `@Architecture.md`, `@Memory.md`,
@@ -471,6 +486,41 @@ async function runOpenAICompatibleAgentLoop(
     }
   }
 
+  // If the AI reached MAX_AGENT_ITERATIONS while still calling tools, force a final synthesis pass
+  if (!finalReply && allToolResults.length > 0) {
+    onProgress?.({
+      type: "thinking_delta",
+      delta: "Synthese-Phase: KI fasst alle gesammelten Befunde in einem umfassenden Bericht zusammen...\n",
+    });
+    try {
+      const synthRes = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: [
+            ...conversation,
+            {
+              role: "user",
+              content:
+                "Du hast nun alle Tool-Daten gesammelt. Erstelle jetzt deinen vollständigen, tiefgreifenden und strukturierten Abschlussbericht auf Deutsch anhand aller realen Befunde.",
+            },
+          ],
+          tool_choice: "none",
+        }),
+      });
+      if (synthRes.ok) {
+        const synthJson = await synthRes.json();
+        const synthMsg = synthJson.choices?.[0]?.message?.content;
+        if (synthMsg) {
+          finalReply = splitReasoningFromReply(String(synthMsg)).cleanReply;
+        }
+      }
+    } catch {
+      // ignore synthesis fallback error
+    }
+  }
+
   // Estimate prefix cache savings when provider doesn't explicitly return `cached_tokens`
   const estimatedPromptTokens =
     totalPromptTokens || Math.round(promptParts.fullPrompt.length / 4);
@@ -736,7 +786,13 @@ async function runDeterministicAutonomousWorkflow(
     args: Record<string, unknown>
   ): Promise<ToolDispatchResult> => {
     const stepNum = toolResults.length + 1;
-    onProgress?.({ type: "step_start", step: stepNum, tool_name: toolName });
+    const stepDetail = summarizeToolCallDetail(toolName, args);
+    onProgress?.({
+      type: "step_start",
+      step: stepNum,
+      tool_name: toolName,
+      detail: stepDetail,
+    });
     const res = await interceptAndExecuteTool(projectId, toolName, args);
     if (res.cached) {
       toolCacheHits += 1;
@@ -746,6 +802,7 @@ async function runDeterministicAutonomousWorkflow(
       type: "step_done",
       step: stepNum,
       tool_name: toolName,
+      detail: stepDetail,
       result: res,
     });
     return res;
@@ -1027,6 +1084,59 @@ if __name__ == "__main__":
       path: "/",
     });
     finalReply = formatHaltedWorkflowReply(step, 1);
+  } else if (lower.includes("checksystem") && primaryNode) {
+    const s1 = await runStep("node_deep_search", {
+      node_id: primaryNode,
+      search_mode: "process_and_port_map",
+    });
+    const s2 = await runStep("node_deep_search", {
+      node_id: primaryNode,
+      search_mode: "file_find",
+    });
+    const s3 = await runStep("node_deep_search", {
+      node_id: primaryNode,
+      search_mode: "sqlite_inspect",
+    });
+    const s4 = await runStep("node_deep_search", {
+      node_id: primaryNode,
+      search_mode: "log_scan",
+    });
+    await runStep("core_vault_search", { scope: "all", query: "" });
+    const f1 = String((s1.output as { findings?: string })?.findings || "");
+    const f2 = String((s2.output as { findings?: string })?.findings || "");
+    const f3 = String((s3.output as { findings?: string })?.findings || "");
+    const f4 = String((s4.output as { findings?: string })?.findings || "");
+    finalReply = `### 🔍 CheckSystem — Mehrstufiger DevOps-Tiefenscan (\`${primaryNode}\`)\n\n#### 1. Host, Ports & Laufende Dienste\n\`\`\`text\n${f1.slice(0, 1800)}\n\`\`\`\n\n#### 2. Dateisystem- & Workspace-Inventar\n\`\`\`text\n${f2.slice(0, 1200)}\n\`\`\`\n\n#### 3. SQLite-Datenbank-Integrität & Tabellen\n\`\`\`text\n${f3.slice(0, 1400)}\n\`\`\`\n\n#### 4. Log- & Journal-Forensik\n\`\`\`text\n${f4.slice(0, 1400)}\n\`\`\``;
+  } else if (lower.includes("checkopsec") && primaryNode) {
+    const s1 = await runStep("node_deep_search", {
+      node_id: primaryNode,
+      search_mode: "security_forensics",
+    });
+    const s2 = await runStep("node_deep_search", {
+      node_id: primaryNode,
+      search_mode: "content_grep",
+      query: "SECRET|PASSWORD|API_KEY|0\\.0\\.0\\.0|CORS|X-Powered-By",
+    });
+    await runStep("core_vault_search", { scope: "cartridges", query: "" });
+    const f1 = String((s1.output as { findings?: string })?.findings || "");
+    const f2 = String((s2.output as { findings?: string })?.findings || "");
+    finalReply = `### 🛡️ CheckOpsec — Mehrstufiger Cybersecurity- & Zero-Trust-Audit (\`${primaryNode}\`)\n\n#### 1. Security-Forensik (Ports, SSH, Firewall, Sysctl, Permissions & Header)\n\`\`\`text\n${f1.slice(0, 2600)}\n\`\`\`\n\n#### 2. Code- & Konfigurations-Scan auf Secrets / Bindings\n\`\`\`text\n${f2.slice(0, 1500)}\n\`\`\``;
+  } else if (
+    (lower.includes("skillsearch") || lower.includes("deepforensics")) &&
+    primaryNode
+  ) {
+    const s1 = await runStep("core_vault_search", { scope: "all", query: "" });
+    const s2 = await runStep("node_deep_search", {
+      node_id: primaryNode,
+      search_mode: "file_find",
+    });
+    const s3 = await runStep("node_deep_search", {
+      node_id: primaryNode,
+      search_mode: "log_scan",
+    });
+    const f2 = String((s2.output as { findings?: string })?.findings || "");
+    const f3 = String((s3.output as { findings?: string })?.findings || "");
+    finalReply = `### 🧭 DevOps System- & Forensik-Suche (\`${primaryNode}\`)\n\n#### 1. Gefundene Dateien im Workspace\n\`\`\`text\n${f2.slice(0, 1500)}\n\`\`\`\n\n#### 2. Log- & Prozess-Analyse\n\`\`\`text\n${f3.slice(0, 1500)}\n\`\`\`\n\n- **Core Vault Services:** ${(state.registered_services || []).map((s) => `\`${s.name}\` (:${s.port})`).join(", ") || "keine"}`;
   }
 
   if (!finalReply) {

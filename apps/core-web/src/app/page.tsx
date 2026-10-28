@@ -431,10 +431,23 @@ export default function SynapseNetBirdControlCenter() {
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [selectedChatSkill, setSelectedChatSkill] = useState<
-    "CheckSystem" | "CheckOpsec" | "SkillSearch" | null
+    "CheckSystem" | "CheckOpsec" | "SkillSearch" | "DeepForensics" | null
   >(null);
   const [skillMenuOpen, setSkillMenuOpen] = useState<boolean>(false);
   const [chatBusy, setChatBusy] = useState(false);
+  const [chatElapsedSec, setChatElapsedSec] = useState(0);
+
+  useEffect(() => {
+    if (!chatBusy) {
+      setChatElapsedSec(0);
+      return;
+    }
+    const start = Date.now();
+    const timer = setInterval(() => {
+      setChatElapsedSec(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [chatBusy]);
   const [liveSteps, setLiveSteps] = useState<
     Array<{
       step: number;
@@ -1279,24 +1292,31 @@ export default function SynapseNetBirdControlCenter() {
     setMentionMenuOpen(false);
 
     if (activeSkill === "SkillSearch") {
+      const node = primaryNode || "vps2-muscle";
       const searchQuery =
-        text || "Gib mir eine Übersicht, wo ich welche Funktionen im Synapse Control Center finde.";
+        text ||
+        "Gib mir eine vollständige Übersicht über alle Funktionen in der UI sowie alle Dateien, Datenbanken, Ports und Dienste auf dem Server.";
       const aiSearchPrompt = [
-        `Du führst jetzt den Skill **SkillSearch** (KI-Wegweiser & Funktionssuche im Synapse Control Center) für das Projekt \`${activeProject.project_id}\` aus.`,
+        `Du führst jetzt den erweiterten DevOps-Such-Skill **SkillSearch** (Vollständige System-, Code-, Log-, Datenbank- & UI-Tiefensuche) für das Projekt \`${activeProject.project_id}\` auf \`@${node}\` aus.`,
         `SUCHANFRAGE DES NUTZERS: "${searchQuery}"`,
         ``,
-        `Hier ist die komplette Sitemap der Synapse Core UI, damit du dem Nutzer präzise sagen kannst, wo er was findet:`,
-        `- **Linke Sidebar -> Übersicht (Control Center Canvas):** Interaktive Topologie-Karte mit Server-Knoten (links), Synapse Core Hub (Mitte) und erreichbaren Services (rechts). Ein Klick auf ein Element öffnet rechts das Detail-Menü.`,
-        `- **Linke Sidebar -> Services (Reverse Proxy & DB-Tester):** Obere Reiter für jeden registrierten Dienst (WebUI, Backend API, SQLite DB). Bietet links klickbare Endpunkt-/SQL-Optionen und rechts den Live-Request-Tester sowie den Umschalter zur **Web-Vorschau**.`,
-        `- **Linke Sidebar -> Server & Mesh:** Enthält 4 Unter-Tabs: **Server** (Autonomy Tier ändern, Terminal öffnen, Server verbinden), **P2P Mesh-Links** (Direkt-Tunnel zwischen zwei Servern), **Stack-Blueprints** (1-Klick Vorlagen) und **Cron-Playbooks** (Geplante KI-Aufgaben).`,
-        `- **Linke Sidebar -> Brain Vault:** Enthält \`Architecture.md\` (Systemarchitektur & Mermaid-Graph), \`Memory.md\` (Technisches Logbuch) und \`Secrets.enc\` (AES-256-GCM verschlüsselter Key-Tresor).`,
-        `- **Linke Sidebar -> Dateien:** Remote-Dateimanager & Code-Editor direkt auf dem verbundenen Muscle-Server (\`/opt/axon/workspaces/...\`) inkl. Snapshot-Rollback.`,
-        `- **Linke Sidebar -> Regeln:** Sicherheits-Cartridges (\`docker-first\`, \`zero-trust-networking\`, \`strict-security-telemetry-headers\`), eigene Policy-Cartridges anlegen sowie Freigabe-Warteschlange für \`TIER_3_SUPERVISED\`-Befehle.`,
-        `- **Linke Sidebar -> Audit-Log:** Chronologisches Protokoll aller KI- und Benutzer-Aktionen.`,
-        `- **Linke Sidebar -> Einstellungen:** KI-Provider/Modell & API-Key konfigurieren, Prompt-Caching & Auto-Watchdog schalten, externe **MCP-Server API-Keys** erstellen sowie Debug-Selbsttest.`,
-        `- **Untere Leiste -> Live Peer PTY Shell:** Ausklappbares Echtzeit-Linux-Terminal direkt auf dem Muscle-Server.`,
+        `ARBEITE WIE EIN ERFAHRENER SENIOR DEVOPS ENGINEER: Nimm dir so viele Schritte und Tool-Aufrufe wie nötig, um sowohl in der Synapse-Oberfläche als auch live auf dem Server (\`@${node}\`) und im Core Brain Vault nach allem zu suchen, was zur Anfrage passt:`,
+        `1. **Erweiterte Live-Suchwerkzeuge einsetzen (PFLICHT, wenn nach Code, Funktionen, Ports, DBs, Dateien, Logs oder Konfigurationen gefragt wird):**`,
+        `   - Nutze \`core_vault_search\` (\`scope: "all"\`), um \`State.json\`, \`Architecture.md\`, \`Memory.md\`, \`Audit.jsonl\`, Cartridges und registrierte Services zu durchsuchen.`,
+        `   - Nutze \`node_deep_search\` mit \`search_mode: "file_find"\` und \`search_mode: "content_grep"\`, um Dateien, Quellcode, Endpunkte, Funktionen oder Konfigurationswerte auf \`@${node}\` exakt (mit Dateipfad & Zeilennummer) zu lokalisieren.`,
+        `   - Nutze bei Bedarf \`node_deep_search\` mit \`search_mode: "process_and_port_map"\`, \`"sqlite_inspect"\` oder \`"log_scan"\`, falls die Suche Ports, Prozesse, Datenbank-Tabellen oder Logs betrifft.`,
+        `2. **Komplette Sitemap der Synapse Core WebUI (für UI-Navigation):**`,
+        `   - **Linke Sidebar -> Übersicht (Control Center Canvas):** Interaktive Topologie-Karte mit Server-Knoten (links), Synapse Core Hub (Mitte) und erreichbaren Services (rechts). Ein Klick auf ein Element öffnet rechts das Detail-Menü.`,
+        `   - **Linke Sidebar -> Services (Reverse Proxy & DB-Tester):** Obere Reiter für jeden registrierten Dienst (WebUI, Backend API, SQLite DB). Links klickbare Endpunkt-/SQL-Optionen, rechts der Live-Request-Tester sowie der Umschalter zur **Web-Vorschau**.`,
+        `   - **Linke Sidebar -> Server & Mesh:** 4 Unter-Tabs: **Server** (Autonomy Tier ändern, Terminal öffnen, Server verbinden), **P2P Mesh-Links** (Direkt-Tunnel zwischen zwei Servern), **Stack-Blueprints** (1-Klick Vorlagen) und **Cron-Playbooks** (Geplante KI-Aufgaben).`,
+        `   - **Linke Sidebar -> Brain Vault:** \`Architecture.md\` (Systemarchitektur & Mermaid-Graph), \`Memory.md\` (Technisches Logbuch) und \`Secrets.enc\` (AES-256-GCM verschlüsselter Key-Tresor).`,
+        `   - **Linke Sidebar -> Dateien:** Remote-Dateimanager & Code-Editor direkt auf dem verbundenen Muscle-Server (\`/opt/axon/workspaces/...\`) inkl. 1-Klick Snapshot-Rollback.`,
+        `   - **Linke Sidebar -> Regeln:** Sicherheits-Cartridges (\`docker-first\`, \`zero-trust-networking\`, \`strict-security-telemetry-headers\`), eigene Policy-Cartridges sowie Freigabe-Warteschlange für \`TIER_3_SUPERVISED\`-Befehle.`,
+        `   - **Linke Sidebar -> Audit-Log:** Chronologisches Protokoll aller KI- und Benutzer-Aktionen.`,
+        `   - **Linke Sidebar -> Einstellungen:** KI-Provider/Modell & API-Key, Prompt-Caching & Auto-Watchdog, externe **MCP-Server API-Keys** sowie Debug-Selbsttest.`,
+        `   - **Untere Leiste -> Live Peer PTY Shell:** Ausklappbares Echtzeit-Linux-Terminal direkt auf dem Muscle-Server.`,
         ``,
-        `Falls der Nutzer nach einer bestimmten Datei, einem Port oder Dienst auf dem Server sucht, kannst du zusätzlich deine Tools (\`node_fs_read\`, \`node_pty_exec\`) nutzen. Antworte klar und präzise auf Deutsch, wo genau man die gesuchte Funktion in der Oberfläche oder auf dem Server findet und wie man sie bedient.`,
+        `Antworte ausführlich und präzise auf Deutsch mit exakten Fundstellen (UI-Pfad, Dateipfad, Zeilennummer, Port, Prozess oder DB-Tabelle).`,
       ].join("\n");
 
       const displayMsg = `🧭 **[Skill: SkillSearch]** ${searchQuery}`;
@@ -1315,24 +1335,35 @@ export default function SynapseNetBirdControlCenter() {
           .join("; ") || "keine registrierten Services";
 
       const aiMissionPrompt = [
-        `Du führst jetzt den ausgewählten Skill **CheckSystem** für das Projekt \`${activeProject.project_id}\` aus.`,
+        `Du führst jetzt den erweiterten Skill **CheckSystem** (Tiefgreifende, mehrstufige Senior-DevOps-Gesamtsystemanalyse) für das Projekt \`${activeProject.project_id}\` auf \`@${node}\` aus.`,
         text ? `ZUSÄTZLICHER BENUTZER-FOKUS / ANWEISUNG: "${text}"` : ``,
-        `WICHTIG: Das ist KEIN statischer Standardtest. Du sollst als autonome KI **System für System und Dienst für Dienst** selbstständig mit deinen Tools (\`node_pty_exec\`, \`node_fs_read\`) tiefgreifend untersuchen und eigene weiterführende Checks ableiten:`,
+        `WICHTIG: Arbeite wie ein extrem gründlicher Senior DevOps & Site Reliability Engineer (SRE). Egal wie viele Schritte es dauert – gehe **jedes Teilsystem nacheinander** mit deinen erweiterten Such- und Analyse-Tools durch, bevor du dein Urteil fällst:`,
         ``,
-        `1. **Basis- & Host-Check auf \`@${node}\`:** Prüfe Systemlast, RAM, Disk-Platz, laufende Prozesse, systemd-Units und Docker-Container.`,
-        `2. **Tiefgreifender Check jedes einzelnen Subsystems:**`,
-        `   - Registrierte Dienste im Projekt: ${svcsList}.`,
-        `   - Prüfe jeden Dienst einzeln live (HTTP-Antworten, Header, Antwortverhalten, Prozess-Persistenz bei Server-Reboot).`,
-        `   - Untersuche die Arbeitsverzeichnisse unter \`/opt/axon/workspaces/\` sowie vorhandene Logdateien (\`*.log\`) und SQLite-Datenbanken (\`PRAGMA integrity_check;\`, Tabellen, Datensätze) auf Fehler, Warnungen oder Engpässe.`,
-        `3. **Konfiguration & Brain Vault (\`@Architecture.md\`, \`@Memory.md\`):** Prüfe, ob die Dokumentation und Konfiguration exakt zum realen Zustand auf dem Server passen.`,
-        `4. **Dein Abschlussbericht (auf Deutsch):** Fasse System für System zusammen, ob alles **i.O.** ist (mit echten Befunden aus deinen ausgeführten Befehlen) und gib konkrete, technisch fundierte **Verbesserungsempfehlungen**.`,
+        `### PFLICHT-UNTERSUCHUNGSPHASEN (Nutze dafür aktiv deine Tools in mehreren Runden):`,
+        `1. **Phase 1 — Host-, Prozess-, Container- & Port-Korrelation:**`,
+        `   - Rufe \`node_deep_search\` mit \`search_mode: "process_and_port_map"\` auf \`@${node}\` auf.`,
+        `   - Prüfe CPU, RAM, Disk, alle lauschenden Ports (\`ss -tulpn\`), laufende Prozesse, Docker-Container, systemd-Units und Live-HTTP-Antworten auf allen Ports.`,
+        `2. **Phase 2 — Vollständige Datei-, Code- & Konfigurations-Inventur:**`,
+        `   - Rufe \`node_deep_search\` mit \`search_mode: "file_find"\` und \`search_mode: "content_grep"\` auf, um alle Skripte, Server-Dateien und Konfigurationen unter \`/opt/axon/workspaces\` zu inventarisieren und deren Quellcode/Endpunkte (z. B. \`do_GET\`, \`do_POST\`, Error-Handling, Reboot-Persistenz) zu prüfen.`,
+        `   - Wenn dir eine Datei auffällt, lies sie gezielt mit \`node_fs_operation\` (\`operation: "read_file"\`) aus.`,
+        `3. **Phase 3 — Tiefenprüfung aller SQLite-Datenbanken:**`,
+        `   - Rufe \`node_deep_search\` mit \`search_mode: "sqlite_inspect"\` auf.`,
+        `   - Prüfe jede gefundene \`.db\`/\`.sqlite\`-Datei auf \`PRAGMA integrity_check\`, Tabellen-Schemata, Datensatz-Anzahl, Dateirechte und aktuelle Einträge.`,
+        `4. **Phase 4 — Log- & Journal-Forensik:**`,
+        `   - Rufe \`node_deep_search\` mit \`search_mode: "log_scan"\` auf, um sämtliche \`*.log\`-Dateien in \`/opt/axon/workspaces\`, \`/tmp\`, \`journalctl\` und Docker-Logs nach Fehlern, Warnungen, Tracebacks oder abgestürzten Prozessen zu durchsuchen.`,
+        `5. **Phase 5 — Brain-Vault-Abgleich & Drift-Erkennung:**`,
+        `   - Rufe \`core_vault_search\` (\`scope: "all"\`) auf und prüfe, ob die registrierten Services (${svcsList}) sowie \`Architecture.md\` und \`Memory.md\` zu 100 % mit den tatsächlich auf \`@${node}\` laufenden Ports und Dateien übereinstimmen oder ob es Abweichungen (Drift) gibt.`,
+        `6. **Phase 6 — Großer Senior-DevOps-Abschlussbericht (auf Deutsch):**`,
+        `   - Erstelle eine übersichtliche Status-Tabelle aller geprüften Subsysteme (Host, Muscle-Agent, jeder einzelne Backend-/WebUI-Service, Datenbanken, Logs, Brain-Sync).`,
+        `   - Belege jeden Befund mit echten Daten aus deiner Untersuchung (PIDs, Ports, Dateipfade, Zeilen, DB-Tabellen, Antwortzeiten).`,
+        `   - Gib konkrete, priorisierte **Verbesserungsempfehlungen** (Architektur, Stabilität, Auto-Restart/Systemd, Logging, Performance).`,
       ]
         .filter(Boolean)
         .join("\n");
 
       const displayMsg = text
         ? `🔍 **[Skill: CheckSystem]** ${text}`
-        : `🔍 **[Skill: CheckSystem]** Autonomer KI-Tiefenscan über alle Systeme, Backends, Datenbanken, Logs & Konfigurationen auf \`@${node}\``;
+        : `🔍 **[Skill: CheckSystem]** Mehrstufiger Senior-DevOps-Tiefenscan (Host, Ports, Code, SQLite-DBs, Logs & Brain-Sync) auf \`@${node}\``;
 
       setSystemScanBusy(true);
       try {
@@ -1351,22 +1382,30 @@ export default function SynapseNetBirdControlCenter() {
         (activeProject.active_cartridges || []).join(", ") || "keine";
 
       const aiOpsecPrompt = [
-        `Du führst jetzt den ausgewählten Skill **CheckOpsec** (Tiefgreifender KI-Cybersecurity- & Zero-Trust-Audit) für \`${activeProject.project_id}\` auf \`@${node}\` aus.`,
+        `Du führst jetzt den erweiterten Skill **CheckOpsec** (Gründlicher DevSecOps-, Cybersecurity- & Zero-Trust-Tiefenaudit) für \`${activeProject.project_id}\` auf \`@${node}\` aus.`,
         text ? `ZUSÄTZLICHER BENUTZER-FOKUS / ANWEISUNG: "${text}"` : ``,
-        `WICHTIG: Arbeite als eigenständiger Security-Auditor. Nutze deine Tools (\`node_pty_exec\`, \`node_fs_read\`), um **System für System** tiefgreifend auf Sicherheitslücken, Fehlkonfigurationen und OpSec-Risiken zu prüfen:`,
+        `WICHTIG: Arbeite wie ein erfahrener Senior Security Engineer & Penetration-Tester. Nimm dir alle nötigen Tool-Runden Zeit, um das gesamte System gründlich zu durchleuchten:`,
         ``,
-        `1. **Netzwerk- & Port-Exposition (\`ss -tlnp\`, \`ip addr\`):** Prüfe jeden lauschenden Port auf \`@${node}\`. Welche Dienste lauschen öffentlich auf \`0.0.0.0\` / \`::\` und sind alle internen App-/DB-Services (\`:4050\`, \`:4070\`, \`:4085\`, \`:4090\` etc.) strikt auf \`127.0.0.1\` isoliert?`,
-        `2. **SSH-, Firewall- & Host-Härtung:** Untersuche \`/etc/ssh/sshd_config\` (\`PermitRootLogin\`, \`PasswordAuthentication\`), aktive Firewall-Regeln (\`ufw\`, \`nftables\`, \`iptables\`), offene System-Accounts und letzte Auth-/Security-Events.`,
-        `3. **Applikations-, Container- & Dateisystem-OpSec:** Prüfe in \`/opt/axon/workspaces/\` die Dateiberechtigungen (z. B. von \`.db\`-Dateien und Skripten), prüfe ob Prozesse/Container unnötig als \`root\` laufen, ob Geheimnisse im Klartext im Code/Env liegen und ob HTTP-Security-Header gesetzt sind.`,
-        `4. **Synapse Governance:** Bewerte das aktuelle Autonomy-Tier (\`${currentTier}\`), die aktiven Sicherheits-Cartridges (\`${activeCarts}\`) und die Vault-Konfiguration.`,
-        `5. **Dein OpSec-Bericht (auf Deutsch):** Erstelle nach deinen mehrstufigen Live-Untersuchungen einen detaillierten Cybersecurity-Bericht (System für System), bewerte das Sicherheitsniveau (inkl. OpSec-Score \`0-100\`) und liste priorisierte **Härtungsmaßnahmen** auf.`,
+        `### PFLICHT-PRÜFPHASEN (Nutze aktiv deine Deep-Search- & PTY-Tools):`,
+        `1. **Phase 1 — Automatisierte Security-Forensik (\`node_deep_search\` -> \`security_forensics\`):**`,
+        `   - Führe \`node_deep_search\` mit \`search_mode: "security_forensics"\` auf \`@${node}\` aus.`,
+        `   - Analysiere alle lauschenden Sockets (\`0.0.0.0\` vs. \`127.0.0.1\`), \`sshd_config\`-Direktiven, letzte SSH-Auth-Logs, Firewall-Regeln (\`ufw\`/\`iptables\`/\`nftables\`), Kernel-Sysctl-Parameter, Dateiberechtigungen und HTTP-Security-Header aller lokalen Services.`,
+        `2. **Phase 2 — Quellcode- & Konfigurations-Audit auf Schwachstellen (\`node_deep_search\` -> \`content_grep\`):**`,
+        `   - Durchsuche den gesamten Quellcode unter \`/opt/axon/workspaces\` mit \`node_deep_search\` (\`search_mode: "content_grep"\`) nach potenziellen Sicherheitsrisiken: SQL-Injection-Mustern, fehlender Input-Validierung, \`0.0.0.0\`-Bindings, fehlenden Security-Headern, offenen CORS-Headern (\`*\`) oder im Klartext hinterlegten Secrets/Tokens.`,
+        `3. **Phase 3 — Prozess-Privilegien & Datenbank-Schutz (\`node_deep_search\` -> \`process_and_port_map\` & \`sqlite_inspect\`):**`,
+        `   - Prüfe, unter welchem Linux-User (\`root\` vs. unprivilegierter User) die Python-/App-Prozesse und Container laufen und welche Oktal-Rechte (\`0600\` vs. \`0644\`/\`0777\`) die SQLite-Datenbanken und Skripte besitzen.`,
+        `4. **Phase 4 — Synapse Governance & Zero-Trust Policy Audit (\`core_vault_search\`):**`,
+        `   - Prüfe über \`core_vault_search\` (\`scope: "all"\`) das aktive Autonomy-Tier (\`${currentTier}\`), die aktiven Sicherheits-Cartridges (\`${activeCarts}\`), die gespeicherten Secret-Keys in \`Secrets.enc\` und das Audit-Log.`,
+        `5. **Phase 5 — Umfassender DevSecOps-Bericht (auf Deutsch):**`,
+        `   - Gliedere alle Befunde nach Schweregrad (**KRITISCH / HOCH / MITTEL / NIEDRIG / OK**) mit exakten technischen Nachweisen (Port, Datei, Zeilennummer, Konfigurationswert).`,
+        `   - Vergib einen fundierten **OpSec-Score (0–100)** und liefere sofort ausführbare Härtungsmaßnahmen.`,
       ]
         .filter(Boolean)
         .join("\n");
 
       const displayMsg = text
         ? `🛡️ **[Skill: CheckOpsec]** ${text}`
-        : `🛡️ **[Skill: CheckOpsec]** Autonomer KI-Cybersecurity- & Zero-Trust-Audit über Netzwerk, SSH, Firewall, Prozesse & Policies auf \`@${node}\``;
+        : `🛡️ **[Skill: CheckOpsec]** Mehrstufiger DevSecOps- & Cybersecurity-Tiefenaudit (Netzwerk, SSH, Firewall, Code-Schwachstellen, Secrets & Header) auf \`@${node}\``;
 
       setOpsecScanBusy(true);
       try {
@@ -1374,6 +1413,27 @@ export default function SynapseNetBirdControlCenter() {
       } finally {
         setOpsecScanBusy(false);
       }
+      return;
+    }
+
+    if (activeSkill === "DeepForensics") {
+      const node = primaryNode || "vps2-muscle";
+      const focusTopic =
+        text ||
+        "Untersuche alle Logs, Prozesse, Datenbanken und Quellcode-Dateien auf versteckte Fehler, Warnungen, Performance-Engpässe oder Inkonsistenzen.";
+      const aiForensicsPrompt = [
+        `Du führst jetzt den Skill **DeepForensics** (Tiefgreifende DevOps-Fehler-, Log-, Code- & Datenbank-Forensik) für \`${activeProject.project_id}\` auf \`@${node}\` aus.`,
+        `FORENSIK-AUFTRAG / FOKUS: "${focusTopic}"`,
+        ``,
+        `ARBEITE WIE EIN SENIOR DEVOPS TROUBLESHOOTER: Gehe gründlich und systematisch in mehreren Schritten vor:`,
+        `1. **Log- & Crash-Analyse:** Starte \`node_deep_search\` mit \`search_mode: "log_scan"\` auf \`@${node}\`, um alle Applikations-Logs, \`/tmp/*.log\`, \`journalctl\` und Container-Logs auszuwerten.`,
+        `2. **Prozess-, Port- & Ressourcen-Analyse:** Starte \`node_deep_search\` mit \`search_mode: "process_and_port_map"\`, um hängende Prozesse, Speicherverbrauch, Antwortzeiten und HTTP-Statuscodes aller Dienste zu prüfen.`,
+        `3. **Code- & Datenbank-Tiefenprüfung:** Nutze \`node_deep_search\` mit \`search_mode: "content_grep"\` und \`"sqlite_inspect"\` sowie \`node_fs_operation\` (\`read_file\`), um den relevanten Quellcode und die Datenbank-Tabellen Zeile für Zeile auf Ursachen (Root Cause) zu untersuchen.`,
+        `4. **Forensischer Diagnosebericht (auf Deutsch):** Präsentiere die genaue Ursache (Root Cause), alle gefundenen Belege (Logs, Codezeilen, DB-Status) und die exakte technische Lösung.`,
+      ].join("\n");
+
+      const displayMsg = `🔬 **[Skill: DeepForensics]** ${focusTopic}`;
+      await runStreamingPrompt(aiForensicsPrompt, undefined, atts, displayMsg);
       return;
     }
 
@@ -4866,10 +4926,12 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-netbird font-medium">
                         <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                        <span>ReAct Loop &amp; Live Stream...</span>
+                        <span>
+                          Senior DevOps KI-Analyse läuft ({liveSteps.length} Schritte · {chatElapsedSec}s)...
+                        </span>
                       </div>
                       <span className="font-mono text-[10px] text-emerald-400">
-                        ⚡ Prefix Cached
+                        ⚡ Deep-Search &amp; Prefix Cache
                       </span>
                     </div>
 
@@ -4928,7 +4990,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 onSubmit={handleSendPrompt}
                 className="relative border-t border-nb-gray-900 bg-nb-gray-950 p-3 space-y-2"
               >
-                {/* Selected Skill Card (Appears when CheckSystem, CheckOpsec, or SkillSearch is clicked) */}
+                {/* Selected Skill Card (Appears when CheckSystem, CheckOpsec, SkillSearch, or DeepForensics is clicked) */}
                 {selectedChatSkill && (
                   <div
                     className={`flex items-start justify-between gap-2.5 rounded-lg border p-2.5 text-xs ${
@@ -4936,6 +4998,8 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         ? "border-emerald-500/40 bg-emerald-950/30 text-emerald-100"
                         : selectedChatSkill === "CheckOpsec"
                         ? "border-sky-500/40 bg-sky-950/30 text-sky-100"
+                        : selectedChatSkill === "DeepForensics"
+                        ? "border-purple-500/40 bg-purple-950/30 text-purple-100"
                         : "border-amber-500/40 bg-amber-950/30 text-amber-100"
                     }`}
                   >
@@ -4945,6 +5009,8 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                           <Activity className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
                         ) : selectedChatSkill === "CheckOpsec" ? (
                           <Shield className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+                        ) : selectedChatSkill === "DeepForensics" ? (
+                          <Cpu className="h-3.5 w-3.5 shrink-0 text-purple-400" />
                         ) : (
                           <Search className="h-3.5 w-3.5 shrink-0 text-amber-400" />
                         )}
@@ -4952,10 +5018,12 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       </div>
                       <p className="text-[11px] text-nb-gray-300 leading-snug">
                         {selectedChatSkill === "CheckSystem"
-                          ? "KI geht System für System (Muscle, Backends, Datenbanken, Logs & Konfiguration) durch und schlägt Verbesserungen vor."
+                          ? "Mehrstufiger Senior-DevOps-Tiefenscan: Prüft Host, Ports, Quellcode, SQLite-Integrität, Logs & Brain-Sync mit erweiterten Suchfunktionen."
                           : selectedChatSkill === "CheckOpsec"
-                          ? "KI prüft System für System auf Cybersecurity & Zero-Trust (offene Ports, SSH, Firewall, Prozesse & Policies)."
-                          : "KI durchsucht das gesamte Synapse Control Center & Live-System und zeigt dir genau, wo du gesuchte Funktionen, Einstellungen oder Dateien findest."}
+                          ? "Mehrstufiger DevSecOps-Tiefenaudit: Prüft offene Sockets, SSH, Firewall, Sysctl, Dateirechte, Code-Schwachstellen, Secrets & HTTP-Header."
+                          : selectedChatSkill === "DeepForensics"
+                          ? "Tiefgreifende DevOps-Forensik: Durchsucht alle Logs, Prozesse, Datenbanken und Quellcode-Dateien nach versteckten Fehlern & Root-Causes."
+                          : "Erweiterte System-, Code-, Datenbank-, Log- & UI-Tiefensuche: Findet jede Funktion, Einstellung, Datei oder Zeile im gesamten System."}
                       </p>
                     </div>
                     <button
@@ -4974,7 +5042,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   <div className="absolute bottom-full left-3 right-3 mb-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-2 shadow-2xl z-30 space-y-1">
                     <div className="flex items-center justify-between px-2 py-1">
                       <span className="font-mono text-[10px] uppercase tracking-wider text-nb-gray-400">
-                        AI Skills & System-Checks
+                        Senior DevOps AI Skills &amp; Deep-Search
                       </span>
                       <button
                         type="button"
@@ -4998,11 +5066,11 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         <div className="flex items-center gap-2 font-semibold text-xs text-emerald-300">
                           <span>CheckSystem</span>
                           <span className="rounded border border-emerald-500/30 bg-emerald-950/40 px-1.5 py-0.2 font-mono text-[9px] text-emerald-300">
-                            Deep Audit
+                            6-Phasen SRE Audit
                           </span>
                         </div>
                         <p className="text-[11px] text-nb-gray-400 leading-snug">
-                          Geht System für System (Backends, Muscle, DBs, Konfigurationen) durch & empfiehlt Verbesserungen.
+                          Tiefenscan wie durch einen Senior DevOps Engineer: Host, Ports, Quellcode-Grep, SQLite-Integrität, Logs &amp; Brain-Drift.
                         </p>
                       </div>
                     </button>
@@ -5020,11 +5088,33 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         <div className="flex items-center gap-2 font-semibold text-xs text-sky-300">
                           <span>CheckOpsec</span>
                           <span className="rounded border border-sky-500/30 bg-sky-950/40 px-1.5 py-0.2 font-mono text-[9px] text-sky-300">
-                            Cybersecurity
+                            DevSecOps Forensik
                           </span>
                         </div>
                         <p className="text-[11px] text-nb-gray-400 leading-snug">
-                          Tiefgreifender Zero-Trust-, Port-, SSH-, Prozess- & Firewall-Sicherheitscheck durch die KI.
+                          Mehrstufiger Security-Audit: Socket-Bindings, SSH, Firewall, Sysctl, Dateirechte, Secret-Leak-Scan &amp; HTTP-Header.
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedChatSkill("DeepForensics");
+                        setSkillMenuOpen(false);
+                        setTimeout(() => chatInputRef.current?.focus(), 50);
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-nb-gray-900 transition"
+                    >
+                      <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-purple-400" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 font-semibold text-xs text-purple-300">
+                          <span>DeepForensics</span>
+                          <span className="rounded border border-purple-500/30 bg-purple-950/40 px-1.5 py-0.2 font-mono text-[9px] text-purple-300">
+                            Root-Cause &amp; Logs
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-nb-gray-400 leading-snug">
+                          Durchsucht sämtliche Logs, Journalctl, Prozesse, Datenbanken &amp; Code-Dateien nach Fehlern, Engpässen &amp; Ursachen.
                         </p>
                       </div>
                     </button>
@@ -5042,11 +5132,11 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         <div className="flex items-center gap-2 font-semibold text-xs text-amber-300">
                           <span>SkillSearch</span>
                           <span className="rounded border border-amber-500/30 bg-amber-950/40 px-1.5 py-0.2 font-mono text-[9px] text-amber-300">
-                            KI-Navigator
+                            Code-, System- &amp; UI-Suche
                           </span>
                         </div>
                         <p className="text-[11px] text-nb-gray-400 leading-snug">
-                          Frag die KI, wo du eine Funktion, Einstellung, Datenbank oder Datei im System findest.
+                          Durchsucht UI-Sitemap, Server-Dateien, Code-Zeilen, Ports, DBs &amp; Brain Vault nach jeder gesuchten Funktion.
                         </p>
                       </div>
                     </button>
