@@ -9,7 +9,7 @@
 
 [![CI Pipeline](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SolidStateNetwork/Synapse?label=Release&color=f68330&labelColor=181a1d)](https://github.com/SolidStateNetwork/Synapse/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-9ca3af?labelColor=181a1d)](./LICENSE)
+[![Lizenz: Source-Available (Non-Commercial)](https://img.shields.io/badge/Lizenz-Source--Available_(Non--Commercial)-f68330?labelColor=181a1d)](./LICENSE)
 
 ### **Synapse — Dein KI-verwaltetes Server- & DevOps-Control-Center**
 Verwalte, überwache und repariere deine Linux-Server gemeinsam mit einer KI – über eine aufgeräumte grafische Oberfläche statt stundenlanger Fehlersuche im Terminal.
@@ -138,4 +138,4 @@ npm --prefix apps/core-web run build
 
 ## 📄 Lizenz
 
-Veröffentlicht unter der [MIT-Lizenz](./LICENSE). Hinweise zur Sicherheit findest du in [SECURITY.md](./SECURITY.md).
+Veröffentlicht unter der [Synapse Source-Available Non-Commercial License](./LICENSE) (`Copyright (c) 2026 SolidStateNetwork — Alle Rechte vorbehalten`). Kostenlos für private Nutzung, Tests und nicht-kommerzielles Self-Hosting; kommerzieller Verkauf, Weiterverkauf oder das Anbieten als Managed-Cloud-/SaaS-Dienst ist ohne schriftliche Lizenz von SolidStateNetwork streng untersagt. Hinweise zur Sicherheit findest du in [SECURITY.md](./SECURITY.md).

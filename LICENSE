@@ -1,21 +1,74 @@
-MIT License
+Synapse Source-Available Non-Commercial License
+===============================================
 
-Copyright (c) 2026 SolidStateNetwork & Contributors
+Copyright (c) 2026 SolidStateNetwork. All Rights Reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. License Grant (Non-Commercial & Personal Self-Hosting Only)
+--------------------------------------------------------------
+Subject to the terms and conditions of this License, SolidStateNetwork ("Licensor")
+hereby grants you a worldwide, royalty-free, non-exclusive, revocable license to
+access, download, install, run, modify, and self-host the Synapse software and
+associated documentation files (the "Software") SOLELY for your own personal,
+non-commercial, educational, or academic research purposes.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+2. Strict Commercial & Resale Restrictions
+------------------------------------------
+Without a separate written Commercial License Agreement from SolidStateNetwork,
+you may NOT under any circumstances:
 
+  (a) Sell, resell, rent, lease, license, sublicense, or otherwise distribute the
+      Software or any modified/derivative version of the Software for a fee or
+      any commercial consideration;
+  (b) Offer, host, or provide the Software (or any substantial part or derivative
+      thereof) to third parties as a managed service, Software-as-a-Service (SaaS),
+      Platform-as-a-Service (PaaS), cloud hosting offering, or commercial
+      infrastructure product;
+  (c) Use the Software in the operation of a commercial business, commercial
+      production environment, or revenue-generating service without an active
+      commercial license from SolidStateNetwork;
+  (d) Remove, alter, or obscure any copyright, trademark, attribution, or license
+      notices of SolidStateNetwork or Synapse in the Software or user interface.
+
+For commercial licensing inquiries, contact SolidStateNetwork via:
+https://github.com/SolidStateNetwork/Synapse
+
+3. Ownership & Intellectual Property
+------------------------------------
+The Software is licensed, not sold. SolidStateNetwork retains all right, title,
+and interest in and to the Software, including all copyrights, trade secrets,
+trademarks ("Synapse", "SolidStateNetwork"), and other intellectual property
+rights. All rights not expressly granted in this License are reserved by
+SolidStateNetwork.
+
+4. Termination
+--------------
+Your license under this agreement terminates automatically and immediately if you
+breach any of its terms (including any unauthorized commercial sale, distribution,
+or commercial hosting). Upon termination, you must immediately cease all use and
+distribution of the Software and destroy all copies in your possession.
+
+5. Disclaimer of Warranty & Limitation of Liability
+---------------------------------------------------
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL
+SOLIDSTATENETWORK OR THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+===============================================================================
+DEUTSCHE ZUSAMMENFASSUNG (Nur zur Information / German Summary):
+-------------------------------------------------------------------------------
+Alle Rechte vorbehalten — SolidStateNetwork (c) 2026.
+
+- ERLAUBT: Kostenlose private Nutzung, Testen, Forschung und nicht-kommerzielles
+  Self-Hosting auf eigenen Servern.
+- STRENG VERBOTEN (ohne schriftliche Lizenz von SolidStateNetwork):
+  1. Verkauf, Weiterverkauf oder kostenpflichtige Weitergabe der Software oder
+     abgeleiteter Versionen (Kopien/Forks).
+  2. Anbieten der Software als bezahlter Cloud-/Managed-Service (SaaS/Hosting)
+     für Dritte.
+  3. Kommerzielle Nutzung im Geschäftsbetrieb oder Entfernen von Urheberrechts-
+     und Markenhinweisen („Synapse“ / „SolidStateNetwork“).
+===============================================================================

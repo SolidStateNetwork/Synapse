@@ -9,7 +9,7 @@
 
 [![CI Pipeline](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SolidStateNetwork/Synapse?label=Release&color=f68330&labelColor=181a1d)](https://github.com/SolidStateNetwork/Synapse/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-9ca3af?labelColor=181a1d)](./LICENSE)
+[![License: Source-Available (Non-Commercial)](https://img.shields.io/badge/License-Source--Available_(Non--Commercial)-f68330?labelColor=181a1d)](./LICENSE)
 
 ### **Synapse — Your AI-Managed Linux Server & DevOps Control Center**
 Manage, monitor, and repair your Linux servers together with an AI — through a clean visual control center instead of hours of manual troubleshooting in the terminal.
@@ -138,4 +138,4 @@ npm --prefix apps/core-web run build
 
 ## 📄 License
 
-Released under the [MIT License](./LICENSE). See [SECURITY.md](./SECURITY.md) for security policy and reporting guidelines.
+Released under the [Synapse Source-Available Non-Commercial License](./LICENSE) (`Copyright (c) 2026 SolidStateNetwork — All Rights Reserved`). Free for personal use, testing, and non-commercial self-hosting; commercial sale, resale, or managed SaaS hosting is strictly prohibited without a written commercial license from SolidStateNetwork. See [SECURITY.md](./SECURITY.md) for security policy and reporting guidelines.
