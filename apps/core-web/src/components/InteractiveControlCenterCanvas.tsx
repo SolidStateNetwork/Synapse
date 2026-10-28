@@ -1165,18 +1165,10 @@ export default function InteractiveControlCenterCanvas({
     setSizes((prev) => {
       let changed = false;
       const nextSizes: Record<string, { w: number; h: number }> = { ...prev };
-      const currentZoom = zoomRef.current || 1;
       for (const [id, el] of Object.entries(nodeRefs.current)) {
         if (el) {
-          const rect = el.getBoundingClientRect();
-          const w =
-            rect.width > 0
-              ? Math.round(rect.width / currentZoom)
-              : el.offsetWidth || DEFAULT_NODE_W;
-          const h =
-            rect.height > 0
-              ? Math.round(rect.height / currentZoom)
-              : el.offsetHeight || 64;
+          const w = el.offsetWidth || DEFAULT_NODE_W;
+          const h = el.offsetHeight || 66;
           if (!prev[id] || prev[id].w !== w || prev[id].h !== h) {
             nextSizes[id] = { w, h };
             changed = true;
@@ -1265,7 +1257,7 @@ export default function InteractiveControlCenterCanvas({
         }
       });
     };
-    shiftColumn("peer:", 88, 250, coreExtraW);
+    shiftColumn("peer:", 74, 250, coreExtraW);
     shiftColumn("svc:", 62, 235, coreExtraW + maxPeerExtraW);
     return out;
   }, [positions, expandedNodes, sizes, customDims, DEFAULT_NODE_W]);
@@ -1496,27 +1488,31 @@ export default function InteractiveControlCenterCanvas({
 
       if (resizeStartRef.current) {
         const r = resizeStartRef.current;
-        const dx = (e.clientX - r.startClientX) / zoom;
-        const dy = (e.clientY - r.startClientY) / zoom;
+        const currentZoom = zoomRef.current || 1;
+        const dx = (e.clientX - r.startClientX) / currentZoom;
+        const dy = (e.clientY - r.startClientY) / currentZoom;
+        // Ignore micro-taps (< 3px movement) so a quick click on the resize grip never jumps the box size
+        if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
+          return;
+        }
         lastDragMovedRef.current = true;
         const nextW = Math.round(
           Math.min(MAX_NODE_W, Math.max(MIN_NODE_W, r.origW + dx))
         );
-        const minBaseH =
-          r.nodeId === "core:hub"
-            ? 108
-            : r.nodeId.startsWith("peer:")
-            ? 88
-            : 64;
+        const naturalMinH = r.nodeId.startsWith("svc:") ? 58 : 66;
+        const minBaseH = Math.min(r.origH, naturalMinH);
+        const rawNextH = Math.round(Math.max(minBaseH, r.origH + dy));
         const nextMinH =
           r.mode === "wh"
-            ? Math.round(Math.max(minBaseH, r.origH + dy))
+            ? rawNextH <= naturalMinH
+              ? undefined
+              : rawNextH
             : undefined;
         setCustomDims((prev) => ({
           ...prev,
           [r.nodeId]: {
             w: nextW,
-            minH: nextMinH !== undefined ? nextMinH : prev[r.nodeId]?.minH,
+            minH: r.mode === "wh" ? nextMinH : prev[r.nodeId]?.minH,
           },
         }));
         measureNodes();
@@ -1612,19 +1608,11 @@ export default function InteractiveControlCenterCanvas({
     e.preventDefault();
     e.stopPropagation();
     const el = nodeRefs.current[nodeId];
-    const currentZoom = zoomRef.current || 1;
-    const rect = el?.getBoundingClientRect();
     const origW =
-      customDims[nodeId]?.w ||
-      (rect && rect.width > 0
-        ? Math.round(rect.width / currentZoom)
-        : el?.offsetWidth) ||
-      DEFAULT_NODE_W;
+      customDims[nodeId]?.w || el?.offsetWidth || DEFAULT_NODE_W;
     const origH =
-      (rect && rect.height > 0
-        ? Math.round(rect.height / currentZoom)
-        : el?.offsetHeight) || 74;
-    lastDragMovedRef.current = true;
+      customDims[nodeId]?.minH || el?.offsetHeight || 66;
+    lastDragMovedRef.current = false;
     setResizingNodeId(nodeId);
     resizeStartRef.current = {
       nodeId,
