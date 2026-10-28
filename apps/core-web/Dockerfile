@@ -7,6 +7,7 @@ WORKDIR /workspace/apps/core-web
 RUN npm ci && npm run build
 
 FROM node:22-alpine AS runner
+RUN apk add --no-cache git curl ca-certificates
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000

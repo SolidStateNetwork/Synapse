@@ -372,11 +372,24 @@ async function performCoreUpdate(repoRoot: string): Promise<UpdateStepLog[]> {
     isWin ? "core-gateway.new.exe" : "core-gateway.new"
   );
 
-  const localGoCheck = await runCmd("go version", repoRoot, undefined, 5000);
-  if (localGoCheck.ok) {
+  // Locate Go compiler across standard PATH and OS installation folders
+  const goCandidates = isWin
+    ? ["go", "C:\\Program Files\\Go\\bin\\go.exe", "C:\\Go\\bin\\go.exe"]
+    : ["go", "/usr/local/go/bin/go", "/usr/bin/go"];
+  let goBin = "";
+  for (const cand of goCandidates) {
+    if (cand !== "go" && !fs.existsSync(cand)) continue;
+    const chk = await runCmd(`"${cand}" version`, repoRoot, undefined, 5000);
+    if (chk.ok) {
+      goBin = cand;
+      break;
+    }
+  }
+
+  if (goBin) {
     const gwDir = path.join(repoRoot, "apps", "core-gateway");
     let buildGw = await runCmd(
-      `go build -ldflags="-s -w" -o "${gwPrimaryOut}" .`,
+      `"${goBin}" build -ldflags="-s -w" -o "${gwPrimaryOut}" .`,
       gwDir,
       { CGO_ENABLED: "0" },
       90000
@@ -384,7 +397,7 @@ async function performCoreUpdate(repoRoot: string): Promise<UpdateStepLog[]> {
     let targetGwPath = gwPrimaryOut;
     if (!buildGw.ok) {
       buildGw = await runCmd(
-        `go build -ldflags="-s -w" -o "${gwStagedOut}" .`,
+        `"${goBin}" build -ldflags="-s -w" -o "${gwStagedOut}" .`,
         gwDir,
         { CGO_ENABLED: "0" },
         90000
@@ -460,11 +473,19 @@ async function performMuscleOTAUpdate(
     return steps;
   }
 
-  // Group nodes by physical IP address so we only compile once per physical server
-  const builderNode =
-    onlineNodes.find((n) => n.tier === "TIER_1_UNLEASHED") || onlineNodes[0];
+  // Group nodes by physical server (private_ipv4 / hostname / remote IP) so every distinct server is updated once
+  const hostGroups = new Map<string, typeof onlineNodes>();
+  for (const n of onlineNodes) {
+    const hostKey =
+      n.last_heartbeat?.private_ipv4 ||
+      n.last_heartbeat?.hostname ||
+      n.remote_addr.split(":")[0] ||
+      n.node_id;
+    const list = hostGroups.get(hostKey) || [];
+    list.push(n);
+    hostGroups.set(hostKey, list);
+  }
 
-  const tBuild = Date.now();
   const buildAndInstallScript = [
     `set -e`,
     `export HOME="\${HOME:-/root}"`,
@@ -495,75 +516,76 @@ async function performMuscleOTAUpdate(
     `echo "OTA_SUCCESS commit=\$COMMIT sha256=\$NEW_SHA"`,
   ].join("\n");
 
-  const b64Ota = Buffer.from(buildAndInstallScript, "utf8").toString("base64");
+  for (const [, groupNodes] of hostGroups.entries()) {
+    const builderNode =
+      groupNodes.find((n) => n.tier === "TIER_1_UNLEASHED") || groupNodes[0];
+    const tBuild = Date.now();
 
-  try {
-    // Write OTA updater script via atomic FS RPC
-    await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        node_id: builderNode.node_id,
-        request_id: `ota-fs-${Date.now()}`,
-        project_id: "synapse-cloud-demo",
-        tier: "TIER_1_UNLEASHED",
-        operation: "write_file",
-        path: ".synapse_ota_update.sh",
-        content: `#!/usr/bin/env bash\n${buildAndInstallScript}\n`,
-        file_mode: "0755",
-      }),
-    });
+    try {
+      await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: builderNode.node_id,
+          request_id: `ota-fs-${Date.now()}`,
+          project_id: "synapse-cloud-demo",
+          tier: "TIER_1_UNLEASHED",
+          operation: "write_file",
+          path: ".synapse_ota_update.sh",
+          content: `#!/usr/bin/env bash\n${buildAndInstallScript}\n`,
+          file_mode: "0755",
+        }),
+      });
 
-    const ptyRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        node_id: builderNode.node_id,
-        cmd_id: `ota-${Date.now()}`,
-        session_id: "ota-updater",
-        project_id: "synapse-cloud-demo",
-        tier: "TIER_1_UNLEASHED",
-        command: `bash .synapse_ota_update.sh`,
-        wait_timeout_ms: 60000,
-      }),
-    });
-    const ptyData = (await ptyRes.json()) as {
-      exit_code?: number;
-      output?: string;
-    };
-    const outText = (ptyData.output || "").trim();
-    const ok = ptyRes.ok && outText.includes("OTA_SUCCESS");
-    const matchLine =
-      outText
-        .split(/\r?\n/)
-        .find((l) => l.includes("OTA_SUCCESS")) || outText.slice(-240);
+      const ptyRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: builderNode.node_id,
+          cmd_id: `ota-${Date.now()}`,
+          session_id: "ota-updater",
+          project_id: "synapse-cloud-demo",
+          tier: "TIER_1_UNLEASHED",
+          command: `bash .synapse_ota_update.sh`,
+          wait_timeout_ms: 60000,
+        }),
+      });
+      const ptyData = (await ptyRes.json()) as {
+        exit_code?: number;
+        output?: string;
+      };
+      const outText = (ptyData.output || "").trim();
+      const ok = ptyRes.ok && outText.includes("OTA_SUCCESS");
+      const matchLine =
+        outText
+          .split(/\r?\n/)
+          .find((l) => l.includes("OTA_SUCCESS")) || outText.slice(-240);
 
-    steps.push({
-      step: `OTA Build, Binary-Swap & Systemd Restart (${onlineNodes
-        .map((n) => n.node_id)
-        .join(", ")})`,
-      status: ok ? "ok" : "error",
-      detail: ok
-        ? `Muscle Binary erfolgreich aus origin/main kompiliert, unter /usr/local/bin/axon installiert und systemd-Daemon(s) neu gestartet (${matchLine}).`
-        : `OTA-Fehler: ${outText || `Exit ${ptyData.exit_code}`}`,
-      duration_ms: Date.now() - tBuild,
-    });
-  } catch (err) {
-    // Fallback if b64Ota needed
-    void b64Ota;
-    steps.push({
-      step: `OTA Muscle Rollout (${builderNode.node_id})`,
-      status: "error",
-      detail: err instanceof Error ? err.message : String(err),
-      duration_ms: Date.now() - tBuild,
-    });
+      steps.push({
+        step: `OTA Build, Binary-Swap & Systemd Restart (${groupNodes
+          .map((n) => n.node_id)
+          .join(", ")})`,
+        status: ok ? "ok" : "error",
+        detail: ok
+          ? `Muscle Binary erfolgreich aus origin/main kompiliert, unter /usr/local/bin/axon installiert und systemd-Daemon(s) neu gestartet (${matchLine}).`
+          : `OTA-Fehler: ${outText || `Exit ${ptyData.exit_code}`}`,
+        duration_ms: Date.now() - tBuild,
+      });
+    } catch (err) {
+      steps.push({
+        step: `OTA Muscle Rollout (${builderNode.node_id})`,
+        status: "error",
+        detail: err instanceof Error ? err.message : String(err),
+        duration_ms: Date.now() - tBuild,
+      });
+    }
   }
 
-  // Wait for systemd to restart axon (triggered after 0.8s) and re-establish the mTLS Yamux session
+  // Wait for systemd to restart axon and re-establish the mTLS Yamux session
   await new Promise((r) => setTimeout(r, 2200));
   for (let i = 0; i < 6; i++) {
     const postNodes = await fetchGatewayNodes();
-    if (postNodes.some((n) => n.node_id === builderNode.node_id && n.online)) {
+    if (onlineNodes.every(( target ) => postNodes.some((n) => n.node_id === target.node_id && n.online))) {
       break;
     }
     await new Promise((r) => setTimeout(r, 700));
