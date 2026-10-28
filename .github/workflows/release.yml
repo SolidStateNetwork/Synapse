@@ -30,14 +30,13 @@ jobs:
         with:
           go-version: "1.23"
           cache-dependency-path: |
-            packages/proto/go.sum
             agents/axon/go.sum
             apps/core-gateway/go.sum
 
       - name: Run Verification Suite
         env:
           CGO_ENABLED: "0"
-        run: go test -v ./packages/proto/... ./agents/axon/... ./apps/core-gateway/...
+        run: go test -v ./proto/... ./agents/axon/... ./apps/core-gateway/...
 
       - name: Cross-Compile Static Binaries (Axon Muscle + Core Gateway)
         env:
