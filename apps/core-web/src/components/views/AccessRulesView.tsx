@@ -234,21 +234,23 @@ export default function AccessRulesView({
                   : "border-nb-gray-900 bg-nb-gray-940 hover:border-nb-gray-800"
               }`}
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${
-                      enabled ? "bg-green-400" : "bg-nb-gray-500"
-                    }`}
-                  />
-                  <span className="truncate text-sm font-semibold text-white">
-                    {c.name}
-                  </span>
-                  <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[9px] text-nb-gray-400">
-                    {c.category}
-                  </span>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${
+                        enabled ? "bg-green-400" : "bg-nb-gray-500"
+                      }`}
+                    />
+                    <span className="text-sm font-semibold text-white leading-snug">
+                      {c.name}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[9.5px] text-nb-gray-400">
+                    {c.category}
+                  </span>
                   <span className="flex items-center gap-1 text-[11px] text-nb-gray-400 hover:text-white">
                     <span>{selected ? "Einklappen" : "Erweitern"}</span>
                     {selected ? (

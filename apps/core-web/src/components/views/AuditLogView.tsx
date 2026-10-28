@@ -113,7 +113,7 @@ export default function AuditLogView({
                         )}
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-nb-gray-200 max-w-[240px] xl:max-w-[340px] truncate">
+                    <td className="py-3 px-3 text-nb-gray-200 max-w-[420px] xl:max-w-[560px] truncate">
                       {log.summary}
                     </td>
                     <td className="py-3 px-3 text-right whitespace-nowrap">

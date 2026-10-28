@@ -1104,12 +1104,12 @@ export default function InteractiveControlCenterCanvas({
 
         owned.forEach((svc, idx) => {
           next[`svc:${svc.service_id}`] = {
-            x: 890,
+            x: 824,
             y: Math.round(firstSvcY + idx * svcStep),
           };
         });
 
-        next[peerKey] = { x: 470, y: peerY };
+        next[peerKey] = { x: 430, y: peerY };
         peerCenterYs.push(peerY + PEER_BASE_H / 2);
         cursorY = Math.max(
           lastSvcY + SVC_BASE_H + 36,
@@ -1117,7 +1117,7 @@ export default function InteractiveControlCenterCanvas({
         );
       } else {
         const peerY = cursorY;
-        next[peerKey] = { x: 470, y: peerY };
+        next[peerKey] = { x: 430, y: peerY };
         peerCenterYs.push(peerY + PEER_BASE_H / 2);
         cursorY += Math.max(PEER_BASE_H + 36, peerStep);
       }
@@ -1130,13 +1130,13 @@ export default function InteractiveControlCenterCanvas({
     const midCenterY = (minCenterY + maxCenterY) / 2;
 
     next["core:hub"] = {
-      x: 50,
+      x: 36,
       y: Math.max(28, Math.round(midCenterY - CORE_BASE_H / 2)),
     };
 
     if (allServices.length === 0) {
       next["svc:empty"] = {
-        x: 890,
+        x: 824,
         y: Math.max(28, Math.round(midCenterY - SVC_BASE_H / 2)),
       };
     }
@@ -1204,6 +1204,12 @@ export default function InteractiveControlCenterCanvas({
   // automatically push sibling cards below it (and columns to the right) so nothing overlaps!
   const effectivePositions = useMemo(() => {
     const out: Record<string, CanvasPos> = { ...positions };
+    if (expandedNodes["core:hub"] && out["core:hub"] && !hasUserDraggedRef.current) {
+      out["core:hub"] = {
+        x: out["core:hub"].x,
+        y: Math.min(out["core:hub"].y, 48),
+      };
+    }
     const coreW = expandedNodes["core:hub"]
       ? customDims["core:hub"]?.w || sizes["core:hub"]?.w || DEFAULT_NODE_W
       : DEFAULT_NODE_W;
@@ -1226,24 +1232,34 @@ export default function InteractiveControlCenterCanvas({
         .filter((k) => k.startsWith(prefix))
         .sort((a, b) => (out[a]?.y ?? 0) - (out[b]?.y ?? 0));
       let extraShiftY = 0;
-      for (const k of keys) {
+      keys.forEach((k, idx) => {
         const basePos = out[k];
-        if (!basePos) continue;
+        if (!basePos) return;
+        const startY =
+          prefix === "peer:" &&
+          idx === 0 &&
+          expandedNodes[k] &&
+          !hasUserDraggedRef.current
+            ? Math.min(basePos.y, 48)
+            : basePos.y;
         out[k] = {
           x: Math.round(basePos.x + extraShiftX),
-          y: Math.round(basePos.y + extraShiftY),
+          y: Math.round(startY + extraShiftY),
         };
         if (expandedNodes[k]) {
           const actualH = sizes[k]?.h || fallbackExpandedH;
           const delta = Math.max(0, actualH - baseH);
           extraShiftY += delta + 10;
         }
-      }
+      });
     };
     shiftColumn("peer:", 88, 250, coreExtraW);
     shiftColumn("svc:", 62, 235, coreExtraW + maxPeerExtraW);
     return out;
   }, [positions, expandedNodes, sizes, customDims, DEFAULT_NODE_W]);
+
+  const effectivePositionsRef = useRef(effectivePositions);
+  effectivePositionsRef.current = effectivePositions;
 
   const toggleExpandNode = useCallback(
     (nodeKey: string, e?: React.MouseEvent) => {
@@ -1266,20 +1282,6 @@ export default function InteractiveControlCenterCanvas({
     ];
     return keys.length > 0 && keys.every((k) => expandedNodes[k]);
   }, [gatewayNodes, allServices, expandedNodes]);
-
-  const handleToggleExpandAll = () => {
-    const target = !allExpanded;
-    const next: Record<string, boolean> = { "core:hub": target };
-    gatewayNodes.forEach((n) => {
-      next[`peer:${n.node_id}`] = target;
-    });
-    allServices.forEach((s) => {
-      next[`svc:${s.service_id}`] = target;
-    });
-    setExpandedNodes(next);
-    setTimeout(measureNodes, 40);
-    setTimeout(measureNodes, 150);
-  };
 
   const handleFitView = useCallback(
     (layoutOverride?: Record<string, CanvasPos>) => {
@@ -1304,7 +1306,7 @@ export default function InteractiveControlCenterCanvas({
           sizes[key]?.h ||
           (key === "core:hub" ? 108 : key.startsWith("peer:") ? 88 : 62);
         const extraRight =
-          key.startsWith("svc:") && serviceLinks.length > 0 ? 95 : 0;
+          key.startsWith("svc:") && serviceLinks.length > 0 ? 84 : 0;
         if (pos.x < minX) minX = pos.x;
         if (pos.y < minY) minY = pos.y;
         if (pos.x + w + extraRight > maxX) maxX = pos.x + w + extraRight;
@@ -1312,17 +1314,17 @@ export default function InteractiveControlCenterCanvas({
       }
 
       if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
-        minX = 50;
+        minX = 36;
         minY = 48;
-        maxX = 1230;
+        maxX = 1164;
         maxY = 502;
       }
 
       const contentW = Math.max(400, maxX - minX);
       const contentH = Math.max(240, maxY - minY);
-      const scaleX = (rect.width - 88) / contentW;
-      const scaleY = (rect.height - 88) / contentH;
-      const minScale = layoutOverride ? 0.56 : 0.72;
+      const scaleX = (rect.width - 48) / contentW;
+      const scaleY = (rect.height - 64) / contentH;
+      const minScale = layoutOverride ? 0.56 : 0.78;
       const nextZoom = Math.min(Math.max(Math.min(scaleX, scaleY), minScale), 1.05);
       const roundedZoom = Number(nextZoom.toFixed(2));
 
@@ -1334,10 +1336,29 @@ export default function InteractiveControlCenterCanvas({
       );
 
       setZoom(roundedZoom);
-      setPan({ x: panX, y: panY });
+      setPan({ x: panX, y: Math.max(16, panY) });
     },
     [positions, sizes, computeDefaultLayout, DEFAULT_NODE_W, serviceLinks.length]
   );
+
+  const handleToggleExpandAll = () => {
+    const target = !allExpanded;
+    const next: Record<string, boolean> = { "core:hub": target };
+    gatewayNodes.forEach((n) => {
+      next[`peer:${n.node_id}`] = target;
+    });
+    allServices.forEach((s) => {
+      next[`svc:${s.service_id}`] = target;
+    });
+    setExpandedNodes(next);
+    setTimeout(measureNodes, 35);
+    setTimeout(() => {
+      measureNodes();
+      if (!target) {
+        handleFitView();
+      }
+    }, 150);
+  };
 
   useEffect(() => {
     if (!hasUserDraggedRef.current) {
@@ -1929,94 +1950,134 @@ export default function InteractiveControlCenterCanvas({
             });
           })()}
 
-          {/* FEATURE 6: SERVICE-TO-SERVICE MESH DATA-FLOW ARCS */}
-          {serviceLinks.map((link, lIdx) => {
-            const fromKey = `svc:${link.fromServiceId}`;
-            const toKey = `svc:${link.toServiceId}`;
-            const p1 = effectivePositions[fromKey];
-            const p2 = effectivePositions[toKey];
-            if (!p1 || !p2) return null;
+          {/* FEATURE 6: SERVICE-TO-SERVICE MESH DATA-FLOW ARCS (2-Pass Rendering: Paths first, Labels on top with collision avoidance) */}
+          {(() => {
+            const labelItems: Array<{
+              id: string;
+              midX: number;
+              midY: number;
+              protocol: string;
+              isHovered: boolean;
+            }> = [];
+            const usedYs: number[] = [];
 
-            const w1 = expandedNodes[fromKey]
-              ? customDims[fromKey]?.w || sizes[fromKey]?.w || DEFAULT_NODE_W
-              : DEFAULT_NODE_W;
-            const w2 = expandedNodes[toKey]
-              ? customDims[toKey]?.w || sizes[toKey]?.w || DEFAULT_NODE_W
-              : DEFAULT_NODE_W;
-            const x1 = p1.x + w1;
-            const y1 = p1.y + 31;
-            const x2 = p2.x + w2;
-            const y2 = p2.y + 31;
+            const arcElements = serviceLinks.map((link, lIdx) => {
+              const fromKey = `svc:${link.fromServiceId}`;
+              const toKey = `svc:${link.toServiceId}`;
+              const p1 = effectivePositions[fromKey];
+              const p2 = effectivePositions[toKey];
+              if (!p1 || !p2) return null;
 
-            const arcOffset = 52 + (lIdx % 3) * 26;
-            const ctrlX = Math.max(x1, x2) + arcOffset;
-            const d = `M ${x1} ${y1} C ${ctrlX} ${y1}, ${ctrlX} ${y2}, ${x2} ${y2}`;
-            const midX = ctrlX - 10;
-            const midY = (y1 + y2) / 2;
-            const isHovered =
-              hoveredNodeId === fromKey || hoveredNodeId === toKey;
+              const w1 = expandedNodes[fromKey]
+                ? customDims[fromKey]?.w || sizes[fromKey]?.w || DEFAULT_NODE_W
+                : DEFAULT_NODE_W;
+              const w2 = expandedNodes[toKey]
+                ? customDims[toKey]?.w || sizes[toKey]?.w || DEFAULT_NODE_W
+                : DEFAULT_NODE_W;
+              const x1 = p1.x + w1;
+              const y1 = p1.y + 31;
+              const x2 = p2.x + w2;
+              const y2 = p2.y + 31;
 
-            return (
-              <g
-                key={link.id}
-                style={{
-                  opacity: isHovered ? 1 : 0.78,
-                  transition: "opacity 180ms ease",
-                }}
-              >
-                <path
-                  d={d}
-                  fill="none"
-                  stroke="#a855f7"
-                  strokeOpacity={isHovered ? 0.35 : 0.14}
-                  strokeWidth={isHovered ? 6 : 3.5}
-                  strokeLinecap="round"
-                />
-                <path
-                  d={d}
-                  fill="none"
-                  stroke="#a855f7"
-                  strokeOpacity={isHovered ? 0.95 : 0.65}
-                  strokeWidth={1.6}
-                  strokeDasharray="4 6"
-                  className="cc-animated-edge"
-                />
+              const arcOffset = 46 + (lIdx % 3) * 22;
+              const ctrlX = Math.max(x1, x2) + arcOffset;
+              const d = `M ${x1} ${y1} C ${ctrlX} ${y1}, ${ctrlX} ${y2}, ${x2} ${y2}`;
+              // Exact cubic Bezier midpoint at t=0.5: x = 0.125*x1 + 0.75*ctrlX + 0.125*x2
+              const bezierMidX = Math.round(0.125 * x1 + 0.75 * ctrlX + 0.125 * x2);
+              let labelY = Math.round((y1 + y2) / 2);
+              while (usedYs.some((uy) => Math.abs(uy - labelY) < 22)) {
+                labelY += 22;
+              }
+              usedYs.push(labelY);
+
+              const isHovered =
+                hoveredNodeId === fromKey || hoveredNodeId === toKey;
+
+              labelItems.push({
+                id: link.id,
+                midX: bezierMidX,
+                midY: labelY,
+                protocol: link.protocol,
+                isHovered,
+              });
+
+              return (
                 <g
-                  className="synapse-packet-fwd"
+                  key={`arc-${link.id}`}
                   style={{
-                    offsetPath: `path("${d}")`,
-                    animationDuration: `${(2.8 + lIdx * 0.4).toFixed(2)}s`,
+                    opacity: isHovered ? 1 : 0.78,
+                    transition: "opacity 180ms ease",
                   }}
                 >
-                  <circle r={4.5} fill="#a855f7" fillOpacity={0.45} />
-                  <circle r={2} fill="#f3e8ff" />
-                </g>
-                <g transform={`translate(${midX}, ${midY})`}>
-                  <rect
-                    x={-38}
-                    y={-9}
-                    width={76}
-                    height={18}
-                    rx={6}
-                    fill="#141619"
+                  <path
+                    d={d}
+                    fill="none"
                     stroke="#a855f7"
-                    strokeOpacity={0.55}
-                    strokeWidth={1}
+                    strokeOpacity={isHovered ? 0.35 : 0.14}
+                    strokeWidth={isHovered ? 6 : 3.5}
+                    strokeLinecap="round"
                   />
-                  <text
-                    x={0}
-                    y={3}
-                    textAnchor="middle"
-                    fill="#e9d5ff"
-                    fontSize={8.5}
-                    fontFamily="monospace"
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="#a855f7"
+                    strokeOpacity={isHovered ? 0.95 : 0.65}
+                    strokeWidth={1.6}
+                    strokeDasharray="4 6"
+                    className="cc-animated-edge"
+                  />
+                  <g
+                    className="synapse-packet-fwd"
+                    style={{
+                      offsetPath: `path("${d}")`,
+                      animationDuration: `${(2.8 + lIdx * 0.4).toFixed(2)}s`,
+                    }}
                   >
-                    {link.protocol}
-                  </text>
+                    <circle r={4.5} fill="#a855f7" fillOpacity={0.45} />
+                    <circle r={2} fill="#f3e8ff" />
+                  </g>
                 </g>
-              </g>
+              );
+            });
+
+            return (
+              <>
+                {arcElements}
+                {labelItems.map((lbl) => (
+                  <g
+                    key={`lbl-${lbl.id}`}
+                    transform={`translate(${lbl.midX}, ${lbl.midY})`}
+                    style={{
+                      opacity: lbl.isHovered ? 1 : 0.94,
+                      transition: "opacity 180ms ease",
+                    }}
+                  >
+                    <rect
+                      x={-38}
+                      y={-9}
+                      width={76}
+                      height={18}
+                      rx={6}
+                      fill="#0f1115"
+                      stroke="#a855f7"
+                      strokeOpacity={0.75}
+                      strokeWidth={1.1}
+                    />
+                    <text
+                      x={0}
+                      y={3}
+                      textAnchor="middle"
+                      fill="#e9d5ff"
+                      fontSize={8.5}
+                      fontFamily="monospace"
+                    >
+                      {lbl.protocol}
+                    </text>
+                  </g>
+                ))}
+              </>
             );
-          })}
+          })()}
         </svg>
 
         {/* 1. MIDDLE: INTERACTIVE MUSCLE SERVER CARDS (Single Unified Expandable Box) */}
@@ -2535,7 +2596,11 @@ export default function InteractiveControlCenterCanvas({
                                     {translateText(bkp.title)}
                                   </div>
                                   <div className="font-mono text-[8.5px] text-nb-gray-400">
-                                    {(bkp.size_bytes / 1024).toFixed(1)} KB ·{" "}
+                                    {new Date(bkp.timestamp).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}{" "}
+                                    · {(bkp.size_bytes / 1024).toFixed(1)} KB ·{" "}
                                     SHA:{bkp.sha256.slice(0, 8)}
                                   </div>
                                 </div>
@@ -2856,11 +2921,11 @@ export default function InteractiveControlCenterCanvas({
                               key={bp.id}
                               className="flex items-center justify-between gap-1.5 rounded-lg border border-nb-gray-800/80 bg-nb-gray-940/70 px-2 py-1.5 text-[10px]"
                             >
-                              <div className="min-w-0">
-                                <div className="truncate font-medium text-nb-gray-200">
+                              <div className="min-w-0 flex-1 pr-1">
+                                <div className="font-medium text-nb-gray-200 leading-tight">
                                   {translateText(bp.name)}
                                 </div>
-                                <div className="truncate text-[8.5px] text-nb-gray-400">
+                                <div className="mt-0.5 text-[8.5px] leading-snug text-nb-gray-400">
                                   {translateText(bp.description)}
                                 </div>
                               </div>
@@ -2922,10 +2987,10 @@ export default function InteractiveControlCenterCanvas({
           const cat = svc.category || "backend";
           const catLabel =
             cat === "webui"
-              ? t("Web-Oberfläche", "WebUI")
+              ? "WebUI"
               : cat === "database"
-              ? t("Datenbank", "Database")
-              : t("Backend-API", "Backend API");
+              ? "SQLite"
+              : "API";
           const latencyMs =
             svc.latency_ms ?? svc.health_check?.latency_ms ?? 1;
           const customW = isExpanded
@@ -3012,7 +3077,7 @@ export default function InteractiveControlCenterCanvas({
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 font-mono text-[10px] text-nb-gray-400 mt-0.5 min-w-0">
-                          <span className="truncate">
+                          <span data-no-i18n="true" className="truncate">
                             {catLabel} · {svc.node_id}
                           </span>
                           <span className="shrink-0 font-semibold text-nb-gray-200">
@@ -3103,7 +3168,9 @@ export default function InteractiveControlCenterCanvas({
                                 <strong className="font-mono text-netbird mr-1.5">
                                   {ep.method}
                                 </strong>
-                                {translateText(ep.label)}
+                                {translateText(ep.label)
+                                  .replace(new RegExp(`^${ep.method}\\s+`, "i"), "")
+                                  .trim()}
                               </span>
                               <ChevronRight className="h-3 w-3 shrink-0 text-nb-gray-500" />
                             </button>

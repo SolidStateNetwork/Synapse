@@ -792,6 +792,9 @@ const EN_DICTIONARY: Record<string, string> = {
     "CLI Debug Commands for Core & Muscle (axon debug / --debug)",
   "Live Core-Web- & Gateway-Diagnose-Snapshot (/api/debug)":
     "Live Core Web & Gateway Diagnostic Snapshot (/api/debug)",
+  "Anhang": "Attach",
+  "Kontext": "Context",
+  "Senden": "Send",
 };
 
 /**

@@ -3782,7 +3782,7 @@ export default function SynapseNetBirdControlCenter() {
                         Noch keine Dienste im Projekt registriert.
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {allSvcs.map((svc) => {
                           const healthy =
                             svc.healthy !== false &&
@@ -3921,7 +3921,7 @@ export default function SynapseNetBirdControlCenter() {
                               className="group flex min-w-0 items-center gap-2 rounded-lg border border-nb-gray-800/90 bg-nb-gray-950/90 px-2.5 py-1 font-mono text-[11px] text-nb-gray-300 transition hover:border-netbird/50 hover:text-white"
                             >
                               <Globe className="h-3.5 w-3.5 shrink-0 text-netbird" />
-                              <span className="truncate max-w-[260px] xl:max-w-[380px]">
+                              <span className="truncate max-w-[420px] xl:max-w-[540px]">
                                 {activeExtUrl}
                               </span>
                               <span className="flex shrink-0 items-center gap-1 rounded bg-netbird/15 px-1.5 py-0.5 font-sans text-[10px] font-medium text-netbird group-hover:bg-netbird group-hover:text-white transition-colors">
@@ -4054,7 +4054,7 @@ export default function SynapseNetBirdControlCenter() {
                                             </span>
                                           </div>
                                           {ep.description && (
-                                            <div className="mt-1.5 line-clamp-1 text-[11px] text-nb-gray-400">
+                                            <div className="mt-1.5 line-clamp-2 leading-snug text-[11px] text-nb-gray-400">
                                               {ep.description}
                                             </div>
                                           )}
@@ -4632,21 +4632,31 @@ export default function SynapseNetBirdControlCenter() {
                           </div>
                         </div>
 
-                        {systemUpdateStatus && (
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`rounded-full border px-3 py-1 font-mono text-[11px] font-semibold ${
-                                systemUpdateStatus.git.update_available
-                                  ? "border-amber-500/50 bg-amber-950/60 text-amber-300"
-                                  : "border-emerald-500/50 bg-emerald-950/60 text-emerald-300"
-                              }`}
-                            >
-                              {systemUpdateStatus.git.update_available
-                                ? `Update verfügbar (+${systemUpdateStatus.git.commits_behind} Commits)`
-                                : `Aktuell (${systemUpdateStatus.git.local_short})`}
-                            </span>
-                          </div>
-                        )}
+                        {systemUpdateStatus && (() => {
+                          const outdatedCount = systemUpdateStatus.nodes.filter(
+                            (n) => !n.up_to_date
+                          ).length;
+                          const anyUpdate =
+                            systemUpdateStatus.git.update_available ||
+                            outdatedCount > 0;
+                          return (
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`rounded-full border px-3 py-1 font-mono text-[11px] font-semibold ${
+                                  anyUpdate
+                                    ? "border-amber-500/50 bg-amber-950/60 text-amber-300"
+                                    : "border-emerald-500/50 bg-emerald-950/60 text-emerald-300"
+                                }`}
+                              >
+                                {systemUpdateStatus.git.update_available
+                                  ? `Update verfügbar (+${systemUpdateStatus.git.commits_behind} Commits)`
+                                  : outdatedCount > 0
+                                  ? `${outdatedCount} Muscle-Node OTA verfügbar`
+                                  : `Aktuell (${systemUpdateStatus.git.local_short})`}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* 4 Primary Action Buttons (Clean Icons without duplicate Emojis) */}
@@ -4812,18 +4822,22 @@ export default function SynapseNetBirdControlCenter() {
                                         </span>
                                       )}
                                     </div>
-                                    <div className="font-mono text-[10px] text-nb-gray-400 truncate">
-                                      Commit:{" "}
-                                      <span className="text-nb-gray-200">
-                                        {node.source_commit || "n/a"}
-                                      </span>{" "}
-                                      · SHA:{" "}
-                                      <span className="text-nb-gray-200">
-                                        {node.installed_sha256 || "n/a"}
-                                      </span>{" "}
-                                      {node.installed_mtime
-                                        ? `· Build: ${node.installed_mtime}`
-                                        : ""}
+                                    <div className="font-mono text-[10px] text-nb-gray-400 leading-relaxed">
+                                      <div>
+                                        Commit:{" "}
+                                        <span className="text-nb-gray-200">
+                                          {node.source_commit || "n/a"}
+                                        </span>{" "}
+                                        · SHA:{" "}
+                                        <span className="text-nb-gray-200">
+                                          {(node.installed_sha256 || "n/a").slice(0, 12)}
+                                        </span>
+                                      </div>
+                                      {node.installed_mtime && (
+                                        <div className="text-[9.5px] text-nb-gray-400">
+                                          Build: {node.installed_mtime}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
 
@@ -7819,58 +7833,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   }}
                 />
 
-                <div className="flex items-stretch gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Attach image, screenshot, diagram, or log file (or Drag & Drop / Ctrl+V)"
-                    className="flex h-[46px] w-[38px] shrink-0 items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white transition"
-                  >
-                    <Paperclip className="h-3.5 w-3.5" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (mentionMenuOpen) {
-                        setMentionMenuOpen(false);
-                        setMentionFilter("");
-                        setChatInput((prev) => prev.replace(/(?:^|\s)@$/, ""));
-                      } else {
-                        setSkillMenuOpen(false);
-                        setMentionFilter("");
-                        setMentionMenuOpen(true);
-                      }
-                    }}
-                    title="Mention a Peer, Service, or Brain Vault Doc (@)"
-                    className={`flex h-[46px] w-[38px] shrink-0 items-center justify-center rounded-md border transition ${
-                      mentionMenuOpen
-                        ? "border-netbird bg-netbird/15 text-netbird"
-                        : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white"
-                    }`}
-                  >
-                    <AtSign className="h-3.5 w-3.5" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMentionMenuOpen(false);
-                      setMentionFilter("");
-                      setChatInput((prev) => prev.replace(/(?:^|\s)@$/, ""));
-                      setSkillMenuOpen((v) => !v);
-                    }}
-                    title="AI Skills auswählen (CheckSystem, CheckOpsec, SkillSearch)"
-                    className={`flex h-[46px] shrink-0 items-center gap-1 rounded-md border px-2.5 text-[11px] font-medium transition ${
-                      skillMenuOpen || selectedChatSkill
-                        ? "border-netbird bg-netbird/15 text-netbird"
-                        : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:border-netbird hover:text-white"
-                    }`}
-                  >
-                    <Sparkles className="h-3.5 w-3.5 shrink-0" />
-                    <span>Skills</span>
-                  </button>
-
+                <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-920 p-2 focus-within:border-netbird transition">
                   <textarea
                     ref={chatInputRef}
                     rows={2}
@@ -7896,16 +7859,74 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         ? `Optionaler Fokus für ${selectedChatSkill}...`
                         : "Frage Synapse AI (@ Kontext, Bilder)..."
                     }
-                    className="h-[46px] flex-1 resize-none rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 text-xs leading-4 text-white placeholder:text-nb-gray-400 focus:border-netbird focus:outline-none"
+                    className="w-full resize-none bg-transparent px-1.5 py-1 text-xs leading-relaxed text-white placeholder:text-nb-gray-400 focus:outline-none"
                   />
 
-                  <button
-                    type="submit"
-                    disabled={chatBusy}
-                    className="flex h-[46px] w-[42px] shrink-0 items-center justify-center rounded-md bg-netbird text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-40 transition"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                  </button>
+                  <div className="mt-1.5 flex items-center justify-between border-t border-nb-gray-800/80 pt-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Attach image, screenshot, diagram, or log file (or Drag & Drop / Ctrl+V)"
+                        className="flex h-7 items-center gap-1 rounded-md border border-nb-gray-800 bg-nb-gray-940 px-2 text-[11px] text-nb-gray-300 hover:border-netbird hover:text-white transition"
+                      >
+                        <Paperclip className="h-3 w-3" />
+                        <span>Anhang</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (mentionMenuOpen) {
+                            setMentionMenuOpen(false);
+                            setMentionFilter("");
+                            setChatInput((prev) => prev.replace(/(?:^|\s)@$/, ""));
+                          } else {
+                            setSkillMenuOpen(false);
+                            setMentionFilter("");
+                            setMentionMenuOpen(true);
+                          }
+                        }}
+                        title="Mention a Peer, Service, or Brain Vault Doc (@)"
+                        className={`flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] transition ${
+                          mentionMenuOpen
+                            ? "border-netbird bg-netbird/15 text-netbird"
+                            : "border-nb-gray-800 bg-nb-gray-940 text-nb-gray-300 hover:border-netbird hover:text-white"
+                        }`}
+                      >
+                        <AtSign className="h-3 w-3" />
+                        <span>Kontext</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMentionMenuOpen(false);
+                          setMentionFilter("");
+                          setChatInput((prev) => prev.replace(/(?:^|\s)@$/, ""));
+                          setSkillMenuOpen((v) => !v);
+                        }}
+                        title="AI Skills auswählen (CheckSystem, CheckOpsec, SkillSearch)"
+                        className={`flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-medium transition ${
+                          skillMenuOpen || selectedChatSkill
+                            ? "border-netbird bg-netbird/15 text-netbird"
+                            : "border-nb-gray-800 bg-nb-gray-940 text-nb-gray-300 hover:border-netbird hover:text-white"
+                        }`}
+                      >
+                        <Sparkles className="h-3 w-3 shrink-0" />
+                        <span>Skills</span>
+                      </button>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={chatBusy}
+                      className="flex h-7 items-center gap-1.5 rounded-md bg-netbird px-3 text-[11px] font-semibold text-white hover:bg-netbird-500 disabled:opacity-40 transition shadow-sm"
+                    >
+                      <Send className="h-3 w-3" />
+                      <span>Senden</span>
+                    </button>
+                  </div>
                 </div>
               </form>
             </aside>
