@@ -4,6 +4,8 @@ import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import {
   appendAuditLog,
+  atomicWriteJsonSync,
+  atomicWriteTextSync,
   decryptSecretsMap,
   encryptSecretsMap,
   getProjectDir,
@@ -46,7 +48,7 @@ function loadBackupsIndex(projectId: string): OffsiteBackupItem[] {
 
 function saveBackupsIndex(projectId: string, items: OffsiteBackupItem[]): void {
   const metaPath = getBackupsMetaPath(projectId);
-  fs.writeFileSync(metaPath, JSON.stringify(items.slice(0, 30), null, 2));
+  atomicWriteJsonSync(metaPath, items.slice(0, 30));
 }
 
 export async function GET(req: NextRequest) {

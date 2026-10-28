@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { dispatchAlertEvent } from "@/lib/alerts";
 import {
   appendAuditLog,
+  atomicWriteJsonSync,
   ensureProjectVault,
   getProjectDir,
   saveProjectState,
@@ -41,7 +42,7 @@ function saveDomains(
   projectId: string,
   map: Record<string, DomainBinding>
 ): void {
-  fs.writeFileSync(getDomainsPath(projectId), JSON.stringify(map, null, 2));
+  atomicWriteJsonSync(getDomainsPath(projectId), map);
 }
 
 export async function GET(req: NextRequest) {

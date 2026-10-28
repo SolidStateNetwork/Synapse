@@ -31,7 +31,10 @@ import {
 
 export async function GET(req: NextRequest) {
   const projectId =
-    req.nextUrl.searchParams.get("project_id") || "synapse-cloud-demo";
+    req.nextUrl.searchParams.get("project_id") ||
+    req.nextUrl.searchParams.get("projectId") ||
+    "synapse-cloud-demo";
+  const isLightPoll = req.nextUrl.searchParams.get("light") === "1";
   const projects = listProjects();
   const state = ensureProjectVault(projectId);
   const liveNodes = await fetchGatewayNodes();
@@ -189,51 +192,56 @@ export async function GET(req: NextRequest) {
     saveProjectState(state);
   }
 
-  // Trigger Proactive Auto-Watchdog self-healing for degraded services
-  for (const target of watchdogTargets) {
-    try {
-      const healRes = await interceptAndExecuteTool(
-        projectId,
-        "node_pty_exec",
-        {
-          node_id: target.node_id,
-          session_id: `watchdog-${projectId}`,
-          command: `cd /opt/axon/workspaces/${projectId} 2>/dev/null || true; if [ -f docker-compose.yml ] || [ -f compose.yml ]; then docker compose up -d 2>/dev/null || true; fi; for c in $(docker ps -aq --filter status=exited 2>/dev/null); do docker start "$c" >/dev/null 2>&1 || true; done; if [ -f service/server.js ] && ! ss -tln 2>/dev/null | grep -q ":${target.port} "; then (nohup node service/server.js >/tmp/synapse-svc-${target.port}.log 2>&1 &); fi; sleep 0.8; curl -fsS http://127.0.0.1:${target.port}/`,
-          wait_timeout_ms: 15000,
-        },
-        true
-      );
+  // Trigger Proactive Auto-Watchdog self-healing asynchronously in the background
+  // so GET /api/projects never blocks UI polling while a container/daemon restarts.
+  if (watchdogTargets.length > 0) {
+    void (async () => {
+      for (const target of watchdogTargets) {
+        try {
+          const healRes = await interceptAndExecuteTool(
+            projectId,
+            "node_pty_exec",
+            {
+              node_id: target.node_id,
+              session_id: `watchdog-${projectId}`,
+              command: `cd /opt/axon/workspaces/${projectId} 2>/dev/null || true; if [ -f docker-compose.yml ] || [ -f compose.yml ]; then docker compose up -d 2>/dev/null || true; fi; for c in $(docker ps -aq --filter status=exited 2>/dev/null); do docker start "$c" >/dev/null 2>&1 || true; done; if [ -f "service/server_${target.port}.py" ] && ! ss -tln 2>/dev/null | grep -q ":${target.port} "; then (nohup python3 "service/server_${target.port}.py" >/tmp/synapse-svc-${target.port}.log 2>&1 </dev/null &); elif [ -f service/server.py ] && ! ss -tln 2>/dev/null | grep -q ":${target.port} "; then (nohup python3 service/server.py >/tmp/synapse-svc-${target.port}.log 2>&1 </dev/null &); elif [ -f service/server.js ] && ! ss -tln 2>/dev/null | grep -q ":${target.port} "; then (nohup node service/server.js >/tmp/synapse-svc-${target.port}.log 2>&1 </dev/null &); fi; sleep 0.8; curl -fsS http://127.0.0.1:${target.port}/`,
+              wait_timeout_ms: 15000,
+            },
+            true
+          );
 
-      // Update service health immediately if curl probe succeeded
-      const healedSvc = state.registered_services.find(
-        (s) => s.service_id === target.service_id || s.port === target.port
-      );
-      if (healedSvc && healRes.status === "executed") {
-        healedSvc.healthy = true;
-        healedSvc.consecutive_failures = 0;
-        if (healedSvc.health_check) {
-          healedSvc.health_check.status = "HEALTHY";
-          healedSvc.health_check.last_error = undefined;
+          const freshState = ensureProjectVault(projectId);
+          const healedSvc = freshState.registered_services.find(
+            (s) => s.service_id === target.service_id || s.port === target.port
+          );
+          if (healedSvc && healRes.status === "executed") {
+            healedSvc.healthy = true;
+            healedSvc.consecutive_failures = 0;
+            if (healedSvc.health_check) {
+              healedSvc.health_check.status = "HEALTHY";
+              healedSvc.health_check.last_error = undefined;
+            }
+            saveProjectState(freshState);
+          }
+
+          writeBrainDoc(
+            projectId,
+            "Memory.md",
+            `- **[${new Date().toISOString()}]** 🤖 **Proactive Auto-Watchdog:** Automatically restarted unhealthy service \`${target.name}\` (\`127.0.0.1:${target.port}\` on \`${target.node_id}\`).`,
+            "append"
+          );
+
+          appendChatMessage(projectId, {
+            role: "assistant",
+            content: `🤖 **Proactive Auto-Watchdog Triggered:** Detected consecutive health probe failures on **${target.name}** (\`127.0.0.1:${target.port}\` on \`${target.node_id}\`). Automatically restarted the container/daemon, verified \`http://127.0.0.1:${target.port}/\`, and logged the recovery in \`Memory.md\`.`,
+            timestamp: new Date().toISOString(),
+            toolResults: [healRes],
+          });
+        } catch {
+          // ignore background watchdog error
         }
-        saveProjectState(state);
       }
-
-      writeBrainDoc(
-        projectId,
-        "Memory.md",
-        `- **[${new Date().toISOString()}]** 🤖 **Proactive Auto-Watchdog:** Automatically restarted unhealthy service \`${target.name}\` (\`127.0.0.1:${target.port}\` on \`${target.node_id}\`).`,
-        "append"
-      );
-
-      appendChatMessage(projectId, {
-        role: "assistant",
-        content: `🤖 **Proactive Auto-Watchdog Triggered:** Detected consecutive health probe failures on **${target.name}** (\`127.0.0.1:${target.port}\` on \`${target.node_id}\`). Automatically restarted the container/daemon, verified \`http://127.0.0.1:${target.port}/\`, and logged the recovery in \`Memory.md\`.`,
-        timestamp: new Date().toISOString(),
-        toolResults: [healRes],
-      });
-    } catch {
-      // ignore background watchdog error
-    }
+    })();
   }
 
   return NextResponse.json({
@@ -243,7 +251,7 @@ export async function GET(req: NextRequest) {
     memory_md: readBrainDoc(projectId, "Memory.md"),
     secret_keys: listSecretKeys(projectId),
     audit_logs: readAuditLogs(projectId, 200),
-    chat_history: readChatHistory(projectId, 100),
+    chat_history: isLightPoll ? undefined : readChatHistory(projectId, 100),
     cartridges: listCartridges(),
     blueprints: OFFICIAL_STACK_BLUEPRINTS,
     gateway_nodes: liveNodes,
@@ -254,7 +262,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const action = String(body.action || "");
-  const projectId = String(body.project_id || "synapse-cloud-demo");
+  const projectId = String(
+    body.project_id || body.projectId || "synapse-cloud-demo"
+  );
 
   if (action === "create_project") {
     const newId = String(body.new_project_id || `project-${Date.now()}`);

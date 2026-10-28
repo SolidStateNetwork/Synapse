@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { atomicWriteJsonSync, getProjectDir } from "@/lib/vault";
 
 export interface ServerCheckpoint {
   id: string;
@@ -22,11 +23,7 @@ export interface ServerCheckpoint {
 }
 
 function getCheckpointsFilePath(projectId: string): string {
-  const safeId = projectId.replace(/[^a-zA-Z0-9._-]/g, "") || "synapse-cloud-demo";
-  const vaultRoot =
-    process.env.SYNAPSE_VAULT_DIR ||
-    path.join(process.cwd(), ".synapse-data", "projects");
-  const projDir = path.join(vaultRoot, safeId);
+  const projDir = getProjectDir(projectId);
   fs.mkdirSync(projDir, { recursive: true });
   return path.join(projDir, "Checkpoints.json");
 }
@@ -104,9 +101,7 @@ export function saveCheckpoints(
   checkpoints: ServerCheckpoint[]
 ): void {
   const filePath = getCheckpointsFilePath(projectId);
-  const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  fs.writeFileSync(tmpPath, JSON.stringify(checkpoints.slice(0, 50), null, 2));
-  fs.renameSync(tmpPath, filePath);
+  atomicWriteJsonSync(filePath, checkpoints.slice(0, 50));
 }
 
 export function recordCheckpoint(

@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { atomicWriteJsonSync, getProjectDir } from "@/lib/vault";
 
 export interface AlertEvent {
   id: string;
@@ -33,11 +34,7 @@ export interface AlertConfig {
 }
 
 function getAlertsFilePath(projectId: string): string {
-  const safeId = projectId.replace(/[^a-zA-Z0-9._-]/g, "") || "synapse-cloud-demo";
-  const vaultRoot =
-    process.env.SYNAPSE_VAULT_DIR ||
-    path.join(process.cwd(), ".synapse-data", "projects");
-  const projDir = path.join(vaultRoot, safeId);
+  const projDir = getProjectDir(projectId);
   fs.mkdirSync(projDir, { recursive: true });
   return path.join(projDir, "Alerts.json");
 }
@@ -108,9 +105,7 @@ export function saveAlertConfig(projectId: string, cfg: AlertConfig): void {
   const filePath = getAlertsFilePath(projectId);
   cfg.updated_at = new Date().toISOString();
   cfg.events = (cfg.events || []).slice(0, 60);
-  const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  fs.writeFileSync(tmpPath, JSON.stringify(cfg, null, 2));
-  fs.renameSync(tmpPath, filePath);
+  atomicWriteJsonSync(filePath, cfg);
 }
 
 export async function dispatchAlertEvent(
