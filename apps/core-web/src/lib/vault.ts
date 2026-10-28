@@ -403,17 +403,71 @@ flowchart LR
   return initialState;
 }
 
-function atomicWriteJsonSync(targetPath: string, data: unknown): void {
+export function atomicWriteTextSync(
+  targetPath: string,
+  content: string,
+  mode?: number
+): void {
   const dir = path.dirname(targetPath);
   fs.mkdirSync(dir, { recursive: true });
   const tmpPath = path.join(
     dir,
-    `.state-tmp-${process.pid}-${Date.now()}-${Math.random()
-      .toString(16)
-      .slice(2)}.json`
+    `.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
   );
-  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf8");
+  fs.writeFileSync(
+    tmpPath,
+    content,
+    mode !== undefined ? { encoding: "utf8", mode } : "utf8"
+  );
   fs.renameSync(tmpPath, targetPath);
+}
+
+export function atomicWriteJsonSync(targetPath: string, data: unknown): void {
+  atomicWriteTextSync(targetPath, JSON.stringify(data, null, 2));
+}
+
+const projectStateLocks = new Map<string, Promise<unknown>>();
+
+/**
+ * Serializes concurrent async state mutations per project to prevent lost updates
+ * when background health polling and user actions run simultaneously.
+ */
+export async function withProjectStateTransaction<T>(
+  projectId: string,
+  mutator: (state: ProjectState) => Promise<T> | T
+): Promise<T> {
+  const cleanId = sanitizeProjectId(projectId);
+  const prevLock = projectStateLocks.get(cleanId) || Promise.resolve();
+  let releaseLock!: () => void;
+  const currentLock = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+  projectStateLocks.set(
+    cleanId,
+    prevLock.then(() => currentLock, () => currentLock)
+  );
+
+  await prevLock.catch(() => {});
+  try {
+    const state = ensureProjectVault(cleanId);
+    const result = await mutator(state);
+    saveProjectState(state);
+    return result;
+  } finally {
+    releaseLock();
+    if (projectStateLocks.get(cleanId) === currentLock) {
+      projectStateLocks.delete(cleanId);
+    }
+  }
+}
+
+export function mutateProjectStateSync(
+  projectId: string,
+  mutator: (state: ProjectState) => void
+): ProjectState {
+  const state = ensureProjectVault(projectId);
+  mutator(state);
+  return saveProjectState(state);
 }
 
 export function listProjects(): ProjectState[] {
@@ -595,10 +649,7 @@ export function setSecret(
   const secPath = path.join(getProjectDir(projectId), "Secrets.enc");
   const current = decryptSecretsMap(fs.readFileSync(secPath, "utf8"));
   current[key.trim().toUpperCase()] = value;
-  fs.writeFileSync(secPath, encryptSecretsMap(current), {
-    encoding: "utf8",
-    mode: 0o600,
-  });
+  atomicWriteTextSync(secPath, encryptSecretsMap(current), 0o600);
   return Object.keys(current).sort();
 }
 
@@ -607,29 +658,75 @@ export function deleteSecret(projectId: string, key: string): string[] {
   const secPath = path.join(getProjectDir(projectId), "Secrets.enc");
   const current = decryptSecretsMap(fs.readFileSync(secPath, "utf8"));
   delete current[key.trim().toUpperCase()];
-  fs.writeFileSync(secPath, encryptSecretsMap(current), {
-    encoding: "utf8",
-    mode: 0o600,
-  });
+  atomicWriteTextSync(secPath, encryptSecretsMap(current), 0o600);
   return Object.keys(current).sort();
+}
+
+const MAX_AUDIT_FILE_BYTES = 2 * 1024 * 1024; // 2 MB auto-rotation threshold
+
+function readTailLinesSync(filePath: string, maxLines: number): string[] {
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+  const stat = fs.statSync(filePath);
+  if (stat.size === 0) {
+    return [];
+  }
+  const windowBytes = Math.min(stat.size, Math.max(65536, maxLines * 1024));
+  if (stat.size <= windowBytes) {
+    return fs
+      .readFileSync(filePath, "utf8")
+      .split("\n")
+      .filter((l) => l.trim().length > 0);
+  }
+  const fd = fs.openSync(filePath, "r");
+  try {
+    const buffer = Buffer.allocUnsafe(windowBytes);
+    const bytesRead = fs.readSync(
+      fd,
+      buffer,
+      0,
+      windowBytes,
+      stat.size - windowBytes
+    );
+    const rawChunk = buffer.toString("utf8", 0, bytesRead);
+    const firstNewline = rawChunk.indexOf("\n");
+    const completeChunk =
+      firstNewline >= 0 ? rawChunk.slice(firstNewline + 1) : rawChunk;
+    return completeChunk.split("\n").filter((l) => l.trim().length > 0);
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 export function appendAuditLog(projectId: string, entry: AuditEntry): void {
   ensureProjectVault(projectId);
-  const auditPath = path.join(getProjectDir(projectId), "Audit.jsonl");
+  const dir = getProjectDir(projectId);
+  const auditPath = path.join(dir, "Audit.jsonl");
+  try {
+    if (fs.existsSync(auditPath)) {
+      const stat = fs.statSync(auditPath);
+      if (stat.size > MAX_AUDIT_FILE_BYTES) {
+        const recentLines = readTailLinesSync(auditPath, 500);
+        const archivePath = path.join(dir, "Audit.1.jsonl");
+        try {
+          fs.copyFileSync(auditPath, archivePath);
+        } catch {
+          // Non-fatal archive copy
+        }
+        atomicWriteTextSync(auditPath, recentLines.join("\n") + "\n");
+      }
+    }
+  } catch {
+    // Non-fatal rotation check
+  }
   fs.appendFileSync(auditPath, JSON.stringify(entry) + "\n", "utf8");
 }
 
 export function readAuditLogs(projectId: string, limit = 100): AuditEntry[] {
   ensureProjectVault(projectId);
   const auditPath = path.join(getProjectDir(projectId), "Audit.jsonl");
-  if (!fs.existsSync(auditPath)) {
-    return [];
-  }
-  const lines = fs
-    .readFileSync(auditPath, "utf8")
-    .split("\n")
-    .filter((l) => l.trim().length > 0);
+  const lines = readTailLinesSync(auditPath, Math.max(limit, 50));
   const parsed: AuditEntry[] = [];
   for (const line of lines.slice(-limit)) {
     try {
