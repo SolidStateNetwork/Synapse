@@ -8,6 +8,7 @@ import {
   Bot,
   BookOpen,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
