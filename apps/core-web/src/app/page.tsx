@@ -2666,8 +2666,8 @@ export default function SynapseNetBirdControlCenter() {
                   }}
                   title={
                     hasAnyUpdate
-                      ? `Synapse v0.2.0 (${localShort}) — Update verfügbar (${remoteShort})`
-                      : `Synapse v0.2.0 (${localShort}) — Aktuell`
+                      ? `Synapse v0.3.0 (${localShort}) — Update verfügbar (${remoteShort})`
+                      : `Synapse v0.3.0 (${localShort}) — Aktuell`
                   }
                   className={`relative mx-auto flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
                     hasAnyUpdate
@@ -2710,7 +2710,7 @@ export default function SynapseNetBirdControlCenter() {
                     className="flex items-center gap-1.5 text-left min-w-0 group"
                   >
                     <span className="whitespace-nowrap font-semibold text-nb-gray-100 group-hover:text-white">
-                      v0.2.0
+                      v0.3.0
                     </span>
                     <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-400">
                       {localShort}
@@ -2872,7 +2872,7 @@ export default function SynapseNetBirdControlCenter() {
             <div className="flex items-center gap-2 text-red-300">
               <AlertTriangle className="h-4 w-4 text-red-400 animate-pulse" />
               <span>
-                <strong>Service Health Alert:</strong>{" "}
+                <strong>Dienst-Gesundheitswarnung:</strong>{" "}
                 {unhealthyServices
                   .map(
                     (s) =>
@@ -2893,7 +2893,7 @@ export default function SynapseNetBirdControlCenter() {
                 className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-red-500"
               >
                 <Wrench className="h-3 w-3" />
-                <span>Ask AI to Diagnose &amp; Fix</span>
+                <span>KI um Diagnose &amp; Reparatur bitten</span>
               </button>
               <button
                 onClick={() =>
@@ -2917,7 +2917,7 @@ export default function SynapseNetBirdControlCenter() {
           {/* ─────────────────────────────────────────────────────────────────
               CENTER STAGE VIEWPORT
           ───────────────────────────────────────────────────────────────── */}
-          <div className="relative flex-1 overflow-y-auto">
+          <main className="relative flex-1 overflow-y-auto">
             {/* ═══════════════════════════════════════════════════════════════
                 VIEW 1: NETBIRD CONTROL CENTER (Interactive Topological Map)
             ═══════════════════════════════════════════════════════════════ */}
@@ -3081,7 +3081,7 @@ export default function SynapseNetBirdControlCenter() {
                         <thead className="border-b border-nb-gray-900 bg-nb-gray-930/70 text-[11px] font-medium uppercase text-nb-gray-400">
                           <tr>
                             <th className="py-3 px-3">Server / Status</th>
-                            <th className="py-3 px-3">Autonomy Tier</th>
+                            <th className="py-3 px-3">Autonomie-Stufe</th>
                             <th className="py-3 px-3">Adresse (IPv4)</th>
                             <th className="py-3 px-3">OS / Arch</th>
                             <th className="py-3 px-3">Auslastung</th>
@@ -3212,13 +3212,13 @@ export default function SynapseNetBirdControlCenter() {
                                                 gn.tier
                                               )
                                         }
-                                        className={`rounded-md px-2 py-1 text-[11px] font-medium ${
+                                        className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
                                           isAssigned
                                             ? "border border-red-500/40 bg-red-950/40 text-red-400 hover:bg-red-950"
                                             : "bg-netbird text-white hover:bg-netbird-500"
                                         }`}
                                       >
-                                        {isAssigned ? "Unassign" : "Assign"}
+                                        {isAssigned ? "Trennen" : "Zuweisen"}
                                       </button>
                                     </div>
                                   </td>
@@ -3663,11 +3663,11 @@ export default function SynapseNetBirdControlCenter() {
                 {showCustomCartModal && (
                   <form
                     onSubmit={handleCreateCustomCartridge}
-                    className="rounded-lg border border-netbird-500/50 bg-nb-gray-940 p-5 space-y-3 text-xs"
+                    className="rounded-xl border border-netbird-500/50 bg-nb-gray-940 p-5 space-y-3 text-xs shadow-lg"
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-white">
-                        Create Custom Rule Cartridge (`.md`)
+                        Eigene Regel-Cartridge erstellen (.md)
                       </span>
                       <button
                         type="button"
@@ -3682,36 +3682,36 @@ export default function SynapseNetBirdControlCenter() {
                         type="text"
                         value={customCartName}
                         onChange={(e) => setCustomCartName(e.target.value)}
-                        placeholder="Cartridge Name (e.g. HIPAA Compliance)"
-                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
+                        placeholder="Cartridge-Name (z.B. DSGVO / HIPAA)"
+                        className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
                       />
                       <input
                         type="text"
                         value={customCartCategory}
                         onChange={(e) => setCustomCartCategory(e.target.value)}
-                        placeholder="Category (e.g. Security)"
-                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
+                        placeholder="Kategorie (z.B. Sicherheit)"
+                        className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
                       />
                       <input
                         type="text"
                         value={customCartDesc}
                         onChange={(e) => setCustomCartDesc(e.target.value)}
-                        placeholder="Short description..."
-                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
+                        placeholder="Kurzbeschreibung..."
+                        className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
                       />
                     </div>
                     <textarea
                       value={customCartContent}
                       onChange={(e) => setCustomCartContent(e.target.value)}
                       rows={5}
-                      className="w-full rounded border border-nb-gray-800 bg-nb-gray-960 p-3 font-mono text-xs text-nb-gray-100"
+                      className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3 font-mono text-xs text-nb-gray-100"
                     />
                     <div className="flex justify-end gap-2">
                       <button
                         type="submit"
-                        className="rounded-md bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500"
+                        className="rounded-lg bg-netbird px-4 py-1.5 text-xs font-medium text-white hover:bg-netbird-500 transition"
                       >
-                        Save &amp; Enable Cartridge
+                        Cartridge speichern &amp; aktivieren
                       </button>
                     </div>
                   </form>
@@ -3719,12 +3719,11 @@ export default function SynapseNetBirdControlCenter() {
 
                 {/* Pending Tier-3 Approvals Gate with Visual Unified Diff Highlighting */}
                 {pendingApprovals.length > 0 && (
-                  <div className="rounded-lg border border-netbird-500/60 bg-netbird-950/30 p-5 space-y-3">
+                  <div className="rounded-xl border border-netbird-500/60 bg-netbird-950/30 p-5 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold uppercase tracking-wider text-netbird flex items-center gap-2">
                         <ShieldAlert className="h-4 w-4" />
-                        Pending Tier-3 Supervised Approvals (
-                        {pendingApprovals.length})
+                        Ausstehende Tier-3-Freigaben ({pendingApprovals.length})
                       </span>
                     </div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -3738,7 +3737,7 @@ export default function SynapseNetBirdControlCenter() {
                         return (
                           <div
                             key={req.approval_id}
-                            className="rounded-lg border border-nb-gray-800 bg-nb-gray-940 p-4 space-y-2.5"
+                            className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-4 space-y-2.5"
                           >
                             <div className="flex items-center justify-between font-mono text-xs">
                               <span className="font-semibold text-white">
@@ -3748,7 +3747,7 @@ export default function SynapseNetBirdControlCenter() {
                                 {req.node_id}
                               </span>
                             </div>
-                            <div className="max-h-40 overflow-auto rounded bg-nb-gray-960 p-2.5 font-mono text-[11px] space-y-0.5">
+                            <div className="max-h-40 overflow-auto rounded-lg bg-nb-gray-960 p-2.5 font-mono text-[11px] space-y-0.5">
                               {rawPreview.split("\n").map((line, idx) => {
                                 const isAdd =
                                   line.startsWith("+") && !line.startsWith("+++");
@@ -3781,17 +3780,17 @@ export default function SynapseNetBirdControlCenter() {
                                     "approve"
                                   )
                                 }
-                                className="flex-1 rounded-md bg-green-600 py-1.5 text-xs font-medium text-white hover:bg-green-500"
+                                className="flex-1 rounded-lg bg-green-600 py-1.5 text-xs font-medium text-white hover:bg-green-500 transition"
                               >
-                                Approve &amp; Execute
+                                Freigeben &amp; Ausführen
                               </button>
                               <button
                                 onClick={() =>
                                   handleResolveApproval(req.approval_id, "reject")
                                 }
-                                className="flex-1 rounded-md border border-red-500/50 bg-red-950/50 py-1.5 text-xs font-medium text-red-400 hover:bg-red-950"
+                                className="flex-1 rounded-lg border border-red-500/50 bg-red-950/50 py-1.5 text-xs font-medium text-red-400 hover:bg-red-950 transition"
                               >
-                                Reject
+                                Ablehnen
                               </button>
                             </div>
                           </div>
@@ -4582,12 +4581,12 @@ export default function SynapseNetBirdControlCenter() {
                       type="text"
                       value={newFileName}
                       onChange={(e) => setNewFileName(e.target.value)}
-                      placeholder="New file path..."
-                      className="flex-1 rounded border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1 font-mono text-xs text-white"
+                      placeholder="Neuer Dateipfad..."
+                      className="flex-1 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1 font-mono text-xs text-white"
                     />
                     <button
                       type="submit"
-                      className="rounded bg-netbird px-2.5 py-1 text-xs text-white"
+                      className="rounded-lg bg-netbird px-2.5 py-1 text-xs text-white hover:bg-netbird-500 transition"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
@@ -4602,17 +4601,17 @@ export default function SynapseNetBirdControlCenter() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setShowDiffDrawer((v) => !v)}
-                        className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1 text-xs text-nb-gray-200 hover:text-white"
+                        className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1 text-xs text-nb-gray-200 hover:text-white transition"
                       >
                         <GitCompare className="h-3.5 w-3.5 text-netbird" />
-                        <span>Unified Diff Patch</span>
+                        <span>Unified-Diff-Patch</span>
                       </button>
                       <button
                         onClick={handleSaveRemoteFile}
-                        className="flex items-center gap-1.5 rounded-md bg-netbird px-3.5 py-1 text-xs font-medium text-white hover:bg-netbird-500"
+                        className="flex items-center gap-1.5 rounded-lg bg-netbird px-3.5 py-1 text-xs font-medium text-white hover:bg-netbird-500 transition"
                       >
                         <Save className="h-3.5 w-3.5" />
-                        <span>Save to Peer</span>
+                        <span>Auf Server speichern</span>
                       </button>
                     </div>
                   </div>
@@ -4622,14 +4621,14 @@ export default function SynapseNetBirdControlCenter() {
                       <textarea
                         value={diffPatchText}
                         onChange={(e) => setDiffPatchText(e.target.value)}
-                        placeholder="Paste unified diff (@@ -1,3 +1,4 @@)..."
-                        className="h-28 w-full rounded border border-nb-gray-800 bg-nb-gray-960 p-2.5 font-mono text-xs text-green-400"
+                        placeholder="Unified-Diff einfügen (@@ -1,3 +1,4 @@)..."
+                        className="h-28 w-full rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-2.5 font-mono text-xs text-green-400"
                       />
                       <button
                         onClick={handleApplyUnifiedDiff}
-                        className="rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white"
+                        className="rounded-lg bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-500 transition"
                       >
-                        Apply Unified Diff
+                        Unified-Diff anwenden
                       </button>
                     </div>
                   )}
@@ -4648,7 +4647,7 @@ export default function SynapseNetBirdControlCenter() {
             ═══════════════════════════════════════════════════════════════ */}
             {activeNav === "activity" && (
               <div className="mx-auto max-w-6xl p-6 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-3">
                   <div className="flex flex-1 items-center gap-2">
                     <Search className="h-4 w-4 text-nb-gray-400 ml-1" />
                     <input
@@ -4661,34 +4660,34 @@ export default function SynapseNetBirdControlCenter() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     {[
-                      "ALL",
-                      "executed",
-                      "blocked",
-                      "requires_approval",
+                      { id: "ALL", label: "Alle" },
+                      { id: "executed", label: "Ausgeführt" },
+                      { id: "blocked", label: "Blockiert" },
+                      { id: "requires_approval", label: "Freigabe nötig" },
                     ].map((st) => (
                       <button
-                        key={st}
-                        onClick={() => setActivityStatusFilter(st)}
-                        className={`rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase transition ${
-                          activityStatusFilter === st
+                        key={st.id}
+                        onClick={() => setActivityStatusFilter(st.id)}
+                        className={`rounded-lg border px-2.5 py-1 font-mono text-[10px] font-medium transition ${
+                          activityStatusFilter === st.id
                             ? "border-netbird-500 bg-netbird-950 text-netbird"
-                            : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300"
+                            : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:text-white"
                         }`}
                       >
-                        {st}
+                        {st.label}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <div className="overflow-x-auto rounded-lg border border-nb-gray-900 bg-nb-gray-940">
+                <div className="overflow-x-auto rounded-xl border border-nb-gray-900 bg-nb-gray-940">
                   <table className="w-full text-left text-xs">
                     <thead className="border-b border-nb-gray-900 bg-nb-gray-930/70 text-[11px] font-medium uppercase text-nb-gray-400">
                       <tr>
-                        <th className="py-3 px-3">Timestamp</th>
-                        <th className="py-3 px-3">Actor</th>
-                        <th className="py-3 px-3">Tool / Event</th>
-                        <th className="py-3 px-3">Summary</th>
+                        <th className="py-3 px-3">Zeitstempel</th>
+                        <th className="py-3 px-3">Akteur</th>
+                        <th className="py-3 px-3">Tool / Ereignis</th>
+                        <th className="py-3 px-3">Zusammenfassung</th>
                         <th className="py-3 px-3 text-right">Status</th>
                       </tr>
                     </thead>
@@ -4787,30 +4786,30 @@ export default function SynapseNetBirdControlCenter() {
                     },
                     {
                       id: "setup-keys",
-                      label: "Setup Keys (Peer Onboarding)",
+                      label: "Setup-Schlüssel (Server-Onboarding)",
                       icon: Server,
                     },
                     {
                       id: "secrets-vault",
-                      label: `Encrypted Vault (${secretKeys.length})`,
+                      label: `Verschlüsselter Tresor (${secretKeys.length})`,
                       icon: KeyRound,
                     },
                     {
                       id: "ai-providers",
-                      label: "AI Providers & Base URL",
+                      label: "KI-Anbieter & Basis-URL",
                       icon: Bot,
                     },
                     {
                       id: "mcp-server",
-                      label: `External AI / MCP API (${
+                      label: `Externe KI / MCP-API (${
                         (activeProject?.mcp_api_keys || []).length
                       })`,
                       icon: Sparkles,
                     },
                     {
                       id: "debug-console",
-                      label: `Debug & Self-Test (${
-                        debugModeEnabled ? "ON" : "OFF"
+                      label: `Debug & Selbsttest (${
+                        debugModeEnabled ? "AKTIV" : "AUS"
                       })`,
                       icon: Activity,
                     },
@@ -4831,10 +4830,10 @@ export default function SynapseNetBirdControlCenter() {
                           if (t.id === "system-update")
                             fetchSystemUpdateStatus(false, true);
                         }}
-                        className={`flex items-center gap-2 rounded-md px-3.5 py-2 text-xs font-medium transition ${
+                        className={`flex items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-medium transition ${
                           active
-                            ? "bg-nb-gray-900 text-white border border-nb-gray-800"
-                            : "text-nb-gray-400 hover:text-white"
+                            ? "border-netbird bg-nb-gray-900 text-white shadow-sm"
+                            : "border-nb-gray-800/80 bg-nb-gray-940 text-nb-gray-400 hover:text-white"
                         }`}
                       >
                         <Icon
@@ -5150,14 +5149,19 @@ export default function SynapseNetBirdControlCenter() {
                 )}
 
                 {settingsTab === "setup-keys" && (
-                  <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-6 space-y-4">
-                    <div>
-                      <h2 className="text-base font-medium text-white">
-                        One-Time Peer Setup Keys
-                      </h2>
-                      <p className="text-xs text-nb-gray-400 mt-0.5">
-                        Erzeuge einen einmaligen Setup-Schlüssel für das automatische mTLS 1.3 Onboarding neuer Linux-Server oder das Umbinden bestehender Muscle-Knoten.
-                      </p>
+                  <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
+                        <Server className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <h2 className="text-base font-semibold text-white">
+                          Einmal-Setup-Schlüssel (Server-Anbindung)
+                        </h2>
+                        <p className="text-xs text-nb-gray-400">
+                          Erzeuge einen einmaligen Setup-Schlüssel für das automatische mTLS 1.3 Onboarding neuer Linux-Server oder das Umbinden bestehender Muscle-Knoten.
+                        </p>
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2.5">
                       <input
@@ -5165,21 +5169,21 @@ export default function SynapseNetBirdControlCenter() {
                         value={gatewayUrl}
                         onChange={(e) => setGatewayUrl(e.target.value)}
                         placeholder="http://<CORE_IP>:8081"
-                        className="w-60 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
+                        className="w-60 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
                       />
                       <input
                         type="text"
                         value={joinNodeName}
                         onChange={(e) => setJoinNodeName(e.target.value)}
-                        placeholder="Peer Name (optional, e.g. prod-01)"
-                        className="flex-1 min-w-[240px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                        placeholder="Server-Name (optional, z.B. prod-01)"
+                        className="flex-1 min-w-[240px] rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
                       />
                       <select
                         value={joinTier}
                         onChange={(e) =>
                           setJoinTier(e.target.value as AutonomyTier)
                         }
-                        className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
+                        className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
                       >
                         <option value="TIER_1_UNLEASHED">
                           TIER_1_UNLEASHED
@@ -5193,9 +5197,9 @@ export default function SynapseNetBirdControlCenter() {
                       </select>
                       <button
                         onClick={handleGenerateJoinToken}
-                        className="rounded-md bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+                        className="rounded-lg bg-netbird px-4 py-2 text-xs font-semibold text-white hover:bg-netbird-500 transition shadow-sm"
                       >
-                        Generate Setup Key
+                        Setup-Schlüssel erzeugen
                       </button>
                     </div>
 
@@ -5215,10 +5219,10 @@ export default function SynapseNetBirdControlCenter() {
 
                     {issuedToken ? (
                       <div className="space-y-4 pt-1">
-                        <div className="rounded-lg border border-netbird-500/40 bg-nb-gray-950 p-4 space-y-2">
+                        <div className="rounded-xl border border-netbird-500/40 bg-nb-gray-950 p-4 space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-medium text-netbird">
-                              1. Fresh Install — Run on target Linux host to install `axon` &amp; connect via token:
+                              1. Neuinstallation — Auf dem Ziel-Linux-Server ausführen, um `axon` zu installieren &amp; zu verbinden:
                             </span>
                             <button
                               onClick={() => {
@@ -5228,24 +5232,24 @@ export default function SynapseNetBirdControlCenter() {
                                 setCopiedJoinCmd(true);
                                 setTimeout(() => setCopiedJoinCmd(false), 2500);
                               }}
-                              className="rounded bg-netbird px-3 py-1 text-[11px] font-medium text-white"
+                              className="rounded-md bg-netbird px-3 py-1 text-[11px] font-medium text-white hover:bg-netbird-500 transition"
                             >
-                              {copiedJoinCmd ? "✔ Copied!" : "Copy Command"}
+                              {copiedJoinCmd ? "✔ Kopiert!" : "Befehl kopieren"}
                             </button>
                           </div>
-                          <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-xs text-green-400">
+                          <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-xs text-green-400">
                             {oneLineInstallerCmd}
                           </pre>
                         </div>
 
-                        <div className="rounded-lg border border-sky-500/40 bg-nb-gray-950 p-4 space-y-2">
+                        <div className="rounded-xl border border-sky-500/40 bg-nb-gray-950 p-4 space-y-2">
                           <div className="flex items-center justify-between">
                             <div>
                               <span className="text-xs font-medium text-sky-400">
-                                2. Switch / Rebind Existing Muscle Agent via CLI (`axon switch`)
+                                2. Bestehenden Muscle-Agenten per CLI umschalten (`axon switch`)
                               </span>
                               <p className="text-[11px] text-nb-gray-400">
-                                Already have `axon` installed? Run this in your shell to connect it to this Core with a new token (or use `axon profiles` to switch saved Cores):
+                                `axon` ist bereits installiert? Führe diesen Befehl aus, um ihn mit neuem Token an diesen Core zu binden (oder nutze `axon profiles`):
                               </p>
                             </div>
                             <button
@@ -5257,14 +5261,14 @@ export default function SynapseNetBirdControlCenter() {
                                   2500
                                 );
                               }}
-                              className="rounded border border-sky-500/50 bg-sky-950 px-3 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900"
+                              className="rounded-md border border-sky-500/50 bg-sky-950 px-3 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900 transition"
                             >
                               {copiedRebindCmd
-                                ? "✔ Copied CLI!"
-                                : "Copy CLI Switch"}
+                                ? "✔ CLI kopiert!"
+                                : "CLI-Switch kopieren"}
                             </button>
                           </div>
-                          <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-xs text-sky-300">
+                          <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-xs text-sky-300">
                             {rebindCliCmd}
                           </pre>
                         </div>
@@ -5273,7 +5277,7 @@ export default function SynapseNetBirdControlCenter() {
                       <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950/70 px-4 py-3.5 text-xs text-nb-gray-400">
                         Noch kein aktiver Setup-Schlüssel generiert. Klicke oben auf{" "}
                         <strong className="text-white">
-                          Generate Setup Key
+                          Setup-Schlüssel erzeugen
                         </strong>
                         , um einen neuen Einmal-Token samt kopierfertigem Installations- und{" "}
                         <code className="font-mono text-sky-300">
@@ -5286,14 +5290,19 @@ export default function SynapseNetBirdControlCenter() {
                 )}
 
                 {settingsTab === "secrets-vault" && (
-                  <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-6 space-y-4">
-                    <div>
-                      <h2 className="text-base font-medium text-white">
-                        AES-256-GCM Encrypted Secrets Vault (`Secrets.enc`)
-                      </h2>
-                      <p className="text-xs text-nb-gray-400 mt-0.5">
-                        Geheimnisse werden lokal mit AES-256-GCM verschlüsselt gespeichert (Write-Only) und bei Bedarf sicher in Remote-Prozesse injiziert.
-                      </p>
+                  <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
+                        <KeyRound className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <h2 className="text-base font-semibold text-white">
+                          AES-256-GCM Verschlüsselter Secrets-Tresor (`Secrets.enc`)
+                        </h2>
+                        <p className="text-xs text-nb-gray-400">
+                          Geheimnisse werden lokal mit AES-256-GCM verschlüsselt gespeichert (Write-Only) und bei Bedarf sicher in Remote-Prozesse injiziert.
+                        </p>
+                      </div>
                     </div>
                     <form onSubmit={handleAddSecret} className="flex flex-wrap gap-2.5">
                       <input
@@ -5301,20 +5310,20 @@ export default function SynapseNetBirdControlCenter() {
                         value={newSecretKey}
                         onChange={(e) => setNewSecretKey(e.target.value)}
                         placeholder="SECRET_KEY_NAME"
-                        className="flex-1 min-w-[200px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
+                        className="flex-1 min-w-[200px] rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
                       />
                       <input
                         type="password"
                         value={newSecretVal}
                         onChange={(e) => setNewSecretVal(e.target.value)}
-                        placeholder="Secret plaintext value (write-only)..."
-                        className="flex-1 min-w-[240px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
+                        placeholder="Geheimer Klartext-Wert (nur schreiben)..."
+                        className="flex-1 min-w-[240px] rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
                       />
                       <button
                         type="submit"
-                        className="rounded-md bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+                        className="rounded-lg bg-netbird px-4 py-2 text-xs font-semibold text-white hover:bg-netbird-500 transition shadow-sm"
                       >
-                        Encrypt &amp; Save
+                        Verschlüsseln &amp; Speichern
                       </button>
                     </form>
 
@@ -5327,7 +5336,7 @@ export default function SynapseNetBirdControlCenter() {
                         {secretKeys.map((k) => (
                           <div
                             key={k}
-                            className="flex items-center justify-between rounded-md border border-nb-gray-800 bg-nb-gray-930 px-3.5 py-2.5 font-mono text-xs"
+                            className="flex items-center justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-3.5 py-2.5 font-mono text-xs"
                           >
                             <span className="text-netbird">{k}</span>
                             <div className="flex items-center gap-2">
@@ -5336,7 +5345,7 @@ export default function SynapseNetBirdControlCenter() {
                               </span>
                               <button
                                 onClick={() => handleDeleteSecret(k)}
-                                className="text-nb-gray-400 hover:text-red-400"
+                                className="text-nb-gray-400 hover:text-red-400 transition"
                                 title="Secret löschen"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -5350,14 +5359,27 @@ export default function SynapseNetBirdControlCenter() {
                 )}
 
                 {settingsTab === "ai-providers" && (
-                  <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-6">
+                  <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
+                        <Bot className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <h2 className="text-base font-semibold text-white">
+                          KI-Anbieter &amp; Eigene API-Basis-URL
+                        </h2>
+                        <p className="text-xs text-nb-gray-400">
+                          Verbinde OpenRouter, vLLM, LiteLLM, Ollama oder OpenAI.
+                        </p>
+                      </div>
+                    </div>
                     <form
                       onSubmit={handleSaveAiEndpoint}
                       className="space-y-4 text-xs max-w-xl"
                     >
                       <div>
                         <label className="block text-nb-gray-200 font-medium mb-1.5">
-                          Provider Preset
+                          KI-Anbieter Vorlage
                         </label>
                         <select
                           value={provider}
@@ -5370,7 +5392,7 @@ export default function SynapseNetBirdControlCenter() {
                               setModelName(preset.defaultModel);
                             }
                           }}
-                          className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 text-xs text-white"
+                          className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 text-xs text-white"
                         >
                           {Object.entries(PROVIDER_PRESETS).map(([k, v]) => (
                             <option key={k} value={k}>
@@ -5382,27 +5404,27 @@ export default function SynapseNetBirdControlCenter() {
 
                       <div>
                         <label className="block text-nb-gray-200 font-medium mb-1.5">
-                          API Base URL
+                          API Basis-URL
                         </label>
                         <div className="flex gap-2">
                           <input
                             type="text"
                             value={baseUrl}
                             onChange={(e) => setBaseUrl(e.target.value)}
-                            className="flex-1 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-netbird"
+                            className="flex-1 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-netbird"
                           />
                           <button
                             type="button"
                             onClick={handleSyncModels}
                             disabled={syncingModels}
-                            className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-nb-gray-200 hover:text-white"
+                            className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-nb-gray-200 hover:text-white transition"
                           >
                             <RefreshCw
                               className={`h-3.5 w-3.5 ${
                                 syncingModels ? "animate-spin" : ""
                               }`}
                             />
-                            <span>Fetch /models</span>
+                            <span>Modelle laden</span>
                           </button>
                         </div>
                         {modelSyncStatus && (
@@ -5414,20 +5436,20 @@ export default function SynapseNetBirdControlCenter() {
 
                       <div>
                         <label className="block text-nb-gray-200 font-medium mb-1.5">
-                          Model Name
+                          Modell-Name
                         </label>
                         <div className="flex gap-2">
                           <input
                             type="text"
                             value={modelName}
                             onChange={(e) => setModelName(e.target.value)}
-                            className="flex-1 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
+                            className="flex-1 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
                           />
                           {discoveredModels.length > 0 && (
                             <select
                               value={modelName}
                               onChange={(e) => setModelName(e.target.value)}
-                              className="max-w-[200px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-netbird"
+                              className="max-w-[200px] rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-netbird"
                             >
                               {discoveredModels.map((m) => (
                                 <option key={m} value={m}>
@@ -5441,8 +5463,9 @@ export default function SynapseNetBirdControlCenter() {
 
                       <div>
                         <label className="block text-nb-gray-200 font-medium mb-1.5">
-                          API Key (Encrypted in `Secrets.enc` as{" "}
-                          <code>{apiKeySecretName}</code>)
+                          <span>API-Schlüssel (Verschlüsselt in Secrets.enc als </span>
+                          <code>{apiKeySecretName}</code>
+                          <span>)</span>
                         </label>
                         <input
                           type="password"
@@ -5450,15 +5473,15 @@ export default function SynapseNetBirdControlCenter() {
                           onChange={(e) => setApiKeyInput(e.target.value)}
                           placeholder={
                             secretKeys.includes(apiKeySecretName)
-                              ? "•••••••• (Saved in Secrets.enc)"
+                              ? "•••••••• (Gespeichert in Secrets.enc)"
                               : "sk-..."
                           }
-                          className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
+                          className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
                         />
                       </div>
 
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 pt-1">
-                        <label className="flex items-center gap-2.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 p-2.5 cursor-pointer">
+                        <label className="flex items-center gap-2.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 p-2.5 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={enablePromptCaching}
@@ -5469,15 +5492,15 @@ export default function SynapseNetBirdControlCenter() {
                           />
                           <div>
                             <div className="font-medium text-white">
-                              Prompt &amp; FS Caching
+                              Prompt- &amp; Dateisystem-Caching
                             </div>
                             <div className="text-[10px] text-nb-gray-400">
-                              Cache static system layers &amp; file reads
+                              Statische System-Layer &amp; Datei-Lesezugriffe zwischenspeichern
                             </div>
                           </div>
                         </label>
 
-                        <label className="flex items-center gap-2.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 p-2.5 cursor-pointer">
+                        <label className="flex items-center gap-2.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 p-2.5 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={enableAutoWatchdog}
@@ -5488,10 +5511,10 @@ export default function SynapseNetBirdControlCenter() {
                           />
                           <div>
                             <div className="font-medium text-white">
-                              Proactive Auto-Watchdog
+                              Proaktiver Auto-Watchdog
                             </div>
                             <div className="text-[10px] text-nb-gray-400">
-                              Auto-heal crashed services in background
+                              Abgestürzte Dienste im Hintergrund automatisch reparieren
                             </div>
                           </div>
                         </label>
@@ -5499,9 +5522,9 @@ export default function SynapseNetBirdControlCenter() {
 
                       <button
                         type="submit"
-                        className="rounded-md bg-netbird px-5 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+                        className="rounded-lg bg-netbird px-5 py-2 text-xs font-semibold text-white hover:bg-netbird-500 transition shadow-sm"
                       >
-                        Save AI Provider
+                        KI-Anbieter speichern
                       </button>
                     </form>
                   </div>
@@ -5509,15 +5532,19 @@ export default function SynapseNetBirdControlCenter() {
 
                 {settingsTab === "mcp-server" && (
                   <div className="space-y-5">
-                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-6 space-y-4">
-                      <div>
-                        <h2 className="text-base font-medium text-white flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-netbird" />
-                          External AI Access &amp; Model Context Protocol (MCP) Server (`/api/mcp`)
-                        </h2>
-                        <p className="text-xs text-nb-gray-400 mt-0.5">
-                          Allow external AI agents (Claude Desktop, Cursor, Windsurf, Antigravity, OpenCode, or custom REST/JSON-RPC bots) to control your Synapse Core &amp; Muscle peers securely via an MCP API Token.
-                        </p>
+                    <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
+                          <Sparkles className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <h2 className="text-base font-semibold text-white">
+                            Externer KI-Zugriff &amp; Model Context Protocol (MCP) Server (`/api/mcp`)
+                          </h2>
+                          <p className="text-xs text-nb-gray-400">
+                            Erlaube externen KI-Agenten (Claude Desktop, Cursor, Windsurf, Antigravity, OpenCode oder eigenen REST/JSON-RPC-Bots), deinen Synapse Core &amp; Muscle sicher per MCP-Token zu steuern.
+                          </p>
+                        </div>
                       </div>
 
                       <form
@@ -5528,8 +5555,8 @@ export default function SynapseNetBirdControlCenter() {
                           type="text"
                           value={mcpKeyName}
                           onChange={(e) => setMcpKeyName(e.target.value)}
-                          placeholder="Client name (e.g. Claude Desktop / Cursor)"
-                          className="flex-1 min-w-[220px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
+                          placeholder="Client-Name (z.B. Claude Desktop / Cursor)"
+                          className="flex-1 min-w-[220px] rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
                         />
                         <select
                           value={mcpKeyScopeMode}
@@ -5538,28 +5565,28 @@ export default function SynapseNetBirdControlCenter() {
                               e.target.value as "read-exec" | "read-only"
                             )
                           }
-                          className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
+                          className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
                         >
                           <option value="read-exec">
-                            Full Access (Read + Execute PTY/FS + Admin)
+                            Vollzugriff (Lesen + PTY/Dateisystem + Admin)
                           </option>
                           <option value="read-only">
-                            Read-Only (Inspect Peers, Files &amp; Brain Docs)
+                            Nur Lesen (Server, Dateien &amp; Brain-Docs prüfen)
                           </option>
                         </select>
                         <button
                           type="submit"
-                          className="rounded-md bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+                          className="rounded-lg bg-netbird px-4 py-2 text-xs font-semibold text-white hover:bg-netbird-500 transition shadow-sm"
                         >
-                          + Generate MCP API Key
+                          + MCP-API-Schlüssel erzeugen
                         </button>
                       </form>
 
                       {issuedMcpToken && (
-                        <div className="rounded-lg border border-green-500/50 bg-green-950/20 p-4 space-y-2">
+                        <div className="rounded-xl border border-green-500/50 bg-green-950/20 p-4 space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-semibold text-green-400">
-                              ✔ New MCP API Key Generated (copy now — stored as SHA-256 hash):
+                              ✔ Neuer MCP-API-Schlüssel erzeugt (jetzt kopieren — wird als SHA-256-Hash gespeichert):
                             </span>
                             <button
                               onClick={() => {
@@ -5567,12 +5594,12 @@ export default function SynapseNetBirdControlCenter() {
                                 setCopiedMcpToken(true);
                                 setTimeout(() => setCopiedMcpToken(false), 2500);
                               }}
-                              className="rounded bg-green-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-green-500"
+                              className="rounded-md bg-green-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-green-500 transition"
                             >
-                              {copiedMcpToken ? "✔ Copied Token!" : "Copy Token"}
+                              {copiedMcpToken ? "✔ Token kopiert!" : "Token kopieren"}
                             </button>
                           </div>
-                          <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-xs text-green-300">
+                          <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-xs text-green-300">
                             {issuedMcpToken}
                           </pre>
                         </div>
@@ -5582,7 +5609,7 @@ export default function SynapseNetBirdControlCenter() {
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="text-xs font-semibold text-nb-gray-300">
-                            Active External AI / MCP Tokens
+                            Aktive Externe KI- / MCP-Tokens
                           </div>
                           {!issuedMcpToken && (
                             <button
@@ -5599,15 +5626,15 @@ export default function SynapseNetBirdControlCenter() {
                           )}
                         </div>
                         {(activeProject?.mcp_api_keys || []).length === 0 ? (
-                          <div className="rounded border border-nb-gray-800 bg-nb-gray-950 p-3 text-xs text-nb-gray-400">
-                            No MCP API tokens created yet. Click &ldquo;+ Generate MCP API Key&rdquo; above to issue one.
+                          <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-3 text-xs text-nb-gray-400">
+                            Noch keine MCP-API-Tokens erstellt. Klicke oben auf „+ MCP-API-Schlüssel erzeugen“.
                           </div>
                         ) : (
                           <div className="space-y-1.5">
                             {(activeProject?.mcp_api_keys || []).map((k) => (
                               <div
                                 key={k.key_id}
-                                className="flex items-center justify-between rounded border border-nb-gray-800 bg-nb-gray-950 px-3.5 py-2 text-xs"
+                                className="flex items-center justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3.5 py-2 text-xs"
                               >
                                 <div className="flex items-center gap-3">
                                   <span className="font-semibold text-white">
@@ -5624,7 +5651,7 @@ export default function SynapseNetBirdControlCenter() {
                                   onClick={() => handleRevokeMcpKey(k.key_id)}
                                   className="text-xs text-red-400 hover:underline"
                                 >
-                                  Revoke
+                                  Widerrufen
                                 </button>
                               </div>
                             ))}
@@ -5632,7 +5659,7 @@ export default function SynapseNetBirdControlCenter() {
                         )}
                       </div>
 
-                      {/* MCP Client Config & REST Examples (Shown automatically when a token is generated, or when user toggles templates) */}
+                      {/* MCP Client Config & REST Examples */}
                       {(issuedMcpToken || showMcpConfigExamples) &&
                         (() => {
                           const originUrl =
@@ -5667,10 +5694,10 @@ curl -X POST ${originUrl}/api/mcp \\
   }'`;
                           return (
                             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 pt-2">
-                              <div className="rounded-md border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
+                              <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="text-xs font-semibold text-sky-400">
-                                    1. MCP Client Config (`mcp_config.json` — Claude / Cursor / Antigravity)
+                                    1. MCP-Client-Konfiguration (`mcp_config.json` — Claude / Cursor / Antigravity)
                                   </div>
                                   <button
                                     type="button"
@@ -5691,15 +5718,15 @@ curl -X POST ${originUrl}/api/mcp \\
                                       : "Kopieren"}
                                   </button>
                                 </div>
-                                <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
+                                <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
                                   {mcpJsonSnippet}
                                 </pre>
                               </div>
 
-                              <div className="rounded-md border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
+                              <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="text-xs font-semibold text-emerald-400">
-                                    2. Direct REST / JSON-RPC Tool Call (`curl` / Custom AI Agent)
+                                    2. Direkter REST / JSON-RPC Tool-Aufruf (`curl` / Eigener KI-Agent)
                                   </div>
                                   <button
                                     type="button"
@@ -5720,7 +5747,7 @@ curl -X POST ${originUrl}/api/mcp \\
                                       : "Kopieren"}
                                   </button>
                                 </div>
-                                <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
+                                <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
                                   {mcpCurlSnippet}
                                 </pre>
                               </div>
@@ -5732,36 +5759,36 @@ curl -X POST ${originUrl}/api/mcp \\
                       <div className="space-y-2 pt-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-xs font-semibold text-nb-gray-300">
-                            Live MCP Protocol Tester (`JSON-RPC 2.0`)
+                            Live MCP-Protokoll-Tester (`JSON-RPC 2.0`)
                           </span>
                           <div className="flex flex-wrap items-center gap-2">
                             <button
                               type="button"
                               onClick={() => handleTestMcpEndpoint("tools/list")}
-                              className="rounded border border-netbird-500/40 bg-netbird-950 px-3 py-1 font-mono text-[11px] text-netbird hover:bg-netbird hover:text-white"
+                              className="rounded-lg border border-netbird-500/40 bg-netbird-950 px-3 py-1 font-mono text-[11px] text-netbird hover:bg-netbird hover:text-white transition"
                             >
-                              Test `tools/list` (10 Tools)
+                              Teste `tools/list` (10 Tools)
                             </button>
                             <button
                               type="button"
                               onClick={() =>
                                 handleTestMcpEndpoint("resources/list")
                               }
-                              className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-1 font-mono text-[11px] text-nb-gray-200 hover:text-white"
+                              className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1 font-mono text-[11px] text-nb-gray-200 hover:text-white transition"
                             >
-                              Test `resources/list`
+                              Teste `resources/list`
                             </button>
                             <button
                               type="button"
                               onClick={() => handleTestMcpEndpoint("call_state")}
-                              className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-1 font-mono text-[11px] text-nb-gray-200 hover:text-white"
+                              className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1 font-mono text-[11px] text-nb-gray-200 hover:text-white transition"
                             >
-                              Call `synapse_get_project_state`
+                              Rufe `synapse_get_project_state` auf
                             </button>
                           </div>
                         </div>
                         {mcpTestOutput && (
-                          <pre className="max-h-72 overflow-auto rounded-md border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-green-400">
+                          <pre className="max-h-72 overflow-auto rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-green-400">
                             {mcpTestOutput}
                           </pre>
                         )}
@@ -5772,44 +5799,48 @@ curl -X POST ${originUrl}/api/mcp \\
 
                 {settingsTab === "debug-console" && (
                   <div className="space-y-5">
-                    <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-6 space-y-4">
+                    <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 p-6 space-y-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h2 className="text-base font-medium text-white flex items-center gap-2">
-                            <Activity className="h-4 w-4 text-amber-400" />
-                            Core &amp; Muscle Debug Mode + End-to-End Self-Test
-                          </h2>
-                          <p className="text-xs text-nb-gray-400 mt-0.5">
-                            Inspect live mTLS 1.3 + Yamux stream traces, verify AES-256-GCM Vault integrity, and run diagnostic checks on both Core and Muscle.
-                          </p>
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-500/40 bg-amber-950/60 text-amber-400">
+                            <Activity className="h-4 w-4" />
+                          </span>
+                          <div>
+                            <h2 className="text-base font-semibold text-white">
+                              Core &amp; Muscle Debug-Modus + End-to-End-Selbsttest
+                            </h2>
+                            <p className="text-xs text-nb-gray-400">
+                              Prüfe Live-mTLS-1.3- &amp; Yamux-Streams, verifiziere die AES-256-GCM-Tresor-Integrität und führe Diagnose-Checks auf Core und Muscle aus.
+                            </p>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={handleToggleDebugMode}
-                            className={`rounded-md border px-3.5 py-2 font-mono text-xs font-medium transition ${
+                            className={`rounded-lg border px-3.5 py-2 font-mono text-xs font-medium transition ${
                               debugModeEnabled
                                 ? "border-amber-500 bg-amber-950 text-amber-300"
                                 : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-300 hover:text-white"
                             }`}
                           >
                             {debugModeEnabled
-                              ? "● Debug Mode: ENABLED"
-                              : "○ Enable Debug Mode"}
+                              ? "● Debug-Modus: AKTIV"
+                              : "○ Debug-Modus aktivieren"}
                           </button>
                           <button
                             onClick={handleRunSelfTest}
                             disabled={runningSelfTest}
-                            className="rounded-md bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500 disabled:opacity-50"
+                            className="rounded-lg bg-netbird px-4 py-2 text-xs font-semibold text-white hover:bg-netbird-500 disabled:opacity-50 transition shadow-sm"
                           >
                             {runningSelfTest
-                              ? "Running Self-Test..."
-                              : "▶ Run 5-Step Self-Test"}
+                              ? "Selbsttest läuft..."
+                              : "▶ 5-Stufen-Selbsttest starten"}
                           </button>
                           <button
                             onClick={fetchDebugSnapshot}
-                            className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-nb-gray-300 hover:text-white"
+                            className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-nb-gray-300 hover:text-white transition"
                           >
-                            Refresh
+                            Aktualisieren
                           </button>
                         </div>
                       </div>
@@ -5817,13 +5848,13 @@ curl -X POST ${originUrl}/api/mcp \\
                       {selfTestChecks.length > 0 && (
                         <div className="space-y-2 pt-2">
                           <div className="text-xs font-semibold uppercase tracking-wider text-nb-gray-300">
-                            End-to-End Diagnostic Checks
+                            End-to-End Diagnose-Prüfungen
                           </div>
                           <div className="grid grid-cols-1 gap-2">
                             {selfTestChecks.map((chk) => (
                               <div
                                 key={chk.id}
-                                className="flex items-center justify-between gap-3 rounded-md border border-nb-gray-800 bg-nb-gray-950 p-3 text-xs"
+                                className="flex items-center justify-between gap-3 rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-3 text-xs"
                               >
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
@@ -5856,11 +5887,11 @@ curl -X POST ${originUrl}/api/mcp \\
                       )}
 
                       {/* CLI Debug Commands Reference */}
-                      <div className="rounded-md border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
+                      <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
                         <div className="text-xs font-semibold text-sky-400">
-                          CLI Debug Commands for Core &amp; Muscle (`axon debug` / `--debug`)
+                          CLI-Debug-Befehle für Core &amp; Muscle (`axon debug` / `--debug`)
                         </div>
-                        <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
+                        <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
 {`# 1. Run 5-step Muscle diagnostic doctor (checks X.509 cert, Core HTTP latency, mTLS 1.3 handshake & FS permissions)
 sudo axon debug
 
@@ -5876,14 +5907,14 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       {/* Live JSON Snapshot of Core Web + Core Gateway Ring Buffer */}
                       <div className="space-y-1.5">
                         <div className="text-xs font-semibold text-nb-gray-300">
-                          Live Core Web &amp; Gateway Diagnostic Snapshot (`/api/debug`)
+                          Live Core-Web- &amp; Gateway-Diagnose-Snapshot (`/api/debug`)
                         </div>
                         {debugSnapshot ? (
-                          <pre className="max-h-80 overflow-auto rounded-md border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-green-400">
+                          <pre className="max-h-80 overflow-auto rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-green-400">
                             {JSON.stringify(debugSnapshot, null, 2)}
                           </pre>
                         ) : (
-                          <div className="rounded-md border border-nb-gray-850 bg-nb-gray-950/70 px-4 py-3 text-xs text-nb-gray-400">
+                          <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950/70 px-4 py-3 text-xs text-nb-gray-400">
                             Lade Live-Diagnose-Snapshot...
                           </div>
                         )}
@@ -5914,7 +5945,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 )}
               </div>
             )}
-          </div>
+          </main>
 
           {/* ─────────────────────────────────────────────────────────────────
               RIGHT DOCKED AI COPILOT & REACT ORCHESTRATOR PANEL
@@ -7849,7 +7880,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 onClick={() => setTerminalDrawerOpen((v) => !v)}
                 className="flex items-center gap-1 text-nb-gray-300 hover:text-white"
               >
-                <span>{terminalDrawerOpen ? "Hide" : "Expand"}</span>
+                <span>{terminalDrawerOpen ? "Einklappen" : "Ausklappen"}</span>
                 {terminalDrawerOpen ? (
                   <ChevronDown className="h-3.5 w-3.5" />
                 ) : (
@@ -7875,8 +7906,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 />
               ) : (
                 <div className="p-4 font-mono text-xs text-nb-gray-400">
-                  No Muscle Peer connected. Click &ldquo;+ Add Peer&rdquo; to
-                  enroll a Linux node.
+                  Kein Muscle-Server verbunden. Klicke auf „+ Server“, um einen Linux-Knoten anzubinden.
                 </div>
               )}
             </div>
@@ -7889,19 +7919,19 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
       ═══════════════════════════════════════════════════════════════════════ */}
       {addPeerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl rounded-lg border border-nb-gray-800 bg-nb-gray-940 p-6 shadow-2xl space-y-5">
+          <div className="w-full max-w-xl rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-6 shadow-2xl space-y-5">
             <div className="flex items-center justify-between border-b border-nb-gray-900 pb-3.5">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-md border border-netbird-500/40 bg-netbird-950 text-netbird">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird-950 text-netbird">
                   <MonitorSmartphone className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-medium text-white">
-                    Add New Muscle Peer (Linux / Docker)
+                  <h3 className="text-base font-semibold text-white">
+                    Neuen Muscle-Server verbinden (Linux / Docker)
                   </h3>
                   <p className="text-xs text-nb-gray-400">
-                    One-command installation with automatic token login &amp;
-                    mTLS 1.3 enrollment.
+                    Ein-Befehl-Installation mit automatischem Token-Login &amp;
+                    mTLS-1.3-Anbindung.
                   </p>
                 </div>
               </div>
@@ -7916,23 +7946,23 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-12 text-xs">
               <div className="sm:col-span-4">
                 <label className="block text-nb-gray-300 mb-1">
-                  Core Gateway URL
+                  Core-Gateway-URL
                 </label>
                 <input
                   type="text"
                   value={gatewayUrl}
                   onChange={(e) => setGatewayUrl(e.target.value)}
-                  className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
+                  className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
                 />
               </div>
               <div className="sm:col-span-5">
                 <label className="block text-nb-gray-300 mb-1">
-                  Autonomy Tier
+                  Autonomie-Stufe
                 </label>
                 <select
                   value={joinTier}
                   onChange={(e) => setJoinTier(e.target.value as AutonomyTier)}
-                  className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
+                  className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
                 >
                   <option value="TIER_1_UNLEASHED">TIER_1_UNLEASHED</option>
                   <option value="TIER_2_WORKSPACE_JAIL">
@@ -7943,14 +7973,14 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
               </div>
               <div className="sm:col-span-3">
                 <label className="block text-nb-gray-300 mb-1">
-                  Peer ID (Optional)
+                  Server-ID (Optional)
                 </label>
                 <input
                   type="text"
                   value={joinNodeName}
                   onChange={(e) => setJoinNodeName(e.target.value)}
                   placeholder="z.B. prod-01"
-                  className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                  className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
                 />
               </div>
             </div>
@@ -7970,14 +8000,14 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-medium text-nb-gray-200">
-                  Run this single command on your Linux server:
+                  Führe diesen einzelnen Befehl auf deinem Linux-Server aus:
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleGenerateJoinToken}
-                    className="rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-300 hover:text-white"
+                    className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-300 hover:text-white transition"
                   >
-                    Rotate Token
+                    Neues Token
                   </button>
                   {oneLineInstallerCmd && (
                     <button
@@ -7986,16 +8016,16 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         setCopiedJoinCmd(true);
                         setTimeout(() => setCopiedJoinCmd(false), 2500);
                       }}
-                      className="flex items-center gap-1 rounded bg-netbird px-3 py-1 text-[11px] font-medium text-white hover:bg-netbird-500"
+                      className="flex items-center gap-1 rounded-lg bg-netbird px-3 py-1 text-[11px] font-medium text-white hover:bg-netbird-500 transition"
                     >
                       <Copy className="h-3 w-3" />
-                      <span>{copiedJoinCmd ? "✔ Copied!" : "Copy Command"}</span>
+                      <span>{copiedJoinCmd ? "✔ Kopiert!" : "Befehl kopieren"}</span>
                     </button>
                   )}
                 </div>
               </div>
-              <pre className="overflow-x-auto rounded-md border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-xs text-green-400">
-                {oneLineInstallerCmd || "Generating setup token..."}
+              <pre className="overflow-x-auto rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-xs text-green-400">
+                {oneLineInstallerCmd || "Erzeuge Setup-Token..."}
               </pre>
             </div>
 
@@ -8004,10 +8034,10 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 <div className="flex items-center justify-between text-xs">
                   <div>
                     <span className="font-medium text-sky-400">
-                      Or switch an existing Muscle via CLI (`axon switch`):
+                      Oder bestehenden Muscle per CLI umschalten (`axon switch`):
                     </span>
                     <p className="text-[11px] text-nb-gray-400">
-                      Rebind an installed Muscle agent to this Core with a new token (old Core profile is saved under `axon profiles`):
+                      Verbinde einen installierten Muscle-Agenten mit neuem Token an diesen Core (altes Profil bleibt unter `axon profiles` erhalten):
                     </p>
                   </div>
                   <button
@@ -8016,15 +8046,15 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       setCopiedRebindCmd(true);
                       setTimeout(() => setCopiedRebindCmd(false), 2500);
                     }}
-                    className="flex items-center gap-1 rounded border border-sky-500/50 bg-sky-950 px-3 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900"
+                    className="flex items-center gap-1 rounded-lg border border-sky-500/50 bg-sky-950 px-3 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900 transition"
                   >
                     <Copy className="h-3 w-3" />
                     <span>
-                      {copiedRebindCmd ? "✔ Copied CLI!" : "Copy CLI Switch"}
+                      {copiedRebindCmd ? "✔ CLI kopiert!" : "CLI-Switch kopieren"}
                     </span>
                   </button>
                 </div>
-                <pre className="overflow-x-auto rounded-md border border-nb-gray-800 bg-nb-gray-960 p-3 font-mono text-xs text-sky-300">
+                <pre className="overflow-x-auto rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3 font-mono text-xs text-sky-300">
                   {rebindCliCmd}
                 </pre>
               </div>
@@ -8033,13 +8063,13 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
             <div className="flex items-center justify-between border-t border-nb-gray-900 pt-3 text-xs text-nb-gray-400">
               <span className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
-                Waiting for incoming mTLS 1.3 + Yamux peer handshake...
+                Warte auf eingehenden mTLS 1.3 + Yamux Server-Handshake...
               </span>
               <button
                 onClick={() => setAddPeerModalOpen(false)}
-                className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-4 py-1.5 text-xs text-white hover:bg-nb-gray-900"
+                className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-4 py-1.5 text-xs text-white hover:bg-nb-gray-900 transition"
               >
-                Done
+                Fertig
               </button>
             </div>
           </div>
@@ -8051,14 +8081,14 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
       ═══════════════════════════════════════════════════════════════════════ */}
       {aiEndpointModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-lg border border-nb-gray-800 bg-nb-gray-940 p-6 shadow-2xl space-y-5">
+          <div className="w-full max-w-lg rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-6 shadow-2xl space-y-5">
             <div className="flex items-center justify-between border-b border-nb-gray-900 pb-3.5">
               <div>
-                <h3 className="text-base font-medium text-white">
-                  AI Provider &amp; Custom API Base URL
+                <h3 className="text-base font-semibold text-white">
+                  KI-Anbieter &amp; Eigene API-Basis-URL
                 </h3>
                 <p className="text-xs text-nb-gray-400 mt-0.5">
-                  Connect OpenRouter, vLLM, LiteLLM, Ollama, or OpenAI.
+                  Verbinde OpenRouter, vLLM, LiteLLM, Ollama oder OpenAI.
                 </p>
               </div>
               <button
@@ -8072,7 +8102,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
             <form onSubmit={handleSaveAiEndpoint} className="space-y-4 text-xs">
               <div>
                 <label className="block text-nb-gray-300 font-medium mb-1.5">
-                  Provider Preset
+                  KI-Anbieter Vorlage
                 </label>
                 <select
                   value={provider}
@@ -8085,7 +8115,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       setModelName(preset.defaultModel);
                     }
                   }}
-                  className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2.5 text-xs text-white"
+                  className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2.5 text-xs text-white"
                 >
                   {Object.entries(PROVIDER_PRESETS).map(([k, v]) => (
                     <option key={k} value={k}>
@@ -8097,27 +8127,27 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
 
               <div>
                 <label className="block text-nb-gray-300 font-medium mb-1.5">
-                  API Base URL
+                  API Basis-URL
                 </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
-                    className="flex-1 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-netbird"
+                    className="flex-1 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-netbird"
                   />
                   <button
                     type="button"
                     onClick={handleSyncModels}
                     disabled={syncingModels}
-                    className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-nb-gray-200 hover:text-white"
+                    className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-nb-gray-200 hover:text-white transition"
                   >
                     <RefreshCw
                       className={`h-3.5 w-3.5 ${
                         syncingModels ? "animate-spin" : ""
                       }`}
                     />
-                    <span>Fetch Models</span>
+                    <span>Modelle abrufen</span>
                   </button>
                 </div>
                 {modelSyncStatus && (
@@ -8129,20 +8159,20 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
 
               <div>
                 <label className="block text-nb-gray-300 font-medium mb-1.5">
-                  Model Name
+                  Modell-Name
                 </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={modelName}
                     onChange={(e) => setModelName(e.target.value)}
-                    className="flex-1 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
+                    className="flex-1 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
                   />
                   {discoveredModels.length > 0 && (
                     <select
                       value={modelName}
                       onChange={(e) => setModelName(e.target.value)}
-                      className="max-w-[180px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-netbird"
+                      className="max-w-[180px] rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-netbird"
                     >
                       {discoveredModels.map((m) => (
                         <option key={m} value={m}>
@@ -8156,8 +8186,9 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
 
               <div>
                 <label className="block text-nb-gray-300 font-medium mb-1.5">
-                  API Key (Encrypted in `Secrets.enc` as{" "}
-                  <code>{apiKeySecretName}</code>)
+                  <span>API-Schlüssel (Verschlüsselt in Secrets.enc als </span>
+                  <code>{apiKeySecretName}</code>
+                  <span>)</span>
                 </label>
                 <input
                   type="password"
@@ -8165,15 +8196,15 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   onChange={(e) => setApiKeyInput(e.target.value)}
                   placeholder={
                     secretKeys.includes(apiKeySecretName)
-                      ? "•••••••• (Saved in Secrets.enc)"
+                      ? "•••••••• (Gespeichert in Secrets.enc)"
                       : "sk-..."
                   }
-                  className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
+                  className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
                 />
               </div>
 
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 pt-1">
-                <label className="flex items-center gap-2.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 p-2.5 cursor-pointer">
+                <label className="flex items-center gap-2.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 p-2.5 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={enablePromptCaching}
@@ -8182,15 +8213,15 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   />
                   <div>
                     <div className="font-medium text-white">
-                      Prompt &amp; FS Caching
+                      Prompt- &amp; Dateisystem-Caching
                     </div>
                     <div className="text-[10px] text-nb-gray-400">
-                      Cache static system layers &amp; file reads
+                      Statische System-Layer &amp; Datei-Lesezugriffe zwischenspeichern
                     </div>
                   </div>
                 </label>
 
-                <label className="flex items-center gap-2.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 p-2.5 cursor-pointer">
+                <label className="flex items-center gap-2.5 rounded-lg border border-nb-gray-800 bg-nb-gray-920 p-2.5 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={enableAutoWatchdog}
@@ -8199,10 +8230,10 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   />
                   <div>
                     <div className="font-medium text-white">
-                      Proactive Auto-Watchdog
+                      Proaktiver Auto-Watchdog
                     </div>
                     <div className="text-[10px] text-nb-gray-400">
-                      Auto-heal crashed services in background
+                      Abgestürzte Dienste im Hintergrund automatisch reparieren
                     </div>
                   </div>
                 </label>
@@ -8212,15 +8243,15 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 <button
                   type="button"
                   onClick={() => setAiEndpointModalOpen(false)}
-                  className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-4 py-2 text-xs text-nb-gray-300"
+                  className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-4 py-2 text-xs text-nb-gray-300 hover:text-white transition"
                 >
-                  Cancel
+                  Abbrechen
                 </button>
                 <button
                   type="submit"
-                  className="rounded-md bg-netbird px-5 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+                  className="rounded-lg bg-netbird px-5 py-2 text-xs font-semibold text-white hover:bg-netbird-500 transition shadow-sm"
                 >
-                  Save Provider
+                  Anbieter speichern
                 </button>
               </div>
             </form>
@@ -8251,10 +8282,10 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 await loadWorkspace(data.project.project_id, true);
               }
             }}
-            className="w-full max-w-sm rounded-lg border border-nb-gray-800 bg-nb-gray-940 p-5 space-y-4"
+            className="w-full max-w-sm rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-5 space-y-4 shadow-2xl"
           >
-            <div className="flex items-center justify-between text-sm font-medium text-white">
-              <span>Create New Project Vault</span>
+            <div className="flex items-center justify-between text-sm font-semibold text-white">
+              <span>Neuen Projekt-Tresor anlegen</span>
               <button
                 type="button"
                 onClick={() => setNewProjectModal(false)}
@@ -8267,15 +8298,15 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
               type="text"
               value={newProjName}
               onChange={(e) => setNewProjName(e.target.value)}
-              placeholder="Project name (e.g. prod-mesh)"
-              className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 text-xs text-white"
+              placeholder="Projektname (z.B. prod-mesh)"
+              className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 text-xs text-white"
             />
             <div className="flex justify-end">
               <button
                 type="submit"
-                className="rounded-md bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+                className="rounded-lg bg-netbird px-4 py-2 text-xs font-semibold text-white hover:bg-netbird-500 transition shadow-sm"
               >
-                Create Project
+                Projekt anlegen
               </button>
             </div>
           </form>
@@ -8290,7 +8321,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg overflow-hidden rounded-lg border border-nb-gray-800 bg-nb-gray-940 shadow-2xl"
+            className="w-full max-w-lg overflow-hidden rounded-xl border border-nb-gray-800 bg-nb-gray-940 shadow-2xl"
           >
             <div className="flex items-center gap-3 border-b border-nb-gray-900 px-4 py-3">
               <Search className="h-4 w-4 text-netbird" />
@@ -8299,7 +8330,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 autoFocus
                 value={commandQuery}
                 onChange={(e) => setCommandQuery(e.target.value)}
-                placeholder="Jump to Control Center, Peers, Access Control, Proxy..."
+                placeholder="Springe zu Übersicht, Server, Regeln, Dienste..."
                 className="flex-1 bg-transparent text-xs text-white placeholder:text-nb-gray-400 focus:outline-none"
               />
               <span className="rounded border border-nb-gray-800 bg-nb-gray-920 px-1.5 py-0.5 font-mono text-[10px] text-nb-gray-400">
@@ -8321,11 +8352,11 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       setActiveNav(item.id);
                       setCommandPaletteOpen(false);
                     }}
-                    className="flex w-full items-center justify-between rounded-md px-3.5 py-2 text-left text-xs text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white"
+                    className="flex w-full items-center justify-between rounded-lg px-3.5 py-2 text-left text-xs text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white transition"
                   >
                     <span>{item.label}</span>
                     <span className="font-mono text-[10px] text-netbird">
-                      Navigate
+                      Navigieren
                     </span>
                   </button>
                 ))}

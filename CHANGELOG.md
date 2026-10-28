@@ -2,6 +2,41 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v0.3.0] — 2026-10-28 (GPU-Accelerated Control Center, Unified Service Workbench & Full Bilingual UI)
+
+### Added & Improved
+- **GPU-Accelerated Interactive Control Center Canvas (`InteractiveControlCenterCanvas.tsx` & `globals.css`)**:
+  - Replaced expensive SVG `<feGaussianBlur>` filters with layered vector geometry and GPU-composited CSS `@keyframes` (`offset-path`, `stroke-dashoffset`, `will-change: offset-distance, transform`), eliminating frame drops during pan, zoom, and hover.
+  - Invariant particle animation durations (`forwardDur`, `reverseDur`, `staggerSec`) across hover states so animated data-flow packets never jump or reset when highlighting nodes (`<1.3px` natural frame delta).
+  - Deduplicated port socket indicators and coalesced pointer dragging via `requestAnimationFrame`.
+- **Redesigned Unified Service Workbench (`apps/core-web/src/app/page.tsx`)**:
+  - Fluid **Service Selector Cards** with live health status dots, category icons (`WebUI`, `API`, `DB`), node badges, and endpoint counters.
+  - Single-row **Unified Workbench Header Bar** with a framed Segmented Mode Switcher (`API- & DB-Tester` | `Web-Vorschau`), external proxy link, and remove action.
+  - Deduplicated quick-select endpoint pills, unified Request Composer Bar, and structured Response Console with status badge and latency metrics.
+- **Extensible Bilingual Localization System (`apps/core-web/src/lib/i18n.tsx`)**:
+  - Full 1:1 German (`DE`) and English (`EN`) coverage across all 8 views (`Übersicht`, `Services`, `Server & Mesh`, `Brain Vault`, `Dateien`, `Regeln`, `Audit-Log`, `Einstellungen`), all modals, and the AI Copilot drawer.
+  - Dedicated **Language & Localization** settings tab (`Sprache & Region`) plus a height-matched (`32px`) header language switcher (`DE` | `EN`).
+- **Bilingual Documentation & Interactive SVG Diagrams (`README.md`, `README.de.md`, `docs/assets/`)**:
+  - Complete English primary `README.md` and full German `README.de.md` connected via one-click language switch badges.
+  - Updated `hero-banner.svg`, `architecture-flow.svg`, `control-center-preview.svg`, and `ai-skills-pipeline.svg`.
+- **Code Cleanup & UI Optimization**:
+  - Removed unused legacy prototype component `RemoteWorkspaceExplorer.tsx` (`371` lines).
+  - Unified card headers, icon badges, and semantic `<main>` layout across all Settings tabs, Audit Log filters, and Onboarding modals.
+
+---
+
+## [v0.2.0] — 2026-10-27 (Over-the-Air Rollout, DevOps AI Skills & Interview Mode)
+
+### Added
+- **1-Click System Update & Over-the-Air (OTA) Muscle Rollout (`/api/system-update`)**:
+  - Live Git commit synchronization for the Core Plane and automated OTA binary rollout (`/usr/local/bin/axon`) with SHA-256 verification across all connected Muscle nodes.
+  - NetBird-style version & update status card in the bottom-left sidebar.
+- **5 Specialized DevOps AI Skills & Interactive Interview Mode**:
+  - `CheckSystem` (6-phase SRE infrastructure audit), `CheckOpsec` (DevSecOps socket, SSH & firewall audit), `CheckUpdates` (Muscle & backend update inspector), `DeepForensics` (root-cause & log analysis), and `SkillSearch` (full-stack code, DB & UI search).
+  - Step-by-step **DevOps Interview Mode** (`Fragen` toggle) and `@` context mention autocomplete (`@vps2-muscle`, `@service:4070`, `@Architecture.md`).
+
+---
+
 ## [v0.1.0] — 2026-10-25 ("Brain & Muscle" Reference Architecture Release)
 
 ### Added
@@ -22,4 +57,4 @@ All notable changes to **Synapse** are documented in this file.
   - Multi-turn **ReAct AI Orchestrator** supporting OpenAI, Anthropic, Ollama, Custom API Base URLs, and deterministic execution.
   - **Autonomy Tiers**: `TIER_1_UNLEASHED`, `TIER_2_WORKSPACE_JAIL`, and `TIER_3_SUPERVISED` (interactive command & diff approval cards in the WebUI).
   - **4 Official DevOps Rule Cartridges**: `docker-first.md`, `native-systemd.md`, `zero-trust-networking.md`, and `auto-ssl-caddy.md`.
-  - **Calm 2026 Studio UI**: Reader-mode Markdown viewer (`RichMarkdownDocument`), live Mermaid topology viewer (`MermaidTopologyView`), remote workspace explorer (`RemoteWorkspaceExplorer`), `Ctrl+K` Command Palette, and real-time `UNHEALTHY` service auto-heal banner.
+  - **Calm 2026 Studio UI**: Reader-mode Markdown viewer (`RichMarkdownDocument`), live Mermaid topology viewer (`MermaidTopologyView`), `Ctrl+K` Command Palette, and real-time `UNHEALTHY` service auto-heal banner.

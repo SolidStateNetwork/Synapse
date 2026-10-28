@@ -416,9 +416,143 @@ const EN_DICTIONARY: Record<string, string> = {
     "What are you looking for? (e.g. Firewall, SQL, Ports)...",
   "Quell-Server (vps2-muscle)": "Source peer (vps2-muscle)",
   "Ziel-Server (vps2-db-node)": "Target peer (vps2-db-node)",
+  "Quell-Server (vps2)": "Source peer (vps2)",
+  "Ziel-Server (db-node)": "Target peer (db-node)",
   "Frage Synapse AI (@ Kontext, Bilder)...":
     "Ask Synapse AI (@ context, images)...",
   "z.B. prod-01": "e.g. prod-01",
+  "Dienst-Gesundheitswarnung:": "Service Health Alert:",
+  "KI um Diagnose & Reparatur bitten": "Ask AI to Diagnose & Fix",
+  "Autonomie-Stufe": "Autonomy Tier",
+  "Trennen": "Unassign",
+  "Zuweisen": "Assign",
+  "Eigene Regel-Cartridge erstellen (.md)": "Create Custom Rule Cartridge (.md)",
+  "Eigene Regel-Cartridge erstellen (`.md`)": "Create Custom Rule Cartridge (`.md`)",
+  "Cartridge-Name (z.B. DSGVO / HIPAA)": "Cartridge Name (e.g. GDPR / HIPAA)",
+  "Kategorie (z.B. Sicherheit)": "Category (e.g. Security)",
+  "Kurzbeschreibung...": "Short description...",
+  "Cartridge speichern & aktivieren": "Save & Enable Cartridge",
+  "Freigeben & Ausführen": "Approve & Execute",
+  "Ablehnen": "Reject",
+  "Neuer Dateipfad...": "New file path...",
+  "Unified-Diff-Patch": "Unified Diff Patch",
+  "Auf Server speichern": "Save to Peer",
+  "Unified-Diff einfügen (@@ -1,3 +1,4 @@)...": "Paste unified diff (@@ -1,3 +1,4 @@)...",
+  "Unified-Diff anwenden": "Apply Unified Diff",
+  "Ausgeführt": "Executed",
+  "Blockiert": "Blocked",
+  "Freigabe nötig": "Needs Approval",
+  "Zeitstempel": "Timestamp",
+  "Akteur": "Actor",
+  "Tool / Ereignis": "Tool / Event",
+  "Zusammenfassung": "Summary",
+  "Setup-Schlüssel (Server-Onboarding)": "Setup Keys (Peer Onboarding)",
+  "KI-Anbieter & Basis-URL": "AI Providers & Base URL",
+  "Einmal-Setup-Schlüssel (Server-Anbindung)": "One-Time Peer Setup Keys",
+  "Server-Name (optional, z.B. prod-01)": "Peer Name (optional, e.g. prod-01)",
+  "Setup-Schlüssel erzeugen": "Generate Setup Key",
+  "1. Neuinstallation — Auf dem Ziel-Linux-Server ausführen, um `axon` zu installieren & zu verbinden:":
+    "1. Fresh Install — Run on target Linux host to install `axon` & connect via token:",
+  "✔ Kopiert!": "✔ Copied!",
+  "Befehl kopieren": "Copy Command",
+  "2. Bestehenden Muscle-Agenten per CLI umschalten (`axon switch`)":
+    "2. Switch / Rebind Existing Muscle Agent via CLI (`axon switch`)",
+  "`axon` ist bereits installiert? Führe diesen Befehl aus, um ihn mit neuem Token an diesen Core zu binden (oder nutze `axon profiles`):":
+    "Already have `axon` installed? Run this in your shell to connect it to this Core with a new token (or use `axon profiles` to switch saved Cores):",
+  "✔ CLI kopiert!": "✔ Copied CLI!",
+  "CLI-Switch kopieren": "Copy CLI Switch",
+  "AES-256-GCM Verschlüsselter Secrets-Tresor (`Secrets.enc`)":
+    "AES-256-GCM Encrypted Secrets Vault (`Secrets.enc`)",
+  "Geheimer Klartext-Wert (nur schreiben)...": "Secret plaintext value (write-only)...",
+  "Verschlüsseln & Speichern": "Encrypt & Save",
+  "KI-Anbieter & Eigene API-Basis-URL": "AI Provider & Custom API Base URL",
+  "Verbinde OpenRouter, vLLM, LiteLLM, Ollama oder OpenAI.":
+    "Connect OpenRouter, vLLM, LiteLLM, Ollama, or OpenAI.",
+  "KI-Anbieter Vorlage": "Provider Preset",
+  "API Basis-URL": "API Base URL",
+  "Modelle laden": "Fetch /models",
+  "Modelle abrufen": "Fetch Models",
+  "Modell-Name": "Model Name",
+  "API-Schlüssel (Verschlüsselt in Secrets.enc als":
+    "API Key (Encrypted in Secrets.enc as",
+  "•••••••• (Gespeichert in Secrets.enc)": "•••••••• (Saved in Secrets.enc)",
+  "Prompt- & Dateisystem-Caching": "Prompt & FS Caching",
+  "Statische System-Layer & Datei-Lesezugriffe zwischenspeichern":
+    "Cache static system layers & file reads",
+  "Proaktiver Auto-Watchdog": "Proactive Auto-Watchdog",
+  "Abgestürzte Dienste im Hintergrund automatisch reparieren":
+    "Auto-heal crashed services in background",
+  "KI-Anbieter speichern": "Save AI Provider",
+  "Anbieter speichern": "Save Provider",
+  "Abbrechen": "Cancel",
+  "Externer KI-Zugriff & Model Context Protocol (MCP) Server (`/api/mcp`)":
+    "External AI Access & Model Context Protocol (MCP) Server (`/api/mcp`)",
+  "Erlaube externen KI-Agenten (Claude Desktop, Cursor, Windsurf, Antigravity, OpenCode oder eigenen REST/JSON-RPC-Bots), deinen Synapse Core & Muscle sicher per MCP-Token zu steuern.":
+    "Allow external AI agents (Claude Desktop, Cursor, Windsurf, Antigravity, OpenCode, or custom REST/JSON-RPC bots) to control your Synapse Core & Muscle peers securely via an MCP API Token.",
+  "Client-Name (z.B. Claude Desktop / Cursor)": "Client name (e.g. Claude Desktop / Cursor)",
+  "Vollzugriff (Lesen + PTY/Dateisystem + Admin)": "Full Access (Read + Execute PTY/FS + Admin)",
+  "Nur Lesen (Server, Dateien & Brain-Docs prüfen)": "Read-Only (Inspect Peers, Files & Brain Docs)",
+  "+ MCP-API-Schlüssel erzeugen": "+ Generate MCP API Key",
+  "✔ Neuer MCP-API-Schlüssel erzeugt (jetzt kopieren — wird als SHA-256-Hash gespeichert):":
+    "✔ New MCP API Key Generated (copy now — stored as SHA-256 hash):",
+  "✔ Token kopiert!": "✔ Copied Token!",
+  "Token kopieren": "Copy Token",
+  "Aktive Externe KI- / MCP-Tokens": "Active External AI / MCP Tokens",
+  "Noch keine MCP-API-Tokens erstellt. Klicke oben auf „+ MCP-API-Schlüssel erzeugen“.":
+    "No MCP API tokens created yet. Click “+ Generate MCP API Key” above to issue one.",
+  "Widerrufen": "Revoke",
+  "1. MCP-Client-Konfiguration (`mcp_config.json` — Claude / Cursor / Antigravity)":
+    "1. MCP Client Config (`mcp_config.json` — Claude / Cursor / Antigravity)",
+  "2. Direkter REST / JSON-RPC Tool-Aufruf (`curl` / Eigener KI-Agent)":
+    "2. Direct REST / JSON-RPC Tool Call (`curl` / Custom AI Agent)",
+  "Live MCP-Protokoll-Tester (`JSON-RPC 2.0`)": "Live MCP Protocol Tester (`JSON-RPC 2.0`)",
+  "Teste `tools/list` (10 Tools)": "Test `tools/list` (10 Tools)",
+  "Teste `resources/list`": "Test `resources/list`",
+  "Rufe `synapse_get_project_state` auf": "Call `synapse_get_project_state`",
+  "Core & Muscle Debug-Modus + End-to-End-Selbsttest":
+    "Core & Muscle Debug Mode + End-to-End Self-Test",
+  "Prüfe Live-mTLS-1.3- & Yamux-Streams, verifiziere die AES-256-GCM-Tresor-Integrität und führe Diagnose-Checks auf Core und Muscle aus.":
+    "Inspect live mTLS 1.3 + Yamux stream traces, verify AES-256-GCM Vault integrity, and run diagnostic checks on both Core and Muscle.",
+  "● Debug-Modus: AKTIV": "● Debug Mode: ENABLED",
+  "○ Debug-Modus aktivieren": "○ Enable Debug Mode",
+  "Selbsttest läuft...": "Running Self-Test...",
+  "▶ 5-Stufen-Selbsttest starten": "▶ Run 5-Step Self-Test",
+  "Aktualisieren": "Refresh",
+  "End-to-End Diagnose-Prüfungen": "End-to-End Diagnostic Checks",
+  "CLI-Debug-Befehle für Core & Muscle (`axon debug` / `--debug`)":
+    "CLI Debug Commands for Core & Muscle (`axon debug` / `--debug`)",
+  "Live Core-Web- & Gateway-Diagnose-Snapshot (`/api/debug`)":
+    "Live Core Web & Gateway Diagnostic Snapshot (`/api/debug`)",
+  "Ausklappen": "Expand",
+  "Kein Muscle-Server verbunden. Klicke auf „+ Server“, um einen Linux-Knoten anzubinden.":
+    "No Muscle Peer connected. Click “+ Server” to enroll a Linux node.",
+  "Neuen Muscle-Server verbinden (Linux / Docker)": "Add New Muscle Peer (Linux / Docker)",
+  "Ein-Befehl-Installation mit automatischem Token-Login & mTLS-1.3-Anbindung.":
+    "One-command installation with automatic token login & mTLS 1.3 enrollment.",
+  "Core-Gateway-URL": "Core Gateway URL",
+  "Server-ID (Optional)": "Peer ID (Optional)",
+  "Führe diesen einzelnen Befehl auf deinem Linux-Server aus:":
+    "Run this single command on your Linux server:",
+  "Neues Token": "Rotate Token",
+  "Erzeuge Setup-Token...": "Generating setup token...",
+  "Oder bestehenden Muscle per CLI umschalten (`axon switch`):":
+    "Or switch an existing Muscle via CLI (`axon switch`):",
+  "Verbinde einen installierten Muscle-Agenten mit neuem Token an diesen Core (altes Profil bleibt unter `axon profiles` erhalten):":
+    "Rebind an installed Muscle agent to this Core with a new token (old Core profile is saved under `axon profiles`):",
+  "Warte auf eingehenden mTLS 1.3 + Yamux Server-Handshake...":
+    "Waiting for incoming mTLS 1.3 + Yamux peer handshake...",
+  "Fertig": "Done",
+  "Neuen Projekt-Tresor anlegen": "Create New Project Vault",
+  "Projektname (z.B. prod-mesh)": "Project name (e.g. prod-mesh)",
+  "Projekt anlegen": "Create Project",
+  "Springe zu Übersicht, Server, Regeln, Dienste...":
+    "Jump to Overview, Servers, Rules, Services...",
+  "Navigieren": "Navigate",
+  "Endpunkte (": "Endpoints (",
+  "Auf Port :": "On Port :",
+  "Kein Endpunkt für diese Kategorie hinterlegt.": "No endpoints registered for this category.",
+  "Warte auf Anfrage — klicke oben auf einen Endpunkt oder auf 'Ausführen'.":
+    "Waiting for request — click an endpoint above or press 'Execute'.",
 };
 
 /**
@@ -699,6 +833,34 @@ const EN_PATTERNS: PatternRule[] = [
   {
     match: /^🛡️ Auto-Watchdog \((\d+)x\)$/,
     replace: "🛡️ Auto-Watchdog ($1x)",
+  },
+  {
+    match: /^Verschlüsselter Tresor \((\d+)\)$/,
+    replace: "Encrypted Vault ($1)",
+  },
+  {
+    match: /^Externe KI \/ MCP-API \((\d+)\)$/,
+    replace: "External AI / MCP API ($1)",
+  },
+  {
+    match: /^Debug & Selbsttest \(AKTIV\)$/,
+    replace: "Debug & Self-Test (ON)",
+  },
+  {
+    match: /^Debug & Selbsttest \(AUS\)$/,
+    replace: "Debug & Self-Test (OFF)",
+  },
+  {
+    match: /^Ausstehende Tier-3-Freigaben \((\d+)\)$/,
+    replace: "Pending Tier-3 Supervised Approvals ($1)",
+  },
+  {
+    match: /^Endpunkte \((\d+)\)$/,
+    replace: "Endpoints ($1)",
+  },
+  {
+    match: /^Auf Port :(\d+)\.\.\.$/,
+    replace: "On Port :$1...",
   },
 ];
 
