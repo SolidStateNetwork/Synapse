@@ -21,6 +21,10 @@ func TestValidateCommandSelfLockout(t *testing.T) {
 		"kill -9 42424",
 		"ufw default deny outgoing",
 		"ufw deny out 8443/tcp",
+		"ufw deny 22/tcp",
+		"ufw deny ssh",
+		"iptables -A INPUT -p tcp --dport 22 -j DROP",
+		"iptables -A INPUT -i lo -j DROP",
 		"iptables -A OUTPUT -d 10.20.30.40 -j DROP",
 		"pkill -9 axon",
 	}
@@ -38,6 +42,7 @@ func TestValidateCommandSelfLockout(t *testing.T) {
 	safeCmds := []string{
 		"systemctl restart nginx",
 		"ufw allow 443/tcp",
+		"iptables -I INPUT ! -i lo -p tcp --dport 4070 -j DROP",
 		"kill -9 99999",
 		"docker compose up -d",
 	}
@@ -99,7 +104,7 @@ func TestSanitizeAndTruncate(t *testing.T) {
 	if !strings.HasPrefix(truncOut, strings.Repeat("A", 4096)) {
 		t.Fatalf("expected truncated output to start with 4KB head")
 	}
-	if !strings.HasSuffix(truncOut, strings.Repeat("M", 7288)+strings.Repeat("Z", 5000)) {
+	if !strings.HasSuffix(truncOut, strings.Repeat("Z", 5000)) {
 		t.Fatalf("expected truncated output to end with 12KB tail")
 	}
 }

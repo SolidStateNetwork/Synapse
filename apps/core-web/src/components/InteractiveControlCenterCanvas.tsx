@@ -128,6 +128,15 @@ interface Props {
   onOpenRemoteFiles: () => void;
   onDeployDemoService: () => void;
   onHealService: (port: number) => void;
+  firewallPolicies?: Record<
+    string,
+    {
+      profile: "web_standard" | "synapse_stealth" | "custom";
+      shielded_ports?: number[];
+      ip_rules?: unknown[];
+    }
+  >;
+  onOpenFirewall?: (nodeId?: string) => void;
 }
 
 interface CanvasPos {
@@ -170,6 +179,8 @@ export default function InteractiveControlCenterCanvas({
   onOpenAccessControl,
   onOpenRemoteFiles,
   onHealService,
+  firewallPolicies,
+  onOpenFirewall,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -951,13 +962,48 @@ export default function InteractiveControlCenterCanvas({
                             {gn.node_id}
                           </span>
                         </div>
-                        <div className="truncate text-[11px] text-nb-gray-400 mt-0.5">
-                          {hb?.private_ipv4 || "Online"} ·{" "}
-                          {gn.tier === "TIER_1_UNLEASHED"
-                            ? "Tier 1"
-                            : gn.tier === "TIER_2_WORKSPACE_JAIL"
-                            ? "Tier 2"
-                            : "Tier 3"}
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className="truncate text-[11px] text-nb-gray-400">
+                            {hb?.private_ipv4 || "Online"} ·{" "}
+                            {gn.tier === "TIER_1_UNLEASHED"
+                              ? "Tier 1"
+                              : gn.tier === "TIER_2_WORKSPACE_JAIL"
+                              ? "Tier 2"
+                              : "Tier 3"}
+                          </span>
+                          {(() => {
+                            const fwPol = firewallPolicies?.[gn.node_id];
+                            const prof = fwPol?.profile || "web_standard";
+                            const shieldedCount = fwPol?.shielded_ports?.length || 0;
+                            const isStealth = prof === "synapse_stealth";
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSelectNode(gn.node_id);
+                                  onOpenFirewall?.(gn.node_id);
+                                }}
+                                title="Firewall & Port-Schutz für diesen Server öffnen"
+                                className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9.5px] font-semibold transition ${
+                                  isStealth
+                                    ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
+                                    : shieldedCount > 0
+                                    ? "border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25"
+                                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                                }`}
+                              >
+                                <Shield className="h-2.5 w-2.5 shrink-0" />
+                                <span>
+                                  {isStealth
+                                    ? "Stealth-Firewall"
+                                    : shieldedCount > 0
+                                    ? `FW · ${shieldedCount} gesperrt`
+                                    : "Firewall aktiv"}
+                                </span>
+                              </button>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -1028,6 +1074,18 @@ export default function InteractiveControlCenterCanvas({
                         >
                           <Code2 className="h-3 w-3 text-sky-400" />
                           <span>Dateien</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectNode(gn.node_id);
+                            onOpenFirewall?.(gn.node_id);
+                          }}
+                          className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-1.5 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20"
+                        >
+                          <Shield className="h-3 w-3 text-emerald-400" />
+                          <span>Firewall</span>
                         </button>
                       </div>
                     </div>

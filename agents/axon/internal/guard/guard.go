@@ -40,7 +40,7 @@ func NewDefaultConfig(coreHost, corePort string) GuardrailConfig {
 }
 
 // ValidateCommand checks whether a shell command would terminate the agent,
-// disable axon.service, or block the outbound Core tunnel via firewall rules.
+// disable axon.service, or block the outbound Core tunnel / SSH via firewall rules.
 func ValidateCommand(cfg GuardrailConfig, cmd string) (allowed bool, reason string) {
 	normalized := strings.ToLower(strings.TrimSpace(cmd))
 	pidStr := strconv.Itoa(cfg.AgentPID)
@@ -71,24 +71,30 @@ func ValidateCommand(cfg GuardrailConfig, cmd string) (allowed bool, reason stri
 		}
 	}
 
-	// 3. Protect outbound tunnel and SSH from firewall lockouts (ufw, iptables, nft)
+	// 3. Protect outbound tunnel, SSH access, and loopback from firewall lockouts (ufw, iptables, nft)
 	firewallLockoutPatterns := []string{
 		"ufw default deny outgoing",
 		"ufw default reject outgoing",
+		"ufw deny 22",
+		"ufw deny ssh",
+		"ufw reject 22",
+		"ufw reject ssh",
 		"iptables -p output drop",
 		"iptables --policy output drop",
 		"iptables -f",
 		"nft flush ruleset",
 		"ip link set down",
 		"ifconfig eth0 down",
+		"-i lo -j drop",
+		"-i lo -j reject",
 	}
 	for _, pat := range firewallLockoutPatterns {
 		if strings.Contains(normalized, pat) {
-			return false, fmt.Sprintf("Self-Lockout Guardrail: firewall/network rule would sever the outbound Core tunnel (%q)", pat)
+			return false, fmt.Sprintf("Self-Lockout Guardrail: firewall/network rule would sever the outbound Core tunnel or SSH access (%q)", pat)
 		}
 	}
 
-	// 4. Protect specific CoreHost / CorePort in ufw / iptables rules
+	// 4. Protect specific CoreHost / CorePort and SSH port 22 in ufw / iptables rules
 	if strings.Contains(normalized, "ufw") || strings.Contains(normalized, "iptables") || strings.Contains(normalized, "nft") {
 		if strings.Contains(normalized, "deny") || strings.Contains(normalized, "drop") || strings.Contains(normalized, "reject") {
 			if cfg.CorePort != "" && strings.Contains(normalized, strings.ToLower(cfg.CorePort)) {
@@ -96,6 +102,9 @@ func ValidateCommand(cfg GuardrailConfig, cmd string) (allowed bool, reason stri
 			}
 			if cfg.CoreHost != "" && cfg.CoreHost != "127.0.0.1" && cfg.CoreHost != "localhost" && strings.Contains(normalized, strings.ToLower(cfg.CoreHost)) {
 				return false, fmt.Sprintf("Self-Lockout Guardrail: firewall rule blocks outbound Core host %s", cfg.CoreHost)
+			}
+			if strings.Contains(normalized, "--dport 22 ") || strings.HasSuffix(normalized, "--dport 22") || strings.Contains(normalized, "dport 22 ") {
+				return false, "Self-Lockout Guardrail: firewall rule would block SSH port 22"
 			}
 		}
 	}

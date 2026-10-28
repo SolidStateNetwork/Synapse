@@ -144,6 +144,41 @@ export interface McpApiKey {
   last_used_at?: string;
 }
 
+export interface FirewallPortItem {
+  port: number;
+  protocol: "tcp" | "udp";
+  bind_address: string;
+  exposure: "public" | "local";
+  process: string;
+  pid?: number;
+  service_name?: string;
+  shielded: boolean;
+  system_protected?: boolean;
+}
+
+export interface FirewallIpRule {
+  rule_id: string;
+  ip_or_cidr: string;
+  action: "allow" | "block";
+  port?: number | null;
+  protocol?: "tcp" | "udp" | "any";
+  note?: string;
+  created_at: string;
+}
+
+export interface FirewallNodePolicy {
+  node_id: string;
+  profile: "web_standard" | "synapse_stealth" | "custom";
+  backend?: string;
+  anti_lockout_active: boolean;
+  rollback_guard_seconds: number;
+  ssh_port: number;
+  shielded_ports: number[];
+  ip_rules: FirewallIpRule[];
+  detected_ports?: FirewallPortItem[];
+  last_synced_at: string;
+}
+
 export interface ProjectState {
   project_id: string;
   name: string;
@@ -155,6 +190,7 @@ export interface ProjectState {
   peer_mesh_links?: PeerMeshLink[];
   scheduled_playbooks?: ScheduledPlaybook[];
   mcp_api_keys?: McpApiKey[];
+  firewall_policies?: Record<string, FirewallNodePolicy>;
   active_pty_sessions: string[];
   telemetry: Record<string, NodeHeartbeat>;
   pending_approvals: PendingApproval[];

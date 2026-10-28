@@ -26,6 +26,10 @@ import {
   type ServiceEndpointAction,
 } from "./vault";
 import { listCartridges } from "./cartridges";
+import {
+  executeFirewallAction,
+  type FirewallActionInput,
+} from "./firewall";
 
 export const CORE_GATEWAY_URL =
   process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
@@ -456,6 +460,62 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "node_firewall_control",
+      description:
+        "Inspects or configures the Synapse Firewall & Port-Shield on a Linux Muscle server with built-in Anti-Lockout (protects SSH & Synapse Tunnel) and 15-second Dead-Man's Switch Rollback. Supports 'inspect' (Live Port-Radar), 'set_profile' ('web_standard', 'synapse_stealth', 'custom'), 'shield_port' (blocks public internet access to a port while keeping 127.0.0.1 Synapse Tunnel open), 'unshield_port', 'add_ip_rule' (allow/block IP or CIDR), and 'remove_ip_rule'.",
+      parameters: {
+        type: "object",
+        properties: {
+          node_id: {
+            type: "string",
+            description: "Target Muscle Peer ID.",
+          },
+          action: {
+            type: "string",
+            enum: [
+              "inspect",
+              "set_profile",
+              "shield_port",
+              "unshield_port",
+              "add_ip_rule",
+              "remove_ip_rule",
+            ],
+            default: "inspect",
+          },
+          profile: {
+            type: "string",
+            enum: ["web_standard", "synapse_stealth", "custom"],
+            description: "Firewall security profile when action is set_profile.",
+          },
+          port: {
+            type: "integer",
+            description: "Port number to shield/unshield or target in an IP rule.",
+          },
+          ip_or_cidr: {
+            type: "string",
+            description: "IPv4/IPv6 address or CIDR (e.g. 203.0.113.50 or 10.0.0.0/24) for add_ip_rule.",
+          },
+          rule_action: {
+            type: "string",
+            enum: ["allow", "block"],
+            description: "Whether to allow (whitelist) or block the IP.",
+          },
+          note: {
+            type: "string",
+            description: "Optional description for the IP rule.",
+          },
+          rule_id: {
+            type: "string",
+            description: "Rule ID to remove when action is remove_ip_rule.",
+          },
+        },
+        required: ["action"],
+      },
+    },
+  },
 ];
 
 export interface ToolDispatchResult {
@@ -490,6 +550,9 @@ function isWriteOrExecTool(
 ): boolean {
   if (toolName === "node_pty_exec") {
     return true;
+  }
+  if (toolName === "node_firewall_control") {
+    return String(args.action || "inspect") !== "inspect";
   }
   if (toolName === "node_fs_operation") {
     const op = String(args.operation || "");
@@ -1714,6 +1777,35 @@ elif MODE == "security_forensics":
         tool_name: toolName,
         status: "error",
         output: { error: `Failed to execute node_deep_search: ${msg}` },
+      };
+    }
+  }
+
+  if (toolName === "node_firewall_control") {
+    try {
+      const fwInput: FirewallActionInput = {
+        action: (args.action as FirewallActionInput["action"]) || "inspect",
+        node_id: targetNodeId,
+        profile: args.profile as FirewallActionInput["profile"],
+        port: args.port !== undefined ? Number(args.port) : undefined,
+        ip_or_cidr: args.ip_or_cidr ? String(args.ip_or_cidr) : undefined,
+        rule_action: args.rule_action as FirewallActionInput["rule_action"],
+        note: args.note ? String(args.note) : undefined,
+        rule_id: args.rule_id ? String(args.rule_id) : undefined,
+        actor: "ai_orchestrator",
+      };
+      const fwRes = await executeFirewallAction(projectId, fwInput);
+      return {
+        tool_name: toolName,
+        status: "executed",
+        output: fwRes,
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        tool_name: toolName,
+        status: "error",
+        output: { error: msg },
       };
     }
   }
