@@ -6099,15 +6099,35 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                     <span className="truncate text-xs font-semibold text-white">
                       Synapse AI
                     </span>
-                    <span
-                      className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-950/50 px-2 py-0.5 font-mono text-[9px] text-emerald-300"
-                      title="Static 5-Layer System Prefix & Read-Only FS Calls Cached"
+                    <button
+                      type="button"
+                      onClick={() => setEnablePromptCaching((prev) => !prev)}
+                      className={`inline-flex h-[22px] items-center justify-center gap-1 rounded-md border px-2 text-[10px] font-medium leading-none transition ${
+                        enablePromptCaching
+                          ? "border-emerald-500/35 bg-emerald-950/60 text-emerald-300 hover:bg-emerald-950/90"
+                          : "border-nb-gray-800 bg-nb-gray-930 text-nb-gray-400 hover:border-nb-gray-700 hover:text-nb-gray-200"
+                      }`}
+                      title={
+                        enablePromptCaching
+                          ? "Prompt- & Tool-Cache aktiv (Klicken zum Deaktivieren)"
+                          : "Prompt- & Tool-Cache deaktiviert (Klicken zum Aktivieren)"
+                      }
                     >
-                      <Zap className="h-2.5 w-2.5 text-emerald-400" />
-                      {latestCacheMetrics
-                        ? `${latestCacheMetrics.cached_tokens} tok`
-                        : "Cache aktiv"}
-                    </span>
+                      <Zap
+                        className={`h-2.5 w-2.5 shrink-0 ${
+                          enablePromptCaching
+                            ? "text-emerald-400"
+                            : "text-nb-gray-500"
+                        }`}
+                      />
+                      <span>
+                        {enablePromptCaching
+                          ? latestCacheMetrics
+                            ? `Cache (${latestCacheMetrics.cached_tokens} tok)`
+                            : "Cache aktiv"
+                          : "Cache aus"}
+                      </span>
+                    </button>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
@@ -6120,7 +6140,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                           setCopilotWidth(600);
                         }
                       }}
-                      className="rounded-md border border-nb-gray-800 bg-nb-gray-930 px-2 py-0.5 text-[10px] font-medium text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
+                      className="inline-flex h-[22px] items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-930 px-2 text-[10px] font-medium leading-none text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
                       title={
                         copilotWide
                           ? "Auf Standardbreite verkleinern"
@@ -6131,7 +6151,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                     </button>
                     <button
                       onClick={handleClearChat}
-                      className="rounded-md border border-nb-gray-800 bg-nb-gray-930 px-2 py-0.5 text-[10px] text-nb-gray-400 hover:border-nb-gray-700 hover:text-white transition"
+                      className="inline-flex h-[22px] items-center justify-center rounded-md border border-nb-gray-800 bg-nb-gray-930 px-2 text-[10px] font-medium leading-none text-nb-gray-400 hover:border-nb-gray-700 hover:text-white transition"
                       title="Konversation zurücksetzen"
                     >
                       Reset
