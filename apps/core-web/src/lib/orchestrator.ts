@@ -1089,9 +1089,13 @@ export async function interceptAndExecuteTool(
       target_node_id: targetNodeId,
       local_port: localPort,
       remote_port: remotePort,
+      target_port: remotePort,
       protocol: (String(args.protocol || "tcp").toLowerCase() === "http"
         ? "http"
         : "tcp") as "tcp" | "http",
+      alias_env: args.alias_env
+        ? String(args.alias_env)
+        : "PEER_SERVICE_URL",
       description: args.description
         ? String(args.description)
         : `Encrypted mTLS mesh route ${sourceNodeId} (127.0.0.1:${localPort}) -> ${targetNodeId} (127.0.0.1:${remotePort})`,

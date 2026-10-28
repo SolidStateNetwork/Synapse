@@ -60,6 +60,7 @@ import {
 } from "lucide-react";
 import RichMarkdownDocument from "@/components/RichMarkdownDocument";
 import InteractiveControlCenterCanvas from "@/components/InteractiveControlCenterCanvas";
+import { LanguageSwitcher, useI18n } from "@/lib/i18n";
 
 const XTermTerminal = dynamic(() => import("@/components/XTermTerminal"), {
   ssr: false,
@@ -183,20 +184,24 @@ interface ProjectState {
     link_id: string;
     source_node_id: string;
     target_node_id: string;
-    target_port: number;
+    target_port?: number;
+    remote_port?: number;
+    local_port?: number;
     protocol: "tcp" | "http";
-    alias_env: string;
+    alias_env?: string;
+    description?: string;
     created_at: string;
   }>;
   scheduled_playbooks?: Array<{
     playbook_id: string;
     name: string;
-    cron: string;
+    cron?: string;
+    cron_expression?: string;
     prompt: string;
     target_node_id?: string;
     enabled: boolean;
     last_run_at?: string;
-    last_status?: "ok" | "error";
+    last_status?: string;
   }>;
   mcp_api_keys?: Array<{
     key_id: string;
@@ -213,8 +218,10 @@ interface StackBlueprint {
   name: string;
   category: string;
   description: string;
-  cartridges: string[];
-  prompt: string;
+  cartridges?: string[];
+  recommendedCartridges?: string[];
+  prompt?: string;
+  promptCommand?: string;
 }
 
 interface AuditEntry {
@@ -325,6 +332,7 @@ const PROVIDER_PRESETS: Record<
 };
 
 export default function SynapseNetBirdControlCenter() {
+  const { locale } = useI18n();
   const [projects, setProjects] = useState<ProjectState[]>([]);
   const [activeProject, setActiveProject] = useState<ProjectState | null>(null);
   const [architectureMd, setArchitectureMd] = useState("");
@@ -410,6 +418,8 @@ export default function SynapseNetBirdControlCenter() {
   const [mcpKeyScopeMode, setMcpKeyScopeMode] = useState<"read-exec" | "read-only">("read-exec");
   const [issuedMcpToken, setIssuedMcpToken] = useState<string | null>(null);
   const [copiedMcpToken, setCopiedMcpToken] = useState(false);
+  const [showMcpConfigExamples, setShowMcpConfigExamples] = useState(false);
+  const [copiedMcpConfig, setCopiedMcpConfig] = useState<"json" | "curl" | null>(null);
   const [mcpTestOutput, setMcpTestOutput] = useState<string>("");
   const [debugModeEnabled, setDebugModeEnabled] = useState(false);
   const [debugSnapshot, setDebugSnapshot] = useState<Record<string, unknown> | null>(null);
@@ -496,6 +506,16 @@ export default function SynapseNetBirdControlCenter() {
     | null
   >(null);
   const [skillMenuOpen, setSkillMenuOpen] = useState<boolean>(false);
+  const [chatMessageFilter, setChatMessageFilter] = useState<
+    "all" | "reports" | "user"
+  >("all");
+  const [expandedRawPrompts, setExpandedRawPrompts] = useState<
+    Record<number, boolean>
+  >({});
+  const [copiedChatMsgIdx, setCopiedChatMsgIdx] = useState<number | null>(null);
+  const [turnToolCategoryFilter, setTurnToolCategoryFilter] = useState<
+    Record<number, string>
+  >({});
   const [chatBusy, setChatBusy] = useState(false);
   const [chatElapsedSec, setChatElapsedSec] = useState(0);
 
@@ -531,7 +551,7 @@ export default function SynapseNetBirdControlCenter() {
     {
       role: "assistant",
       content:
-        "Welcome to **Synapse Control Center**. Your interactive overlay topology, Muscle Peers, `Rule Cartridges`, and `Brain Vault` are mapped on the main canvas.\n\nUse the **Control Center** to drag nodes, toggle policies, or click `+ Add Peer` to enroll a new Linux server with one command.",
+        "# Willkommen im Synapse AI Copilot\n\nDein autonomer DevOps-Begleiter ist live mit deinen Servern, dem `Brain Vault` (`Architecture.md` & `Memory.md`) und den `Rule Cartridges` verbunden.\n\n- **Status:** `[OK]` Bereit für Live-Analysen\n- **Modus:** Interaktiver ReAct-Orchestrator\n\nWähle unten direkt einen **Quick-Skill** oder stelle eine Frage zu deinen Servern, Ports oder Logs.",
     },
   ]);
 
@@ -1975,7 +1995,7 @@ export default function SynapseNetBirdControlCenter() {
     ? `sudo axon switch --core ${gatewayUrl.replace(/\/$/, "")} --token ${issuedToken} --tier ${joinTier}${
         joinNodeName.trim() ? ` --node ${joinNodeName.trim()}` : ""
       } --restart`
-    : `sudo axon switch --core ${gatewayUrl.replace(/\/$/, "")} --token <NEW_TOKEN> --tier ${joinTier} --restart`;
+    : "";
 
   async function handleCreateCustomCartridge(e: React.FormEvent) {
     e.preventDefault();
@@ -2029,11 +2049,13 @@ export default function SynapseNetBirdControlCenter() {
   async function handleTogglePlaybook(pb: {
     playbook_id: string;
     name: string;
-    cron: string;
+    cron?: string;
+    cron_expression?: string;
     prompt: string;
     enabled: boolean;
   }) {
     if (!activeProject) return;
+    const cronVal = pb.cron || pb.cron_expression || "0 3 * * *";
     await fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2042,7 +2064,8 @@ export default function SynapseNetBirdControlCenter() {
         project_id: activeProject.project_id,
         playbook_id: pb.playbook_id,
         name: pb.name,
-        cron: pb.cron,
+        cron: cronVal,
+        cron_expression: cronVal,
         prompt: pb.prompt,
         enabled: !pb.enabled,
       }),
@@ -2185,8 +2208,10 @@ export default function SynapseNetBirdControlCenter() {
   useEffect(() => {
     if (activeNav === "settings" && settingsTab === "system-update") {
       fetchSystemUpdateStatus(false, true);
+    } else if (activeNav === "settings" && settingsTab === "debug-console") {
+      fetchDebugSnapshot();
     }
-  }, [activeNav, settingsTab, fetchSystemUpdateStatus]);
+  }, [activeNav, settingsTab, fetchSystemUpdateStatus, fetchDebugSnapshot]);
 
   async function handleRunSystemUpdate(
     action: "check" | "update_core" | "update_muscle" | "update_all",
@@ -2645,13 +2670,15 @@ export default function SynapseNetBirdControlCenter() {
             )}
           </div>
 
-          {/* Right: Essential Global Controls (Copilot + Server) */}
+          {/* Right: Essential Global Controls (Language + Update + Copilot + Server) */}
           <div className="flex items-center gap-2">
             {statusToast && (
               <span className="hidden xl:inline-block rounded-md border border-green-500/40 bg-green-950 px-2.5 py-1 font-mono text-[11px] text-green-400">
                 {statusToast}
               </span>
             )}
+
+            <LanguageSwitcher variant="header" />
 
             <button
               onClick={() => {
@@ -3231,23 +3258,37 @@ export default function SynapseNetBirdControlCenter() {
                         über verschlüsselte mTLS-Loopback-Tunnels.
                       </p>
                     </div>
+                    <datalist id="synapse-peer-nodes">
+                      {Array.from(
+                        new Set([
+                          ...gatewayNodes.map((n) => n.node_id),
+                          ...(activeProject?.assigned_nodes || []).map(
+                            (n) => n.node_id
+                          ),
+                        ])
+                      ).map((nid) => (
+                        <option key={nid} value={nid} />
+                      ))}
+                    </datalist>
                     <form
                       onSubmit={handleAddMeshLink}
-                      className="grid grid-cols-1 gap-2.5 sm:grid-cols-4 text-xs"
+                      className="grid grid-cols-1 gap-2.5 sm:grid-cols-12 text-xs"
                     >
                       <input
                         type="text"
+                        list="synapse-peer-nodes"
                         value={meshSourceNode}
                         onChange={(e) => setMeshSourceNode(e.target.value)}
-                        placeholder="Source peer (z.B. vps2-muscle)"
-                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                        placeholder="Quell-Server (vps2)"
+                        className="sm:col-span-3 rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-white"
                       />
                       <input
                         type="text"
+                        list="synapse-peer-nodes"
                         value={meshTargetNode}
                         onChange={(e) => setMeshTargetNode(e.target.value)}
-                        placeholder="Target peer (z.B. vps2-db-node)"
-                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                        placeholder="Ziel-Server (db-node)"
+                        className="sm:col-span-3 rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-white"
                       />
                       <input
                         type="number"
@@ -3256,41 +3297,59 @@ export default function SynapseNetBirdControlCenter() {
                           setMeshTargetPort(Number(e.target.value) || 5432)
                         }
                         placeholder="Port (5432)"
-                        className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
+                        className="sm:col-span-2 rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
+                      />
+                      <input
+                        type="text"
+                        value={meshAliasEnv}
+                        onChange={(e) => setMeshAliasEnv(e.target.value)}
+                        placeholder="ENV-Alias (PEER_DB_URL)"
+                        className="sm:col-span-2 rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-nb-gray-200"
                       />
                       <button
                         type="submit"
-                        className="rounded bg-netbird px-3 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+                        className="sm:col-span-2 rounded bg-netbird px-3 py-2 text-xs font-medium text-white hover:bg-netbird-500"
                       >
                         + Mesh-Link anlegen
                       </button>
                     </form>
                     <div className="space-y-2">
-                      {(activeProject?.peer_mesh_links || []).map((lnk) => (
-                        <div
-                          key={lnk.link_id}
-                          className="flex items-center justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-4 py-2.5 font-mono text-xs"
-                        >
-                          <span className="text-nb-gray-200">
-                            <strong className="text-white">
-                              {lnk.source_node_id}
-                            </strong>{" "}
-                            ⇄{" "}
-                            <strong className="text-sky-400">
-                              {lnk.target_node_id}:{lnk.target_port}
-                            </strong>{" "}
-                            <span className="text-nb-gray-400">
-                              ({lnk.alias_env})
-                            </span>
-                          </span>
-                          <button
-                            onClick={() => handleRemoveMeshLink(lnk.link_id)}
-                            className="text-nb-gray-500 hover:text-red-400"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                      {(activeProject?.peer_mesh_links || []).length === 0 ? (
+                        <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950/70 px-4 py-3 text-xs text-nb-gray-400">
+                          Noch keine P2P-Mesh-Verknüpfungen aktiv. Wähle oben Quell- und Ziel-Server sowie den Ziel-Port aus, um einen verschlüsselten mTLS-Loopback-Tunnel bereitzustellen.
                         </div>
-                      ))}
+                      ) : (
+                        (activeProject?.peer_mesh_links || []).map((lnk) => (
+                          <div
+                            key={lnk.link_id}
+                            className="flex items-center justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-4 py-2.5 font-mono text-xs"
+                          >
+                            <span className="text-nb-gray-200">
+                              <strong className="text-white">
+                                {lnk.source_node_id}
+                              </strong>{" "}
+                              ⇄{" "}
+                              <strong className="text-sky-400">
+                                {lnk.target_node_id}:
+                                {lnk.target_port ||
+                                  lnk.remote_port ||
+                                  lnk.local_port ||
+                                  5432}
+                              </strong>{" "}
+                              <span className="text-nb-gray-400">
+                                ({lnk.alias_env || lnk.description || "mTLS-Tunnel"})
+                              </span>
+                            </span>
+                            <button
+                              onClick={() => handleRemoveMeshLink(lnk.link_id)}
+                              className="text-nb-gray-500 hover:text-red-400"
+                              title="Mesh-Link trennen"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
@@ -3330,7 +3389,9 @@ export default function SynapseNetBirdControlCenter() {
                           <button
                             onClick={() => {
                               setCopilotDrawerOpen(true);
-                              runStreamingPrompt(bp.prompt);
+                              runStreamingPrompt(
+                                bp.prompt || bp.promptCommand || ""
+                              );
                             }}
                             className="w-full rounded-md bg-netbird/90 py-2 text-xs font-medium text-white hover:bg-netbird"
                           >
@@ -3356,55 +3417,59 @@ export default function SynapseNetBirdControlCenter() {
                       </p>
                     </div>
                     <div className="space-y-2.5">
-                      {(activeProject?.scheduled_playbooks || []).map((pb) => (
-                        <div
-                          key={pb.playbook_id}
-                          className="flex items-center justify-between gap-3 rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-3.5 text-xs"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-white truncate">
-                                {pb.name}
-                              </span>
-                              <span className="rounded border border-nb-gray-700 bg-nb-gray-950 px-2 py-0.5 font-mono text-[10px] text-netbird">
-                                {pb.cron}
-                              </span>
+                      {(activeProject?.scheduled_playbooks || []).map((pb) => {
+                        const cronLabel =
+                          pb.cron || pb.cron_expression || "0 3 * * *";
+                        return (
+                          <div
+                            key={pb.playbook_id}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-3.5 text-xs"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-white truncate">
+                                  {pb.name}
+                                </span>
+                                <span className="rounded border border-nb-gray-700 bg-nb-gray-950 px-2 py-0.5 font-mono text-[10px] text-netbird">
+                                  🕒 {cronLabel}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-nb-gray-400 truncate mt-1">
+                                {pb.prompt}
+                              </p>
                             </div>
-                            <p className="text-[11px] text-nb-gray-400 truncate mt-1">
-                              {pb.prompt}
-                            </p>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                onClick={() => {
+                                  setCopilotDrawerOpen(true);
+                                  runStreamingPrompt(pb.prompt);
+                                }}
+                                className="rounded border border-netbird-500/40 bg-netbird-950 px-2.5 py-1 font-mono text-[10px] text-netbird hover:bg-netbird hover:text-white"
+                              >
+                                Jetzt ausführen
+                              </button>
+                              <button
+                                onClick={() => handleTogglePlaybook(pb)}
+                                className={`rounded border px-2.5 py-1 font-mono text-[10px] ${
+                                  pb.enabled
+                                    ? "border-green-500/40 bg-green-950 text-green-400"
+                                    : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400"
+                                }`}
+                              >
+                                {pb.enabled ? "AKTIV" : "PAUSIERT"}
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleDeletePlaybook(pb.playbook_id)
+                                }
+                                className="text-nb-gray-500 hover:text-red-400 p-1"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              onClick={() => {
-                                setCopilotDrawerOpen(true);
-                                runStreamingPrompt(pb.prompt);
-                              }}
-                              className="rounded border border-netbird-500/40 bg-netbird-950 px-2.5 py-1 font-mono text-[10px] text-netbird hover:bg-netbird hover:text-white"
-                            >
-                              Jetzt ausführen
-                            </button>
-                            <button
-                              onClick={() => handleTogglePlaybook(pb)}
-                              className={`rounded border px-2.5 py-1 font-mono text-[10px] ${
-                                pb.enabled
-                                  ? "border-green-500/40 bg-green-950 text-green-400"
-                                  : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400"
-                              }`}
-                            >
-                              {pb.enabled ? "ON" : "OFF"}
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleDeletePlaybook(pb.playbook_id)
-                              }
-                              className="text-nb-gray-500 hover:text-red-400 p-1"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                     <form
                       onSubmit={handleAddPlaybook}
@@ -4544,6 +4609,20 @@ export default function SynapseNetBirdControlCenter() {
                   })}
                 </div>
 
+                {/* Language & Localization Card (Always visible in Settings) */}
+                <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 px-5 py-4">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                      <Globe className="h-3.5 w-3.5 text-netbird" />
+                      <span>Sprache &amp; Lokalisierung</span>
+                    </div>
+                    <p className="text-[11px] text-nb-gray-400">
+                      Wähle die Anzeigesprache der Benutzeroberfläche. Weitere Sprachen können jederzeit über das Sprach-Register ergänzt werden.
+                    </p>
+                  </div>
+                  <LanguageSwitcher variant="settings" />
+                </div>
+
                 {settingsTab === "system-update" && (
                   <div className="space-y-5">
                     {/* Top Action Card: 1-Click Core + Muscle OTA Rollout */}
@@ -4847,23 +4926,28 @@ export default function SynapseNetBirdControlCenter() {
 
                 {settingsTab === "setup-keys" && (
                   <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-6 space-y-4">
-                    <h2 className="text-base font-medium text-white">
-                      One-Time Peer Setup Keys
-                    </h2>
+                    <div>
+                      <h2 className="text-base font-medium text-white">
+                        One-Time Peer Setup Keys
+                      </h2>
+                      <p className="text-xs text-nb-gray-400 mt-0.5">
+                        Erzeuge einen einmaligen Setup-Schlüssel für das automatische mTLS 1.3 Onboarding neuer Linux-Server oder das Umbinden bestehender Muscle-Knoten.
+                      </p>
+                    </div>
                     <div className="flex flex-wrap items-center gap-2.5">
                       <input
                         type="text"
                         value={gatewayUrl}
                         onChange={(e) => setGatewayUrl(e.target.value)}
                         placeholder="http://<CORE_IP>:8081"
-                        className="w-56 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
+                        className="w-60 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
                       />
                       <input
                         type="text"
                         value={joinNodeName}
                         onChange={(e) => setJoinNodeName(e.target.value)}
                         placeholder="Peer Name (optional, e.g. prod-01)"
-                        className="w-52 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
+                        className="flex-1 min-w-[240px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
                       />
                       <select
                         value={joinTier}
@@ -4890,78 +4974,116 @@ export default function SynapseNetBirdControlCenter() {
                       </button>
                     </div>
 
-                    {oneLineInstallerCmd && (
-                      <div className="rounded-lg border border-netbird-500/40 bg-nb-gray-950 p-4 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-netbird">
-                            1. Fresh Install — Run on target Linux host to install `axon` &amp; connect via token:
-                          </span>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(
-                                oneLineInstallerCmd
-                              );
-                              setCopiedJoinCmd(true);
-                              setTimeout(() => setCopiedJoinCmd(false), 2500);
-                            }}
-                            className="rounded bg-netbird px-3 py-1 text-[11px] font-medium text-white"
-                          >
-                            {copiedJoinCmd ? "✔ Copied!" : "Copy Command"}
-                          </button>
-                        </div>
-                        <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-xs text-green-400">
-                          {oneLineInstallerCmd}
-                        </pre>
+                    {(gatewayUrl.includes("localhost") ||
+                      gatewayUrl.includes("127.0.0.1")) && (
+                      <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3.5 py-2 text-xs text-amber-200">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                        <span>
+                          Hinweis: Für entfernte Linux-VPS bitte{" "}
+                          <code className="font-mono text-amber-300">
+                            {gatewayUrl}
+                          </code>{" "}
+                          durch die öffentlich oder per VPN erreichbare IP/Domain dieses Core-Servers ersetzen.
+                        </span>
                       </div>
                     )}
 
-                    <div className="rounded-lg border border-sky-500/40 bg-nb-gray-950 p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-medium text-sky-400">
-                            2. Switch / Rebind Existing Muscle Agent via CLI (`axon switch`)
-                          </span>
-                          <p className="text-[11px] text-nb-gray-400">
-                            Already have `axon` installed? Run this in your shell to connect it to this Core with a new token (or use `axon profiles` to switch saved Cores):
-                          </p>
+                    {issuedToken ? (
+                      <div className="space-y-4 pt-1">
+                        <div className="rounded-lg border border-netbird-500/40 bg-nb-gray-950 p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-netbird">
+                              1. Fresh Install — Run on target Linux host to install `axon` &amp; connect via token:
+                            </span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(
+                                  oneLineInstallerCmd
+                                );
+                                setCopiedJoinCmd(true);
+                                setTimeout(() => setCopiedJoinCmd(false), 2500);
+                              }}
+                              className="rounded bg-netbird px-3 py-1 text-[11px] font-medium text-white"
+                            >
+                              {copiedJoinCmd ? "✔ Copied!" : "Copy Command"}
+                            </button>
+                          </div>
+                          <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-xs text-green-400">
+                            {oneLineInstallerCmd}
+                          </pre>
                         </div>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(rebindCliCmd);
-                            setCopiedRebindCmd(true);
-                            setTimeout(() => setCopiedRebindCmd(false), 2500);
-                          }}
-                          className="rounded border border-sky-500/50 bg-sky-950 px-3 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900"
-                        >
-                          {copiedRebindCmd ? "✔ Copied CLI!" : "Copy CLI Switch"}
-                        </button>
+
+                        <div className="rounded-lg border border-sky-500/40 bg-nb-gray-950 p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-xs font-medium text-sky-400">
+                                2. Switch / Rebind Existing Muscle Agent via CLI (`axon switch`)
+                              </span>
+                              <p className="text-[11px] text-nb-gray-400">
+                                Already have `axon` installed? Run this in your shell to connect it to this Core with a new token (or use `axon profiles` to switch saved Cores):
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(rebindCliCmd);
+                                setCopiedRebindCmd(true);
+                                setTimeout(
+                                  () => setCopiedRebindCmd(false),
+                                  2500
+                                );
+                              }}
+                              className="rounded border border-sky-500/50 bg-sky-950 px-3 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900"
+                            >
+                              {copiedRebindCmd
+                                ? "✔ Copied CLI!"
+                                : "Copy CLI Switch"}
+                            </button>
+                          </div>
+                          <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-xs text-sky-300">
+                            {rebindCliCmd}
+                          </pre>
+                        </div>
                       </div>
-                      <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-xs text-sky-300">
-                        {rebindCliCmd}
-                      </pre>
-                    </div>
+                    ) : (
+                      <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950/70 px-4 py-3.5 text-xs text-nb-gray-400">
+                        Noch kein aktiver Setup-Schlüssel generiert. Klicke oben auf{" "}
+                        <strong className="text-white">
+                          Generate Setup Key
+                        </strong>
+                        , um einen neuen Einmal-Token samt kopierfertigem Installations- und{" "}
+                        <code className="font-mono text-sky-300">
+                          axon switch
+                        </code>
+                        -Befehl zu erstellen.
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {settingsTab === "secrets-vault" && (
                   <div className="rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-6 space-y-4">
-                    <h2 className="text-base font-medium text-white">
-                      AES-256-GCM Encrypted Secrets Vault (`Secrets.enc`)
-                    </h2>
-                    <form onSubmit={handleAddSecret} className="flex gap-2.5">
+                    <div>
+                      <h2 className="text-base font-medium text-white">
+                        AES-256-GCM Encrypted Secrets Vault (`Secrets.enc`)
+                      </h2>
+                      <p className="text-xs text-nb-gray-400 mt-0.5">
+                        Geheimnisse werden lokal mit AES-256-GCM verschlüsselt gespeichert (Write-Only) und bei Bedarf sicher in Remote-Prozesse injiziert.
+                      </p>
+                    </div>
+                    <form onSubmit={handleAddSecret} className="flex flex-wrap gap-2.5">
                       <input
                         type="text"
                         value={newSecretKey}
                         onChange={(e) => setNewSecretKey(e.target.value)}
                         placeholder="SECRET_KEY_NAME"
-                        className="flex-1 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
+                        className="flex-1 min-w-[200px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
                       />
                       <input
                         type="password"
                         value={newSecretVal}
                         onChange={(e) => setNewSecretVal(e.target.value)}
                         placeholder="Secret plaintext value (write-only)..."
-                        className="flex-1 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
+                        className="flex-1 min-w-[240px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
                       />
                       <button
                         type="submit"
@@ -4971,27 +5093,34 @@ export default function SynapseNetBirdControlCenter() {
                       </button>
                     </form>
 
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {secretKeys.map((k) => (
-                        <div
-                          key={k}
-                          className="flex items-center justify-between rounded-md border border-nb-gray-800 bg-nb-gray-930 px-3.5 py-2.5 font-mono text-xs"
-                        >
-                          <span className="text-netbird">{k}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-nb-gray-400">
-                              AES-256-GCM
-                            </span>
-                            <button
-                              onClick={() => handleDeleteSecret(k)}
-                              className="text-nb-gray-400 hover:text-red-400"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                    {secretKeys.length === 0 ? (
+                      <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950/70 px-4 py-3 text-xs text-nb-gray-400">
+                        Noch keine Secrets im Tresor hinterlegt.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {secretKeys.map((k) => (
+                          <div
+                            key={k}
+                            className="flex items-center justify-between rounded-md border border-nb-gray-800 bg-nb-gray-930 px-3.5 py-2.5 font-mono text-xs"
+                          >
+                            <span className="text-netbird">{k}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-nb-gray-400">
+                                AES-256-GCM
+                              </span>
+                              <button
+                                onClick={() => handleDeleteSecret(k)}
+                                className="text-nb-gray-400 hover:text-red-400"
+                                title="Secret löschen"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -5040,23 +5169,49 @@ export default function SynapseNetBirdControlCenter() {
                           <button
                             type="button"
                             onClick={handleSyncModels}
-                            className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-nb-gray-200 hover:text-white"
+                            disabled={syncingModels}
+                            className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-nb-gray-200 hover:text-white"
                           >
-                            Fetch /models
+                            <RefreshCw
+                              className={`h-3.5 w-3.5 ${
+                                syncingModels ? "animate-spin" : ""
+                              }`}
+                            />
+                            <span>Fetch /models</span>
                           </button>
                         </div>
+                        {modelSyncStatus && (
+                          <p className="mt-1 font-mono text-[11px] text-netbird">
+                            {modelSyncStatus}
+                          </p>
+                        )}
                       </div>
 
                       <div>
                         <label className="block text-nb-gray-200 font-medium mb-1.5">
                           Model Name
                         </label>
-                        <input
-                          type="text"
-                          value={modelName}
-                          onChange={(e) => setModelName(e.target.value)}
-                          className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
-                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={modelName}
+                            onChange={(e) => setModelName(e.target.value)}
+                            className="flex-1 rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
+                          />
+                          {discoveredModels.length > 0 && (
+                            <select
+                              value={modelName}
+                              onChange={(e) => setModelName(e.target.value)}
+                              className="max-w-[200px] rounded-md border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-netbird"
+                            >
+                              {discoveredModels.map((m) => (
+                                <option key={m} value={m}>
+                                  {m}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
                       </div>
 
                       <div>
@@ -5068,9 +5223,53 @@ export default function SynapseNetBirdControlCenter() {
                           type="password"
                           value={apiKeyInput}
                           onChange={(e) => setApiKeyInput(e.target.value)}
-                          placeholder="sk-..."
+                          placeholder={
+                            secretKeys.includes(apiKeySecretName)
+                              ? "•••••••• (Saved in Secrets.enc)"
+                              : "sk-..."
+                          }
                           className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
                         />
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 pt-1">
+                        <label className="flex items-center gap-2.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 p-2.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={enablePromptCaching}
+                            onChange={(e) =>
+                              setEnablePromptCaching(e.target.checked)
+                            }
+                            className="rounded border-nb-gray-700 accent-netbird"
+                          />
+                          <div>
+                            <div className="font-medium text-white">
+                              Prompt &amp; FS Caching
+                            </div>
+                            <div className="text-[10px] text-nb-gray-400">
+                              Cache static system layers &amp; file reads
+                            </div>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-2.5 rounded-md border border-nb-gray-800 bg-nb-gray-920 p-2.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={enableAutoWatchdog}
+                            onChange={(e) =>
+                              setEnableAutoWatchdog(e.target.checked)
+                            }
+                            className="rounded border-nb-gray-700 accent-netbird"
+                          />
+                          <div>
+                            <div className="font-medium text-white">
+                              Proactive Auto-Watchdog
+                            </div>
+                            <div className="text-[10px] text-nb-gray-400">
+                              Auto-heal crashed services in background
+                            </div>
+                          </div>
+                        </label>
                       </div>
 
                       <button
@@ -5156,8 +5355,23 @@ export default function SynapseNetBirdControlCenter() {
 
                       {/* Active MCP API Keys List */}
                       <div className="space-y-2">
-                        <div className="text-xs font-semibold text-nb-gray-300">
-                          Active External AI / MCP Tokens
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-semibold text-nb-gray-300">
+                            Active External AI / MCP Tokens
+                          </div>
+                          {!issuedMcpToken && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setShowMcpConfigExamples((v) => !v)
+                              }
+                              className="text-[11px] text-sky-400 hover:text-sky-300 hover:underline"
+                            >
+                              {showMcpConfigExamples
+                                ? "Integrations-Vorlagen ausblenden"
+                                : "Integrations-Vorlagen anzeigen (Claude / Cursor / cURL)"}
+                            </button>
+                          )}
                         </div>
                         {(activeProject?.mcp_api_keys || []).length === 0 ? (
                           <div className="rounded border border-nb-gray-800 bg-nb-gray-950 p-3 text-xs text-nb-gray-400">
@@ -5193,42 +5407,30 @@ export default function SynapseNetBirdControlCenter() {
                         )}
                       </div>
 
-                      {/* MCP Client Config & REST Examples */}
-                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 pt-2">
-                        <div className="rounded-md border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
-                          <div className="text-xs font-semibold text-sky-400">
-                            1. MCP Client Config (`mcp_config.json` — Claude / Cursor / Antigravity)
-                          </div>
-                          <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
-{`{
+                      {/* MCP Client Config & REST Examples (Shown automatically when a token is generated, or when user toggles templates) */}
+                      {(issuedMcpToken || showMcpConfigExamples) &&
+                        (() => {
+                          const originUrl =
+                            typeof window !== "undefined"
+                              ? window.location.origin
+                              : "http://localhost:3000";
+                          const pid =
+                            activeProject?.project_id || "synapse-cloud-demo";
+                          const tokenVal =
+                            issuedMcpToken || "syn_mcp_<DEIN_API_KEY>";
+                          const mcpJsonSnippet = `{
   "mcpServers": {
     "synapse-core": {
-      "url": "${
-        typeof window !== "undefined"
-          ? window.location.origin
-          : "http://localhost:3000"
-      }/api/mcp?project_id=${activeProject?.project_id || "synapse-cloud-demo"}",
+      "url": "${originUrl}/api/mcp?project_id=${pid}",
       "headers": {
-        "Authorization": "Bearer ${issuedMcpToken || "syn_mcp_<YOUR_TOKEN>"}"
+        "Authorization": "Bearer ${tokenVal}"
       }
     }
   }
-}`}
-                          </pre>
-                        </div>
-
-                        <div className="rounded-md border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
-                          <div className="text-xs font-semibold text-emerald-400">
-                            2. Direct REST / JSON-RPC Tool Call (`curl` / Custom AI Agent)
-                          </div>
-                          <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
-{`# Execute any tool directly via REST or JSON-RPC 2.0:
-curl -X POST ${
-  typeof window !== "undefined"
-    ? window.location.origin
-    : "http://localhost:3000"
-}/api/mcp \\
-  -H "Authorization: Bearer ${issuedMcpToken || "syn_mcp_<YOUR_TOKEN>"}" \\
+}`;
+                          const mcpCurlSnippet = `# Execute any tool directly via REST or JSON-RPC 2.0:
+curl -X POST ${originUrl}/api/mcp \\
+  -H "Authorization: Bearer ${tokenVal}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "tool": "node_pty_exec",
@@ -5237,18 +5439,77 @@ curl -X POST ${
       "session_id": "mcp-shell",
       "command": "uname -a && uptime"
     }
-  }'`}
-                          </pre>
-                        </div>
-                      </div>
+  }'`;
+                          return (
+                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 pt-2">
+                              <div className="rounded-md border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="text-xs font-semibold text-sky-400">
+                                    1. MCP Client Config (`mcp_config.json` — Claude / Cursor / Antigravity)
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(
+                                        mcpJsonSnippet
+                                      );
+                                      setCopiedMcpConfig("json");
+                                      setTimeout(
+                                        () => setCopiedMcpConfig(null),
+                                        2000
+                                      );
+                                    }}
+                                    className="rounded border border-sky-500/40 bg-sky-950/60 px-2.5 py-0.5 text-[10px] font-medium text-sky-300 hover:bg-sky-900"
+                                  >
+                                    {copiedMcpConfig === "json"
+                                      ? "✔ Kopiert"
+                                      : "Kopieren"}
+                                  </button>
+                                </div>
+                                <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
+                                  {mcpJsonSnippet}
+                                </pre>
+                              </div>
+
+                              <div className="rounded-md border border-nb-gray-800 bg-nb-gray-950 p-4 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="text-xs font-semibold text-emerald-400">
+                                    2. Direct REST / JSON-RPC Tool Call (`curl` / Custom AI Agent)
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(
+                                        mcpCurlSnippet
+                                      );
+                                      setCopiedMcpConfig("curl");
+                                      setTimeout(
+                                        () => setCopiedMcpConfig(null),
+                                        2000
+                                      );
+                                    }}
+                                    className="rounded border border-emerald-500/40 bg-emerald-950/60 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300 hover:bg-emerald-900"
+                                  >
+                                    {copiedMcpConfig === "curl"
+                                      ? "✔ Kopiert"
+                                      : "Kopieren"}
+                                  </button>
+                                </div>
+                                <pre className="overflow-x-auto rounded bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
+                                  {mcpCurlSnippet}
+                                </pre>
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                       {/* Interactive Live MCP Tester */}
                       <div className="space-y-2 pt-2">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-xs font-semibold text-nb-gray-300">
                             Live MCP Protocol Tester (`JSON-RPC 2.0`)
                           </span>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <button
                               type="button"
                               onClick={() => handleTestMcpEndpoint("tools/list")}
@@ -5378,9 +5639,9 @@ curl -X POST ${
 {`# 1. Run 5-step Muscle diagnostic doctor (checks X.509 cert, Core HTTP latency, mTLS 1.3 handshake & FS permissions)
 sudo axon debug
 
-# 2. Persist Debug Mode on the Muscle agent and run with live microsecond Yamux & PTY stream logs
-sudo axon debug --enable
-axon run --debug --core ${gatewayUrl.replace(/\/$/, "")}${issuedToken ? ` --token ${issuedToken}` : " --token <JOIN_TOKEN>"}
+# 2. Persist Debug Mode on the Muscle agent and inspect live systemd journal logs
+sudo axon debug --enable && sudo systemctl restart axon
+sudo journalctl -u axon -f
 
 # 3. Start Core Gateway with verbose mTLS / Yamux / RPC debug trace logging
 SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
@@ -5392,11 +5653,15 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         <div className="text-xs font-semibold text-nb-gray-300">
                           Live Core Web &amp; Gateway Diagnostic Snapshot (`/api/debug`)
                         </div>
-                        <pre className="max-h-80 overflow-auto rounded-md border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-green-400">
-                          {debugSnapshot
-                            ? JSON.stringify(debugSnapshot, null, 2)
-                            : "Click 'Refresh' or 'Run 5-Step Self-Test' to inspect live Core & Gateway state."}
-                        </pre>
+                        {debugSnapshot ? (
+                          <pre className="max-h-80 overflow-auto rounded-md border border-nb-gray-800 bg-nb-gray-960 p-3.5 font-mono text-[11px] text-green-400">
+                            {JSON.stringify(debugSnapshot, null, 2)}
+                          </pre>
+                        ) : (
+                          <div className="rounded-md border border-nb-gray-850 bg-nb-gray-950/70 px-4 py-3 text-xs text-nb-gray-400">
+                            Lade Live-Diagnose-Snapshot...
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -5477,134 +5742,739 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                 </div>
               )}
 
-              {/* Single Clean Header Bar (No redundant sub-header row) */}
-              <div className="flex items-center justify-between border-b border-nb-gray-900 px-3.5 py-2.5">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Sparkles className="h-4 w-4 shrink-0 text-netbird" />
-                  <span className="truncate text-xs font-semibold text-white">
-                    Synapse AI
-                  </span>
-                  <span
-                    className="flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-950/40 px-1.5 py-0.5 font-mono text-[9px] text-emerald-300"
-                    title="Static 5-Layer System Prefix & Read-Only FS Calls Cached"
-                  >
-                    <Zap className="h-2.5 w-2.5 text-emerald-400" />
-                    {latestCacheMetrics
-                      ? `${latestCacheMetrics.cached_tokens} tok`
-                      : "Cache aktiv"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => {
-                      if (copilotWide) {
-                        setCopilotWide(false);
-                        setCopilotWidth(420);
-                      } else {
-                        setCopilotWide(true);
-                        setCopilotWidth(600);
+              {/* Single Clean Header Bar + Optional Conversation Filter Strip */}
+              <div className="border-b border-nb-gray-900 bg-nb-gray-950/60 px-3.5 py-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-netbird-500/40 bg-netbird/15 text-netbird">
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </div>
+                    <span className="truncate text-xs font-semibold text-white">
+                      Synapse AI
+                    </span>
+                    <span
+                      className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-950/50 px-2 py-0.5 font-mono text-[9px] text-emerald-300"
+                      title="Static 5-Layer System Prefix & Read-Only FS Calls Cached"
+                    >
+                      <Zap className="h-2.5 w-2.5 text-emerald-400" />
+                      {latestCacheMetrics
+                        ? `${latestCacheMetrics.cached_tokens} tok`
+                        : "Cache aktiv"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        if (copilotWide) {
+                          setCopilotWide(false);
+                          setCopilotWidth(420);
+                        } else {
+                          setCopilotWide(true);
+                          setCopilotWidth(600);
+                        }
+                      }}
+                      className="rounded-md border border-nb-gray-800 bg-nb-gray-930 px-2 py-0.5 text-[10px] font-medium text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
+                      title={
+                        copilotWide
+                          ? "Auf Standardbreite verkleinern"
+                          : "Chat-Fenster verbreitern (oder linken Rand ziehen)"
                       }
-                    }}
-                    className="rounded px-2 py-0.5 text-[10px] text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
-                    title={
-                      copilotWide
-                        ? "Auf Standardbreite verkleinern"
-                        : "Chat-Fenster verbreitern (oder linken Rand ziehen)"
-                    }
-                  >
-                    {copilotWide ? "Kompakt" : "Breiter"}
-                  </button>
-                  <button
-                    onClick={handleClearChat}
-                    className="rounded px-2 py-0.5 text-[10px] text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
-                    title="Clear conversation"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    onClick={() => setCopilotDrawerOpen(false)}
-                    className="text-nb-gray-400 hover:text-white p-0.5"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                    >
+                      {copilotWide ? "Kompakt" : "Breiter"}
+                    </button>
+                    <button
+                      onClick={handleClearChat}
+                      className="rounded-md border border-nb-gray-800 bg-nb-gray-930 px-2 py-0.5 text-[10px] text-nb-gray-400 hover:border-nb-gray-700 hover:text-white transition"
+                      title="Konversation zurücksetzen"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      onClick={() => setCopilotDrawerOpen(false)}
+                      className="text-nb-gray-400 hover:text-white p-0.5"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
+
+                {/* Interactive Filter Bar when conversation has multiple turns */}
+                {chatHistory.length > 2 && (
+                  <div className="flex items-center justify-between gap-1 rounded-lg border border-nb-gray-800/80 bg-nb-gray-940/80 p-1">
+                    <div className="flex items-center gap-1">
+                      {(
+                        [
+                          { id: "all", label: `Alle (${chatHistory.length})` },
+                          {
+                            id: "reports",
+                            label: `KI-Antworten (${
+                              chatHistory.filter((m) => m.role === "assistant")
+                                .length
+                            })`,
+                          },
+                          {
+                            id: "user",
+                            label: `Aktionen (${
+                              chatHistory.filter((m) => m.role === "user").length
+                            })`,
+                          },
+                        ] as const
+                      ).map((tab) => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setChatMessageFilter(tab.id)}
+                          className={`rounded-md px-2 py-0.5 font-mono text-[10px] transition ${
+                            chatMessageFilter === tab.id
+                              ? "bg-netbird text-white font-semibold"
+                              : "text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="hidden sm:inline px-1.5 font-mono text-[9px] text-nb-gray-400">
+                      Interaktive Ansicht
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {/* Chat Messages + Multimodal Previews + Reasoning + Rollback */}
+              {/* Chat Messages + Interactive Bento Cards + Grouped Topic Reports + Categorized Tool Pipeline */}
               <div
                 ref={chatScrollRef}
-                className="flex-1 overflow-y-auto p-4 space-y-3.5"
+                className="flex-1 overflow-y-auto p-3.5 space-y-3.5"
               >
                 {chatHistory.map((msg, idx) => {
-                  const thinkingOpen = expandedThinking[idx];
-                  return (
-                    <div
-                      key={idx}
-                      className={`min-w-0 overflow-hidden break-words rounded-lg p-3.5 text-xs ${
-                        msg.role === "user"
-                          ? "ml-5 border border-netbird-500/40 bg-netbird-950/50 text-white"
-                          : "border border-nb-gray-800/80 bg-nb-gray-930 text-nb-gray-100"
-                      }`}
-                    >
-                      {/* Attached Vision Images / Files inside User Message */}
-                      {msg.attachments && msg.attachments.length > 0 && (
-                        <div className="mb-2.5 flex flex-wrap gap-2">
-                          {msg.attachments.map((att) => (
-                            <div
-                              key={att.id}
-                              className="group relative overflow-hidden rounded-md border border-nb-gray-700 bg-nb-gray-950"
-                            >
-                              {att.mime_type?.startsWith("image/") ? (
-                                <img
-                                  src={att.data_url}
-                                  alt={att.name}
-                                  className="h-20 w-28 object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-14 w-28 items-center gap-1.5 px-2 font-mono text-[10px] text-nb-gray-200">
-                                  <FileText className="h-3.5 w-3.5 shrink-0 text-netbird" />
-                                  <span className="truncate">{att.name}</span>
-                                </div>
-                              )}
-                              <div className="bg-black/75 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-300 truncate max-w-[112px]">
-                                {att.name}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                  if (
+                    chatMessageFilter === "reports" &&
+                    msg.role !== "assistant"
+                  ) {
+                    return null;
+                  }
+                  if (chatMessageFilter === "user" && msg.role !== "user") {
+                    return null;
+                  }
 
-                      {/* Collapsible AI Reasoning / Thinking Trace */}
-                      {msg.thinking && (
-                        <div className="mb-2.5 rounded border border-nb-gray-800 bg-nb-gray-950/80 px-2.5 py-1.5">
+                  const thinkingOpen = expandedThinking[idx];
+                  const rawContent = msg.content || "";
+
+                  // ───────────────────────────────────────────────────────────
+                  // 1. STRUCTURED USER MESSAGE RENDERING (No raw prompt dumps!)
+                  // ───────────────────────────────────────────────────────────
+                  if (msg.role === "user") {
+                    const isSkillSystem =
+                      rawContent.includes("[Skill: CheckSystem]") ||
+                      rawContent.includes("[System-Check]");
+                    const isSkillOpsec =
+                      rawContent.includes("[Skill: CheckOpsec]") ||
+                      rawContent.includes("[OpSec-Check]");
+                    const isSkillUpdates =
+                      rawContent.includes("[Skill: CheckUpdates]") ||
+                      rawContent.includes("[Update & Funktionstest]") ||
+                      rawContent.includes("[Nur Funktionstest]") ||
+                      rawContent.includes("[Update-Entscheidung]");
+                    const isSkillForensics = rawContent.includes(
+                      "[Skill: DeepForensics]"
+                    );
+                    const isSkillSearch = rawContent.includes(
+                      "[Skill: SkillSearch]"
+                    );
+                    const isInterviewMsg =
+                      rawContent.includes("[Interview-Modus]") ||
+                      rawContent.includes("[Interview-Antwort]");
+
+                    const isStructuredAction =
+                      isSkillSystem ||
+                      isSkillOpsec ||
+                      isSkillUpdates ||
+                      isSkillForensics ||
+                      isSkillSearch ||
+                      isInterviewMsg;
+
+                    if (isStructuredAction) {
+                      const focusMatch = rawContent.match(
+                        /(?:Zusätzlicher Nutzer-Fokus|Nutzer-Suchanfrage \/ Fokus|Zusätzliche Anweisung des Nutzers):\s*"([^"]+)"/
+                      );
+                      const userFocusText = focusMatch ? focusMatch[1] : null;
+                      const isLongRawPrompt = rawContent.length > 260;
+                      const showRaw = Boolean(expandedRawPrompts[idx]);
+
+                      const actionMeta = isSkillSystem
+                        ? {
+                            badge: "SRE System-Tiefenscan",
+                            title: "CheckSystem (6-Phasen Infrastruktur-Audit)",
+                            summary:
+                              userFocusText ||
+                              "Prüft Host-Telemetrie, Ports, Quellcode, SQLite-Integrität, Logs & Brain-Sync.",
+                            border:
+                              "border-emerald-500/40 bg-gradient-to-br from-emerald-950/50 via-nb-gray-940 to-nb-gray-950",
+                            pill: "border-emerald-500/40 bg-emerald-950/70 text-emerald-300",
+                            icon: (
+                              <Activity className="h-3.5 w-3.5 text-emerald-400" />
+                            ),
+                          }
+                        : isSkillOpsec
+                        ? {
+                            badge: "DevSecOps Security-Audit",
+                            title: "CheckOpsec (Sicherheits- & Socket-Prüfung)",
+                            summary:
+                              userFocusText ||
+                              "Prüft Socket-Bindings, SSH-Härtung, Firewall, Dateirechte, Secrets & Header.",
+                            border:
+                              "border-sky-500/40 bg-gradient-to-br from-sky-950/50 via-nb-gray-940 to-nb-gray-950",
+                            pill: "border-sky-500/40 bg-sky-950/70 text-sky-300",
+                            icon: (
+                              <Shield className="h-3.5 w-3.5 text-sky-400" />
+                            ),
+                          }
+                        : isSkillUpdates
+                        ? {
+                            badge: "Muscle & Backend Updates",
+                            title: rawContent.includes("[Update & Funktionstest]")
+                              ? "Updates durchführen & End-to-End testen"
+                              : rawContent.includes("[Nur Funktionstest]")
+                              ? "End-to-End Funktionstest ausführen"
+                              : "CheckUpdates (Versions- & Paket-Inspektion)",
+                            summary:
+                              userFocusText ||
+                              (rawContent.length <= 240
+                                ? rawContent.replace(/\*\*/g, "")
+                                : "Prüft Axon-Binaries, Runtimes, Systempakete & Backends auf Updates."),
+                            border:
+                              "border-cyan-500/40 bg-gradient-to-br from-cyan-950/50 via-nb-gray-940 to-nb-gray-950",
+                            pill: "border-cyan-500/40 bg-cyan-950/70 text-cyan-300",
+                            icon: (
+                              <RefreshCw className="h-3.5 w-3.5 text-cyan-400" />
+                            ),
+                          }
+                        : isSkillForensics
+                        ? {
+                            badge: "Root-Cause Forensik",
+                            title: "DeepForensics (Log- & Prozess-Tiefenanalyse)",
+                            summary:
+                              userFocusText ||
+                              "Durchsucht Systemd-Journals, Logs, Datenbanken & Prozesse nach Fehlerursachen.",
+                            border:
+                              "border-purple-500/40 bg-gradient-to-br from-purple-950/50 via-nb-gray-940 to-nb-gray-950",
+                            pill: "border-purple-500/40 bg-purple-950/70 text-purple-300",
+                            icon: (
+                              <Cpu className="h-3.5 w-3.5 text-purple-400" />
+                            ),
+                          }
+                        : isSkillSearch
+                        ? {
+                            badge: "Deep-Search",
+                            title: "SkillSearch (Code-, System- & UI-Suche)",
+                            summary:
+                              userFocusText ||
+                              "Durchsucht Dateien, Ports, Datenbanken, Logs und UI-Funktionen.",
+                            border:
+                              "border-amber-500/40 bg-gradient-to-br from-amber-950/50 via-nb-gray-940 to-nb-gray-950",
+                            pill: "border-amber-500/40 bg-amber-950/70 text-amber-300",
+                            icon: (
+                              <Search className="h-3.5 w-3.5 text-amber-400" />
+                            ),
+                          }
+                        : {
+                            badge: "Interaktives Interview",
+                            title: rawContent.includes("[Interview-Modus]")
+                              ? "Interview-Modus gestartet"
+                              : "Interview-Entscheidung gesendet",
+                            summary:
+                              userFocusText ||
+                              (rawContent.includes("JA, JETZT BEHEBEN")
+                                ? "✅ Punkt jetzt live beheben & verifizieren"
+                                : rawContent.includes("ÜBERSPRINGEN")
+                                ? "⏭️ Punkt überspringen → weiter zum nächsten Befund"
+                                : rawContent.includes("ALLE RESTLICHEN")
+                                ? "⚡ Alle verbleibenden Punkte automatisch beheben"
+                                : "Schrittweise Durchsprache der Befunde & Empfehlungen."),
+                            border:
+                              "border-netbird-500/40 bg-gradient-to-br from-netbird-950/50 via-nb-gray-940 to-nb-gray-950",
+                            pill: "border-netbird-500/40 bg-netbird-950/70 text-netbird",
+                            icon: (
+                              <Sparkles className="h-3.5 w-3.5 text-netbird" />
+                            ),
+                          };
+
+                      return (
+                        <div
+                          key={idx}
+                          className={`ml-4 overflow-hidden rounded-xl border p-3 text-xs shadow-sm ${actionMeta.border}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {actionMeta.icon}
+                              <span
+                                className={`rounded-full border px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider ${actionMeta.pill}`}
+                              >
+                                {actionMeta.badge}
+                              </span>
+                            </div>
+                            {isLongRawPrompt && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedRawPrompts((prev) => ({
+                                    ...prev,
+                                    [idx]: !prev[idx],
+                                  }))
+                                }
+                                className="rounded border border-nb-gray-800 bg-nb-gray-950/80 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-400 hover:text-white transition"
+                              >
+                                {showRaw ? "Kompakt ▲" : "Prompt-Details ▼"}
+                              </button>
+                            )}
+                          </div>
+                          <div className="mt-1.5 font-semibold text-white">
+                            {actionMeta.title}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-nb-gray-300 leading-relaxed">
+                            {actionMeta.summary}
+                          </div>
+                          {showRaw && (
+                            <div className="mt-2 border-t border-nb-gray-800/80 pt-2">
+                              <RichMarkdownDocument
+                                markdown={rawContent}
+                                variant="chat"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // Normal conversational User Bubble
+                    return (
+                      <div
+                        key={idx}
+                        className="ml-6 min-w-0 overflow-hidden break-words rounded-2xl rounded-tr-sm border border-netbird-500/40 bg-gradient-to-br from-netbird-950/70 via-netbird-950/40 to-nb-gray-940 p-3.5 text-xs text-white shadow-sm"
+                      >
+                        <div className="mb-1 flex items-center justify-between font-mono text-[9px] uppercase tracking-wider text-netbird/90">
+                          <span>Deine Anfrage</span>
+                          {primaryNode && <span>@{primaryNode}</span>}
+                        </div>
+                        {msg.attachments && msg.attachments.length > 0 && (
+                          <div className="mb-2.5 flex flex-wrap gap-2">
+                            {msg.attachments.map((att) => (
+                              <div
+                                key={att.id}
+                                className="group relative overflow-hidden rounded-md border border-nb-gray-700 bg-nb-gray-950"
+                              >
+                                {att.mime_type?.startsWith("image/") ? (
+                                  <img
+                                    src={att.data_url}
+                                    alt={att.name}
+                                    className="h-20 w-28 object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-14 w-28 items-center gap-1.5 px-2 font-mono text-[10px] text-nb-gray-200">
+                                    <FileText className="h-3.5 w-3.5 shrink-0 text-netbird" />
+                                    <span className="truncate">{att.name}</span>
+                                  </div>
+                                )}
+                                <div className="bg-black/75 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-300 truncate max-w-[112px]">
+                                  {att.name}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <RichMarkdownDocument
+                          markdown={rawContent}
+                          variant="chat"
+                          onOpenPort={(port) => {
+                            setPreviewPort(port);
+                            setActiveNav("reverse-proxy");
+                          }}
+                          onOpenFile={(filePath) => {
+                            setActiveNav("workspace");
+                            openRemoteFile(filePath);
+                          }}
+                          onOpenBrainDoc={(doc) => {
+                            setBrainDocTab(doc);
+                            setActiveNav("brain-vault");
+                          }}
+                          onRunCommand={(cmd) => {
+                            setTerminalDrawerOpen(true);
+                            navigator.clipboard.writeText(cmd);
+                            setStatusToast(
+                              "Befehl kopiert & Live-Terminal geöffnet"
+                            );
+                            setTimeout(() => setStatusToast(""), 3000);
+                          }}
+                        />
+                      </div>
+                    );
+                  }
+
+                  // ───────────────────────────────────────────────────────────
+                  // 2. ASSISTANT MESSAGE CARD (Varied Header + Grouped Sections + Categorized Tool Pipeline)
+                  // ───────────────────────────────────────────────────────────
+                  const isWatchdogMsg = rawContent.includes(
+                    "Proactive Auto-Watchdog Triggered"
+                  );
+                  if (isWatchdogMsg) {
+                    const prevMsg = idx > 0 ? chatHistory[idx - 1] : null;
+                    if (
+                      prevMsg &&
+                      prevMsg.role === "assistant" &&
+                      (prevMsg.content || "").includes(
+                        "Proactive Auto-Watchdog Triggered"
+                      )
+                    ) {
+                      // Skip consecutive duplicate watchdog cards; they are bundled into the first one of the run!
+                      return null;
+                    }
+                    let bundleCount = 1;
+                    for (let k = idx + 1; k < chatHistory.length; k++) {
+                      if (
+                        chatHistory[k].role === "assistant" &&
+                        (chatHistory[k].content || "").includes(
+                          "Proactive Auto-Watchdog Triggered"
+                        )
+                      ) {
+                        bundleCount++;
+                      } else {
+                        break;
+                      }
+                    }
+
+                    const watchdogExpanded = Boolean(expandedTurnTools[idx]);
+
+                    return (
+                      <div
+                        key={idx}
+                        className="rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-950/30 via-nb-gray-940 to-nb-gray-940 px-3 py-2 text-xs text-nb-gray-200 shadow-sm"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-950/70 px-2 py-0.5 font-mono text-[9px] font-semibold text-amber-300 shrink-0">
+                              🛡️ Auto-Watchdog ({bundleCount}x)
+                            </span>
+                            <span className="truncate text-[11px] font-medium text-white">
+                              Selbstheilung für Microservice :4050 ausgeführt
+                            </span>
+                          </div>
                           <button
                             type="button"
                             onClick={() =>
-                              setExpandedThinking((prev) => ({
+                              setExpandedTurnTools((prev) => ({
                                 ...prev,
                                 [idx]: !prev[idx],
                               }))
                             }
-                            className="flex w-full items-center justify-between font-mono text-[10px] text-nb-gray-300 hover:text-white"
+                            className="shrink-0 font-mono text-[10px] text-amber-300 hover:text-white"
                           >
+                            {watchdogExpanded ? "Kompakt ▲" : "Details ▼"}
+                          </button>
+                        </div>
+                        {watchdogExpanded && (
+                          <div className="mt-2 border-t border-nb-gray-800/70 pt-2">
+                            <RichMarkdownDocument
+                              markdown={rawContent}
+                              variant="chat"
+                              onOpenPort={(port) => {
+                                setPreviewPort(port);
+                                setActiveNav("reverse-proxy");
+                              }}
+                              onOpenFile={(filePath) => {
+                                setActiveNav("workspace");
+                                openRemoteFile(filePath);
+                              }}
+                              onOpenBrainDoc={(doc) => {
+                                setBrainDocTab(doc);
+                                setActiveNav("brain-vault");
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  const prevUserText =
+                    idx > 0 && chatHistory[idx - 1]?.role === "user"
+                      ? chatHistory[idx - 1].content || ""
+                      : "";
+
+                  const assistantTheme =
+                    prevUserText.includes("CheckOpsec") ||
+                    prevUserText.includes("[OpSec-Check]")
+                      ? {
+                          label: "DevSecOps Security-Bericht",
+                          badgeClass:
+                            "border-sky-500/35 bg-sky-950/60 text-sky-300",
+                          cardBorder: "border-sky-500/25",
+                          icon: <Shield className="h-3 w-3 text-sky-400" />,
+                        }
+                      : prevUserText.includes("CheckUpdates") ||
+                        prevUserText.includes("[Update")
+                      ? {
+                          label: "Update- & Test-Inspektor",
+                          badgeClass:
+                            "border-cyan-500/35 bg-cyan-950/60 text-cyan-300",
+                          cardBorder: "border-cyan-500/25",
+                          icon: <RefreshCw className="h-3 w-3 text-cyan-400" />,
+                        }
+                      : prevUserText.includes("CheckSystem") ||
+                        prevUserText.includes("[System-Check]")
+                      ? {
+                          label: "SRE System-Tiefenbericht",
+                          badgeClass:
+                            "border-emerald-500/35 bg-emerald-950/60 text-emerald-300",
+                          cardBorder: "border-emerald-500/25",
+                          icon: (
+                            <Activity className="h-3 w-3 text-emerald-400" />
+                          ),
+                        }
+                      : prevUserText.includes("DeepForensics")
+                      ? {
+                          label: "Root-Cause Forensik",
+                          badgeClass:
+                            "border-purple-500/35 bg-purple-950/60 text-purple-300",
+                          cardBorder: "border-purple-500/25",
+                          icon: <Cpu className="h-3 w-3 text-purple-400" />,
+                        }
+                      : prevUserText.includes("[Interview-")
+                      ? {
+                          label: "DevOps Interview-Begleiter",
+                          badgeClass:
+                            "border-netbird-500/40 bg-netbird-950/60 text-netbird",
+                          cardBorder: "border-netbird-500/30",
+                          icon: <Sparkles className="h-3 w-3 text-netbird" />,
+                        }
+                      : {
+                          label:
+                            idx === 0 ? "Synapse Control Center" : "Synapse AI",
+                          badgeClass:
+                            "border-nb-gray-700 bg-nb-gray-900 text-nb-gray-200",
+                          cardBorder: "border-nb-gray-800/90",
+                          icon: <Sparkles className="h-3 w-3 text-netbird" />,
+                        };
+
+                  const displayContent = rawContent.replace(
+                    /^Executed `?([a-z0-9_]+)`? through the Synapse Core Interceptor \(`?([^)`]+)`?\)\.$/i,
+                    locale === "de"
+                      ? "✔ Tool `$1` erfolgreich über den Synapse Core Interceptor ausgeführt (`$2`)."
+                      : "✔ Tool `$1` executed via Synapse Core Interceptor (`$2`)."
+                  );
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`min-w-0 overflow-hidden break-words rounded-2xl rounded-tl-sm border bg-nb-gray-930/95 p-3.5 text-xs text-nb-gray-100 shadow-sm ${assistantTheme.cardBorder}`}
+                    >
+                      {/* Assistant Card Header Bar */}
+                      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-1.5 border-b border-nb-gray-800/70 pb-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10px] font-medium whitespace-nowrap ${assistantTheme.badgeClass}`}
+                          >
+                            {assistantTheme.icon}
+                            <span>{assistantTheme.label}</span>
+                          </span>
+                          {msg.toolResults && msg.toolResults.length > 0 && (
+                            <span className="shrink-0 whitespace-nowrap rounded-full border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[9px] text-nb-gray-300">
+                              🛠️ {msg.toolResults.length}{" "}
+                              {msg.toolResults.length === 1
+                                ? "Schritt"
+                                : "Schritte"}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {msg.thinking && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedThinking((prev) => ({
+                                  ...prev,
+                                  [idx]: !prev[idx],
+                                }))
+                              }
+                              className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[9px] transition ${
+                                thinkingOpen
+                                  ? "border-netbird bg-netbird/20 text-white"
+                                  : "border-nb-gray-800 bg-nb-gray-950 text-nb-gray-400 hover:text-white"
+                              }`}
+                              title="KI-Gedankengang (Reasoning Trace) ein-/ausblenden"
+                            >
+                              <Brain className="h-2.5 w-2.5 text-netbird" />
+                              <span>Reasoning</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(rawContent);
+                              setCopiedChatMsgIdx(idx);
+                              setTimeout(() => setCopiedChatMsgIdx(null), 1800);
+                            }}
+                            title="Antwort als Markdown kopieren"
+                            className="flex items-center gap-1 rounded-md border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-400 hover:border-nb-gray-700 hover:text-white transition"
+                          >
+                            {copiedChatMsgIdx === idx ? (
+                              <>
+                                <Check className="h-2.5 w-2.5 text-emerald-400" />
+                                <span className="text-emerald-400">Kopiert</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-2.5 w-2.5" />
+                                <span>Kopieren</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Collapsible AI Reasoning / Thinking Trace */}
+                      {msg.thinking && thinkingOpen && (
+                        <div className="mb-3 rounded-xl border border-nb-gray-800 bg-nb-gray-950/90 p-2.5">
+                          <div className="mb-1 flex items-center justify-between font-mono text-[10px] text-netbird">
                             <span className="flex items-center gap-1.5">
-                              <Brain className="h-3 w-3 text-netbird" />
+                              <Brain className="h-3 w-3" />
                               <span>AI Reasoning &amp; Context Trace</span>
                             </span>
-                            <span>{thinkingOpen ? "Hide" : "Show"}</span>
-                          </button>
-                          {thinkingOpen && (
-                            <pre className="mt-1.5 whitespace-pre-wrap border-t border-nb-gray-800 pt-1.5 font-mono text-[10px] text-nb-gray-400">
-                              {msg.thinking}
-                            </pre>
-                          )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedThinking((prev) => ({
+                                  ...prev,
+                                  [idx]: false,
+                                }))
+                              }
+                              className="text-nb-gray-400 hover:text-white"
+                            >
+                              Schließen
+                            </button>
+                          </div>
+                          <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap border-t border-nb-gray-800 pt-1.5 font-mono text-[10px] text-nb-gray-400">
+                            {msg.thinking}
+                          </pre>
                         </div>
                       )}
 
+                      {/* Rich Grouped & Interactive Document Content */}
                       <RichMarkdownDocument
-                        markdown={msg.content}
+                        markdown={displayContent}
                         variant="chat"
+                        onOpenPort={(port) => {
+                          setPreviewPort(port);
+                          setActiveNav("reverse-proxy");
+                        }}
+                        onOpenFile={(filePath) => {
+                          setActiveNav("workspace");
+                          openRemoteFile(filePath);
+                        }}
+                        onOpenBrainDoc={(doc) => {
+                          setBrainDocTab(doc);
+                          setActiveNav("brain-vault");
+                        }}
+                        onRunCommand={(cmd) => {
+                          setTerminalDrawerOpen(true);
+                          navigator.clipboard.writeText(cmd);
+                          setStatusToast(
+                            "Befehl kopiert & Live-Terminal geöffnet"
+                          );
+                          setTimeout(() => setStatusToast(""), 3000);
+                        }}
                       />
+
+                      {/* Interactive Quick-Launch Skill Bento Grid inside Welcome Card (`idx === 0`) */}
+                      {idx === 0 && (
+                        <div className="mt-3 space-y-2 border-t border-nb-gray-800/80 pt-3">
+                          <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-nb-gray-400">
+                            <span>Direktstart: Interaktive DevOps-Skills</span>
+                            <span className="text-netbird">1-Klick Auswahl</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedChatSkill("CheckSystem");
+                                setTimeout(
+                                  () => chatInputRef.current?.focus(),
+                                  50
+                                );
+                              }}
+                              className="group flex flex-col items-start rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-2.5 text-left transition hover:border-emerald-500/60 hover:bg-emerald-950/40"
+                            >
+                              <div className="flex items-center gap-1.5 font-semibold text-emerald-300">
+                                <Activity className="h-3.5 w-3.5 text-emerald-400" />
+                                <span>System-Check</span>
+                              </div>
+                              <span className="mt-0.5 text-[10px] text-nb-gray-400 group-hover:text-nb-gray-200">
+                                6-Phasen SRE &amp; DB Audit
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedChatSkill("CheckOpsec");
+                                setTimeout(
+                                  () => chatInputRef.current?.focus(),
+                                  50
+                                );
+                              }}
+                              className="group flex flex-col items-start rounded-xl border border-sky-500/30 bg-sky-950/20 p-2.5 text-left transition hover:border-sky-500/60 hover:bg-sky-950/40"
+                            >
+                              <div className="flex items-center gap-1.5 font-semibold text-sky-300">
+                                <Shield className="h-3.5 w-3.5 text-sky-400" />
+                                <span>OpSec-Audit</span>
+                              </div>
+                              <span className="mt-0.5 text-[10px] text-nb-gray-400 group-hover:text-nb-gray-200">
+                                Ports, SSH, Firewall &amp; Keys
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedChatSkill("CheckUpdates");
+                                setTimeout(
+                                  () => chatInputRef.current?.focus(),
+                                  50
+                                );
+                              }}
+                              className="group flex flex-col items-start rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-2.5 text-left transition hover:border-cyan-500/60 hover:bg-cyan-950/40"
+                            >
+                              <div className="flex items-center gap-1.5 font-semibold text-cyan-300">
+                                <RefreshCw className="h-3.5 w-3.5 text-cyan-400" />
+                                <span>Updates prüfen</span>
+                              </div>
+                              <span className="mt-0.5 text-[10px] text-nb-gray-400 group-hover:text-nb-gray-200">
+                                Muscle, Backends &amp; Test
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedChatSkill("DeepForensics");
+                                setTimeout(
+                                  () => chatInputRef.current?.focus(),
+                                  50
+                                );
+                              }}
+                              className="group flex flex-col items-start rounded-xl border border-purple-500/30 bg-purple-950/20 p-2.5 text-left transition hover:border-purple-500/60 hover:bg-purple-950/40"
+                            >
+                              <div className="flex items-center gap-1.5 font-semibold text-purple-300">
+                                <Cpu className="h-3.5 w-3.5 text-purple-400" />
+                                <span>Deep-Forensik</span>
+                              </div>
+                              <span className="mt-0.5 text-[10px] text-nb-gray-400 group-hover:text-nb-gray-200">
+                                Logs, Prozesse &amp; Ursachen
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Post-Skill-Report "Interview" Button & Active Interview Step Controls */}
                       {msg.role === "assistant" && (() => {
@@ -5637,6 +6507,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                           !showInterviewControls &&
                           !isUpdateCheckReport &&
                           !prevUserContent.includes("[Interview-") &&
+                          msg.content.length > 260 &&
                           (prevUserContent.includes("[Skill: CheckSystem]") ||
                             prevUserContent.includes("[Skill: CheckOpsec]") ||
                             prevUserContent.includes("[Skill: DeepForensics]") ||
@@ -5648,7 +6519,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
 
                         if (isUpdateCheckReport) {
                           return (
-                            <div className="mt-3 rounded-lg border border-cyan-500/40 bg-nb-gray-940 p-3 space-y-2.5">
+                            <div className="mt-3 rounded-xl border border-cyan-500/40 bg-gradient-to-br from-cyan-950/35 via-nb-gray-940 to-nb-gray-940 p-3 space-y-2.5">
                               <div className="flex items-center justify-between gap-2">
                                 <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
                                   <RefreshCw className="h-3.5 w-3.5 text-cyan-400" />
@@ -5667,7 +6538,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                       msg.content
                                     )
                                   }
-                                  className="flex items-center gap-1.5 rounded-md border border-emerald-500/50 bg-emerald-950/60 px-3 py-1.5 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-900/70 hover:text-white disabled:opacity-40 transition"
+                                  className="flex items-center gap-1.5 rounded-lg border border-emerald-500/50 bg-emerald-950/60 px-3 py-1.5 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-900/70 hover:text-white disabled:opacity-40 transition"
                                 >
                                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                                   <span>
@@ -5683,7 +6554,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                       msg.content
                                     )
                                   }
-                                  className="flex items-center gap-1.5 rounded-md border border-cyan-500/40 bg-cyan-950/50 px-2.5 py-1.5 text-[11px] font-medium text-cyan-200 hover:bg-cyan-900/60 hover:text-white disabled:opacity-40 transition"
+                                  className="flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-950/50 px-2.5 py-1.5 text-[11px] font-medium text-cyan-200 hover:bg-cyan-900/60 hover:text-white disabled:opacity-40 transition"
                                 >
                                   <Activity className="h-3.5 w-3.5 text-cyan-400" />
                                   <span>Nur Funktionstest ausführen</span>
@@ -5694,7 +6565,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                   onClick={() =>
                                     handleStartSkillInterview(msg.content)
                                   }
-                                  className="flex items-center gap-1.5 rounded-md border border-netbird-500/40 bg-netbird/15 px-2.5 py-1.5 text-[11px] font-medium text-netbird hover:bg-netbird/25 hover:text-white disabled:opacity-40 transition"
+                                  className="flex items-center gap-1.5 rounded-lg border border-netbird-500/40 bg-netbird/15 px-2.5 py-1.5 text-[11px] font-medium text-netbird hover:bg-netbird/25 hover:text-white disabled:opacity-40 transition"
                                 >
                                   <Sparkles className="h-3.5 w-3.5" />
                                   <span>Einzeln im Interview durchgehen</span>
@@ -5705,7 +6576,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                   onClick={() =>
                                     handleUpdateSkillDecision("skip", msg.content)
                                   }
-                                  className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 text-[11px] text-nb-gray-400 hover:border-red-500/40 hover:text-red-300 disabled:opacity-40 transition"
+                                  className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 text-[11px] text-nb-gray-400 hover:border-red-500/40 hover:text-red-300 disabled:opacity-40 transition"
                                 >
                                   <X className="h-3 w-3" />
                                   <span>Nein, keine Updates</span>
@@ -5717,7 +6588,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
 
                         if (showInterviewControls) {
                           return (
-                            <div className="mt-3 rounded-lg border border-netbird-500/40 bg-nb-gray-940 p-2.5 space-y-2">
+                            <div className="mt-3 rounded-xl border border-netbird-500/40 bg-gradient-to-br from-netbird-950/40 via-nb-gray-940 to-nb-gray-940 p-3 space-y-2">
                               <div className="flex items-center justify-between gap-2">
                                 <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-netbird">
                                   <Sparkles className="h-3 w-3" />
@@ -5729,7 +6600,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                   type="button"
                                   disabled={chatBusy}
                                   onClick={() => handleInterviewStepResponse("fix")}
-                                  className="flex items-center gap-1.5 rounded-md border border-emerald-500/50 bg-emerald-950/50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-900/70 hover:text-white disabled:opacity-40 transition"
+                                  className="flex items-center gap-1.5 rounded-lg border border-emerald-500/50 bg-emerald-950/50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-900/70 hover:text-white disabled:opacity-40 transition"
                                 >
                                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                                   <span>Ja, jetzt beheben</span>
@@ -5738,7 +6609,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                   type="button"
                                   disabled={chatBusy}
                                   onClick={() => handleInterviewStepResponse("skip")}
-                                  className="flex items-center gap-1.5 rounded-md border border-nb-gray-700 bg-nb-gray-900 px-2.5 py-1.5 text-[11px] font-medium text-nb-gray-200 hover:border-nb-gray-500 hover:text-white disabled:opacity-40 transition"
+                                  className="flex items-center gap-1.5 rounded-lg border border-nb-gray-700 bg-nb-gray-900 px-2.5 py-1.5 text-[11px] font-medium text-nb-gray-200 hover:border-nb-gray-500 hover:text-white disabled:opacity-40 transition"
                                 >
                                   <ChevronRight className="h-3.5 w-3.5 text-nb-gray-400" />
                                   <span>Nicht beheben (Nächster Punkt)</span>
@@ -5747,7 +6618,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                   type="button"
                                   disabled={chatBusy}
                                   onClick={() => handleInterviewStepResponse("fix_all")}
-                                  className="flex items-center gap-1.5 rounded-md border border-netbird-500/40 bg-netbird/15 px-2.5 py-1.5 text-[11px] font-medium text-netbird hover:bg-netbird/25 hover:text-white disabled:opacity-40 transition"
+                                  className="flex items-center gap-1.5 rounded-lg border border-netbird-500/40 bg-netbird/15 px-2.5 py-1.5 text-[11px] font-medium text-netbird hover:bg-netbird/25 hover:text-white disabled:opacity-40 transition"
                                 >
                                   <Zap className="h-3.5 w-3.5" />
                                   <span>Alle restlichen beheben</span>
@@ -5756,7 +6627,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                   type="button"
                                   disabled={chatBusy}
                                   onClick={() => handleInterviewStepResponse("stop")}
-                                  className="flex items-center gap-1.5 rounded-md border border-nb-gray-800 bg-nb-gray-950 px-2 py-1.5 text-[11px] text-nb-gray-400 hover:border-red-500/40 hover:text-red-300 disabled:opacity-40 transition"
+                                  className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-2 py-1.5 text-[11px] text-nb-gray-400 hover:border-red-500/40 hover:text-red-300 disabled:opacity-40 transition"
                                 >
                                   <X className="h-3 w-3" />
                                   <span>Interview beenden</span>
@@ -5771,7 +6642,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
 
                         if (isSkillReport) {
                           return (
-                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-netbird-500/40 bg-nb-gray-940 px-3 py-2">
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-netbird-500/40 bg-gradient-to-r from-netbird-950/45 via-nb-gray-940 to-nb-gray-940 px-3.5 py-2.5">
                               <div className="min-w-0">
                                 <div className="font-semibold text-xs text-white">
                                   Befunde &amp; Empfehlungen Schritt für Schritt durchgehen?
@@ -5784,7 +6655,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                 type="button"
                                 disabled={chatBusy}
                                 onClick={() => handleStartSkillInterview(msg.content)}
-                                className="flex shrink-0 items-center gap-1.5 rounded-md bg-netbird px-3 py-1.5 text-xs font-semibold text-white hover:bg-netbird-500 disabled:opacity-40 transition shadow-sm"
+                                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-netbird px-3 py-1.5 text-xs font-semibold text-white hover:bg-netbird-500 disabled:opacity-40 transition shadow-sm"
                               >
                                 <Sparkles className="h-3.5 w-3.5" />
                                 <span>Interview starten</span>
@@ -5796,25 +6667,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         return null;
                       })()}
 
-                      {/* Per-Turn Cache Savings Footer */}
-                      {msg.cacheMetrics && (
-                        <div className="mt-2 flex items-center justify-between border-t border-nb-gray-800/60 pt-1.5 font-mono text-[10px] text-nb-gray-400">
-                          <span className="flex items-center gap-1 text-emerald-400">
-                            <Zap className="h-2.5 w-2.5" />
-                            <span>
-                              {msg.cacheMetrics.cached_tokens} cached /{" "}
-                              {msg.cacheMetrics.prompt_tokens} prompt tok
-                            </span>
-                          </span>
-                          {msg.cacheMetrics.tool_cache_hits > 0 && (
-                            <span className="text-sky-400">
-                              {msg.cacheMetrics.tool_cache_hits} FS cache hit(s)
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Cleanly Sorted Tool Calls Summary + Dedicated Registered Service Cards */}
+                      {/* Categorized & Interactive Tool Execution Pipeline + Dedicated Registered Service Cards */}
                       {msg.toolResults && msg.toolResults.length > 0 && (() => {
                         const registeredTurnServices = msg.toolResults
                           .filter(
@@ -5856,9 +6709,51 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                         const turnToolsExpanded = Boolean(
                           expandedTurnTools[idx]
                         );
+                        const activeCat =
+                          turnToolCategoryFilter[idx] || "all";
+
+                        const categorizeTool = (name: string) => {
+                          if (
+                            name.includes("pty") ||
+                            name.includes("exec") ||
+                            name.includes("command")
+                          ) {
+                            return "shell";
+                          }
+                          if (name.includes("fs") || name.includes("file")) {
+                            return "fs";
+                          }
+                          if (name.includes("search")) {
+                            return "search";
+                          }
+                          return "core";
+                        };
+
+                        const counts = {
+                          shell: msg.toolResults.filter(
+                            (t) => categorizeTool(t.tool_name) === "shell"
+                          ).length,
+                          fs: msg.toolResults.filter(
+                            (t) => categorizeTool(t.tool_name) === "fs"
+                          ).length,
+                          search: msg.toolResults.filter(
+                            (t) => categorizeTool(t.tool_name) === "search"
+                          ).length,
+                          core: msg.toolResults.filter(
+                            (t) => categorizeTool(t.tool_name) === "core"
+                          ).length,
+                        };
+
+                        const filteredTools = msg.toolResults
+                          .map((tr, origIdx) => ({ tr, origIdx }))
+                          .filter(
+                            ({ tr }) =>
+                              activeCat === "all" ||
+                              categorizeTool(tr.tool_name) === activeCat
+                          );
 
                         return (
-                          <div className="mt-2.5 space-y-2 border-t border-nb-gray-800 pt-2">
+                          <div className="mt-3 space-y-2 border-t border-nb-gray-800/80 pt-2.5">
                             {/* 1. Dedicated Highlight Boxes for Newly Registered Services (WebUI / Backend / DB) */}
                             {registeredTurnServices.length > 0 && (
                               <div className="space-y-2">
@@ -5888,7 +6783,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                                   return (
                                     <div
                                       key={reg.service_id}
-                                      className="rounded-lg border border-netbird-500/40 bg-nb-gray-940 p-2.5 font-sans text-xs space-y-2"
+                                      className="rounded-xl border border-netbird-500/40 bg-nb-gray-940 p-2.5 font-sans text-xs space-y-2"
                                     >
                                       <div className="flex items-center justify-between gap-2">
                                         <div className="flex items-center gap-1.5 min-w-0">
@@ -5961,143 +6856,297 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                               </div>
                             )}
 
-                            {/* 2. Collapsible Technical Tool Execution Log */}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setExpandedTurnTools((prev) => ({
-                                  ...prev,
-                                  [idx]: !prev[idx],
-                                }))
-                              }
-                              className="flex w-full items-center justify-between rounded border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 font-mono text-[10px] text-nb-gray-300 hover:border-nb-gray-700 hover:text-white"
-                            >
-                              <span>
-                                🛠️ {msg.toolResults.length} ausgeführte
-                                Tool-Schritte
-                              </span>
-                              <span className="text-netbird">
-                                {turnToolsExpanded
-                                  ? "Ausblenden ▲"
-                                  : "Details anzeigen ▼"}
-                              </span>
-                            </button>
-
-                            {turnToolsExpanded && (
-                              <div className="space-y-1.5 pl-1">
-                                {msg.toolResults.map((tr, tIdx) => {
-                                  const key = `${idx}-${tIdx}`;
-                                  const open = expandedTools[key];
-                                  return (
-                                    <div
-                                      key={key}
-                                      className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 font-mono text-[11px]"
+                            {/* 2. Interactive Categorized Tool Pipeline Bar */}
+                            <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-950/90 p-2 space-y-2">
+                              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setTurnToolCategoryFilter((prev) => ({
+                                        ...prev,
+                                        [idx]: "all",
+                                      }));
+                                      setExpandedTurnTools((prev) => ({
+                                        ...prev,
+                                        [idx]: !prev[idx],
+                                      }));
+                                    }}
+                                    className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-medium transition ${
+                                      turnToolsExpanded && activeCat === "all"
+                                        ? "bg-netbird text-white"
+                                        : "bg-nb-gray-900 text-nb-gray-300 hover:text-white"
+                                    }`}
+                                  >
+                                    🛠️ Alle ({msg.toolResults.length})
+                                  </button>
+                                  {counts.search > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setTurnToolCategoryFilter((prev) => ({
+                                          ...prev,
+                                          [idx]: "search",
+                                        }));
+                                        setExpandedTurnTools((prev) => ({
+                                          ...prev,
+                                          [idx]: true,
+                                        }));
+                                      }}
+                                      className={`rounded-md border px-2 py-0.5 font-mono text-[10px] transition ${
+                                        turnToolsExpanded &&
+                                        activeCat === "search"
+                                          ? "border-amber-500/50 bg-amber-950/70 text-amber-200"
+                                          : "border-nb-gray-800 bg-nb-gray-930 text-amber-300/90 hover:border-amber-500/40"
+                                      }`}
                                     >
-                                      <div className="flex items-center justify-between gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            setExpandedTools((prev) => ({
-                                              ...prev,
-                                              [key]: !prev[key],
-                                            }))
-                                          }
-                                          className="flex flex-1 items-center justify-between text-left"
-                                        >
-                                          <span className="flex items-center gap-1.5 text-netbird">
-                                            <span>{tr.tool_name}</span>
-                                            {tr.cached && (
-                                              <span className="rounded bg-emerald-950 px-1.5 py-0.2 text-[9px] text-emerald-300 border border-emerald-500/30">
-                                                CACHED
-                                              </span>
-                                            )}
-                                          </span>
-                                          <span className="text-[10px] uppercase text-green-400">
-                                            {tr.status}
-                                          </span>
-                                        </button>
+                                      🔍 Deep-Search ({counts.search})
+                                    </button>
+                                  )}
+                                  {counts.shell > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setTurnToolCategoryFilter((prev) => ({
+                                          ...prev,
+                                          [idx]: "shell",
+                                        }));
+                                        setExpandedTurnTools((prev) => ({
+                                          ...prev,
+                                          [idx]: true,
+                                        }));
+                                      }}
+                                      className={`rounded-md border px-2 py-0.5 font-mono text-[10px] transition ${
+                                        turnToolsExpanded &&
+                                        activeCat === "shell"
+                                          ? "border-emerald-500/50 bg-emerald-950/70 text-emerald-200"
+                                          : "border-nb-gray-800 bg-nb-gray-930 text-emerald-300/90 hover:border-emerald-500/40"
+                                      }`}
+                                    >
+                                      🐚 Terminal ({counts.shell})
+                                    </button>
+                                  )}
+                                  {counts.fs > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setTurnToolCategoryFilter((prev) => ({
+                                          ...prev,
+                                          [idx]: "fs",
+                                        }));
+                                        setExpandedTurnTools((prev) => ({
+                                          ...prev,
+                                          [idx]: true,
+                                        }));
+                                      }}
+                                      className={`rounded-md border px-2 py-0.5 font-mono text-[10px] transition ${
+                                        turnToolsExpanded && activeCat === "fs"
+                                          ? "border-sky-500/50 bg-sky-950/70 text-sky-200"
+                                          : "border-nb-gray-800 bg-nb-gray-930 text-sky-300/90 hover:border-sky-500/40"
+                                      }`}
+                                    >
+                                      📁 Dateien ({counts.fs})
+                                    </button>
+                                  )}
+                                  {counts.core > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setTurnToolCategoryFilter((prev) => ({
+                                          ...prev,
+                                          [idx]: "core",
+                                        }));
+                                        setExpandedTurnTools((prev) => ({
+                                          ...prev,
+                                          [idx]: true,
+                                        }));
+                                      }}
+                                      className={`rounded-md border px-2 py-0.5 font-mono text-[10px] transition ${
+                                        turnToolsExpanded &&
+                                        activeCat === "core"
+                                          ? "border-purple-500/50 bg-purple-950/70 text-purple-200"
+                                          : "border-nb-gray-800 bg-nb-gray-930 text-purple-300/90 hover:border-purple-500/40"
+                                      }`}
+                                    >
+                                      🧠 Core ({counts.core})
+                                    </button>
+                                  )}
+                                </div>
 
-                                        {tr.rollback_snapshot_id && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedTurnTools((prev) => ({
+                                      ...prev,
+                                      [idx]: !prev[idx],
+                                    }))
+                                  }
+                                  className="font-mono text-[10px] text-netbird hover:underline"
+                                >
+                                  {turnToolsExpanded
+                                    ? "Einklappen ▲"
+                                    : "Schritte öffnen ▼"}
+                                </button>
+                              </div>
+
+                              {turnToolsExpanded && (
+                                <div className="space-y-1.5 border-t border-nb-gray-800/70 pt-2">
+                                  {filteredTools.map(({ tr, origIdx }) => {
+                                    const key = `${idx}-${origIdx}`;
+                                    const open = expandedTools[key];
+                                    const cat = categorizeTool(tr.tool_name);
+                                    const catColor =
+                                      cat === "search"
+                                        ? "text-amber-300"
+                                        : cat === "shell"
+                                        ? "text-emerald-300"
+                                        : cat === "fs"
+                                        ? "text-sky-300"
+                                        : "text-purple-300";
+
+                                    return (
+                                      <div
+                                        key={key}
+                                        className="rounded-lg border border-nb-gray-800/90 bg-nb-gray-940/90 px-2.5 py-1.5 font-mono text-[11px] transition hover:border-nb-gray-700"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
                                           <button
                                             type="button"
                                             onClick={() =>
-                                              handleRollbackSnapshot(
-                                                tr.rollback_snapshot_id!,
-                                                tr.rollback_path
-                                              )
+                                              setExpandedTools((prev) => ({
+                                                ...prev,
+                                                [key]: !prev[key],
+                                              }))
                                             }
-                                            title={`Rollback ${
-                                              tr.rollback_path || "file"
-                                            } to pre-write snapshot`}
-                                            className="flex items-center gap-1 rounded border border-amber-500/40 bg-amber-950/50 px-1.5 py-0.5 text-[9px] text-amber-300 hover:bg-amber-900/60 hover:text-white"
+                                            className="flex flex-1 items-center justify-between text-left min-w-0"
                                           >
-                                            <RotateCcw className="h-2.5 w-2.5" />
-                                            <span>Rollback</span>
+                                            <span className="flex items-center gap-1.5 min-w-0">
+                                              <span className="rounded bg-nb-gray-900 px-1.5 py-0.2 text-[9px] text-nb-gray-400">
+                                                #{origIdx + 1}
+                                              </span>
+                                              <span
+                                                className={`truncate font-semibold ${catColor}`}
+                                              >
+                                                {tr.tool_name}
+                                              </span>
+                                              {tr.cached && (
+                                                <span className="rounded bg-emerald-950 px-1.5 py-0.2 text-[9px] text-emerald-300 border border-emerald-500/30">
+                                                  CACHED
+                                                </span>
+                                              )}
+                                            </span>
+                                            <span className="text-[10px] uppercase text-emerald-400 shrink-0 ml-2">
+                                              {tr.status} {open ? "▲" : "▼"}
+                                            </span>
                                           </button>
+
+                                          {tr.rollback_snapshot_id && (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleRollbackSnapshot(
+                                                  tr.rollback_snapshot_id!,
+                                                  tr.rollback_path
+                                                )
+                                              }
+                                              title={`Rollback ${
+                                                tr.rollback_path || "file"
+                                              } to pre-write snapshot`}
+                                              className="flex items-center gap-1 rounded border border-amber-500/40 bg-amber-950/50 px-1.5 py-0.5 text-[9px] text-amber-300 hover:bg-amber-900/60 hover:text-white"
+                                            >
+                                              <RotateCcw className="h-2.5 w-2.5" />
+                                              <span>Rollback</span>
+                                            </button>
+                                          )}
+                                        </div>
+                                        {open && (
+                                          <pre className="mt-1.5 max-h-44 overflow-auto rounded border border-nb-gray-800 bg-nb-gray-960 p-2 text-[10px] text-nb-gray-300">
+                                            {JSON.stringify(tr.output, null, 2)}
+                                          </pre>
                                         )}
                                       </div>
-                                      {open && (
-                                        <pre className="mt-1.5 max-h-36 overflow-auto text-[10px] text-nb-gray-300">
-                                          {JSON.stringify(tr.output, null, 2)}
-                                        </pre>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         );
                       })()}
+
+                      {/* Per-Turn Cache Savings Footer */}
+                      {msg.cacheMetrics && (
+                        <div className="mt-2 flex items-center justify-between border-t border-nb-gray-800/60 pt-1.5 font-mono text-[10px] text-nb-gray-400">
+                          <span className="flex items-center gap-1 text-emerald-400">
+                            <Zap className="h-2.5 w-2.5" />
+                            <span>
+                              {msg.cacheMetrics.cached_tokens} cached /{" "}
+                              {msg.cacheMetrics.prompt_tokens} prompt tok
+                            </span>
+                          </span>
+                          {msg.cacheMetrics.tool_cache_hits > 0 && (
+                            <span className="text-sky-400">
+                              {msg.cacheMetrics.tool_cache_hits} FS cache hit(s)
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
 
                 {/* Live SSE ReAct Steps + Progressive Thinking & Token Stream */}
                 {chatBusy && (
-                  <div className="rounded-lg border border-netbird-500/40 bg-nb-gray-930 p-3 text-xs space-y-2.5">
+                  <div className="rounded-2xl border border-netbird-500/40 bg-gradient-to-b from-nb-gray-930 to-nb-gray-940 p-3.5 text-xs space-y-2.5 shadow-lg">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-netbird font-medium">
+                      <div className="flex items-center gap-2 text-netbird font-semibold">
                         <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                         <span>
                           Senior DevOps KI-Analyse läuft ({liveSteps.length} Schritte · {chatElapsedSec}s)...
                         </span>
                       </div>
-                      <span className="font-mono text-[10px] text-emerald-400">
-                        ⚡ Deep-Search &amp; Prefix Cache
+                      <span className="rounded-full border border-emerald-500/30 bg-emerald-950/50 px-2 py-0.5 font-mono text-[9px] text-emerald-300">
+                        ⚡ Live Stream
                       </span>
                     </div>
 
-                    {liveSteps.map((s, i) => (
-                      <div
-                        key={i}
-                        className="rounded border border-nb-gray-800/80 bg-nb-gray-950/60 px-2.5 py-1.5 font-mono text-[11px] text-nb-gray-300 space-y-0.5"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="flex items-center gap-1.5">
-                            <span className="text-white">
-                              #{s.step} {s.tool_name}
-                            </span>
-                            {s.cached && (
-                              <span className="rounded bg-emerald-950 px-1 text-[9px] text-emerald-300">
-                                CACHE HIT
+                    {liveSteps.length > 0 && (
+                      <div className="grid grid-cols-1 gap-1.5">
+                        {liveSteps.map((s, i) => (
+                          <div
+                            key={i}
+                            className="rounded-lg border border-nb-gray-800/80 bg-nb-gray-950/75 px-2.5 py-1.5 font-mono text-[11px] text-nb-gray-300 space-y-0.5"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="flex items-center gap-1.5">
+                                <span className="rounded bg-nb-gray-900 px-1.5 py-0.2 text-[9px] text-netbird">
+                                  #{s.step}
+                                </span>
+                                <span className="text-white font-semibold">
+                                  {s.tool_name}
+                                </span>
+                                {s.cached && (
+                                  <span className="rounded bg-emerald-950 px-1 text-[9px] text-emerald-300">
+                                    CACHE HIT
+                                  </span>
+                                )}
                               </span>
+                              <span className="text-netbird uppercase text-[10px]">
+                                {s.status}
+                              </span>
+                            </div>
+                            {s.detail && (
+                              <div className="truncate text-[10px] text-nb-gray-400">
+                                {s.detail}
+                              </div>
                             )}
-                          </span>
-                          <span className="text-netbird uppercase text-[10px]">
-                            {s.status}
-                          </span>
-                        </div>
-                        {s.detail && (
-                          <div className="truncate text-[10px] text-nb-gray-400">
-                            {s.detail}
                           </div>
-                        )}
+                        ))}
                       </div>
-                    ))}
+                    )}
 
                     {streamingThinkingText && (
-                      <div className="rounded border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[10px] text-nb-gray-400 whitespace-pre-wrap">
+                      <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-2.5 font-mono text-[10px] text-nb-gray-400 whitespace-pre-wrap">
                         <div className="mb-1 flex items-center gap-1 text-netbird">
                           <Brain className="h-3 w-3" />
                           <span>Thinking...</span>
@@ -6107,10 +7156,30 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                     )}
 
                     {streamingReplyText && (
-                      <div className="border-t border-nb-gray-800 pt-2 text-nb-gray-100 min-w-0 break-words">
+                      <div className="border-t border-nb-gray-800 pt-2.5 text-nb-gray-100 min-w-0 break-words">
                         <RichMarkdownDocument
                           markdown={streamingReplyText}
                           variant="chat"
+                          onOpenPort={(port) => {
+                            setPreviewPort(port);
+                            setActiveNav("reverse-proxy");
+                          }}
+                          onOpenFile={(filePath) => {
+                            setActiveNav("workspace");
+                            openRemoteFile(filePath);
+                          }}
+                          onOpenBrainDoc={(doc) => {
+                            setBrainDocTab(doc);
+                            setActiveNav("brain-vault");
+                          }}
+                          onRunCommand={(cmd) => {
+                            setTerminalDrawerOpen(true);
+                            navigator.clipboard.writeText(cmd);
+                            setStatusToast(
+                              "Befehl kopiert & Live-Terminal geöffnet"
+                            );
+                            setTimeout(() => setStatusToast(""), 3000);
+                          }}
                         />
                       </div>
                     )}
@@ -6437,10 +7506,10 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                     }}
                     placeholder={
                       selectedChatSkill === "SkillSearch"
-                        ? "Wonach suchst du im System? (z.B. Firewall, SQL, SSH Keys, Logs)..."
+                        ? "Wonach suchst du? (z.B. Firewall, SQL, Ports)..."
                         : selectedChatSkill
-                        ? `Optional: Eigenen Fokus für ${selectedChatSkill} ergänzen...`
-                        : "Ask Synapse AI, type @ to mention, or drop/paste images..."
+                        ? `Optionaler Fokus für ${selectedChatSkill}...`
+                        : "Frage Synapse AI (@ Kontext, Bilder)..."
                     }
                     className="h-[46px] flex-1 resize-none rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 text-xs leading-4 text-white placeholder:text-nb-gray-400 focus:border-netbird focus:outline-none"
                   />
@@ -6565,8 +7634,8 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
-              <div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-12 text-xs">
+              <div className="sm:col-span-4">
                 <label className="block text-nb-gray-300 mb-1">
                   Core Gateway URL
                 </label>
@@ -6577,7 +7646,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
                 />
               </div>
-              <div>
+              <div className="sm:col-span-5">
                 <label className="block text-nb-gray-300 mb-1">
                   Autonomy Tier
                 </label>
@@ -6593,7 +7662,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   <option value="TIER_3_SUPERVISED">TIER_3_SUPERVISED</option>
                 </select>
               </div>
-              <div>
+              <div className="sm:col-span-3">
                 <label className="block text-nb-gray-300 mb-1">
                   Peer ID (Optional)
                 </label>
@@ -6601,11 +7670,23 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                   type="text"
                   value={joinNodeName}
                   onChange={(e) => setJoinNodeName(e.target.value)}
-                  placeholder="e.g. prod-node-01"
+                  placeholder="z.B. prod-01"
                   className="w-full rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-white"
                 />
               </div>
             </div>
+
+            {(gatewayUrl.includes("localhost") ||
+              gatewayUrl.includes("127.0.0.1")) && (
+              <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-200">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                <span>
+                  Für externe Server bitte{" "}
+                  <code className="font-mono text-amber-300">{gatewayUrl}</code>{" "}
+                  oben durch die erreichbare IP/Domain deines Core-Hosts ersetzen.
+                </span>
+              </div>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
@@ -6629,7 +7710,7 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
                       className="flex items-center gap-1 rounded bg-netbird px-3 py-1 text-[11px] font-medium text-white hover:bg-netbird-500"
                     >
                       <Copy className="h-3 w-3" />
-                      <span>{copiedJoinCmd ? "Copied!" : "Copy"}</span>
+                      <span>{copiedJoinCmd ? "✔ Copied!" : "Copy Command"}</span>
                     </button>
                   )}
                 </div>
@@ -6639,32 +7720,36 @@ SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
               </pre>
             </div>
 
-            <div className="space-y-2 border-t border-nb-gray-900 pt-3">
-              <div className="flex items-center justify-between text-xs">
-                <div>
-                  <span className="font-medium text-sky-400">
-                    Or switch an existing Muscle via CLI (`axon switch`):
-                  </span>
-                  <p className="text-[11px] text-nb-gray-400">
-                    Rebind an installed Muscle agent to this Core with a new token (old Core profile is saved under `axon profiles`):
-                  </p>
+            {rebindCliCmd && (
+              <div className="space-y-2 border-t border-nb-gray-900 pt-3">
+                <div className="flex items-center justify-between text-xs">
+                  <div>
+                    <span className="font-medium text-sky-400">
+                      Or switch an existing Muscle via CLI (`axon switch`):
+                    </span>
+                    <p className="text-[11px] text-nb-gray-400">
+                      Rebind an installed Muscle agent to this Core with a new token (old Core profile is saved under `axon profiles`):
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(rebindCliCmd);
+                      setCopiedRebindCmd(true);
+                      setTimeout(() => setCopiedRebindCmd(false), 2500);
+                    }}
+                    className="flex items-center gap-1 rounded border border-sky-500/50 bg-sky-950 px-3 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900"
+                  >
+                    <Copy className="h-3 w-3" />
+                    <span>
+                      {copiedRebindCmd ? "✔ Copied CLI!" : "Copy CLI Switch"}
+                    </span>
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(rebindCliCmd);
-                    setCopiedRebindCmd(true);
-                    setTimeout(() => setCopiedRebindCmd(false), 2500);
-                  }}
-                  className="flex items-center gap-1 rounded border border-sky-500/50 bg-sky-950 px-3 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900"
-                >
-                  <Copy className="h-3 w-3" />
-                  <span>{copiedRebindCmd ? "Copied CLI!" : "Copy CLI"}</span>
-                </button>
+                <pre className="overflow-x-auto rounded-md border border-nb-gray-800 bg-nb-gray-960 p-3 font-mono text-xs text-sky-300">
+                  {rebindCliCmd}
+                </pre>
               </div>
-              <pre className="overflow-x-auto rounded-md border border-nb-gray-800 bg-nb-gray-960 p-3 font-mono text-xs text-sky-300">
-                {rebindCliCmd}
-              </pre>
-            </div>
+            )}
 
             <div className="flex items-center justify-between border-t border-nb-gray-900 pt-3 text-xs text-nb-gray-400">
               <span className="flex items-center gap-2">

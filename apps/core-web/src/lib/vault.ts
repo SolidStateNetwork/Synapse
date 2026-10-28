@@ -105,7 +105,9 @@ export interface PeerMeshLink {
   target_node_id: string;
   local_port: number;
   remote_port: number;
+  target_port?: number;
   protocol: "tcp" | "http";
+  alias_env?: string;
   description?: string;
   created_at: string;
 }
@@ -114,6 +116,7 @@ export interface ScheduledPlaybook {
   playbook_id: string;
   name: string;
   cron_expression: string;
+  cron?: string;
   prompt: string;
   target_node_id?: string;
   enabled: boolean;

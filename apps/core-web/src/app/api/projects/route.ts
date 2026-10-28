@@ -367,10 +367,12 @@ export async function POST(req: NextRequest) {
 
   if (action === "upsert_playbook") {
     const pbId = String(body.playbook_id || `pb-${Date.now()}`);
+    const cronExpr = String(body.cron_expression || body.cron || "0 3 * * *");
     const pb = {
       playbook_id: pbId,
       name: String(body.name || "Scheduled AI Playbook"),
-      cron_expression: String(body.cron_expression || "0 3 * * *"),
+      cron_expression: cronExpr,
+      cron: cronExpr,
       prompt: String(body.prompt || "Inspect server health and update Memory.md"),
       target_node_id: body.target_node_id ? String(body.target_node_id) : undefined,
       enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
@@ -396,6 +398,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "upsert_mesh_link") {
+    const portNum = Number(
+      body.remote_port || body.target_port || body.local_port || 5432
+    );
     const res = await interceptAndExecuteTool(
       projectId,
       "core_link_peers",
@@ -403,10 +408,11 @@ export async function POST(req: NextRequest) {
         action: "upsert",
         source_node_id: body.source_node_id,
         target_node_id: body.target_node_id,
-        local_port: Number(body.local_port || body.remote_port || 5432),
-        remote_port: Number(body.remote_port || 5432),
+        local_port: Number(body.local_port || portNum),
+        remote_port: portNum,
         protocol: body.protocol || "tcp",
-        description: body.description,
+        alias_env: body.alias_env || "PEER_SERVICE_URL",
+        description: body.description || body.alias_env,
       },
       true
     );
