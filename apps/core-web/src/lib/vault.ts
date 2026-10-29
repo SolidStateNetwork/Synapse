@@ -551,7 +551,7 @@ export function writeBrainDoc(
     const next = existing.endsWith("\n")
       ? `${existing}${content}\n`
       : `${existing}\n${content}\n`;
-    fs.writeFileSync(filePath, next, "utf8");
+    atomicWriteTextSync(filePath, next);
     return next;
   }
 
@@ -598,19 +598,19 @@ export function writeBrainDoc(
         ...lines.slice(endIdx),
       ];
       const next = updatedLines.join("\n");
-      fs.writeFileSync(filePath, next, "utf8");
+      atomicWriteTextSync(filePath, next);
       return next;
     } else {
       const prefixHeader = sectionHeader.trim().startsWith("#")
         ? sectionHeader.trim()
         : `## ${sectionHeader.trim()}`;
       const next = `${existing.trimEnd()}\n\n${prefixHeader}\n\n${content.trim()}\n`;
-      fs.writeFileSync(filePath, next, "utf8");
+      atomicWriteTextSync(filePath, next);
       return next;
     }
   }
 
-  fs.writeFileSync(filePath, content, "utf8");
+  atomicWriteTextSync(filePath, content);
   return content;
 }
 
@@ -663,6 +663,31 @@ export function deleteSecret(projectId: string, key: string): string[] {
 }
 
 const MAX_AUDIT_FILE_BYTES = 2 * 1024 * 1024; // 2 MB auto-rotation threshold
+const MAX_CHAT_FILE_BYTES = 4 * 1024 * 1024; // 4 MB auto-rotation threshold
+const SENSITIVE_ARG_KEY_RX =
+  /(secret|password|passwd|api_key|apikey|token|private_key|authorization)/i;
+
+function redactSensitiveArgs(
+  args?: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  if (!args || typeof args !== "object") return args;
+  const clean: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(args)) {
+    if (
+      SENSITIVE_ARG_KEY_RX.test(k) &&
+      k !== "secret_keys_available" &&
+      k !== "inject_secret_keys" &&
+      k !== "api_key_secret_name"
+    ) {
+      clean[k] = "[REDACTED]";
+    } else if (k === "value" && typeof args.key === "string") {
+      clean[k] = "[REDACTED]";
+    } else {
+      clean[k] = v;
+    }
+  }
+  return clean;
+}
 
 function readTailLinesSync(filePath: string, maxLines: number): string[] {
   if (!fs.existsSync(filePath)) {
@@ -720,7 +745,10 @@ export function appendAuditLog(projectId: string, entry: AuditEntry): void {
   } catch {
     // Non-fatal rotation check
   }
-  fs.appendFileSync(auditPath, JSON.stringify(entry) + "\n", "utf8");
+  const safeEntry: AuditEntry = entry.args
+    ? { ...entry, args: redactSensitiveArgs(entry.args) }
+    : entry;
+  fs.appendFileSync(auditPath, JSON.stringify(safeEntry) + "\n", "utf8");
 }
 
 export function readAuditLogs(projectId: string, limit = 100): AuditEntry[] {
@@ -811,7 +839,25 @@ export function appendChatMessage(
   msg: PersistedChatMessage
 ): void {
   ensureProjectVault(projectId);
-  const chatPath = path.join(getProjectDir(projectId), "Chat.jsonl");
+  const dir = getProjectDir(projectId);
+  const chatPath = path.join(dir, "Chat.jsonl");
+  try {
+    if (fs.existsSync(chatPath)) {
+      const stat = fs.statSync(chatPath);
+      if (stat.size > MAX_CHAT_FILE_BYTES) {
+        const recentLines = readTailLinesSync(chatPath, 200);
+        const archivePath = path.join(dir, "Chat.1.jsonl");
+        try {
+          fs.copyFileSync(chatPath, archivePath);
+        } catch {
+          // Non-fatal archive copy
+        }
+        atomicWriteTextSync(chatPath, recentLines.join("\n") + "\n");
+      }
+    }
+  } catch {
+    // Non-fatal rotation check
+  }
   fs.appendFileSync(chatPath, JSON.stringify(msg) + "\n", "utf8");
 }
 
@@ -824,7 +870,7 @@ export function clearChatHistory(projectId: string): PersistedChatMessage[] {
       "Conversation context compacted and cleared. Ready for new instructions (Prompt Cache & Vision active).",
     timestamp: new Date().toISOString(),
   };
-  fs.writeFileSync(chatPath, JSON.stringify(resetMsg) + "\n", "utf8");
+  atomicWriteTextSync(chatPath, JSON.stringify(resetMsg) + "\n");
   return [resetMsg];
 }
 

@@ -7,6 +7,7 @@ import {
   readAuditLogs,
   saveProjectState,
   setSecret,
+  withProjectStateTransaction,
 } from "@/lib/vault";
 import { listCartridges, OFFICIAL_STACK_BLUEPRINTS } from "@/lib/cartridges";
 
@@ -84,11 +85,13 @@ export async function POST(req: NextRequest) {
   const state = ensureProjectVault(projectId);
 
   if (action === "toggle_debug") {
-    const rawState = state as unknown as Record<string, unknown>;
-    const nextDebug =
-      body.enabled !== undefined ? Boolean(body.enabled) : !rawState.debug_mode;
-    rawState.debug_mode = nextDebug;
-    saveProjectState(state);
+    let nextDebug = false;
+    withProjectStateTransaction(projectId, (st) => {
+      const rawState = st as unknown as Record<string, unknown>;
+      nextDebug =
+        body.enabled !== undefined ? Boolean(body.enabled) : !rawState.debug_mode;
+      rawState.debug_mode = nextDebug;
+    });
 
     try {
       await fetch(`${CORE_GATEWAY_URL}/api/v1/debug`, {
@@ -121,7 +124,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   }
 
-  if (action === "run_self_test") {
+  if (action === "run_self_test" || action === "self_test") {
     const checks: Array<{
       id: string;
       name: string;

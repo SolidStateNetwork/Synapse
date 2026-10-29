@@ -601,13 +601,13 @@ func (a *Agent) runTargetForever(ctx context.Context, target CoreTarget) error {
 		}
 
 		if err := a.connectAndServeTarget(ctx, target, a.HealthCol); err != nil {
-			log.Printf("[axon][%s -> %s] tunnel disconnected (%v); reconnecting in 3s...", target.Name, target.CoreGateway, err)
+			log.Printf("[axon][%s -> %s] tunnel disconnected (%v); reconnecting in 2s...", target.Name, target.CoreGateway, err)
 		}
 
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(3 * time.Second):
+		case <-time.After(2 * time.Second):
 		}
 	}
 }
@@ -619,7 +619,7 @@ func (a *Agent) connectAndServeTarget(ctx context.Context, target CoreTarget, he
 	}
 
 	debugLog("[%s] dialing CoreGateway mTLS endpoint %s...", target.Name, target.CoreGateway)
-	dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 15 * time.Second}
+	dialer := &net.Dialer{Timeout: 8 * time.Second, KeepAlive: 10 * time.Second}
 	rawConn, err := tls.DialWithDialer(dialer, "tcp", target.CoreGateway, tlsCfg)
 	if err != nil {
 		return fmt.Errorf("mTLS dial %s: %w", target.CoreGateway, err)
@@ -634,7 +634,8 @@ func (a *Agent) connectAndServeTarget(ctx context.Context, target CoreTarget, he
 	// while Axon also opens an outbound stream for its 5-second telemetry heartbeat.
 	ymCfg := yamux.DefaultConfig()
 	ymCfg.EnableKeepAlive = true
-	ymCfg.KeepAliveInterval = 15 * time.Second
+	ymCfg.KeepAliveInterval = 10 * time.Second
+	ymCfg.ConnectionWriteTimeout = 10 * time.Second
 
 	session, err := yamux.Server(rawConn, ymCfg)
 	if err != nil {
@@ -671,15 +672,29 @@ func (a *Agent) connectAndServeTarget(ctx context.Context, target CoreTarget, he
 }
 
 func (a *Agent) telemetryLoopForTarget(ctx context.Context, session *yamux.Session, target CoreTarget, healthCol *health.Collector) {
+	consecutiveFailures := 0
 	for {
 		if ctx.Err() != nil || session == nil || session.IsClosed() {
 			return
 		}
+		start := time.Now()
 		if err := a.runSingleTelemetryStream(ctx, session, target, healthCol); err != nil {
 			if ctx.Err() != nil || session.IsClosed() {
 				return
 			}
+			if time.Since(start) > 15*time.Second {
+				consecutiveFailures = 1
+			} else {
+				consecutiveFailures++
+			}
+			if consecutiveFailures >= 2 {
+				log.Printf("[axon][%s] telemetry stream failed %d times consecutively (%v); closing yamux session to trigger clean mTLS reconnect", target.Name, consecutiveFailures, err)
+				_ = session.Close()
+				return
+			}
 			debugLog("[%s] telemetry stream interrupted (%v); reopening in 2s...", target.Name, err)
+		} else {
+			consecutiveFailures = 0
 		}
 		select {
 		case <-ctx.Done():
@@ -796,6 +811,26 @@ func (a *Agent) handlePtyStream(stream net.Conn, hdr tunnelv1.StreamHeader, defa
 	effectiveTier := defaultTier
 	if effectiveTier == "" || effectiveTier == tunnelv1.AutonomyTierUnspecified {
 		effectiveTier = a.Config.Tier
+	}
+
+	// If SessionID is prefixed with "input:", handle one-shot interactive keystroke/resize without allocating a live output subscriber
+	if strings.HasPrefix(hdr.SessionID, "input:") {
+		actualSessionID := strings.TrimPrefix(hdr.SessionID, "input:")
+		sess, err := a.PtyMgr.GetOrCreateSession(actualSessionID, hdr.ProjectID, effectiveTier)
+		if err != nil {
+			return
+		}
+		_ = stream.SetReadDeadline(time.Now().Add(5 * time.Second))
+		var inFrame tunnelv1.PtyLiveFrame
+		if err := tunnelv1.ReadFrame(stream, &inFrame); err == nil {
+			switch inFrame.Type {
+			case "input":
+				_ = sess.WriteInteractive(inFrame.Data)
+			case "resize":
+				_ = sess.Resize(inFrame.Cols, inFrame.Rows)
+			}
+		}
+		return
 	}
 
 	// If SessionID is prefixed with "live:", attach live xterm.js byte-stream mirroring

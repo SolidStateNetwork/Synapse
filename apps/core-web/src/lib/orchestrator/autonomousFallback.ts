@@ -333,11 +333,26 @@ export async function runDeterministicAutonomousWorkflow(
   }
 
   if (!finalReply) {
-    finalReply = state.planning_only
-      ? `**Planning-Only Mode Active** for project \`${state.project_id}\`.\n\n- **Active Rule Cartridges:** ${
-          state.active_cartridges.map((c) => `\`${c}\``).join(", ") || "none"
-        }\n- **Drag & Drop Vision Ready:** Drop any architecture diagram or UI screenshot into this chat.\n- Because no Axon Muscle Node is assigned yet, remote execution tools (\`node_pty_exec\`, \`node_fs_operation\`) are locked by the Core Policy Interceptor.\n- Click **\`+ Add Peer\`** or type \`deploy microservice 4050\` to test the Policy Interceptor lock.`
-      : `**Active Execution Mode** on project \`${state.project_id}\` (${state.assigned_nodes.length} Axon Muscle Node(s) assigned).\n\n- Type **\`deploy microservice 4050\`** to trigger a **4-step autonomous execution loop** with Pre-Write Rollback Snapshots.\n- Drop **screenshots/diagrams** into the chat or type **\`@\`** to mention nodes, services, and Brain Vault docs.\n- Prefix any command with \`$ <command>\` (e.g. \`$ uname -a && pwd\`) to invoke \`node_pty_exec\`.`;
+    if (state.planning_only || !primaryNode) {
+      finalReply = `**Planning-Only Mode Active** for project \`${state.project_id}\`.\n\n- **Active Rule Cartridges:** ${
+        state.active_cartridges.map((c) => `\`${c}\``).join(", ") || "none"
+      }\n- **Drag & Drop Vision Ready:** Drop any architecture diagram or UI screenshot into this chat.\n- Because no Axon Muscle Node is assigned yet, remote execution tools (\`node_pty_exec\`, \`node_fs_operation\`) are locked by the Core Policy Interceptor.\n- Click **\`+ Add Peer\`** or type \`deploy microservice 4050\` to test the Policy Interceptor lock.`;
+    } else {
+      const probeStep = await runStep("node_pty_exec", {
+        node_id: primaryNode,
+        session_id: `default-${projectId}`,
+        command: "uname -sr && uptime -p && df -h / | tail -n 1 && free -h | head -n 2",
+        wait_timeout_ms: 8000,
+      });
+      const probeOut = String(
+        (probeStep.output as { stdout_preview?: string })?.stdout_preview || ""
+      ).trim();
+      finalReply = `### ⚡ Autonomous Edge Probe (\`${primaryNode}\`)\n\n\`\`\`text\n${
+        probeOut || "Muscle node reachable via mTLS 1.3 + Yamux."
+      }\n\`\`\`\n\n- **Projekt:** \`${state.project_id}\` (${state.assigned_nodes.length} verbundene Muscle-Node(s))\n- **Registrierte Dienste:** ${
+        state.registered_services.map((s) => `\`${s.name}\` (:${s.port})`).join(", ") || "keine"
+      }\n- **Tipp:** Nutze \`/check-system\`, \`/check-opsec\`, \`deploy microservice 4050\` oder \`$ <befehl>\` für gezielte DevOps-Workflows.`;
+    }
   }
 
   const cacheMetrics: PromptCacheMetrics = {

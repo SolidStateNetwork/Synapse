@@ -412,13 +412,17 @@ export async function runOpenAICompatibleAgentLoop(
     });
 
     let completion: Record<string, unknown> | null = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       if (abortSignal?.aborted) break;
       try {
+        const callSignal = abortSignal
+          ? AbortSignal.any([abortSignal, AbortSignal.timeout(90_000)])
+          : AbortSignal.timeout(90_000);
         const llmRes = await fetch(endpoint, {
           method: "POST",
           headers,
-          signal: abortSignal,
+          cache: "no-store",
+          signal: callSignal,
           body: JSON.stringify({
             model,
             messages: conversation,
@@ -431,11 +435,20 @@ export async function runOpenAICompatibleAgentLoop(
           completion = (await llmRes.json()) as Record<string, unknown>;
           break;
         }
+        if (attempt < 2 && !abortSignal?.aborted) {
+          onProgress?.({
+            type: "thinking_delta",
+            delta:
+              userLang === "en"
+                ? `Upstream LLM returned HTTP ${llmRes.status} (retry ${attempt + 1}/2)...\n`
+                : `Upstream-LLM meldete HTTP ${llmRes.status} (Wiederholung ${attempt + 1}/2)...\n`,
+          });
+        }
       } catch {
         // retry on transient network error
       }
-      if (attempt === 0 && !abortSignal?.aborted) {
-        await new Promise((r) => setTimeout(r, 1200));
+      if (attempt < 2 && !abortSignal?.aborted) {
+        await new Promise((r) => setTimeout(r, attempt === 0 ? 1200 : 2800));
       }
     }
 
@@ -506,7 +519,11 @@ export async function runOpenAICompatibleAgentLoop(
       break;
     }
 
-    conversation.push(choice);
+    conversation.push({
+      role: "assistant",
+      content: choice.content ?? null,
+      tool_calls: toolCalls,
+    });
     let haltedByInterceptor = false;
 
     for (const tc of toolCalls) {

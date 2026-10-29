@@ -184,7 +184,8 @@ func (h *Hub) handleConnection(rawConn net.Conn) {
 	// while also accepting the telemetry stream opened by Axon.
 	ymCfg := yamux.DefaultConfig()
 	ymCfg.EnableKeepAlive = true
-	ymCfg.KeepAliveInterval = 15 * time.Second
+	ymCfg.KeepAliveInterval = 10 * time.Second
+	ymCfg.ConnectionWriteTimeout = 10 * time.Second
 
 	session, err := yamux.Client(tlsConn, ymCfg)
 	if err != nil {
@@ -258,10 +259,12 @@ func (h *Hub) handleNodeInitiatedStream(node *ConnectedNode, stream net.Conn) {
 	go h.syncHealthTargetsFromVaultsToNode(node.NodeID)
 
 	for {
+		_ = stream.SetReadDeadline(time.Now().Add(20 * time.Second))
 		var beat tunnelv1.NodeHeartbeat
 		if err := tunnelv1.ReadFrame(stream, &beat); err != nil {
 			return
 		}
+		_ = stream.SetReadDeadline(time.Time{})
 		var totalLatency int64
 		var latencyCount int64
 		for _, svc := range beat.Services {

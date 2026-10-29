@@ -347,13 +347,14 @@ func main() {
 			stream, _, err := nodeHub.OpenStream(nodeID, tunnelv1.StreamHeader{
 				StreamType: tunnelv1.StreamTypePty,
 				ProjectID:  projectID,
-				SessionID:  "live:" + sessionID,
+				SessionID:  "input:" + sessionID,
 			})
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadGateway)
 				return
 			}
 			defer stream.Close()
+			_ = stream.SetWriteDeadline(time.Now().Add(5 * time.Second))
 			_ = tunnelv1.WriteFrame(stream, frame)
 			writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 			return
@@ -376,14 +377,23 @@ func main() {
 		}
 		defer stream.Close()
 
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache, no-transform")
 		w.Header().Set("Connection", "keep-alive")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("X-Accel-Buffering", "no")
 
+		// Immediately flush SSE headers so EventSource.onopen fires without waiting for first PTY output byte
+		_, _ = fmt.Fprintf(w, ": connected\n\n")
+		flusher.Flush()
+
+		doneCh := make(chan struct{})
+		defer close(doneCh)
 		go func() {
-			<-r.Context().Done()
-			_ = stream.Close()
+			select {
+			case <-r.Context().Done():
+				_ = stream.Close()
+			case <-doneCh:
+			}
 		}()
 
 		for {
