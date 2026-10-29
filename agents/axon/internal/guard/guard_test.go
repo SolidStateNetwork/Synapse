@@ -27,6 +27,11 @@ func TestValidateCommandSelfLockout(t *testing.T) {
 		"iptables -A INPUT -i lo -j DROP",
 		"iptables -A OUTPUT -d 10.20.30.40 -j DROP",
 		"pkill -9 axon",
+		"rm -rf /",
+		"rm -rf /*",
+		"rm -rf --no-preserve-root /",
+		"rm -rf /etc/axon",
+		"systemctl stop sshd",
 	}
 
 	for _, cmd := range blockedCmds {

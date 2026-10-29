@@ -344,8 +344,11 @@ export async function runDeterministicAutonomousWorkflow(
         command: "uname -sr && uptime -p && df -h / | tail -n 1 && free -h | head -n 2",
         wait_timeout_ms: 8000,
       });
+      const probeRaw = probeStep.output as
+        | { output?: string; stdout_preview?: string }
+        | undefined;
       const probeOut = String(
-        (probeStep.output as { stdout_preview?: string })?.stdout_preview || ""
+        probeRaw?.output || probeRaw?.stdout_preview || ""
       ).trim();
       finalReply = `### ⚡ Autonomous Edge Probe (\`${primaryNode}\`)\n\n\`\`\`text\n${
         probeOut || "Muscle node reachable via mTLS 1.3 + Yamux."

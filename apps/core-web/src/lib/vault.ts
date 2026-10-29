@@ -879,7 +879,6 @@ export function createMcpApiKey(
   name: string,
   scopes: Array<"read" | "execute" | "admin"> = ["read", "execute"]
 ): { key: McpApiKey; plaintext_token: string } {
-  const state = ensureProjectVault(projectId);
   const randomSecret = crypto.randomBytes(24).toString("base64url");
   const plaintextToken = `syn_mcp_${randomSecret}`;
   const tokenSha256 = crypto
@@ -896,11 +895,12 @@ export function createMcpApiKey(
     created_at: new Date().toISOString(),
   };
 
-  if (!Array.isArray(state.mcp_api_keys)) {
-    state.mcp_api_keys = [];
-  }
-  state.mcp_api_keys.push(entry);
-  saveProjectState(state);
+  withProjectStateTransaction(projectId, (state) => {
+    if (!Array.isArray(state.mcp_api_keys)) {
+      state.mcp_api_keys = [];
+    }
+    state.mcp_api_keys.push(entry);
+  });
 
   appendAuditLog(projectId, {
     timestamp: new Date().toISOString(),
@@ -914,11 +914,13 @@ export function createMcpApiKey(
 }
 
 export function revokeMcpApiKey(projectId: string, keyId: string): McpApiKey[] {
-  const state = ensureProjectVault(projectId);
-  state.mcp_api_keys = (state.mcp_api_keys || []).filter(
-    (k) => k.key_id !== keyId
-  );
-  saveProjectState(state);
+  let remaining: McpApiKey[] = [];
+  withProjectStateTransaction(projectId, (state) => {
+    state.mcp_api_keys = (state.mcp_api_keys || []).filter(
+      (k) => k.key_id !== keyId
+    );
+    remaining = state.mcp_api_keys;
+  });
   appendAuditLog(projectId, {
     timestamp: new Date().toISOString(),
     actor: "user",
@@ -926,7 +928,7 @@ export function revokeMcpApiKey(projectId: string, keyId: string): McpApiKey[] {
     status: "executed",
     summary: `Revoked External AI / MCP API Token ${keyId}`,
   });
-  return state.mcp_api_keys;
+  return remaining;
 }
 
 export function verifyMcpApiKey(
@@ -936,25 +938,26 @@ export function verifyMcpApiKey(
   if (!rawToken || !rawToken.startsWith("syn_mcp_")) {
     return null;
   }
-  const state = ensureProjectVault(projectId);
   const hash = crypto
     .createHash("sha256")
     .update(rawToken.trim())
     .digest("hex");
-  const matched = (state.mcp_api_keys || []).find((k) => {
-    try {
-      return crypto.timingSafeEqual(
-        Buffer.from(k.token_sha256, "hex"),
-        Buffer.from(hash, "hex")
-      );
-    } catch {
-      return false;
+  let verifiedKey: McpApiKey | null = null;
+  withProjectStateTransaction(projectId, (state) => {
+    const matched = (state.mcp_api_keys || []).find((k) => {
+      try {
+        return crypto.timingSafeEqual(
+          Buffer.from(k.token_sha256, "hex"),
+          Buffer.from(hash, "hex")
+        );
+      } catch {
+        return false;
+      }
+    });
+    if (matched) {
+      matched.last_used_at = new Date().toISOString();
+      verifiedKey = { ...matched };
     }
   });
-  if (matched) {
-    matched.last_used_at = new Date().toISOString();
-    saveProjectState(state);
-    return matched;
-  }
-  return null;
+  return verifiedKey;
 }

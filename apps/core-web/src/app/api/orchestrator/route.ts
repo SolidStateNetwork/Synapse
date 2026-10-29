@@ -123,7 +123,18 @@ export async function POST(req: NextRequest) {
   const directTool = body.direct_tool as
     | { name: string; arguments: Record<string, unknown> }
     | undefined;
-  const messages = (body.messages || []) as ChatMessage[];
+  const rawMessages = Array.isArray(body.messages)
+    ? (body.messages as ChatMessage[])
+    : [];
+  const fallbackSinglePrompt = String(
+    body.prompt || body.message || ""
+  ).trim();
+  const messages: ChatMessage[] =
+    rawMessages.length > 0
+      ? rawMessages
+      : fallbackSinglePrompt
+      ? [{ role: "user", content: fallbackSinglePrompt }]
+      : [];
 
   if (directTool && directTool.name) {
     const res = await interceptAndExecuteTool(

@@ -45,7 +45,7 @@ func ValidateCommand(cfg GuardrailConfig, cmd string) (allowed bool, reason stri
 	normalized := strings.ToLower(strings.TrimSpace(cmd))
 	pidStr := strconv.Itoa(cfg.AgentPID)
 
-	// 1. Protect axon.service against stop/disable/mask/kill
+	// 1. Protect axon.service and sshd against stop/disable/mask/kill/deletion
 	servicePatterns := []string{
 		"systemctl stop axon",
 		"systemctl disable axon",
@@ -56,11 +56,27 @@ func ValidateCommand(cfg GuardrailConfig, cmd string) (allowed bool, reason stri
 		"pkill axon",
 		"killall axon",
 		"killall -9 axon",
+		"systemctl stop ssh",
+		"systemctl disable ssh",
+		"systemctl mask ssh",
+		"service ssh stop",
+		"service sshd stop",
+		"rm -rf /etc/axon",
+		"rm -f /etc/axon",
+		"rm -rf /usr/local/bin/axon",
+		"rm -f /usr/local/bin/axon",
+		"--no-preserve-root",
 	}
 	for _, pat := range servicePatterns {
 		if strings.Contains(normalized, pat) {
-			return false, fmt.Sprintf("Self-Lockout Guardrail: command attempts to terminate or disable %s (%q)", cfg.ServiceName, pat)
+			return false, fmt.Sprintf("Self-Lockout Guardrail: command attempts to terminate or disable %s or critical host access (%q)", cfg.ServiceName, pat)
 		}
+	}
+
+	// 1b. Block catastrophic root filesystem destruction (e.g., rm -rf / or rm -rf /*)
+	rootWipeRegex := regexp.MustCompile(`\brm\s+(-[rRf]+\s+)+/\s*(\*|[;|&]|$)`)
+	if rootWipeRegex.MatchString(normalized) {
+		return false, "Self-Lockout Guardrail: catastrophic root filesystem deletion ('rm -rf /') is prohibited"
 	}
 
 	// 2. Protect the current Axon PID against kill signals
