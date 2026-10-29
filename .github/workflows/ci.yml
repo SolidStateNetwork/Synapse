@@ -53,17 +53,18 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 22
+      - name: Set up Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "npm"
           cache-dependency-path: apps/core-web/package-lock.json
 
-      - name: Install Dependencies & Build Next.js 15 App Router
+      - name: Install Dependencies, Run TS Unit Tests & Build Next.js 15 App Router
         working-directory: apps/core-web
         run: |
           npm ci
+          npm test
           npm run build
 
   publish-ghcr-images:
