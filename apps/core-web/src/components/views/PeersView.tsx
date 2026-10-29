@@ -78,7 +78,7 @@ export interface PeersViewProps {
   onDeletePlaybook: (playbookId: string) => void;
 }
 
-export default function PeersView({
+const PeersView = React.memo(function PeersView({
   activeProject,
   gatewayNodes,
   filteredPeers,
@@ -759,4 +759,6 @@ export default function PeersView({
       )}
     </div>
   );
-}
+});
+
+export default PeersView;

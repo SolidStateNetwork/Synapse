@@ -6,7 +6,8 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --import ./src/__tests__/register-hooks.mjs --test src/__tests__/synapse.test.ts"
   },
   "dependencies": {
     "lucide-react": "^0.475.0",

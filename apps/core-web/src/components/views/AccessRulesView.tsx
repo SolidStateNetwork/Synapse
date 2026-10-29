@@ -41,7 +41,7 @@ export interface AccessRulesViewProps {
   ) => void;
 }
 
-export default function AccessRulesView({
+const AccessRulesView = React.memo(function AccessRulesView({
   activeProject,
   cartridges,
   pendingApprovals,
@@ -288,4 +288,6 @@ export default function AccessRulesView({
       </div>
     </div>
   );
-}
+});
+
+export default AccessRulesView;

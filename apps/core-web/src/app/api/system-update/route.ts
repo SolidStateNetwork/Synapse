@@ -168,12 +168,15 @@ async function gatherSystemStatus(fetchRemoteGit = false, inspectNodes = false) 
     binDir,
     isWin ? "core-gateway.new.exe" : "core-gateway.new"
   );
+  const axonPrimaryPath = path.join(binDir, "axon");
   const axonLinuxAmd64Path = path.join(binDir, "axon-linux-amd64");
 
   const coreBin = getFileSummary(
     fs.existsSync(coreStagedPath) ? coreStagedPath : coreBinPath
   );
-  const axonBin = getFileSummary(axonLinuxAmd64Path);
+  const axonBin = getFileSummary(
+    fs.existsSync(axonPrimaryPath) ? axonPrimaryPath : axonLinuxAmd64Path
+  );
 
   const liveNodes = await fetchGatewayNodes();
   const nodeStatuses: Array<{
@@ -404,6 +407,27 @@ async function performCoreUpdate(repoRoot: string): Promise<UpdateStepLog[]> {
         90000
       );
       targetGwPath = gwStagedOut;
+      if (buildGw.ok && !isWin) {
+        try {
+          fs.renameSync(gwStagedOut, gwPrimaryOut);
+          targetGwPath = gwPrimaryOut;
+          await runCmd(
+            "systemctl --user restart synapse-core-gateway.service 2>/dev/null || true",
+            repoRoot,
+            undefined,
+            8000
+          );
+        } catch {
+          // keep staged path if rename fails
+        }
+      }
+    } else if (!isWin) {
+      await runCmd(
+        "systemctl --user restart synapse-core-gateway.service 2>/dev/null || true",
+        repoRoot,
+        undefined,
+        8000
+      );
     }
     const gwMeta = getFileSummary(targetGwPath);
     steps.push({

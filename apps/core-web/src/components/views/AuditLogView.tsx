@@ -18,7 +18,7 @@ export interface AuditLogViewProps {
   >;
 }
 
-export default function AuditLogView({
+const AuditLogView = React.memo(function AuditLogView({
   filteredLogs,
   totalLogsCount,
   activitySearch,
@@ -184,4 +184,6 @@ export default function AuditLogView({
       </div>
     </div>
   );
-}
+});
+
+export default AuditLogView;

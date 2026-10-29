@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
 
   if (action === "toggle_debug") {
     let nextDebug = false;
-    withProjectStateTransaction(projectId, (st) => {
+    await withProjectStateTransaction(projectId, (st) => {
       const rawState = st as unknown as Record<string, unknown>;
       nextDebug =
         body.enabled !== undefined ? Boolean(body.enabled) : !rawState.debug_mode;

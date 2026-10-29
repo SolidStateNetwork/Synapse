@@ -55,7 +55,7 @@ export interface FirewallViewProps {
   onAskCopilot: (prompt: string) => void;
 }
 
-export default function FirewallView({
+const FirewallView = React.memo(function FirewallView({
   activeProject,
   gatewayNodes,
   selectedNodeId,
@@ -638,4 +638,6 @@ export default function FirewallView({
       </div>
     </div>
   );
-}
+});
+
+export default FirewallView;

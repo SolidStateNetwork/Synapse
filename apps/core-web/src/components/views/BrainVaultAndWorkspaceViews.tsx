@@ -35,7 +35,7 @@ export interface BrainVaultViewProps {
   handleSaveBrainDoc: (doc: "Architecture.md" | "Memory.md") => void;
 }
 
-export function BrainVaultView({
+export const BrainVaultView = React.memo(function BrainVaultView({
   projectId,
   brainDocTab,
   setBrainDocTab,
@@ -131,7 +131,7 @@ export function BrainVaultView({
       </div>
     </div>
   );
-}
+});
 
 export interface WorkspaceExplorerViewProps {
   showDiffDrawer: boolean;
@@ -155,7 +155,7 @@ export interface WorkspaceExplorerViewProps {
   setEditorContent: (val: string) => void;
 }
 
-export function WorkspaceExplorerView({
+export const WorkspaceExplorerView = React.memo(function WorkspaceExplorerView({
   showDiffDrawer,
   setShowDiffDrawer,
   handleSaveRemoteFile,
@@ -325,4 +325,4 @@ export function WorkspaceExplorerView({
       </div>
     </div>
   );
-}
+});

@@ -55,7 +55,7 @@ export interface ReverseProxyViewProps {
   }) => void;
 }
 
-export default function ReverseProxyView({
+const ReverseProxyView = React.memo(function ReverseProxyView({
   activeProject,
   primaryNode,
   gatewayUrl,
@@ -563,4 +563,6 @@ export default function ReverseProxyView({
       )}
     </div>
   );
-}
+});
+
+export default ReverseProxyView;
