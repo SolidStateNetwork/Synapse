@@ -50,7 +50,7 @@ func TestHubVaultAssignmentAndTelemetrySync(t *testing.T) {
 				CPUPercent:    12.5 + float64(seq),
 				RAMPercent:    34.0,
 				TimestampUnix: time.Now().Unix(),
-				Services: []tunnelv1.ServiceHealthReport{
+				Services: []tunnelv1.ServiceHealthStatus{
 					{
 						ServiceID: "svc-api",
 						Name:      "Test API",
