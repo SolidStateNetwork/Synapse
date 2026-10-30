@@ -189,3 +189,39 @@ func RunDiagnostics(configDir string) DiagnosticReport {
 
 	return rep
 }
+
+func (a *Agent) buildTLSConfig() (*tls.Config, error) {
+	return a.buildTLSConfigForTarget(CoreTarget{
+		Name:        "primary",
+		NodeID:      a.Config.NodeID,
+		CoreGateway: a.Config.CoreGateway,
+		CoreHTTP:    a.Config.CoreHTTP,
+		Tier:        a.Config.Tier,
+		CertFile:    a.Config.CertFile,
+		KeyFile:     a.Config.KeyFile,
+		CACertFile:  a.Config.CACertFile,
+		Enabled:     true,
+	})
+}
+
+func (a *Agent) buildTLSConfigForTarget(target CoreTarget) (*tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair(target.CertFile, target.KeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("load client keypair (%s, %s): %w", target.CertFile, target.KeyFile, err)
+	}
+	caPEM, err := os.ReadFile(target.CACertFile)
+	if err != nil {
+		return nil, fmt.Errorf("read CA cert %s: %w", target.CACertFile, err)
+	}
+	caPool := x509.NewCertPool()
+	if !caPool.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("failed to append CA certificate to pool from %s", target.CACertFile)
+	}
+	return &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      caPool,
+		MinVersion:   tls.VersionTLS13,
+		ServerName:   "synapse-core-gateway",
+	}, nil
+}
+

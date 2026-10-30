@@ -21,6 +21,10 @@ func TestHubVaultAssignmentAndTelemetrySync(t *testing.T) {
 	nodeID := "muscle-node-1"
 	h.EnsureNodeAssignedToProject(projectID, nodeID, tunnelv1.Tier1Unleashed)
 
+	if resolved := h.ResolveDefaultProjectID(); resolved != projectID {
+		t.Fatalf("expected ResolveDefaultProjectID=%q, got %q", projectID, resolved)
+	}
+
 	statePath := filepath.Join(tmpDir, projectID, "State.json")
 	raw, err := os.ReadFile(statePath)
 	if err != nil {
@@ -34,6 +38,15 @@ func TestHubVaultAssignmentAndTelemetrySync(t *testing.T) {
 	assigned, ok := state["assigned_nodes"].([]any)
 	if !ok || len(assigned) != 1 {
 		t.Fatalf("expected 1 assigned node, got %v", state["assigned_nodes"])
+	}
+
+	// Verify .bak self-healing in readStateJsonWithBackup
+	if err := os.WriteFile(statePath, []byte("{corrupted-json"), 0o644); err != nil {
+		t.Fatalf("corrupt State.json: %v", err)
+	}
+	recovered := readStateJsonWithBackup(statePath)
+	if recovered == nil || recovered["project_id"] != projectID {
+		t.Fatalf("expected State.json to self-heal from .bak, got %v", recovered)
 	}
 
 	// Test concurrent telemetry sync without race conditions
@@ -58,6 +71,13 @@ func TestHubVaultAssignmentAndTelemetrySync(t *testing.T) {
 						Healthy:   true,
 						LatencyMs: 2,
 					},
+					{
+						ServiceID:      "auto-svc-4050",
+						Name:           "Duplicate Auto Service",
+						Port:           4050,
+						Healthy:        true,
+						AutoDiscovered: true,
+					},
 				},
 			}
 			h.syncTelemetryToProjectVaults(nodeID, beat)
@@ -75,16 +95,19 @@ func TestHubVaultAssignmentAndTelemetrySync(t *testing.T) {
 	}
 	services, _ := stateAfter["registered_services"].([]any)
 	if len(services) != 1 {
-		t.Fatalf("expected 1 auto-synced service in State.json, got %d", len(services))
+		t.Fatalf("expected 1 deduplicated service in State.json, got %d", len(services))
 	}
 }
 
-func TestHubYamuxStreamAndDebugRingBuffer(t *testing.T) {
-	h := NewHub(t.TempDir())
+func TestHubYamuxRPCStreamsAndTelemetryStream(t *testing.T) {
+	tmpDir := t.TempDir()
+	h := NewHub(tmpDir)
 	h.SetDebugEnabled(true)
 	if !h.IsDebugEnabled() {
 		t.Fatalf("expected debug mode to be enabled")
 	}
+
+	h.EnsureNodeAssignedToProject("proj-rpc", "node-a", tunnelv1.Tier1Unleashed)
 
 	for i := 0; i < 260; i++ {
 		h.RecordEvent("test", "node-a", "event", int64(i), nil)
@@ -110,18 +133,112 @@ func TestHubYamuxStreamAndDebugRingBuffer(t *testing.T) {
 	}
 	defer ymServer.Close()
 
-	h.mu.Lock()
-	h.nodes["node-a"] = &ConnectedNode{
-		NodeID:      "node-a",
-		Tier:        tunnelv1.Tier1Unleashed,
-		RemoteAddr:  "127.0.0.1:50000",
-		ConnectedAt: time.Now().UTC(),
-		session:     ymSession,
+	// Mock Axon Muscle responder on ymServer
+	go func() {
+		for {
+			stream, err := ymServer.AcceptStream()
+			if err != nil {
+				return
+			}
+			go func(s net.Conn) {
+				defer s.Close()
+				var hdr tunnelv1.StreamHeader
+				if err := tunnelv1.ReadFrame(s, &hdr); err != nil {
+					return
+				}
+				switch hdr.StreamType {
+				case tunnelv1.StreamTypeRpcFs:
+					var req tunnelv1.FsRequest
+					if err := tunnelv1.ReadFrame(s, &req); err == nil {
+						_ = tunnelv1.WriteFrame(s, tunnelv1.FsResponse{
+							RequestID: req.RequestID,
+							Success:   true,
+							Content:   []byte("mock-file-content"),
+						})
+					}
+				case tunnelv1.StreamTypePty:
+					var req tunnelv1.PtyExecRequest
+					if err := tunnelv1.ReadFrame(s, &req); err == nil {
+						_ = tunnelv1.WriteFrame(s, tunnelv1.PtyExecResponse{
+							CmdID:     req.CmdID,
+							SessionID: req.SessionID,
+							Output:    "mock-pty-ok",
+							ExitCode:  0,
+							Cwd:       "/opt/axon/workspaces/proj-rpc",
+						})
+					}
+				}
+			}(stream)
+		}
+	}()
+
+	telClient, telServer := net.Pipe()
+	defer telClient.Close()
+	defer telServer.Close()
+
+	cNode := &ConnectedNode{
+		NodeID:        "node-a",
+		Tier:          tunnelv1.Tier1Unleashed,
+		RemoteAddr:    "127.0.0.1:50000",
+		ConnectedAt:   time.Now().UTC(),
+		session:       ymSession,
+		telemetryConn: telServer,
 	}
+
+	h.mu.Lock()
+	h.nodes["node-a"] = cNode
 	h.mu.Unlock()
 
+	// 1. Test ExecFs over Yamux
+	fsResp, err := h.ExecFs("node-a", tunnelv1.FsRequest{
+		RequestID: "req-1",
+		ProjectID: "proj-rpc",
+		Operation: tunnelv1.FsOpReadFile,
+		Path:      "test.txt",
+	})
+	if err != nil || !fsResp.Success || string(fsResp.Content) != "mock-file-content" {
+		t.Fatalf("ExecFs failed: err=%v resp=%+v", err, fsResp)
+	}
+
+	// 2. Test ExecPty over Yamux
+	ptyResp, err := h.ExecPty("node-a", tunnelv1.PtyExecRequest{
+		CmdID:     "cmd-1",
+		SessionID: "default",
+		ProjectID: "proj-rpc",
+		Command:   "echo ok",
+	})
+	if err != nil || ptyResp.ExitCode != 0 || ptyResp.Output != "mock-pty-ok" {
+		t.Fatalf("ExecPty failed: err=%v resp=%+v", err, ptyResp)
+	}
+
+	// 3. Test PushHealthTargets over telemetry stream
+	go func() {
+		var pushed []tunnelv1.ServiceHealthTarget
+		_ = tunnelv1.ReadFrame(telClient, &pushed)
+	}()
+	if err := h.PushHealthTargets("node-a", []tunnelv1.ServiceHealthTarget{
+		{ServiceID: "svc-1", Name: "Web", Port: 3000, Protocol: "http"},
+	}); err != nil {
+		t.Fatalf("PushHealthTargets failed: %v", err)
+	}
+
+	// 4. Test handleNodeInitiatedStream telemetry heartbeat loop
+	beatClient, beatServer := net.Pipe()
+	go h.handleNodeInitiatedStream(cNode, beatServer)
+	_ = tunnelv1.WriteFrame(beatClient, tunnelv1.StreamHeader{StreamType: tunnelv1.StreamTypeTelemetry})
+	_ = tunnelv1.WriteFrame(beatClient, tunnelv1.NodeHeartbeat{
+		NodeID:        "node-a",
+		Hostname:      "host-a",
+		CPUPercent:    22.0,
+		RAMPercent:    45.0,
+		TimestampUnix: time.Now().Unix(),
+		Services:      []tunnelv1.ServiceHealthStatus{{ServiceID: "svc-1", Port: 3000, Healthy: true, LatencyMs: 4}},
+	})
+	_ = beatClient.Close()
+	time.Sleep(30 * time.Millisecond)
+
 	nodes := h.ListNodes()
-	if len(nodes) != 1 || !nodes[0].Online || nodes[0].NodeID != "node-a" {
+	if len(nodes) != 1 || !nodes[0].Online || nodes[0].LastHeartbeat == nil {
 		t.Fatalf("unexpected ListNodes result: %+v", nodes)
 	}
 

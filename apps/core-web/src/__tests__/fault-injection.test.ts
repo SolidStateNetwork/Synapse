@@ -220,7 +220,8 @@ describe("Synapse Production Fault-Injection & Chaos Test Suite", () => {
             protocol: "http",
             path: "/",
             healthy: true,
-            updated_at: new Date().toISOString(),
+            consecutive_failures: 0,
+            registered_at: new Date().toISOString(),
           });
         })
       )
@@ -265,6 +266,8 @@ describe("Synapse Production Fault-Injection & Chaos Test Suite", () => {
       path.join(repoRoot, "agents/axon"),
     ];
     const oversized: string[] = [];
+    const oversizedGo: string[] = [];
+    const explicitAnyViolations: string[] = [];
     const walk = (dir: string) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const full = path.join(dir, entry.name);
@@ -283,6 +286,16 @@ describe("Synapse Production Fault-Injection & Chaos Test Suite", () => {
           if (lines >= 600) {
             oversized.push(`${path.relative(repoRoot, full)} (${lines} lines)`);
           }
+          if (entry.name.endsWith(".go") && lines >= 500) {
+            oversizedGo.push(`${path.relative(repoRoot, full)} (${lines} lines)`);
+          }
+          if (
+            /\.(ts|tsx)$/.test(entry.name) &&
+            !full.includes("__tests__") &&
+            /(: any\b|as any\b)/.test(content)
+          ) {
+            explicitAnyViolations.push(path.relative(repoRoot, full));
+          }
         }
       }
     };
@@ -291,6 +304,16 @@ describe("Synapse Production Fault-Injection & Chaos Test Suite", () => {
       oversized,
       [],
       `All code files must be < 600 lines, but found: ${oversized.join(", ")}`
+    );
+    assert.deepEqual(
+      oversizedGo,
+      [],
+      `All Go files must be < 500 lines, but found: ${oversizedGo.join(", ")}`
+    );
+    assert.deepEqual(
+      explicitAnyViolations,
+      [],
+      `Zero explicit 'any' types allowed in apps/core-web/src, but found: ${explicitAnyViolations.join(", ")}`
     );
   });
 });

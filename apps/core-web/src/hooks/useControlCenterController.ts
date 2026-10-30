@@ -62,7 +62,7 @@ export function useControlCenterController() {
   const [settingsAuthNotice, setSettingsAuthNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    safeFetchJson<{ config?: any }>("/api/alerts").then(({ data }) => { if (data?.config) setSettingsAlertConfig(data.config); });
+    safeFetchJson<{ config?: NonNullable<typeof settingsAlertConfig> }>("/api/alerts").then(({ data }) => { if (data?.config) setSettingsAlertConfig(data.config); });
     safeFetchJson<{ enabled?: boolean }>("/api/auth").then(({ data }) => { if (typeof data?.enabled === "boolean") setSettingsAuthEnabled(data.enabled); });
   }, []);
 

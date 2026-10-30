@@ -13,7 +13,7 @@ permissions:
 jobs:
   build-and-test-go:
     name: Build & Test Go Modules (Axon Muscle + Core Gateway)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
@@ -49,10 +49,8 @@ jobs:
             agents/axon/go.sum
             apps/core-gateway/go.sum
 
-      - name: Run Unit Tests (Guardrails, Sentinel PTY, Atomic FS, mTLS PKI)
-        env:
-          CGO_ENABLED: "0"
-        run: go test -v ./proto/... ./agents/axon/... ./apps/core-gateway/...
+      - name: Run Unit Tests with Race Detector (Guardrails, Sentinel PTY, Atomic FS, mTLS PKI, Gateway & CLI)
+        run: go test -v -race ./proto/... ./agents/axon/... ./apps/core-gateway/...
 
       - name: Build Static Single-Binary Axon Agent (linux/amd64 & linux/arm64)
         env:
@@ -71,7 +69,7 @@ jobs:
 
   build-core-web:
     name: Build Next.js 15 Core WebUI & Brain Vault
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
@@ -83,16 +81,17 @@ jobs:
           cache: "npm"
           cache-dependency-path: apps/core-web/package-lock.json
 
-      - name: Install Dependencies, Run TS Unit Tests & Build Next.js 15 App Router
+      - name: Install Dependencies, Verify Strict TypeScript, Run Unit Tests & Build Next.js 15 App Router
         working-directory: apps/core-web
         run: |
           npm ci
+          npx tsc --noEmit
           npm test
           npm run build
 
   publish-ghcr-images:
     name: Build & Publish Docker Images to GHCR (synapse-core)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [build-and-test-go, build-core-web]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:

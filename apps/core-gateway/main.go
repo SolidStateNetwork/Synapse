@@ -72,6 +72,21 @@ func main() {
 	// Optional Self-Healing Reverse Tunnel Supervisor (only active if SYNAPSE_SSH_REVERSE_HOST is set)
 	go startSelfHealingMuscleTunnel(nodeHub, tunnelPort)
 
+	handler := buildGatewayMux(authority, nodeHub, dataDir, vaultRoot, httpAddr, tunnelPort)
+
+	log.Printf("[core-gateway] HTTP Control & Live-Preview Reverse Proxy listening on %s (VaultRoot=%s, Debug=%v)", httpAddr, vaultRoot, nodeHub.IsDebugEnabled())
+	httpServer := &http.Server{
+		Addr:              httpAddr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	if err := httpServer.ListenAndServe(); err != nil {
+		log.Fatalf("[core-gateway] HTTP server error: %v", err)
+	}
+}
+
+func buildGatewayMux(authority *pki.Authority, nodeHub *hub.Hub, dataDir, vaultRoot, httpAddr string, tunnelPort int) http.Handler {
 	mux := http.NewServeMux()
 	startedAt := time.Now()
 
@@ -442,14 +457,5 @@ func main() {
 	// 10. One-Liner Axon Node Enrollment & Systemd Installer Script (/install.sh)
 	mux.HandleFunc("/install.sh", handleInstallScript)
 
-	log.Printf("[core-gateway] HTTP Control & Live-Preview Reverse Proxy listening on %s (VaultRoot=%s, Debug=%v)", httpAddr, vaultRoot, nodeHub.IsDebugEnabled())
-	httpServer := &http.Server{
-		Addr:              httpAddr,
-		Handler:           corsMiddleware(mux),
-		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       120 * time.Second,
-	}
-	if err := httpServer.ListenAndServe(); err != nil {
-		log.Fatalf("[core-gateway] HTTP server error: %v", err)
-	}
+	return corsMiddleware(mux)
 }

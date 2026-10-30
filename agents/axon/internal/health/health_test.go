@@ -1,6 +1,12 @@
 package health
 
 import (
+	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 
 	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
@@ -59,5 +65,119 @@ func TestSetTargetsForSource_MultiCoreDeduplication(t *testing.T) {
 	}
 	if _, exists := c.targets["auto-svc-9999"]; !exists {
 		t.Fatalf("expected auto-svc-9999 to remain when no named service exists on port 9999")
+	}
+}
+
+func TestProbeServiceProtocolsAndCollectorSnapshot(t *testing.T) {
+	c := NewCollector("edge-node-02", tunnelv1.Tier2WorkspaceJail)
+
+	// 1. HTTP Probe (healthy 200 & unhealthy 503)
+	okSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer okSrv.Close()
+
+	failSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer failSrv.Close()
+
+	httpOK := c.probeService(tunnelv1.ServiceHealthTarget{
+		ServiceID: "svc-http-ok",
+		Name:      "HTTP OK",
+		Protocol:  "http",
+		Target:    okSrv.URL + "/healthz",
+	})
+	if !httpOK.Healthy || httpOK.StatusCode != 200 {
+		t.Fatalf("expected healthy HTTP probe, got %+v", httpOK)
+	}
+
+	httpFail := c.probeService(tunnelv1.ServiceHealthTarget{
+		ServiceID: "svc-http-fail",
+		Name:      "HTTP Fail",
+		Protocol:  "http",
+		Target:    failSrv.URL,
+	})
+	if httpFail.Healthy || httpFail.StatusCode != 503 {
+		t.Fatalf("expected unhealthy 503 HTTP probe, got %+v", httpFail)
+	}
+
+	// 2. TCP Probe (listening socket vs closed port)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	addrParts := strings.Split(ln.Addr().String(), ":")
+	port64, _ := strconv.ParseUint(addrParts[len(addrParts)-1], 10, 32)
+	tcpPort := uint32(port64)
+
+	tcpOK := c.probeService(tunnelv1.ServiceHealthTarget{
+		ServiceID: "svc-tcp-ok",
+		Name:      "TCP OK",
+		Protocol:  "tcp",
+		Port:      tcpPort,
+	})
+	if !tcpOK.Healthy {
+		t.Fatalf("expected healthy TCP probe on port %d, got %+v", tcpPort, tcpOK)
+	}
+	_ = ln.Close()
+
+	tcpFail := c.probeService(tunnelv1.ServiceHealthTarget{
+		ServiceID: "svc-tcp-closed",
+		Name:      "TCP Closed",
+		Protocol:  "tcp",
+		Target:    fmt.Sprintf("127.0.0.1:%d", tcpPort),
+	})
+	if tcpFail.Healthy {
+		t.Fatalf("expected unhealthy TCP probe after listener closed")
+	}
+
+	// 3. EXEC Probe (exit 0 vs exit 1)
+	execOK := c.probeService(tunnelv1.ServiceHealthTarget{
+		ServiceID: "svc-exec-ok",
+		Name:      "Exec OK",
+		Protocol:  "exec",
+		Target:    "true",
+	})
+	if !execOK.Healthy {
+		t.Fatalf("expected healthy exec probe, got %+v", execOK)
+	}
+
+	execFail := c.probeService(tunnelv1.ServiceHealthTarget{
+		ServiceID: "svc-exec-fail",
+		Name:      "Exec Fail",
+		Protocol:  "exec",
+		Target:    "false",
+	})
+	if execFail.Healthy {
+		t.Fatalf("expected unhealthy exec probe for 'false'")
+	}
+
+	// 4. Full Collect & CollectForNode + Firewall/Port filter helpers
+	c.SetTargets([]tunnelv1.ServiceHealthTarget{
+		{
+			ServiceID: "svc-http-ok",
+			Name:      "HTTP OK",
+			Protocol:  "http",
+			Target:    okSrv.URL,
+			Port:      8080,
+		},
+	})
+	beat := c.CollectForNode("override-node", tunnelv1.Tier1Unleashed, []string{"default"}, []tunnelv1.PtySessionMeta{
+		{SessionID: "default", Cwd: "/tmp"},
+	})
+	if beat.NodeID != "override-node" || beat.Tier != tunnelv1.Tier1Unleashed || len(beat.ActivePtySessions) != 1 {
+		t.Fatalf("unexpected CollectForNode heartbeat: %+v", beat)
+	}
+
+	if !isIgnoredSystemPortOrProcess(22, "sshd") || !isIgnoredSystemPortOrProcess(50000, "python3") || !isIgnoredSystemPortOrProcess(4000, "axon") {
+		t.Fatalf("expected system ports/processes to be ignored")
+	}
+	if isIgnoredSystemPortOrProcess(4050, "python3") {
+		t.Fatalf("expected user microservice port 4050 (python3) not to be ignored")
+	}
+	if detectOSInfo() == "" || detectPrivateIPv4() == "" {
+		t.Fatalf("expected non-empty OSInfo and PrivateIPv4")
 	}
 }

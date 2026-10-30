@@ -18,7 +18,7 @@ permissions:
 jobs:
   release-binaries:
     name: Build & Publish Multi-Arch Binaries + GHCR Docker Images
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
@@ -33,10 +33,8 @@ jobs:
             agents/axon/go.sum
             apps/core-gateway/go.sum
 
-      - name: Run Verification Suite
-        env:
-          CGO_ENABLED: "0"
-        run: go test -v ./proto/... ./agents/axon/... ./apps/core-gateway/...
+      - name: Run Verification Suite with Race Detector
+        run: go test -v -race ./proto/... ./agents/axon/... ./apps/core-gateway/...
 
       - name: Cross-Compile Static Binaries (Axon Muscle + Core Gateway)
         env:
