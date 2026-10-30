@@ -1193,7 +1193,9 @@ const InteractiveControlCenterCanvas = React.memo(
         {/* FEATURE 3: ZERO-TRUST WEBUI LOCK OVERLAY */}
         {authLocked && (
           <div
+            data-canvas-modal="true"
             onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
             className="absolute inset-0 z-50 flex items-center justify-center bg-nb-gray-950/90 backdrop-blur-md p-4"
           >
             <form
@@ -1259,7 +1261,9 @@ const InteractiveControlCenterCanvas = React.memo(
 
         {/* Bottom-Left Zoom, Expand & Lock Controls */}
         <div
+          data-canvas-modal="true"
           onPointerDown={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
           className="pointer-events-auto absolute bottom-4 left-5 z-20 flex items-center gap-1 rounded-xl border border-nb-gray-800 bg-nb-gray-940/90 p-1 shadow-lg backdrop-blur"
         >
           <button
@@ -1358,7 +1362,9 @@ const InteractiveControlCenterCanvas = React.memo(
         {/* v0.6.0: 1-CLICK CUSTOM SERVICE BUILDER MODAL ON CANVAS */}
         {showCustomServiceModal && (
           <div
+            data-canvas-modal="true"
             onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
             className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-nb-gray-950/85 backdrop-blur-sm p-4"
           >
             <form
@@ -1541,7 +1547,9 @@ const InteractiveControlCenterCanvas = React.memo(
         {/* v0.6.0: SELF-HEALING & INCIDENT TIMELINE OVERLAY ON CANVAS */}
         {hotReloadModalSvc && (
           <div
+            data-canvas-modal="true"
             onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
             className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-nb-gray-950/85 backdrop-blur-sm p-4"
           >
             <form
@@ -1646,8 +1654,10 @@ const InteractiveControlCenterCanvas = React.memo(
         )}
         {showSelfHealingDrawer && (
           <div
+            data-canvas-modal="true"
             onPointerDown={(e) => e.stopPropagation()}
-            className="pointer-events-auto absolute bottom-16 left-5 z-30 w-[500px] max-w-[94vw] rounded-2xl border border-nb-gray-800 bg-nb-gray-940/95 p-4 shadow-2xl backdrop-blur-md space-y-3 text-xs"
+            onWheel={(e) => e.stopPropagation()}
+            className="pointer-events-auto absolute bottom-16 left-5 z-30 w-[500px] max-w-[94vw] rounded-2xl border border-nb-gray-800 bg-nb-gray-940/95 p-4 shadow-2xl backdrop-blur-md space-y-3 text-xs overscroll-contain"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

@@ -729,6 +729,28 @@ export function useCanvasViewportAndLayout({
     const el = containerRef.current;
     if (!el) return;
     const onNativeWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && !e.ctrlKey && !e.metaKey) {
+        if (
+          target.closest(
+            "[data-canvas-modal='true'], textarea, select, input"
+          )
+        ) {
+          return;
+        }
+        let curr: HTMLElement | null = target;
+        while (curr && curr !== el) {
+          const style = window.getComputedStyle(curr);
+          const oy = style.overflowY;
+          if (
+            (oy === "auto" || oy === "scroll") &&
+            curr.scrollHeight > curr.clientHeight + 1
+          ) {
+            return;
+          }
+          curr = curr.parentElement;
+        }
+      }
       if (e.ctrlKey || e.metaKey || Math.abs(e.deltaY) > 0) {
         e.preventDefault();
         e.stopPropagation();
