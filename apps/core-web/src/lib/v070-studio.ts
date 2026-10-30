@@ -8,6 +8,7 @@ import {
   resolveActiveProjectId,
   resolveTargetNodeId,
 } from "./runtimeResolver";
+import { safeFetchJson } from "./safeFetch";
 import {
   executeSqliteStudioAction,
   loadCronJobs,
@@ -79,7 +80,7 @@ export async function loadServiceCodeFromMuscle(params: {
 
   if (nodeId) {
     try {
-      const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+      const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -90,7 +91,7 @@ export async function loadServiceCodeFromMuscle(params: {
           command: findCmd,
           wait_timeout_ms: 5000,
         }),
-        signal: AbortSignal.timeout(6500),
+        timeoutMs: 6500,
       });
       if (ptyRes.ok) {
         const ptyJson = await ptyRes.json();
@@ -264,7 +265,7 @@ export async function hotReloadServiceCodeOnMuscle(params: {
 
   if (nodeId) {
     try {
-      const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+      const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -275,7 +276,7 @@ export async function hotReloadServiceCodeOnMuscle(params: {
           command: reloadCmd,
           wait_timeout_ms: 8000,
         }),
-        signal: AbortSignal.timeout(9500),
+        timeoutMs: 9500,
       });
       if (ptyRes.ok) {
         const ptyJson = await ptyRes.json();

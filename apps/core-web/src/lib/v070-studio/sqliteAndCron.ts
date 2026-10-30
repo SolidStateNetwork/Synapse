@@ -12,6 +12,7 @@ import {
   resolveProjectDbPath,
   resolveTargetNodeId,
 } from "../runtimeResolver";
+import { safeFetchJson } from "../safeFetch";
 
 const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
@@ -115,7 +116,7 @@ export async function executeSqliteStudioAction(params: {
 
   if (nodeId) {
     try {
-      const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+      const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -126,7 +127,7 @@ export async function executeSqliteStudioAction(params: {
           command: cmd,
           wait_timeout_ms: 6000,
         }),
-        signal: AbortSignal.timeout(7500),
+        timeoutMs: 7500,
       });
       if (ptyRes.ok) {
         const ptyJson = await ptyRes.json();
@@ -271,7 +272,7 @@ export async function runCronJobNowOnMuscle(params: {
   let output = "Cron runbook executed successfully (exit=0).";
 
   try {
-    const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+    const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -282,7 +283,7 @@ export async function runCronJobNowOnMuscle(params: {
         command: `printf "CRON_%s\\n" "START"; ${job.command}; printf "\\nCRON_%s|%s\\n" "EXIT" "$?"`,
         wait_timeout_ms: 6000,
       }),
-      signal: AbortSignal.timeout(7500),
+      timeoutMs: 7500,
     });
     if (ptyRes.ok) {
       const ptyJson = await ptyRes.json();

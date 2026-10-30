@@ -19,6 +19,9 @@ function tryResolveTsFile(candidatePath) {
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier === "next/server") {
+      return nextResolve("next/server.js", context);
+    }
     if (specifier.startsWith("@/")) {
       const target = path.join(srcRoot, specifier.slice(2));
       const resolved = tryResolveTsFile(target);

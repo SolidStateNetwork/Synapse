@@ -18,6 +18,7 @@ import {
 } from "@/lib/copilot/skillPrompts";
 import { SystemUpdateStatusData } from "./useSystemAndInfraActions";
 import { useCopilotEndpointsAndSkills } from "./useCopilotEndpointsAndSkills";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 export function useCopilotChatController({
   locale,
@@ -521,9 +522,9 @@ export function useCopilotChatController({
     if (activeSkill === "CheckUpdates") {
       let sysStatusSummary = "";
       try {
-        const upRes = await fetch(
+        const upRes = await safeFetchJson(
           "/api/system-update?check_remote=1&inspect_nodes=1",
-          { cache: "no-store" }
+          { cache: "no-store", timeoutMs: 12000 }
         );
         if (upRes.ok) {
           const upData = await upRes.json();

@@ -7,6 +7,7 @@ import {
   safeReadJsonWithBackupSync,
 } from "@/lib/vault";
 import { resolveActiveProjectId, resolveTargetNodeId } from "@/lib/runtimeResolver";
+import { safeFetchJson } from "./safeFetch";
 
 export interface AlertEvent {
   id: string;
@@ -136,57 +137,63 @@ export async function dispatchAlertEvent(
     cfg.telegram_bot_token &&
     cfg.telegram_chat_id
   ) {
-    try {
-      const tgRes = await fetch(
-        `https://api.telegram.org/bot${cfg.telegram_bot_token}/sendMessage`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: cfg.telegram_chat_id,
-            text: textBody.replace(/\*\*/g, "*"),
-            parse_mode: "Markdown",
-          }),
-          signal: AbortSignal.timeout(6000),
-        }
-      );
-      dispatched.push(tgRes.ok ? "Telegram (OK)" : `Telegram (${tgRes.status})`);
-    } catch {
-      dispatched.push("Telegram (Unreachable)");
-    }
-  }
-
-  if (cfg.enabled && cfg.discord_enabled && cfg.discord_webhook_url) {
-    try {
-      const dcRes = await fetch(cfg.discord_webhook_url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: textBody }),
-        signal: AbortSignal.timeout(6000),
-      });
-      dispatched.push(dcRes.ok ? "Discord (OK)" : `Discord (${dcRes.status})`);
-    } catch {
-      dispatched.push("Discord (Unreachable)");
-    }
-  }
-
-  if (cfg.enabled && cfg.webhook_enabled && cfg.webhook_url) {
-    try {
-      const whRes = await fetch(cfg.webhook_url, {
+    const tgRes = await safeFetchJson(
+      `https://api.telegram.org/bot${cfg.telegram_bot_token}/sendMessage`,
+      {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          source: "synapse-core-watchdog",
-          project_id: resolvedProjectId,
-          ...event,
-          timestamp: new Date().toISOString(),
+          chat_id: cfg.telegram_chat_id,
+          text: textBody.replace(/\*\*/g, "*"),
+          parse_mode: "Markdown",
         }),
-        signal: AbortSignal.timeout(6000),
-      });
-      dispatched.push(whRes.ok ? "Webhook (OK)" : `Webhook (${whRes.status})`);
-    } catch {
-      dispatched.push("Webhook (Unreachable)");
-    }
+        timeoutMs: 6000,
+      }
+    );
+    dispatched.push(
+      tgRes.ok
+        ? "Telegram (OK)"
+        : tgRes.status > 0
+        ? `Telegram (${tgRes.status})`
+        : "Telegram (Unreachable)"
+    );
+  }
+
+  if (cfg.enabled && cfg.discord_enabled && cfg.discord_webhook_url) {
+    const dcRes = await safeFetchJson(cfg.discord_webhook_url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: textBody }),
+      timeoutMs: 6000,
+    });
+    dispatched.push(
+      dcRes.ok
+        ? "Discord (OK)"
+        : dcRes.status > 0
+        ? `Discord (${dcRes.status})`
+        : "Discord (Unreachable)"
+    );
+  }
+
+  if (cfg.enabled && cfg.webhook_enabled && cfg.webhook_url) {
+    const whRes = await safeFetchJson(cfg.webhook_url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: "synapse-core-watchdog",
+        project_id: resolvedProjectId,
+        ...event,
+        timestamp: new Date().toISOString(),
+      }),
+      timeoutMs: 6000,
+    });
+    dispatched.push(
+      whRes.ok
+        ? "Webhook (OK)"
+        : whRes.status > 0
+        ? `Webhook (${whRes.status})`
+        : "Webhook (Unreachable)"
+    );
   }
 
   const fullEvent: AlertEvent = {

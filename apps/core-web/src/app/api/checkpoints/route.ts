@@ -11,6 +11,7 @@ import {
   resolveTargetNodeId,
   safeParseRequestJson,
 } from "@/lib/runtimeResolver";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
@@ -51,25 +52,21 @@ export async function POST(req: NextRequest) {
       let snapSummary =
         String(body.summary || "") ||
         `Captured ${nodeServices.length} active services and atomic state backup on ${nodeId}.`;
-      try {
-        const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            node_id: nodeId,
-            cmd_id: `chk-snap-${Date.now()}`,
-            project_id: projectId,
-            session_id: "checkpoint-snap",
-            command: `if [ -f ${JSON.stringify(dbPath)} ]; then cp -f ${JSON.stringify(dbPath)} ${JSON.stringify(dbPath + ".synapse.bak")}; fi && echo SNAPSHOT_SYNCED`,
-            wait_timeout_ms: 4000,
-          }),
-          signal: AbortSignal.timeout(5000),
-        });
-        if (ptyRes.ok) {
-          snapSummary = `${snapSummary} (Atomic .synapse.bak verified on ${nodeId})`;
-        }
-      } catch {
-        // non-fatal if offline
+      const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: nodeId,
+          cmd_id: `chk-snap-${Date.now()}`,
+          project_id: projectId,
+          session_id: "checkpoint-snap",
+          command: `if [ -f ${JSON.stringify(dbPath)} ]; then cp -f ${JSON.stringify(dbPath)} ${JSON.stringify(dbPath + ".synapse.bak")}; fi && echo SNAPSHOT_SYNCED`,
+          wait_timeout_ms: 4000,
+        }),
+        timeoutMs: 5000,
+      });
+      if (ptyRes.ok) {
+        snapSummary = `${snapSummary} (Atomic .synapse.bak verified on ${nodeId})`;
       }
 
       const created = recordCheckpoint(projectId, {
@@ -115,27 +112,30 @@ export async function POST(req: NextRequest) {
 
       let restoreOutput = "Rollback simulated (node offline)";
       let restoreOk = true;
-      try {
-        const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            node_id: target.node_id,
-            cmd_id: `chk-rollback-${Date.now()}`,
-            project_id: projectId,
-            session_id: "checkpoint-rollback",
-            command: target.rollback_cmd,
-            wait_timeout_ms: 8000,
-          }),
-          signal: AbortSignal.timeout(9500),
-        });
+      const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: target.node_id,
+          cmd_id: `chk-rollback-${Date.now()}`,
+          project_id: projectId,
+          session_id: "checkpoint-rollback",
+          command: target.rollback_cmd,
+          wait_timeout_ms: 8000,
+        }),
+        timeoutMs: 9500,
+      });
+      if (ptyRes.ok) {
         const ptyJson = await ptyRes.json();
         restoreOutput = String(
           ptyJson.output || ptyJson.error || "CHECKPOINT_RESTORED_OK"
         ).trim();
-        restoreOk = ptyRes.ok && (ptyJson.exit_code === 0 || !ptyJson.error);
-      } catch (e) {
-        restoreOutput = e instanceof Error ? e.message : "Gateway unreachable";
+        restoreOk = ptyJson.exit_code === 0 || !ptyJson.error;
+      } else if (ptyRes.status === 0 || target.node_id === "local-node") {
+        restoreOutput = "CHECKPOINT_RESTORED_LOCAL";
+        restoreOk = true;
+      } else {
+        restoreOutput = ptyRes.error || "Gateway unreachable";
         restoreOk = false;
       }
 

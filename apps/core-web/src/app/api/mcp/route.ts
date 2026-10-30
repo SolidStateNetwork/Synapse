@@ -21,6 +21,7 @@ import {
   resolveActiveProjectId,
   safeParseRequestJson,
 } from "@/lib/runtimeResolver";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 export const dynamic = "force-dynamic";
 
@@ -186,7 +187,7 @@ async function executeMcpTool(
     const ttl = Number(args.ttl_minutes || 30);
     let token = `syn_join_${Date.now().toString(36)}`;
     try {
-      const gwRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/tokens`, {
+      const gwRes = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/tokens`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -194,7 +195,7 @@ async function executeMcpTool(
           tier,
           ttl_minutes: ttl,
         }),
-        signal: AbortSignal.timeout(3000),
+        timeoutMs: 3000,
       });
       if (gwRes.ok) {
         const gwTok = await gwRes.json();
@@ -276,7 +277,7 @@ export async function GET(req: NextRequest) {
     protocolVersion: "2024-11-05",
     serverInfo: {
       name: "synapse-core-mcp",
-      version: "0.3.0",
+      version: "0.7.0",
     },
     endpoint: "/api/mcp",
     project_id: projectId,

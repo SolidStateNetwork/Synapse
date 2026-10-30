@@ -2,8 +2,18 @@
 set -euo pipefail
 
 echo "=================================================================="
-echo "  Synapse Core ('The Brain') — One-Command Docker Deployment"
+echo "  Synapse Core v0.7.0 ('The Brain') — One-Command Docker Deployment"
 echo "=================================================================="
+
+http_get() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$1" 2>/dev/null
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO- "$1" 2>/dev/null
+  else
+    return 1
+  fi
+}
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "[synapse] Docker not found — installing Docker & Compose automatically..."
@@ -12,6 +22,13 @@ if ! command -v docker >/dev/null 2>&1; then
     apt-get update -y -qq
     apt-get install -y -qq curl ca-certificates git docker.io docker-compose-v2 2>/dev/null || \
       apt-get install -y -qq curl ca-certificates git docker.io docker-compose
+    systemctl enable --now docker >/dev/null 2>&1 || true
+  elif command -v apk >/dev/null 2>&1; then
+    apk add --no-cache curl ca-certificates git docker docker-cli-compose
+    rc-update add docker default >/dev/null 2>&1 || true
+    rc-service docker start >/dev/null 2>&1 || true
+  elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y curl ca-certificates git docker
     systemctl enable --now docker >/dev/null 2>&1 || true
   elif command -v curl >/dev/null 2>&1; then
     curl -fsSL https://get.docker.com | sh
@@ -103,7 +120,7 @@ fi
 
 echo "[synapse] Waiting for Core Gateway (:8081) and mTLS Hub (:8443) to become ready..."
 for _ in $(seq 1 30); do
-  if curl -fsSL http://127.0.0.1:8081/healthz >/dev/null 2>&1; then
+  if http_get http://127.0.0.1:8081/healthz >/dev/null 2>&1; then
     break
   fi
   sleep 1

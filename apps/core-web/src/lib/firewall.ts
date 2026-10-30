@@ -9,6 +9,7 @@ import {
   type ProjectState,
 } from "./vault";
 import { resolveActiveProjectId, resolveTargetNodeId } from "./runtimeResolver";
+import { safeFetchJson } from "./safeFetch";
 
 const CORE_GATEWAY_URL =
   process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
@@ -134,7 +135,7 @@ print("SYNAPSE_FW_JSON:" + json.dumps({
 
   if (targetNodeId !== "unassigned-node") {
     try {
-      await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+      await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -147,10 +148,10 @@ print("SYNAPSE_FW_JSON:" + json.dumps({
           content: pyInspect,
           file_mode: "0755",
         }),
-        signal: AbortSignal.timeout(4000),
+        timeoutMs: 4000,
       });
 
-      const ptyRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
+      const ptyRes = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -162,7 +163,7 @@ print("SYNAPSE_FW_JSON:" + json.dumps({
           command: `python3 .synapse_fw_inspect.py; rm -f .synapse_fw_inspect.py`,
           wait_timeout_ms: 8000,
         }),
-        signal: AbortSignal.timeout(9000),
+        timeoutMs: 9000,
       });
 
       if (ptyRes.ok) {
@@ -356,7 +357,7 @@ print("SYNAPSE_FW_APPLIED_OK")
 
   if (nodeId && nodeId !== "unassigned-node") {
     try {
-      await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+      await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -369,10 +370,10 @@ print("SYNAPSE_FW_APPLIED_OK")
           content: pyApply,
           file_mode: "0755",
         }),
-        signal: AbortSignal.timeout(4000),
+        timeoutMs: 4000,
       });
 
-      const ptyRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
+      const ptyRes = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -384,7 +385,7 @@ print("SYNAPSE_FW_APPLIED_OK")
           command: `python3 .synapse_fw_apply.py && touch /tmp/synapse-fw-confirmed; rm -f .synapse_fw_apply.py`,
           wait_timeout_ms: 8000,
         }),
-        signal: AbortSignal.timeout(9000),
+        timeoutMs: 9000,
       });
 
       if (ptyRes.ok) {

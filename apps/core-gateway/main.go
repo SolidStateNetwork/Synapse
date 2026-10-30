@@ -80,7 +80,7 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status":          "ok",
 			"service":         "synapse-core-gateway",
-			"version":         "v0.4.0",
+			"version":         "v0.7.0",
 			"uptime_sec":      int64(time.Since(startedAt).Seconds()),
 			"tunnel_port":     tunnelPort,
 			"debug_enabled":   nodeHub.IsDebugEnabled(),

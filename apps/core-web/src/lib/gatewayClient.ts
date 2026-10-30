@@ -7,6 +7,7 @@ import type {
   PtyExecResponse,
 } from "@proto/tunnel";
 import { resolveActiveProjectId } from "./runtimeResolver";
+import { safeFetchJson } from "./safeFetch";
 
 export const CORE_GATEWAY_URL =
   process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
@@ -44,38 +45,16 @@ export function normalizeApiParams(
   return { projectId, nodeId, serviceId, action };
 }
 
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit = {},
-  timeoutMs = 10000
-): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, {
-      ...init,
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 export async function gatewayFetchLiveNodes(
   timeoutMs = 4000
 ): Promise<GatewayLiveNode[]> {
-  try {
-    const res = await fetchWithTimeout(
-      `${CORE_GATEWAY_URL}/api/v1/nodes`,
-      { cache: "no-store" },
-      timeoutMs
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data?.nodes) ? data.nodes : [];
-  } catch {
-    return [];
-  }
+  const res = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/nodes`, {
+    cache: "no-store",
+    timeoutMs,
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data?.nodes) ? data.nodes : [];
 }
 
 export async function gatewayExecPty(params: {
@@ -91,37 +70,33 @@ export async function gatewayExecPty(params: {
     params.cmd_id || `pty-${crypto.randomBytes(4).toString("hex")}`;
   const waitMs = params.wait_timeout_ms ?? 10000;
   const projectId = resolveActiveProjectId(params.project_id);
-  try {
-    const res = await fetchWithTimeout(
-      `${CORE_GATEWAY_URL}/api/v1/rpc/pty`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          node_id: params.node_id,
-          cmd_id: cmdId,
-          project_id: projectId,
-          session_id: params.session_id || "default",
-          tier: params.tier,
-          command: params.command,
-          wait_timeout_ms: waitMs,
-        }),
-      },
-      waitMs + 4000
-    );
-    return (await res.json()) as PtyExecResponse;
-  } catch (err) {
-    return {
+  const res = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      node_id: params.node_id,
       cmd_id: cmdId,
+      project_id: projectId,
       session_id: params.session_id || "default",
-      output: err instanceof Error ? err.message : String(err),
-      exit_code: 1,
-      cwd: "",
-      timed_out: false,
-      truncated: false,
-      blocked_by_guardrail: false,
-    };
+      tier: params.tier,
+      command: params.command,
+      wait_timeout_ms: waitMs,
+    }),
+    timeoutMs: waitMs + 4000,
+  });
+  if (res.ok) {
+    return (await res.json()) as PtyExecResponse;
   }
+  return {
+    cmd_id: cmdId,
+    session_id: params.session_id || "default",
+    output: res.error || "Gateway PTY RPC failed",
+    exit_code: 1,
+    cwd: "",
+    timed_out: false,
+    truncated: false,
+    blocked_by_guardrail: false,
+  };
 }
 
 export async function gatewayFsOperation(params: {
@@ -136,32 +111,28 @@ export async function gatewayFsOperation(params: {
   const reqId =
     params.request_id || `fs-${crypto.randomBytes(4).toString("hex")}`;
   const projectId = resolveActiveProjectId(params.project_id);
-  try {
-    const res = await fetchWithTimeout(
-      `${CORE_GATEWAY_URL}/api/v1/rpc/fs`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          node_id: params.node_id,
-          request_id: reqId,
-          project_id: projectId,
-          operation: params.operation,
-          path: params.path,
-          content: params.content || "",
-          file_mode: params.file_mode || "0644",
-        }),
-      },
-      12000
-    );
-    return (await res.json()) as FsResponse;
-  } catch (err) {
-    return {
+  const res = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      node_id: params.node_id,
       request_id: reqId,
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
+      project_id: projectId,
+      operation: params.operation,
+      path: params.path,
+      content: params.content || "",
+      file_mode: params.file_mode || "0644",
+    }),
+    timeoutMs: 12000,
+  });
+  if (res.ok) {
+    return (await res.json()) as FsResponse;
   }
+  return {
+    request_id: reqId,
+    success: false,
+    error: res.error || "Gateway FS RPC failed",
+  };
 }
 
 export async function gatewayPushHealthTargets(
@@ -177,18 +148,14 @@ export async function gatewayPushHealthTargets(
   }>
 ): Promise<boolean> {
   if (!nodeId) return false;
-  try {
-    const res = await fetchWithTimeout(
-      `${CORE_GATEWAY_URL}/api/v1/nodes/health-targets`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ node_id: nodeId, targets }),
-      },
-      4000
-    );
-    return res.ok;
-  } catch {
-    return false;
-  }
+  const res = await safeFetchJson(
+    `${CORE_GATEWAY_URL}/api/v1/nodes/health-targets`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ node_id: nodeId, targets }),
+      timeoutMs: 4000,
+    }
+  );
+  return res.ok;
 }

@@ -9,6 +9,7 @@ import {
   writeBrainDoc,
 } from "@/lib/vault";
 import { resolveActiveProjectId, resolveTargetNodeId } from "@/lib/runtimeResolver";
+import { safeFetchJson } from "../safeFetch";
 
 const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
@@ -126,7 +127,7 @@ export async function probeServiceLinkOnMuscle(params: {
   if (nodeId) {
     try {
       const cmd = `P1=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 2 http://127.0.0.1:${fromPort}/ 2>/dev/null || echo "200|0.001"); P2=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 2 http://127.0.0.1:${toPort}/ 2>/dev/null || echo "200|0.001"); printf "LINK_%s|%s|%s\\n" "PROBE" "$P1" "$P2"`;
-      const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+      const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -137,7 +138,7 @@ export async function probeServiceLinkOnMuscle(params: {
           command: cmd,
           wait_timeout_ms: 4000,
         }),
-        signal: AbortSignal.timeout(5500),
+        timeoutMs: 5500,
       });
       if (ptyRes.ok) {
         const ptyJson = await ptyRes.json();
@@ -331,7 +332,7 @@ export async function deployCustomServiceOnMuscle(params: {
   let healthy = true;
 
   try {
-    const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+    const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -342,7 +343,7 @@ export async function deployCustomServiceOnMuscle(params: {
         command: deployCmd,
         wait_timeout_ms: 8000,
       }),
-      signal: AbortSignal.timeout(9500),
+      timeoutMs: 9500,
     });
     if (ptyRes.ok) {
       const ptyJson = await ptyRes.json();

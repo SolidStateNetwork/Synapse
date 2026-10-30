@@ -14,6 +14,7 @@ import {
   buildDefaultServiceEndpoints,
   pushNodeHealthTargets,
 } from "./servicePresets";
+import { safeFetchJson } from "../safeFetch";
 import type { ToolDispatchResult } from "../orchestrator";
 
 export async function dispatchCoreBrainTool(
@@ -112,7 +113,7 @@ export async function dispatchCoreBrainTool(
         removedPort !== 4090 &&
         nodeId
       ) {
-        void fetch(`${coreGatewayUrl}/api/v1/rpc/pty`, {
+        void safeFetchJson(`${coreGatewayUrl}/api/v1/rpc/pty`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -123,7 +124,8 @@ export async function dispatchCoreBrainTool(
             command: `PID_STOP=$(ss -tlnp 2>/dev/null | awk '/:${removedPort} / {match($0, /pid=[0-9]+/); if (RSTART) print substr($0, RSTART+4, RLENGTH-4)}' | head -n1); if [ -n "$PID_STOP" ]; then kill -9 "$PID_STOP" 2>/dev/null || true; fi`,
             wait_timeout_ms: 3000,
           }),
-        }).catch(() => {});
+          timeoutMs: 4500,
+        });
       }
       appendAuditLog(projectId, {
         timestamp: new Date().toISOString(),
@@ -390,23 +392,20 @@ export async function dispatchCoreBrainTool(
           (l) => l.link_id !== linkId
         );
       });
-      try {
-        await fetch(`${coreGatewayUrl}/api/v1/rpc/pty`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            node_id: sourceNodeId,
-            cmd_id: `mesh-rm-${Date.now()}`,
-            session_id: `mesh-${projectId}`,
-            project_id: projectId,
-            tier: "TIER_1_UNLEASHED",
-            command: `pkill -f "synapse-mesh-${localPort}.py" 2>/dev/null || true`,
-            wait_timeout_ms: 4000,
-          }),
-        });
-      } catch {
-        // Non-fatal if source node offline
-      }
+      await safeFetchJson(`${coreGatewayUrl}/api/v1/rpc/pty`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: sourceNodeId,
+          cmd_id: `mesh-rm-${Date.now()}`,
+          session_id: `mesh-${projectId}`,
+          project_id: projectId,
+          tier: "TIER_1_UNLEASHED",
+          command: `pkill -f "synapse-mesh-${localPort}.py" 2>/dev/null || true`,
+          wait_timeout_ms: 4000,
+        }),
+        timeoutMs: 5500,
+      });
       appendAuditLog(projectId, {
         timestamp: new Date().toISOString(),
         actor: "ai_orchestrator",
@@ -485,23 +484,20 @@ class MeshRelay(http.server.BaseHTTPRequestHandler):
 http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_forever()
 `;
       const b64Relay = Buffer.from(relayScript, "utf8").toString("base64");
-      try {
-        await fetch(`${coreGatewayUrl}/api/v1/rpc/pty`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            node_id: sourceNodeId,
-            cmd_id: `mesh-up-${Date.now()}`,
-            session_id: `mesh-${projectId}`,
-            project_id: projectId,
-            tier: "TIER_1_UNLEASHED",
-            command: `pkill -f "synapse-mesh-${localPort}.py" 2>/dev/null || true; echo "${b64Relay}" | base64 -d > /tmp/synapse-mesh-${localPort}.py && (nohup python3 /tmp/synapse-mesh-${localPort}.py >/tmp/synapse-mesh-${localPort}.log 2>&1 &); sleep 0.3`,
-            wait_timeout_ms: 6000,
-          }),
-        });
-      } catch {
-        // Non-fatal if source node offline
-      }
+      await safeFetchJson(`${coreGatewayUrl}/api/v1/rpc/pty`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: sourceNodeId,
+          cmd_id: `mesh-up-${Date.now()}`,
+          session_id: `mesh-${projectId}`,
+          project_id: projectId,
+          tier: "TIER_1_UNLEASHED",
+          command: `pkill -f "synapse-mesh-${localPort}.py" 2>/dev/null || true; echo "${b64Relay}" | base64 -d > /tmp/synapse-mesh-${localPort}.py && (nohup python3 /tmp/synapse-mesh-${localPort}.py >/tmp/synapse-mesh-${localPort}.log 2>&1 &); sleep 0.3`,
+          wait_timeout_ms: 6000,
+        }),
+        timeoutMs: 7500,
+      });
     }
 
     appendAuditLog(projectId, {

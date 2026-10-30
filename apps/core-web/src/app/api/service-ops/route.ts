@@ -35,6 +35,7 @@ import {
   resolveTargetNodeId,
   safeParseRequestJson,
 } from "@/lib/runtimeResolver";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest) {
       }
 
       const wrappedCmd = `printf "LOG_%s\\n" "START"\n${cmd}\nprintf "\\nLOG_%s\\n" "END"`;
-      const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+      const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -131,7 +132,7 @@ export async function POST(req: NextRequest) {
           command: wrappedCmd,
           wait_timeout_ms: 5000,
         }),
-        signal: AbortSignal.timeout(6500),
+        timeoutMs: 6500,
       });
       const ptyJson = await ptyRes.json();
       const rawOut = String(ptyJson.output || "").trim();
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
 
     if (action === "intrusion_scan") {
       const scanCmd = `FAILED_COUNT=$(journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep -iE "Failed password|Invalid user" | wc -l); ACCEPTED_COUNT=$(journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep -iE "Accepted " | wc -l); TOP_IPS=$(journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep -iE "Failed password|Invalid user" | grep -oE "([0-9]{1,3}\\.){3}[0-9]{1,3}" | sort | uniq -c | sort -nr | head -n 5 | awk '{print $2 ":" $1}' | tr '\\n' ','); printf "INTRUSION_%s|%s|%s|%s\\n" "RESULT" "$FAILED_COUNT" "$ACCEPTED_COUNT" "$TOP_IPS"`;
-      const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+      const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -172,7 +173,7 @@ export async function POST(req: NextRequest) {
           command: scanCmd,
           wait_timeout_ms: 5000,
         }),
-        signal: AbortSignal.timeout(6500),
+        timeoutMs: 6500,
       });
       const ptyJson = await ptyRes.json();
       const out = String(ptyJson.output || "");
@@ -311,7 +312,7 @@ export async function POST(req: NextRequest) {
         ? `docker restart ${safeC} >/dev/null 2>&1 && sleep 0.4 && curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:${port}/`
         : `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:${port}/ || echo 200`;
 
-      const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+      const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -322,7 +323,7 @@ export async function POST(req: NextRequest) {
           command: healCmd,
           wait_timeout_ms: 8000,
         }),
-        signal: AbortSignal.timeout(9500),
+        timeoutMs: 9500,
       });
       const ptyJson = await ptyRes.json();
       const httpCode = String(ptyJson.output || "200").trim();

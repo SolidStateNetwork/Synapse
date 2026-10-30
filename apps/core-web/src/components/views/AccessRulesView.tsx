@@ -81,7 +81,7 @@ const AccessRulesView = React.memo(function AccessRulesView({
 
   useEffect(() => {
     const pid = activeProject?.project_id || "default-project";
-    fetch(`/api/service-ops?project_id=${encodeURIComponent(pid)}`)
+    safeFetchJson(`/api/service-ops?project_id=${encodeURIComponent(pid)}`)
       .then((r) => r.json())
       .then((d) => {
         if (d && Array.isArray(d.cron_jobs)) {

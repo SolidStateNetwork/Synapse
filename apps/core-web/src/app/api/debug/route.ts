@@ -13,6 +13,7 @@ import {
   resolveActiveProjectId,
   safeParseRequestJson,
 } from "@/lib/runtimeResolver";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 export const dynamic = "force-dynamic";
 
@@ -35,24 +36,22 @@ export async function GET(req: NextRequest) {
     url: CORE_GATEWAY_URL,
   };
 
-  try {
-    const gwRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/debug`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(2500),
-    });
-    if (gwRes.ok) {
-      const gwData = await gwRes.json();
-      gatewayDebug = {
-        reachable: true,
-        url: CORE_GATEWAY_URL,
-        ...gwData,
-      };
-    }
-  } catch (err) {
+  const gwRes = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/debug`, {
+    cache: "no-store",
+    timeoutMs: 2500,
+  });
+  if (gwRes.ok) {
+    const gwData = await gwRes.json();
+    gatewayDebug = {
+      reachable: true,
+      url: CORE_GATEWAY_URL,
+      ...gwData,
+    };
+  } else {
     gatewayDebug = {
       reachable: false,
       url: CORE_GATEWAY_URL,
-      error: err instanceof Error ? err.message : String(err),
+      error: gwRes.error || "Gateway unreachable",
     };
   }
 
@@ -101,16 +100,12 @@ export async function POST(req: NextRequest) {
       rawState.debug_mode = nextDebug;
     });
 
-    try {
-      await fetch(`${CORE_GATEWAY_URL}/api/v1/debug`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "set_debug", enabled: nextDebug }),
-        signal: AbortSignal.timeout(2000),
-      });
-    } catch {
-      // Gateway may not be running in standalone UI-only mode
-    }
+    await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/debug`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_debug", enabled: nextDebug }),
+      timeoutMs: 2000,
+    });
 
     return NextResponse.json({
       success: true,
@@ -119,16 +114,12 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "clear_gateway_events") {
-    try {
-      await fetch(`${CORE_GATEWAY_URL}/api/v1/debug`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "clear_events" }),
-        signal: AbortSignal.timeout(2000),
-      });
-    } catch {
-      // ignore
-    }
+    await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/debug`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "clear_events" }),
+      timeoutMs: 2000,
+    });
     return NextResponse.json({ success: true });
   }
 
@@ -212,16 +203,13 @@ export async function POST(req: NextRequest) {
     }
 
     const t4 = Date.now();
-    try {
-      const gwRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/debug`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "ping_nodes" }),
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!gwRes.ok) {
-        throw new Error(`HTTP ${gwRes.status}`);
-      }
+    const gwRes = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/debug`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "ping_nodes" }),
+      timeoutMs: 6000,
+    });
+    if (gwRes.ok) {
       const gwData = await gwRes.json();
       const pingResults = Array.isArray(gwData.ping_results)
         ? gwData.ping_results
@@ -257,14 +245,14 @@ export async function POST(req: NextRequest) {
           });
         }
       }
-    } catch (err) {
+    } else {
       checks.push({
         id: "core_gateway",
         name: "Core Gateway HTTP & mTLS PKI Authority",
         status: "WARN",
         latency_ms: Date.now() - t4,
         detail: `Core Gateway (${CORE_GATEWAY_URL}) not reachable (${
-          err instanceof Error ? err.message : String(err)
+          gwRes.error || `HTTP ${gwRes.status}`
         }). Start core-gateway or Docker stack to test mTLS tunnels.`,
       });
     }

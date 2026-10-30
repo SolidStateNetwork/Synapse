@@ -2,6 +2,30 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v0.7.0] — 2026-10-30 (Live Code Hot-Reload, SQLite Data Studio, Cron Runbooks, Multi-Core Mesh & Production Hardening)
+
+### Added & Improved
+- **Live Code Hot-Reload Studio, SQLite Data Studio & Scheduled Cron-Runbooks (`apps/core-web/src/lib/v070-studio.ts`)**:
+  - Real-time microservice code inspection and syntax-validated hot-reload (`python3 -m py_compile` with automatic `.synapse.bak` rollback on syntax errors).
+  - Embedded **SQLite Data Studio** for inspecting tables, schemas, row counts, and inserting/querying rows directly over the mTLS reverse tunnel.
+  - **Cron-Runbook Manager** with one-click live execution, exit-code capture, and execution duration telemetry.
+- **Autonomous Self-Healing Engine, Time-Machine Checkpoints & 1-Click Custom Service Builder**:
+  - Automated crash recovery runbooks (`self-healing.ts`) with forensic log snapshots, MTTR tracking, and 24/7 Watchdog notifications (Telegram, Discord, Webhook).
+  - **Time-Machine Server Checkpoints** (`checkpoints.ts`) and AES-256-GCM encrypted **Offsite Backups** (`backups/route.ts`).
+  - **1-Click Custom Service Builder** (`serviceMeshAndBuilder.ts`) for deploying Python HTTP APIs, Static WebUIs, and SQLite REST microservices directly from the Control Center Canvas.
+- **Multi-Core High-Availability Mesh & Deterministic Service Lifecycle (`agents/axon` & `apps/core-gateway`)**:
+  - Multi-Core target deduplication and shared health collector across Primary and Standby Core Gateways.
+  - Persistent `dismissed_services` tracking so removed services or auto-discovered ports (`auto-svc-*`) are never inadvertently re-imported.
+- **Zero-Trust RBAC, 2FA PIN & Model Context Protocol (MCP) Server (`/api/mcp`)**:
+  - Role-based access control (`Admin` vs `Operator`) with optional 6-digit 2FA PIN protection (`auth.ts`).
+  - Streamable HTTP JSON-RPC 2.0 MCP Server (`/api/mcp`) with SHA-256 hashed API keys and granular `read` / `execute` / `admin` scopes.
+- **Production Hardening, `.bak` Self-Healing Stores & Cross-Platform Installer**:
+  - Atomic JSON persistence with automatic `.bak` self-healing (`atomicWriteJsonSync` / `safeReadJsonWithBackupSync`) across all project stores (`State.json`, `Alerts.json`, `Auth.json`, `Checkpoints.json`, `SelfHealing.json`, `ServiceLinks.json`, `CronJobs.json`).
+  - Timeout- and abort-guarded `safeFetchJson` across all frontend hooks, views, Next.js API routes, and backend libraries.
+  - Hardened `/install.sh` and `scripts/install-axon.sh` with automatic `curl`/`wget` fallback, SHA-256 binary integrity verification, `systemd`, `OpenRC` (Alpine Linux), and rootless daemon support.
+
+---
+
 ## [v0.3.0] — 2026-10-28 (GPU-Accelerated Control Center, Unified Service Workbench & Full Bilingual UI)
 
 ### Added & Improved

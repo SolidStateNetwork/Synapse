@@ -3,9 +3,13 @@ import fs from "fs";
 import path from "path";
 import { CORE_GATEWAY_URL, fetchGatewayNodes } from "@/lib/orchestrator";
 import { appendAuditLog } from "@/lib/vault";
-import { resolveActiveProjectId } from "@/lib/runtimeResolver";
 import {
-  UpdateStepLog,
+  resolveActiveProjectId,
+  safeParseRequestJson,
+} from "@/lib/runtimeResolver";
+import { safeFetchJson } from "@/lib/safeFetch";
+import {
+  type UpdateStepLog,
   resolveRepoRoot,
   getFileSummary,
   runCmd,
@@ -183,15 +187,11 @@ async function performCoreUpdate(repoRoot: string): Promise<UpdateStepLog[]> {
     });
   } else {
     const gwMeta = getFileSummary(gwPrimaryOut);
-    let gwHealthOk = false;
-    try {
-      const hRes = await fetch(`${CORE_GATEWAY_URL}/healthz`, {
-        cache: "no-store",
-      });
-      gwHealthOk = hRes.ok;
-    } catch {
-      gwHealthOk = false;
-    }
+    const hRes = await safeFetchJson(`${CORE_GATEWAY_URL}/healthz`, {
+      cache: "no-store",
+      timeoutMs: 4000,
+    });
+    const gwHealthOk = hRes.ok;
     steps.push({
       step: "3. Core Gateway Binary & Hub Health",
       status: gwMeta.exists && gwHealthOk ? "ok" : "warn",
@@ -284,7 +284,7 @@ async function performMuscleOTAUpdate(
     const tBuild = Date.now();
 
     try {
-      await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+      await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -297,9 +297,10 @@ async function performMuscleOTAUpdate(
           content: `#!/usr/bin/env bash\n${buildAndInstallScript}\n`,
           file_mode: "0755",
         }),
+        timeoutMs: 8000,
       });
 
-      const ptyRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
+      const ptyRes = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -311,6 +312,7 @@ async function performMuscleOTAUpdate(
           command: `bash .synapse_ota_update.sh`,
           wait_timeout_ms: 60000,
         }),
+        timeoutMs: 65000,
       });
       const ptyData = (await ptyRes.json()) as {
         exit_code?: number;
@@ -364,7 +366,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
+  const body = await safeParseRequestJson(req);
   const action = String(body.action || "check");
   const projectId = resolveActiveProjectId(body.project_id ? String(body.project_id) : undefined);
   const targetNodeId = body.node_id ? String(body.node_id) : undefined;

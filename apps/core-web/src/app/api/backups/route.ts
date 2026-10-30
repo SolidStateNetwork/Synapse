@@ -17,6 +17,7 @@ import {
   resolveTargetNodeId,
   safeParseRequestJson,
 } from "@/lib/runtimeResolver";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
@@ -76,20 +77,20 @@ export async function POST(req: NextRequest) {
 
     if (action === "create") {
       let rawB64 = "EMPTY_DB";
-      try {
-        const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            node_id: nodeId,
-            cmd_id: `offsite-bkp-${Date.now()}`,
-            project_id: projectId,
-            session_id: `offsite-bkp-${Date.now()}`,
-            command: `DB_PATH=${JSON.stringify(dbPath)}; if [ ! -f "$DB_PATH" ]; then DB_PATH=$(find /opt/axon/workspaces /var/lib/synapse -maxdepth 3 -name "*.db" 2>/dev/null | head -n1); fi; if [ -n "$DB_PATH" ] && [ -f "$DB_PATH" ]; then printf "B64_%s\\n" "START"; gzip -c "$DB_PATH" | base64 -w 0; printf "\\nB64_%s\\n" "END"; else printf "EMPTY_%s\\n" "DB"; fi`,
-            wait_timeout_ms: 8000,
-          }),
-          signal: AbortSignal.timeout(9500),
-        });
+      const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: nodeId,
+          cmd_id: `offsite-bkp-${Date.now()}`,
+          project_id: projectId,
+          session_id: `offsite-bkp-${Date.now()}`,
+          command: `DB_PATH=${JSON.stringify(dbPath)}; if [ ! -f "$DB_PATH" ]; then DB_PATH=$(find /opt/axon/workspaces /var/lib/synapse -maxdepth 3 -name "*.db" 2>/dev/null | head -n1); fi; if [ -n "$DB_PATH" ] && [ -f "$DB_PATH" ]; then printf "B64_%s\\n" "START"; gzip -c "$DB_PATH" | base64 -w 0; printf "\\nB64_%s\\n" "END"; else printf "EMPTY_%s\\n" "DB"; fi`,
+          wait_timeout_ms: 8000,
+        }),
+        timeoutMs: 9500,
+      });
+      if (ptyRes.ok) {
         const ptyJson = await ptyRes.json();
         const rawOut = String(ptyJson.output || "");
         const sIdx = rawOut.lastIndexOf("B64_START");
@@ -99,8 +100,6 @@ export async function POST(req: NextRequest) {
             .slice(sIdx + "B64_START".length, eIdx)
             .replace(/[^A-Za-z0-9+/=]/g, "");
         }
-      } catch {
-        // Fallback when node is unreachable
       }
 
       const backupId = `bkp-${Date.now()}-${Math.random()
@@ -184,28 +183,28 @@ export async function POST(req: NextRequest) {
 
       let restoreOutput = "RESTORE_SKIPPED";
       if (dbB64 && dbB64 !== "EMPTY_DB") {
-        try {
-          const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              node_id: target.node_id,
-              cmd_id: `offsite-restore-${Date.now()}`,
-              project_id: projectId,
-              session_id: `offsite-restore-${Date.now()}`,
-              command: `TARGET_DB=${JSON.stringify(targetDbPath)}; mkdir -p "$(dirname "$TARGET_DB")" && echo '${dbB64.replace(
-                /[^A-Za-z0-9+/=]/g,
-                ""
-              )}' | base64 -d | gunzip -c > "$TARGET_DB.restored" && mv -f "$TARGET_DB.restored" "$TARGET_DB" && echo OFFSITE_RESTORED_OK`,
-              wait_timeout_ms: 8000,
-            }),
-            signal: AbortSignal.timeout(9500),
-          });
+        const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            node_id: target.node_id,
+            cmd_id: `offsite-restore-${Date.now()}`,
+            project_id: projectId,
+            session_id: `offsite-restore-${Date.now()}`,
+            command: `TARGET_DB=${JSON.stringify(targetDbPath)}; mkdir -p "$(dirname "$TARGET_DB")" && echo '${dbB64.replace(
+              /[^A-Za-z0-9+/=]/g,
+              ""
+            )}' | base64 -d | gunzip -c > "$TARGET_DB.restored" && mv -f "$TARGET_DB.restored" "$TARGET_DB" && echo OFFSITE_RESTORED_OK`,
+            wait_timeout_ms: 8000,
+          }),
+          timeoutMs: 9500,
+        });
+        if (ptyRes.ok) {
           const ptyJson = await ptyRes.json();
           restoreOutput = String(
             ptyJson.output || "OFFSITE_RESTORED_OK"
           ).trim();
-        } catch {
+        } else {
           restoreOutput = "OFFSITE_RESTORED_LOCAL";
         }
       }

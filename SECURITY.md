@@ -1,17 +1,26 @@
 # Security Policy
 
+## Supported Versions
+
+| Version | Supported          |
+| ------- | ------------------ |
+| 0.7.x   | :white_check_mark: |
+| < 0.7.0 | :x:                |
+
 ## Security Architecture Overview
 
-Synapse enforces a defense-in-depth security model that **never relies solely on LLM system prompts**:
+Synapse (`v0.7.0`) enforces a defense-in-depth security model that **never relies solely on LLM system prompts**:
 
 1. **Mutual TLS 1.3 (mTLS) + One-Time CSR Enrollment**:
    - Every `axon` Muscle Node generates an ECDSA P-256 keypair locally and exchanges a short-lived (15-minute) single-use token for a client certificate signed by the Core Gateway Root CA.
    - All `hashicorp/yamux` streams require strict `tls.RequireAndVerifyClientCert`.
+   - Binary downloads via `/install.sh` and `scripts/install-axon.sh` verify SHA-256 checksums prior to execution.
 2. **Deterministic Self-Lockout Guardrails (`agents/axon/internal/guard`)**:
    - `axon` inspects every shell command prior to execution and blocks any command that would terminate its own PID, stop/mask `axon.service`, or drop firewall traffic (`ufw`, `iptables`, `nftables`) to the Core Gateway (`ERR_SELF_PROTECTION_VIOLATION`).
-3. **Zero-Leak Secret Vault (`Secrets.enc`)**:
+3. **Zero-Leak Secret Vault (`Secrets.enc`) & RBAC / MCP Key Hashing**:
    - Project secrets are stored encrypted on disk using **AES-256-GCM** (PBKDF2-SHA256 derived master key).
    - The LLM only sees secret key names (`inject_secret_keys`). Secret values are injected directly into the remote PTY environment and scrubbed from `stdout`/`stderr` streams (`[REDACTED_SECRET:KEY]`) before returning to the Control Plane.
+   - Admin/Operator RBAC passwords and 2FA PINs (`auth.ts`) as well as Model Context Protocol (`MCP`) API keys (`syn_mcp_...`) are hashed and never stored in plaintext.
 4. **Enforced Autonomy Tiers**:
    - `TIER_1_UNLEASHED`: Full system administration autonomy.
    - `TIER_2_WORKSPACE_JAIL`: Strict canonical path containment (`filepath.Clean` + `filepath.EvalSymlinks`) inside `/opt/axon/workspaces/<project_id>`.

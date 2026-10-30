@@ -5,6 +5,7 @@ import path from "path";
 import crypto from "crypto";
 import { CORE_GATEWAY_URL, fetchGatewayNodes } from "@/lib/orchestrator";
 import { resolveActiveProjectId } from "@/lib/runtimeResolver";
+import { safeFetchJson } from "./safeFetch";
 
 const execAsync = promisify(exec);
 
@@ -208,7 +209,7 @@ export async function gatherSystemStatus(fetchRemoteGit = false, inspectNodes = 
 
     if (inspectNodes && n.online) {
       try {
-        const ptyRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
+        const ptyRes = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -221,6 +222,7 @@ export async function gatherSystemStatus(fetchRemoteGit = false, inspectNodes = 
               "echo \"SHA=$(sha256sum /usr/local/bin/axon 2>/dev/null | cut -c1-16)\"; echo \"MTIME=$(stat -c '%y' /usr/local/bin/axon 2>/dev/null | cut -d. -f1)\"; echo \"SVC=$(systemctl is-active axon 2>/dev/null || true)\"; echo \"SRC=$(git -C /opt/synapse-src rev-parse --short HEAD 2>/dev/null || echo release)\"; echo \"AXON_SRC=$(git -C /opt/synapse-src rev-parse --short=12 HEAD:agents/axon 2>/dev/null || echo '')\"",
             wait_timeout_ms: 8000,
           }),
+          timeoutMs: 9500,
         });
         if (ptyRes.ok) {
           const ptyData = (await ptyRes.json()) as { output?: string };

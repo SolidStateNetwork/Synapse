@@ -10,6 +10,7 @@ import {
   writeBrainDoc,
 } from "@/lib/vault";
 import { resolveActiveProjectId, resolveTargetNodeId } from "@/lib/runtimeResolver";
+import { safeFetchJson } from "./safeFetch";
 
 export * from "./self-healing/serviceMeshAndBuilder";
 
@@ -211,7 +212,7 @@ export async function executeAutonomousSelfHeal(params: {
   ];
 
   try {
-    const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+    const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -222,7 +223,7 @@ export async function executeAutonomousSelfHeal(params: {
         command: runbookCmd,
         wait_timeout_ms: 8000,
       }),
-      signal: AbortSignal.timeout(9500),
+      timeoutMs: 9500,
     });
 
     if (ptyRes.ok) {
@@ -387,7 +388,7 @@ export async function executeLiveServiceProbe(params: {
   if (nodeId) {
     try {
       const probeCmd = `PROBE=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 3 http://127.0.0.1:${port}/ 2>/dev/null || echo "000|0.001"); printf "LIVE_%s|%s\\n" "PROBE" "$PROBE"`;
-      const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+      const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -398,7 +399,7 @@ export async function executeLiveServiceProbe(params: {
           command: probeCmd,
           wait_timeout_ms: 4000,
         }),
-        signal: AbortSignal.timeout(5500),
+        timeoutMs: 5500,
       });
       if (ptyRes.ok) {
         const ptyJson = await ptyRes.json();

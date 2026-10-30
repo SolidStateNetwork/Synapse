@@ -10,6 +10,7 @@ import {
   resolveTargetNodeId,
   safeParseRequestJson,
 } from "@/lib/runtimeResolver";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
@@ -84,66 +85,62 @@ export async function POST(req: NextRequest) {
 
     if (action === "evaluate") {
       const triggered: unknown[] = [];
-      try {
-        const res = await fetch(`${GATEWAY_URL}/api/v1/nodes`, {
-          signal: AbortSignal.timeout(4000),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const nodes = Array.isArray(data.nodes) ? data.nodes : [];
-          for (const n of nodes) {
-            const hb = n.last_heartbeat;
-            if (!hb) continue;
-            if (hb.cpu_percent >= cfg.cpu_threshold) {
-              triggered.push(
-                await dispatchAlertEvent(projectId, {
-                  severity: "WARNING",
-                  title: `High CPU Usage on ${n.node_id} (${hb.cpu_percent.toFixed(1)}%)`,
-                  message: `CPU exceeded threshold of ${cfg.cpu_threshold}%.`,
-                  node_id: n.node_id,
-                })
-              );
-            }
-            if (hb.ram_percent >= cfg.ram_threshold) {
-              triggered.push(
-                await dispatchAlertEvent(projectId, {
-                  severity: "WARNING",
-                  title: `High RAM Usage on ${n.node_id} (${hb.ram_percent.toFixed(1)}%)`,
-                  message: `Memory exceeded threshold of ${cfg.ram_threshold}%.`,
-                  node_id: n.node_id,
-                })
-              );
-            }
-            if (hb.disk_percent >= cfg.disk_threshold) {
-              triggered.push(
-                await dispatchAlertEvent(projectId, {
-                  severity: "CRITICAL",
-                  title: `Disk Space Critical on ${n.node_id} (${hb.disk_percent.toFixed(1)}%)`,
-                  message: `Root disk exceeded threshold of ${cfg.disk_threshold}%.`,
-                  node_id: n.node_id,
-                })
-              );
-            }
-            if (cfg.alert_on_service_down && Array.isArray(hb.services)) {
-              for (const svc of hb.services) {
-                if (!svc.healthy) {
-                  triggered.push(
-                    await dispatchAlertEvent(projectId, {
-                      severity: "CRITICAL",
-                      title: `Service Down: ${svc.name} (:${svc.port})`,
-                      message: `Service ${svc.service_id} on ${n.node_id} failed health check (${svc.last_error || "unhealthy"}).`,
-                      node_id: n.node_id,
-                      service_id: svc.service_id,
-                      auto_healed: cfg.auto_heal_services,
-                    })
-                  );
-                }
+      const res = await safeFetchJson(`${GATEWAY_URL}/api/v1/nodes`, {
+        timeoutMs: 4000,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const nodes = Array.isArray(data.nodes) ? data.nodes : [];
+        for (const n of nodes) {
+          const hb = n.last_heartbeat;
+          if (!hb) continue;
+          if (hb.cpu_percent >= cfg.cpu_threshold) {
+            triggered.push(
+              await dispatchAlertEvent(projectId, {
+                severity: "WARNING",
+                title: `High CPU Usage on ${n.node_id} (${hb.cpu_percent.toFixed(1)}%)`,
+                message: `CPU exceeded threshold of ${cfg.cpu_threshold}%.`,
+                node_id: n.node_id,
+              })
+            );
+          }
+          if (hb.ram_percent >= cfg.ram_threshold) {
+            triggered.push(
+              await dispatchAlertEvent(projectId, {
+                severity: "WARNING",
+                title: `High RAM Usage on ${n.node_id} (${hb.ram_percent.toFixed(1)}%)`,
+                message: `Memory exceeded threshold of ${cfg.ram_threshold}%.`,
+                node_id: n.node_id,
+              })
+            );
+          }
+          if (hb.disk_percent >= cfg.disk_threshold) {
+            triggered.push(
+              await dispatchAlertEvent(projectId, {
+                severity: "CRITICAL",
+                title: `Disk Space Critical on ${n.node_id} (${hb.disk_percent.toFixed(1)}%)`,
+                message: `Root disk exceeded threshold of ${cfg.disk_threshold}%.`,
+                node_id: n.node_id,
+              })
+            );
+          }
+          if (cfg.alert_on_service_down && Array.isArray(hb.services)) {
+            for (const svc of hb.services) {
+              if (!svc.healthy) {
+                triggered.push(
+                  await dispatchAlertEvent(projectId, {
+                    severity: "CRITICAL",
+                    title: `Service Down: ${svc.name} (:${svc.port})`,
+                    message: `Service ${svc.service_id} on ${n.node_id} failed health check (${svc.last_error || "unhealthy"}).`,
+                    node_id: n.node_id,
+                    service_id: svc.service_id,
+                    auto_healed: cfg.auto_heal_services,
+                  })
+                );
               }
             }
           }
         }
-      } catch {
-        // ignore
       }
       return NextResponse.json({
         ok: true,

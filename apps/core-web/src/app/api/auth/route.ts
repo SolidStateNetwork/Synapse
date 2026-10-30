@@ -5,6 +5,7 @@ import {
   saveAuthConfig,
   verifyLogin,
 } from "@/lib/auth";
+import { safeParseRequestJson } from "@/lib/runtimeResolver";
 
 export async function GET(req: NextRequest) {
   const cfg = loadAuthConfig();
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await safeParseRequestJson(req);
     const action = String(body.action || "");
     const cfg = loadAuthConfig();
 

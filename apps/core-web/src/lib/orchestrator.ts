@@ -32,6 +32,7 @@ import {
   executeNodeDeepSearch,
 } from "@/lib/orchestrator/searchEngine";
 import { dispatchCoreBrainTool } from "@/lib/orchestrator/coreTools";
+import { safeFetchJson } from "./safeFetch";
 
 export {
   SYNAPSE_TOOL_SCHEMAS,
@@ -100,17 +101,13 @@ export function invalidateNodeReadCache(projectId: string, nodeId?: string): voi
 }
 
 export async function fetchGatewayNodes(): Promise<GatewayNodeSummary[]> {
-  try {
-    const res = await fetch(`${CORE_GATEWAY_URL}/api/v1/nodes`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(4000),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.nodes || [];
-  } catch {
-    return [];
-  }
+  const res = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/nodes`, {
+    cache: "no-store",
+    timeoutMs: 4000,
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data?.nodes) ? data.nodes : [];
 }
 
 export interface ToolDispatchResult {
@@ -182,10 +179,11 @@ export async function executeRollbackSnapshot(
       };
 
   try {
-    const res = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+    const res = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      timeoutMs: 12000,
     });
     const data = (await res.json()) as FsResponse;
     appendAuditLog(projectId, {
@@ -318,11 +316,19 @@ export async function interceptAndExecuteTool(
     };
 
     try {
-      const res = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
+      const res = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        timeoutMs: payload.wait_timeout_ms + 5000,
       });
+      if (!res.ok) {
+        return {
+          tool_name: toolName,
+          status: "error",
+          output: { error: `Failed to reach Core Gateway PTY RPC: ${res.error || `HTTP ${res.status}`}` },
+        };
+      }
       const data = (await res.json()) as PtyExecResponse;
       appendAuditLog(projectId, {
         timestamp: new Date().toISOString(),
@@ -419,7 +425,7 @@ export async function interceptAndExecuteTool(
       operation === "delete"
     ) {
       try {
-        const preReadRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+        const preReadRes = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -430,6 +436,7 @@ export async function interceptAndExecuteTool(
             operation: "read_file",
             path: targetPath,
           }),
+          timeoutMs: 8000,
         });
         const preReadData = (await preReadRes.json()) as FsResponse;
         const snapId = `snap-${crypto.randomBytes(4).toString("hex")}`;
@@ -469,11 +476,19 @@ export async function interceptAndExecuteTool(
     };
 
     try {
-      const res = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+      const res = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        timeoutMs: 12000,
       });
+      if (!res.ok) {
+        return {
+          tool_name: toolName,
+          status: "error",
+          output: { error: `Failed to reach Core Gateway FS RPC: ${res.error || `HTTP ${res.status}`}` },
+        };
+      }
       const data = (await res.json()) as FsResponse;
 
       if (isReadOnlyOp && data.success) {

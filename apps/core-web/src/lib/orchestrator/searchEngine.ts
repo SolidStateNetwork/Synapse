@@ -8,6 +8,7 @@ import {
   type ProjectState,
 } from "@/lib/vault";
 import { listCartridges } from "@/lib/cartridges";
+import { safeFetchJson } from "../safeFetch";
 import type { ToolDispatchResult } from "@/lib/orchestrator";
 
 export function executeCoreVaultSearch(
@@ -345,7 +346,7 @@ elif MODE == "security_forensics":
 
   const cmdId = `search-${crypto.randomBytes(4).toString("hex")}`;
   try {
-    await fetch(`${coreGatewayUrl}/api/v1/rpc/fs`, {
+    await safeFetchJson(`${coreGatewayUrl}/api/v1/rpc/fs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -358,6 +359,7 @@ elif MODE == "security_forensics":
         content: pyScript,
         file_mode: "0755",
       }),
+      timeoutMs: 8000,
     });
 
     const payload = {
@@ -372,11 +374,19 @@ elif MODE == "security_forensics":
       send_signal: "NONE",
     };
 
-    const res = await fetch(`${coreGatewayUrl}/api/v1/rpc/pty`, {
+    const res = await safeFetchJson(`${coreGatewayUrl}/api/v1/rpc/pty`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      timeoutMs: 35000,
     });
+    if (!res.ok) {
+      return {
+        tool_name: toolName,
+        status: "error",
+        output: { error: `Deep Search PTY RPC failed: ${res.error || `HTTP ${res.status}`}` },
+      };
+    }
     const data = (await res.json()) as PtyExecResponse;
     appendAuditLog(projectId, {
       timestamp: new Date().toISOString(),
