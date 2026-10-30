@@ -495,8 +495,8 @@ const AccessRulesView = React.memo(function AccessRulesView({
             value={newCronName}
             onChange={(e) => setNewCronName(e.target.value)}
             placeholder={t(
-              "Job-Name (z.B. SSL & Port Check)",
-              "Job Name (e.g. SSL & Port Check)"
+              "Job-Name (z.B. SSL-Check)",
+              "Job Name (e.g. SSL Check)"
             )}
             className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 text-white"
           />
@@ -514,14 +514,14 @@ const AccessRulesView = React.memo(function AccessRulesView({
             value={newCronCmd}
             onChange={(e) => setNewCronCmd(e.target.value)}
             placeholder={t(
-              "Shell-Befehl (z.B. df -h / && uptime)",
-              "Shell command (e.g. df -h / && uptime)"
+              "Befehl (z.B. df -h /)",
+              "Command (e.g. df -h /)"
             )}
             className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 font-mono text-sky-300"
           />
           <button
             type="submit"
-            className="rounded-lg bg-emerald-600 px-3 py-2 font-semibold text-white hover:bg-emerald-500 transition"
+            className="whitespace-nowrap rounded-lg bg-emerald-600 px-3 py-2 font-semibold text-white hover:bg-emerald-500 transition"
           >
             {t("+ Cron-Runbook speichern", "+ Save Cron Runbook")}
           </button>

@@ -193,22 +193,22 @@ export default function ControlCenterModals({
               <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-200">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
                 <span>
-                  Für externe Server bitte{" "}
+                  <span>Für externe Server bitte</span>{" "}
                   <code className="font-mono text-amber-300">{gatewayUrl}</code>{" "}
-                  oben durch die erreichbare IP/Domain deines Core-Hosts ersetzen.
+                  <span>oben durch die erreichbare IP/Domain deines Core-Hosts ersetzen.</span>
                 </span>
               </div>
             )}
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span className="font-medium text-nb-gray-200">
                   Führe diesen einzelnen Befehl auf deinem Linux-Server aus:
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={handleGenerateJoinToken}
-                    className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-300 hover:text-white transition"
+                    className="whitespace-nowrap shrink-0 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-1 text-[11px] text-nb-gray-300 hover:text-white transition"
                   >
                     Neues Token
                   </button>
@@ -219,9 +219,9 @@ export default function ControlCenterModals({
                         setCopiedJoinCmd(true);
                         setTimeout(() => setCopiedJoinCmd(false), 2500);
                       }}
-                      className="flex items-center gap-1 rounded-lg bg-netbird px-3 py-1 text-[11px] font-medium text-white hover:bg-netbird-500 transition"
+                      className="flex items-center gap-1 whitespace-nowrap shrink-0 rounded-lg bg-netbird px-3 py-1 text-[11px] font-medium text-white hover:bg-netbird-500 transition"
                     >
-                      <Copy className="h-3 w-3" />
+                      <Copy className="h-3 w-3 shrink-0" />
                       <span>{copiedJoinCmd ? "✔ Kopiert!" : "Befehl kopieren"}</span>
                     </button>
                   )}
@@ -234,8 +234,8 @@ export default function ControlCenterModals({
 
             {rebindCliCmd && (
               <div className="space-y-2 border-t border-nb-gray-900 pt-3">
-                <div className="flex items-center justify-between text-xs">
-                  <div>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="min-w-0 flex-1">
                     <span className="font-medium text-sky-400">
                       Oder bestehenden Muscle per CLI umschalten (`axon switch`):
                     </span>
@@ -249,9 +249,9 @@ export default function ControlCenterModals({
                       setCopiedRebindCmd(true);
                       setTimeout(() => setCopiedRebindCmd(false), 2500);
                     }}
-                    className="flex items-center gap-1 rounded-lg border border-sky-500/50 bg-sky-950 px-3 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900 transition"
+                    className="flex items-center gap-1 whitespace-nowrap shrink-0 rounded-lg border border-sky-500/50 bg-sky-950 px-3 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900 transition"
                   >
-                    <Copy className="h-3 w-3" />
+                    <Copy className="h-3 w-3 shrink-0" />
                     <span>
                       {copiedRebindCmd ? "✔ CLI kopiert!" : "CLI-Switch kopieren"}
                     </span>

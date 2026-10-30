@@ -299,6 +299,8 @@ export function useCanvasViewportAndLayout({
     return out;
   }, [positions, expandedNodes, sizes, customDims]);
 
+  const fitViewLatestRef = useRef<() => void>(() => {});
+
   const toggleExpandNode = useCallback(
     (nodeKey: string, e?: React.MouseEvent) => {
       if (e) e.stopPropagation();
@@ -307,7 +309,12 @@ export function useCanvasViewportAndLayout({
         [nodeKey]: !prev[nodeKey],
       }));
       setTimeout(measureNodes, 25);
-      setTimeout(measureNodes, 110);
+      setTimeout(() => {
+        measureNodes();
+        if (!hasUserViewportAdjustedRef.current) {
+          setTimeout(() => fitViewLatestRef.current(), 35);
+        }
+      }, 110);
     },
     [measureNodes]
   );
@@ -328,8 +335,8 @@ export function useCanvasViewportAndLayout({
       const activeLayout =
         layoutOverride && Object.keys(layoutOverride).length > 0
           ? layoutOverride
-          : Object.keys(positions).length > 0
-          ? positions
+          : Object.keys(effectivePositions).length > 0
+          ? effectivePositions
           : computeDefaultLayout();
 
       let minX = Infinity;
@@ -360,30 +367,39 @@ export function useCanvasViewportAndLayout({
 
       const contentW = Math.max(400, maxX - minX);
       const contentH = Math.max(240, maxY - minY);
-      const scaleX = (rect.width - 48) / contentW;
-      const scaleY = (rect.height - 64) / contentH;
-      const minScale = layoutOverride ? 0.56 : 0.78;
+      const availW = Math.max(320, rect.width - 48);
+      const availH = Math.max(220, rect.height - 88);
+      const scaleX = availW / contentW;
+      const scaleY = availH / contentH;
+      const minScale = 0.62;
       const nextZoom = Math.min(
         Math.max(Math.min(scaleX, scaleY), minScale),
         1.05
       );
       const roundedZoom = Number(nextZoom.toFixed(2));
 
-      const panX = Math.round(
+      const rawPanX = Math.round(
         (rect.width - contentW * roundedZoom) / 2 - minX * roundedZoom
       );
-      const panY = Math.round(
-        (rect.height - contentH * roundedZoom) / 2 - minY * roundedZoom
+      const rawPanY = Math.round(
+        (availH - contentH * roundedZoom) / 2 + 18 - minY * roundedZoom
       );
 
-      const nextPan = { x: panX, y: Math.max(16, panY) };
+      const minAllowedPanX = Math.round(20 - minX * roundedZoom);
+      const minAllowedPanY = Math.round(18 - minY * roundedZoom);
+      const nextPan = {
+        x: Math.max(minAllowedPanX, rawPanX),
+        y: Math.max(minAllowedPanY, rawPanY),
+      };
       zoomRef.current = roundedZoom;
       panRef.current = nextPan;
       setZoom(roundedZoom);
       setPan(nextPan);
     },
-    [positions, sizes, computeDefaultLayout, serviceLinks.length]
+    [effectivePositions, sizes, computeDefaultLayout, serviceLinks.length]
   );
+
+  fitViewLatestRef.current = () => handleFitView();
 
   const applyZoomAtPoint = useCallback(
     (targetZoomRaw: number, clientX?: number, clientY?: number) => {
@@ -438,8 +454,8 @@ export function useCanvasViewportAndLayout({
     setTimeout(measureNodes, 35);
     setTimeout(() => {
       measureNodes();
-      if (!target && !hasUserViewportAdjustedRef.current) {
-        handleFitView();
+      if (!hasUserViewportAdjustedRef.current) {
+        setTimeout(() => fitViewLatestRef.current(), 40);
       }
     }, 150);
   }, [allExpanded, gatewayNodes, allServices, measureNodes, handleFitView]);

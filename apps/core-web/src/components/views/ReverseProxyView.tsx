@@ -183,7 +183,7 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
           className="inline-flex items-center gap-1.5 rounded-lg bg-netbird px-3 py-1.5 text-xs font-semibold text-white hover:bg-netbird-500 transition"
         >
           <Plus className="h-3.5 w-3.5" />
-          <span>{t("+ Neuer Service", "+ New Service")}</span>
+          <span>{t("Neuer Service", "New Service")}</span>
         </button>
       </div>
 
@@ -382,8 +382,8 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
 
       {activeSvc && (
         <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 shadow-lg">
-          <div className="flex items-center justify-between gap-3 border-b border-nb-gray-800/80 bg-nb-gray-930/70 px-5 py-3">
-            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-nb-gray-800/80 bg-nb-gray-930/70 px-5 py-3">
+            <div className="flex flex-wrap min-w-0 flex-1 items-center gap-2">
               <span className="shrink-0 text-sm font-semibold text-white">
                 {activeSvc.name
                   .replace(new RegExp(`\\s*:${activeSvc.port}\\b`), "")
@@ -401,7 +401,7 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
                 className="group flex min-w-0 items-center gap-2 rounded-lg border border-nb-gray-800/90 bg-nb-gray-950/90 px-2.5 py-1 font-mono text-[11px] text-nb-gray-300 transition hover:border-netbird/50 hover:text-white"
               >
                 <Globe className="h-3.5 w-3.5 shrink-0 text-netbird" />
-                <span className="truncate max-w-[420px] xl:max-w-[540px]">
+                <span className="truncate max-w-[460px] xl:max-w-[580px]">
                   {activeExtUrl}
                 </span>
                 <span className="flex shrink-0 items-center gap-1 rounded bg-netbird/15 px-1.5 py-0.5 font-sans text-[10px] font-medium text-netbird group-hover:bg-netbird group-hover:text-white transition-colors">
@@ -714,30 +714,30 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-12">
                 <input
                   type="text"
                   value={dbNewEventVal}
                   onChange={(e) => setDbNewEventVal(e.target.value)}
                   placeholder={t(
-                    "Neuer Event-Name (z.B. deploy_verified)",
-                    "New event name (e.g. deploy_verified)"
+                    "Event-Name (z.B. deploy_ok)",
+                    "Event name (e.g. deploy_ok)"
                   )}
-                  className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-1.5 font-mono text-xs text-white"
+                  className="sm:col-span-4 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-1.5 font-mono text-xs text-white"
                 />
                 <input
                   type="text"
                   value={dbNewSourceVal}
                   onChange={(e) => setDbNewSourceVal(e.target.value)}
                   placeholder="Source"
-                  className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-1.5 font-mono text-xs text-nb-gray-300"
+                  className="sm:col-span-2 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-1.5 font-mono text-xs text-nb-gray-300"
                 />
                 <input
                   type="text"
                   value={dbCustomSql}
                   onChange={(e) => setDbCustomSql(e.target.value)}
-                  placeholder="Optional: SELECT * FROM events LIMIT 20;"
-                  className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-1.5 font-mono text-xs text-sky-300"
+                  placeholder="SQL-Abfrage (optional)"
+                  className="sm:col-span-3 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-1.5 font-mono text-xs text-sky-300"
                 />
                 <button
                   type="button"
@@ -781,7 +781,7 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
                       setDbBusy(false);
                     }
                   }}
-                  className="rounded-lg bg-netbird px-3 py-1.5 font-semibold text-white hover:bg-netbird-500 disabled:opacity-50"
+                  className="sm:col-span-3 whitespace-nowrap rounded-lg bg-netbird px-3 py-1.5 font-semibold text-white hover:bg-netbird-500 disabled:opacity-50"
                 >
                   {dbBusy
                     ? t("Lädt...", "Loading...")

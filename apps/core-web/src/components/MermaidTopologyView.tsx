@@ -104,7 +104,7 @@ export default function MermaidTopologyView({
                   <div className="font-mono text-[10px] uppercase tracking-wider text-netbird">
                     {edge.fromId}
                   </div>
-                  <div className="truncate text-xs font-medium text-white">
+                  <div className="break-words leading-snug text-xs font-medium text-white">
                     {edge.fromLabel}
                   </div>
                 </div>
@@ -144,7 +144,7 @@ export default function MermaidTopologyView({
                   >
                     {edge.toId}
                   </div>
-                  <div className="truncate text-xs font-medium text-white">
+                  <div className="break-words leading-snug text-xs font-medium text-white">
                     {edge.toLabel}
                   </div>
                 </div>

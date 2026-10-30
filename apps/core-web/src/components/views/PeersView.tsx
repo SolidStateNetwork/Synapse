@@ -444,12 +444,12 @@ const PeersView = React.memo(function PeersView({
                                             s.port
                                           )
                                         }
-                                        className="flex w-full items-center justify-between rounded border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 text-left font-mono text-[11px] text-nb-gray-200 hover:border-netbird hover:text-white"
+                                        className="flex w-full items-center justify-between gap-2 rounded border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 text-left font-mono text-[11px] text-nb-gray-200 hover:border-netbird hover:text-white"
                                       >
-                                        <span className="truncate">
-                                          {s.name}
+                                        <span className="truncate min-w-0">
+                                          {s.name.replace(new RegExp(`\\s*:${s.port}\\b`), "").trim()}
                                         </span>
-                                        <span className="text-netbird">
+                                        <span className="text-netbird shrink-0 whitespace-nowrap">
                                           :{s.port} →
                                         </span>
                                       </button>
@@ -580,21 +580,21 @@ const PeersView = React.memo(function PeersView({
               onChange={(e) =>
                 setMeshTargetPort(Number(e.target.value) || 5432)
               }
-              placeholder="Port (5432)"
-              className="sm:col-span-2 rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
+              placeholder="Port"
+              className="sm:col-span-2 rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-netbird"
             />
             <input
               type="text"
               value={meshAliasEnv}
               onChange={(e) => setMeshAliasEnv(e.target.value)}
               placeholder="ENV-Alias (PEER_DB_URL)"
-              className="sm:col-span-2 rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-nb-gray-200"
+              className="sm:col-span-2 rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-nb-gray-200"
             />
             <button
               type="submit"
-              className="sm:col-span-2 rounded bg-netbird px-3 py-2 text-xs font-medium text-white hover:bg-netbird-500"
+              className="sm:col-span-2 whitespace-nowrap rounded bg-netbird px-2.5 py-2 text-xs font-medium text-white hover:bg-netbird-500"
             >
-              + Mesh-Link anlegen
+              + Mesh-Link
             </button>
           </form>
           <div className="space-y-2">

@@ -105,8 +105,8 @@ const AuditLogView = React.memo(function AuditLogView({
             <div>
               <h3 className="text-xs font-semibold text-white">
                 {t(
-                  "Self-Healing & Incident Center (v0.6.0)",
-                  "Self-Healing & Incident Center (v0.6.0)"
+                  "Self-Healing & Incident Center (v0.7.0)",
+                  "Self-Healing & Incident Center (v0.7.0)"
                 )}
               </h3>
               <p className="text-[11px] text-nb-gray-400">
@@ -137,7 +137,7 @@ const AuditLogView = React.memo(function AuditLogView({
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate font-semibold text-white">
-                      ⚡ {ev.service_name} (:{ev.port})
+                      ⚡ {ev.service_name.replace(new RegExp(`\\s*:${ev.port}\\b`), "")} (:{ev.port})
                     </div>
                     <div className="font-mono text-[10px] text-nb-gray-400">
                       {ev.node_id} · {ev.trigger} ·{" "}
@@ -181,7 +181,7 @@ const AuditLogView = React.memo(function AuditLogView({
             type="text"
             value={activitySearch}
             onChange={(e) => setActivitySearch(e.target.value)}
-            placeholder="Audit-Events nach Tool, Server oder Zusammenfassung durchsuchen (Klick auf Zeile erweitert Details)..."
+            placeholder="Audit-Events nach Tool, Server oder Text durchsuchen..."
             className="flex-1 bg-transparent text-xs text-white placeholder:text-nb-gray-400 focus:outline-none"
           />
         </div>

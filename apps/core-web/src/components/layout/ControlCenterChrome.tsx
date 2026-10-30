@@ -146,12 +146,12 @@ export function ControlCenterSidebar({
 
         {/* Project Selector Pill */}
         {!sidebarCollapsed && (
-          <div className="flex items-center gap-1.5 px-1">
-            <div className="relative flex-1">
+          <div className="flex items-center gap-1.5 px-0.5">
+            <div className="relative flex-1 min-w-0">
               <select
                 value={activeProject?.project_id || ""}
                 onChange={(e) => loadWorkspace(e.target.value, true)}
-                className="w-full appearance-none rounded-md border border-nb-gray-800/80 bg-nb-gray-930 pl-3 pr-7 py-1.5 text-xs font-medium text-nb-gray-100 hover:border-nb-gray-700 focus:border-netbird focus:outline-none"
+                className="w-full appearance-none rounded-md border border-nb-gray-800/80 bg-nb-gray-930 pl-2.5 pr-6 py-1.5 text-xs font-medium text-nb-gray-100 hover:border-nb-gray-700 focus:border-netbird focus:outline-none"
               >
                 {projects.map((p) => (
                   <option

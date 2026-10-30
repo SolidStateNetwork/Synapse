@@ -655,7 +655,7 @@ export default function CommandPaletteModal({
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1">
               <Command className="h-3 w-3 text-netbird" />
-              <span>Synapse Command Palette (v0.6.0)</span>
+              <span>Synapse Command Palette (v0.7.0)</span>
             </span>
           </div>
           <div className="flex items-center gap-3 font-mono text-[10px]">

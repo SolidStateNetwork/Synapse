@@ -235,12 +235,12 @@ export function SecretsVaultTab({
           type="password"
           value={newSecretVal}
           onChange={(e) => setNewSecretVal(e.target.value)}
-          placeholder="Geheimer Klartext-Wert (nur schreiben)..."
+          placeholder="Geheimer Klartext-Wert..."
           className="flex-1 min-w-[240px] rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 font-mono text-xs text-white"
         />
         <button
           type="submit"
-          className="rounded-lg bg-netbird px-4 py-2 text-xs font-semibold text-white hover:bg-netbird-500 transition shadow-sm"
+          className="whitespace-nowrap shrink-0 rounded-lg bg-netbird px-4 py-2 text-xs font-semibold text-white hover:bg-netbird-500 transition shadow-sm"
         >
           Verschlüsseln &amp; Speichern
         </button>

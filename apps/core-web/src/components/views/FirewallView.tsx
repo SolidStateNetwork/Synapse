@@ -381,11 +381,11 @@ const FirewallView = React.memo(function FirewallView({
           <table className="w-full text-left text-xs">
             <thead className="border-b border-nb-gray-850 bg-nb-gray-930/70 text-[11px] font-medium uppercase text-nb-gray-400">
               <tr>
-                <th className="py-2.5 px-3">Port</th>
-                <th className="py-2.5 px-3">Dienst / Programm</th>
-                <th className="py-2.5 px-3">Bind-Adresse</th>
-                <th className="py-2.5 px-3">Sichtbarkeit im Internet</th>
-                <th className="py-2.5 px-3 text-right">1-Klick Schutz</th>
+                <th className="py-2.5 px-2.5">Port</th>
+                <th className="py-2.5 px-2.5">Dienst / Programm</th>
+                <th className="py-2.5 px-2.5">Bind-Adresse</th>
+                <th className="py-2.5 px-2.5">Sichtbarkeit</th>
+                <th className="py-2.5 px-2.5 text-right">1-Klick Schutz</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-nb-gray-900">
@@ -398,51 +398,51 @@ const FirewallView = React.memo(function FirewallView({
                     key={`${item.protocol}:${item.port}`}
                     className="hover:bg-nb-gray-930/40 transition-colors"
                   >
-                    <td className="py-3 px-3 font-mono font-bold text-white whitespace-nowrap">
+                    <td className="py-2.5 px-2.5 font-mono font-bold text-white whitespace-nowrap">
                       :{item.port}{" "}
                       <span className="text-[10px] font-normal uppercase text-nb-gray-400">
                         {item.protocol}
                       </span>
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-2.5 px-2.5 min-w-[140px]">
                       <div className="font-medium text-white">
-                        {item.service_name || item.process}
+                        {(item.service_name || item.process).replace(new RegExp(`\\s*:${item.port}\\b`), "").trim()}
                       </div>
-                      <div className="font-mono text-[10.5px] text-nb-gray-400">
-                        Prozess: {item.process}
+                      <div className="font-mono text-[10px] text-nb-gray-400 whitespace-nowrap">
+                        {item.process}
                         {item.pid ? ` (PID ${item.pid})` : ""}
                       </div>
                     </td>
-                    <td className="py-3 px-3 font-mono text-nb-gray-300 whitespace-nowrap">
-                      {item.bind_address}:{item.port}
+                    <td className="py-2.5 px-2.5 font-mono text-[11px] text-nb-gray-300 whitespace-nowrap">
+                      {item.bind_address}
                     </td>
-                    <td className="py-3 px-3 whitespace-nowrap">
+                    <td className="py-2.5 px-2.5 whitespace-nowrap">
                       {isSsh ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-950/60 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300">
-                          🛡️ Geschützter System-Port (SSH)
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-950/60 px-2 py-0.5 text-[10.5px] font-medium text-emerald-300">
+                          🛡️ System-Port (SSH)
                         </span>
                       ) : item.exposure === "local" ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300">
-                          🟢 Sicher · Nur lokal (127.0.0.1)
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2 py-0.5 text-[10.5px] font-medium text-emerald-300">
+                          🟢 Nur lokal (127.0.0.1)
                         </span>
                       ) : item.shielded ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-950/60 px-2.5 py-0.5 text-[11px] font-medium text-sky-300">
-                          🛡️ Durch Firewall geschützt (Nur Synapse-Tunnel)
+                        <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-950/60 px-2 py-0.5 text-[10.5px] font-medium text-sky-300">
+                          🛡️ Geschützt (Synapse-Tunnel)
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-950/50 px-2.5 py-0.5 text-[11px] font-medium text-red-300">
-                          🔴 Öffentlich im Internet offen
+                        <span className="inline-flex items-center gap-1 rounded-full border border-red-500/40 bg-red-950/50 px-2 py-0.5 text-[10.5px] font-medium text-red-300">
+                          🔴 Öffentlich offen
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-3 text-right whitespace-nowrap">
+                    <td className="py-2.5 px-2.5 text-right whitespace-nowrap">
                       {isSsh ? (
-                        <span className="font-mono text-[11px] text-nb-gray-500">
-                          Anti-Lockout aktiv
+                        <span className="font-mono text-[10.5px] text-nb-gray-500">
+                          Anti-Lockout
                         </span>
                       ) : item.exposure === "local" ? (
-                        <span className="font-mono text-[11px] text-emerald-400">
-                          Bereits lokal isoliert
+                        <span className="font-mono text-[10.5px] text-emerald-400">
+                          Lokal isoliert
                         </span>
                       ) : item.shielded ? (
                         <button
@@ -455,9 +455,10 @@ const FirewallView = React.memo(function FirewallView({
                               port: item.port,
                             })
                           }
-                          className="rounded-lg border border-nb-gray-700 bg-nb-gray-900 px-3 py-1.5 text-[11px] font-medium text-nb-gray-200 hover:border-amber-500/50 hover:text-amber-300 disabled:opacity-50 transition"
+                          title="Port öffentlich im Internet freigeben"
+                          className="whitespace-nowrap rounded-lg border border-nb-gray-700 bg-nb-gray-900 px-2.5 py-1 text-[10.5px] font-medium text-nb-gray-200 hover:border-amber-500/50 hover:text-amber-300 disabled:opacity-50 transition"
                         >
-                          🔓 Öffentlich freigeben
+                          🔓 Freigeben
                         </button>
                       ) : (
                         <button
@@ -470,9 +471,10 @@ const FirewallView = React.memo(function FirewallView({
                               port: item.port,
                             })
                           }
-                          className="rounded-lg border border-sky-500/50 bg-sky-950/70 px-3 py-1.5 text-[11px] font-semibold text-sky-200 hover:bg-sky-600 hover:text-white disabled:opacity-50 transition"
+                          title="Port nach außen sperren (nur über Synapse-Tunnel erreichbar)"
+                          className="whitespace-nowrap rounded-lg border border-sky-500/50 bg-sky-950/70 px-2.5 py-1 text-[10.5px] font-semibold text-sky-200 hover:bg-sky-600 hover:text-white disabled:opacity-50 transition"
                         >
-                          🔒 Nach außen sperren
+                          🔒 Sperren
                         </button>
                       )}
                     </td>
@@ -531,49 +533,49 @@ const FirewallView = React.memo(function FirewallView({
 
         <form
           onSubmit={handleAddFirewallIpRule}
-          className="grid grid-cols-1 gap-2.5 sm:grid-cols-5 text-xs"
+          className="grid grid-cols-1 gap-2.5 sm:grid-cols-12 text-xs"
         >
           <select
             value={fwRuleAction}
             onChange={(e) =>
               setFwRuleAction(e.target.value as "block" | "allow")
             }
-            className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white"
+            className="sm:col-span-3 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 text-white"
           >
-            <option value="block">🚫 IP blockieren (Sperre)</option>
-            <option value="allow">✅ IP erlauben (Whitelist)</option>
+            <option value="block">🚫 Sperren (Block)</option>
+            <option value="allow">✅ Erlauben (Allow)</option>
           </select>
 
           <input
             type="text"
             value={fwIpInput}
             onChange={(e) => setFwIpInput(e.target.value)}
-            placeholder="IP oder CIDR (z.B. 203.0.113.50)"
-            className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-white placeholder:text-nb-gray-500"
+            placeholder="IP / CIDR"
+            className="sm:col-span-3 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-white placeholder:text-nb-gray-500"
           />
 
           <input
             type="number"
             value={fwRulePort}
             onChange={(e) => setFwRulePort(e.target.value)}
-            placeholder="Port (leer = Alle Ports)"
-            className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-white placeholder:text-nb-gray-500"
+            placeholder="Port (alle)"
+            className="sm:col-span-2 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-white placeholder:text-nb-gray-500"
           />
 
           <input
             type="text"
             value={fwRuleNote}
             onChange={(e) => setFwRuleNote(e.target.value)}
-            placeholder="Notiz (z.B. Büro-VPN)"
-            className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-white placeholder:text-nb-gray-500"
+            placeholder="Notiz"
+            className="sm:col-span-2 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 text-white placeholder:text-nb-gray-500"
           />
 
           <button
             type="submit"
             disabled={firewallBusy || !fwIpInput.trim()}
-            className="rounded-lg bg-netbird px-3.5 py-2 font-medium text-white hover:bg-netbird-500 disabled:opacity-50 transition"
+            className="sm:col-span-2 whitespace-nowrap rounded-lg bg-netbird px-2.5 py-2 font-medium text-white hover:bg-netbird-500 disabled:opacity-50 transition"
           >
-            + IP-Regel speichern
+            + Speichern
           </button>
         </form>
 

@@ -1299,7 +1299,7 @@ const InteractiveControlCenterCanvas = React.memo(
             )}
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>{t("+ Neuer Service", "+ New Service")}</span>
+            <span>{t("Neuer Service", "New Service")}</span>
           </button>
           <button
             type="button"
@@ -1652,7 +1652,7 @@ const InteractiveControlCenterCanvas = React.memo(
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-semibold text-white truncate">
-                        ⚡ {ev.service_name} (:{ev.port})
+                        ⚡ {ev.service_name.replace(new RegExp(`\\s*:${ev.port}\\b`), "")} (:{ev.port})
                       </span>
                       <span className="shrink-0 rounded border border-emerald-500/40 bg-emerald-950 px-1.5 py-0.5 text-[9px] text-emerald-300">
                         MTTR {ev.mttr_ms} ms · HTTP {ev.http_status}

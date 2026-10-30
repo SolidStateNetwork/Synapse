@@ -906,8 +906,8 @@ export const MuscleNodeInspectorPanel = React.memo(
                   className="flex items-center justify-between gap-1.5 rounded border border-nb-gray-800/80 bg-nb-gray-940/70 px-2 py-1 text-[9.5px]"
                 >
                   <div className="min-w-0">
-                    <div className="truncate font-medium text-nb-gray-200">
-                      {translateText(bkp.title)}
+                    <div className="truncate font-medium text-nb-gray-200" title={translateText(bkp.title)}>
+                      {translateText(bkp.title.replace("Offsite Core Backup ", "Backup "))}
                     </div>
                     <div className="font-mono text-[8.5px] text-nb-gray-400">
                       {new Date(bkp.timestamp).toLocaleTimeString([], {

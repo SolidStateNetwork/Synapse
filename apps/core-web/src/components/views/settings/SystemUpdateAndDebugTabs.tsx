@@ -159,18 +159,18 @@ export function SystemUpdateTab({
         {systemUpdateStatus && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 pt-2">
             <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950/90 p-4 space-y-3">
-              <div className="flex items-center justify-between border-b border-nb-gray-900 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <Brain className="h-4 w-4 text-netbird" />
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-900 pb-2.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Brain className="h-4 w-4 text-netbird shrink-0" />
                   <span className="text-xs font-semibold text-white">
-                    Core Plane (WebUI, Orchestrator &amp; Gateway)
+                    Core Plane (WebUI &amp; Gateway)
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowReleaseNotes((prev) => !prev)}
-                    className="inline-flex items-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-930 px-2 py-0.5 font-mono text-[10px] text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
+                    className="inline-flex items-center gap-1 whitespace-nowrap shrink-0 rounded border border-nb-gray-800 bg-nb-gray-930 px-2 py-0.5 font-mono text-[10px] text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
                   >
                     <span>
                       {showReleaseNotes
@@ -178,12 +178,12 @@ export function SystemUpdateTab({
                         : "Release ausklappen"}
                     </span>
                     {showReleaseNotes ? (
-                      <ChevronUp className="h-3 w-3" />
+                      <ChevronUp className="h-3 w-3 shrink-0" />
                     ) : (
-                      <ChevronDown className="h-3 w-3" />
+                      <ChevronDown className="h-3 w-3 shrink-0" />
                     )}
                   </button>
-                  <span className="rounded border border-netbird-500/40 bg-netbird-950/60 px-2 py-0.5 font-mono text-[10px] text-netbird">
+                  <span className="whitespace-nowrap shrink-0 rounded border border-netbird-500/40 bg-netbird-950/60 px-2 py-0.5 font-mono text-[10px] text-netbird">
                     Branch: {systemUpdateStatus.git.branch}
                   </span>
                 </div>
@@ -254,13 +254,13 @@ export function SystemUpdateTab({
               ) : (
                 systemUpdateStatus.nodes.map((node) => (
                   <div key={node.node_id} className="space-y-3">
-                    <div className="flex items-center justify-between border-b border-nb-gray-900 pb-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-900 pb-2.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <Server className="h-4 w-4 text-sky-400 shrink-0" />
-                        <span className="text-xs font-semibold text-white truncate">
+                        <span className="text-xs font-semibold text-white whitespace-nowrap">
                           Muscle Plane ({node.node_id})
                         </span>
-                        <span className="rounded border border-nb-gray-800 bg-nb-gray-930 px-1.5 py-0.2 font-mono text-[9px] text-nb-gray-300">
+                        <span className="whitespace-nowrap shrink-0 rounded border border-nb-gray-800 bg-nb-gray-930 px-1.5 py-0.2 font-mono text-[9px] text-nb-gray-300">
                           {node.systemd_status || "active"}
                         </span>
                       </div>
@@ -268,7 +268,7 @@ export function SystemUpdateTab({
                         <button
                           type="button"
                           onClick={() => setShowReleaseNotes((prev) => !prev)}
-                          className="inline-flex items-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-930 px-2 py-0.5 font-mono text-[10px] text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
+                          className="inline-flex items-center gap-1 whitespace-nowrap shrink-0 rounded border border-nb-gray-800 bg-nb-gray-930 px-2 py-0.5 font-mono text-[10px] text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition"
                         >
                           <span>
                             {showReleaseNotes
@@ -276,9 +276,9 @@ export function SystemUpdateTab({
                               : "Release ausklappen"}
                           </span>
                           {showReleaseNotes ? (
-                            <ChevronUp className="h-3 w-3" />
+                            <ChevronUp className="h-3 w-3 shrink-0" />
                           ) : (
-                            <ChevronDown className="h-3 w-3" />
+                            <ChevronDown className="h-3 w-3 shrink-0" />
                           )}
                         </button>
                         <button
@@ -287,7 +287,7 @@ export function SystemUpdateTab({
                           onClick={() =>
                             handleRunSystemUpdate("update_muscle", node.node_id)
                           }
-                          className="rounded border border-sky-500/40 bg-sky-950/60 px-2 py-0.5 font-mono text-[10px] text-sky-200 hover:bg-sky-900/60 disabled:opacity-40 transition"
+                          className="whitespace-nowrap shrink-0 rounded border border-sky-500/40 bg-sky-950/60 px-2 py-0.5 font-mono text-[10px] text-sky-200 hover:bg-sky-900/60 disabled:opacity-40 transition"
                         >
                           OTA Update
                         </button>
@@ -524,14 +524,14 @@ export function DebugConsoleTab({
             CLI-Debug-Befehle für Core &amp; Muscle (axon debug / --debug)
           </div>
           <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-200 leading-relaxed">
-            {`# 1. Run 5-step Muscle diagnostic doctor (checks X.509 cert, Core HTTP latency, mTLS 1.3 handshake & FS permissions)
+            {`# 1. 5-Stufen Muscle-Diagnose ausführen (prüft X.509-Zertifikat, Core-Latenz, mTLS 1.3 & Dateirechte)
 sudo axon debug
 
-# 2. Persist Debug Mode on the Muscle agent and inspect live systemd journal logs
+# 2. Debug-Modus auf dem Muscle dauerhaft aktivieren und Systemd-Journal live verfolgen
 sudo axon debug --enable && sudo systemctl restart axon
 sudo journalctl -u axon -f
 
-# 3. Start Core Gateway with verbose mTLS / Yamux / RPC debug trace logging
+# 3. Core-Gateway mit detailliertem mTLS- / Yamux- / RPC-Debug-Trace starten
 SYNAPSE_DEBUG=1 ./bin/core-gateway --debug`}
           </pre>
         </div>
