@@ -742,10 +742,7 @@ export function useCanvasViewportAndLayout({
         while (curr && curr !== el) {
           const style = window.getComputedStyle(curr);
           const oy = style.overflowY;
-          if (
-            (oy === "auto" || oy === "scroll") &&
-            curr.scrollHeight > curr.clientHeight + 1
-          ) {
+          if (oy === "auto" || oy === "scroll") {
             return;
           }
           curr = curr.parentElement;

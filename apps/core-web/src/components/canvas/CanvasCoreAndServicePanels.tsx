@@ -551,7 +551,10 @@ export const ServiceNodeInspectorPanel = React.memo(
 
         {/* ROUND-2 FEATURE 2: INLINE LIVE LOGS TAIL CONSOLE */}
         {serviceLogsMap[svc.service_id]?.open && (
-          <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[9px] space-y-1">
+          <div
+            onWheel={(e) => e.stopPropagation()}
+            className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[9px] space-y-1"
+          >
             <div className="flex items-center justify-between text-nb-gray-400">
               <span>{t("Letzte Log-Zeilen", "Recent Log Lines")}</span>
               <span
