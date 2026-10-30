@@ -180,4 +180,58 @@ func TestProbeServiceProtocolsAndCollectorSnapshot(t *testing.T) {
 	if detectOSInfo() == "" || detectPrivateIPv4() == "" {
 		t.Fatalf("expected non-empty OSInfo and PrivateIPv4")
 	}
+
+	// 5. HTTP probe using Port + Path (no explicit Target URL) and connection refused error
+	portRelativeFail := c.probeService(tunnelv1.ServiceHealthTarget{
+		ServiceID: "svc-http-port-only",
+		Name:      "HTTP Port Only",
+		Protocol:  "http",
+		Port:      tcpPort,
+		Path:      "health",
+	})
+	if portRelativeFail.Healthy {
+		t.Fatalf("expected closed port HTTP probe to be unhealthy")
+	}
+
+	// 6. Deterministic discoverLocalTargets test with real listening ports in 3000..9999 & 5400..5999
+	if appLis, err := net.Listen("tcp", "127.0.0.1:4589"); err == nil {
+		defer appLis.Close()
+		discovered := c.discoverLocalTargets(
+			map[uint32]bool{},
+			map[string]bool{},
+			map[uint32]string{4589: "demo-container"},
+			map[uint32]string{4589: "gunicorn"},
+		)
+		found4589 := false
+		for _, d := range discovered {
+			if d.Port == 4589 {
+				found4589 = true
+				break
+			}
+		}
+		if !found4589 {
+			t.Fatalf("expected port 4589 to be discovered by discoverLocalTargets")
+		}
+	}
+
+	if dbLis, err := net.Listen("tcp", "127.0.0.1:5489"); err == nil {
+		defer dbLis.Close()
+		dbCollector := NewCollector("edge-db-node", tunnelv1.Tier2WorkspaceJail)
+		dbDiscovered := dbCollector.discoverLocalTargets(
+			map[uint32]bool{},
+			map[string]bool{},
+			map[uint32]string{},
+			map[uint32]string{5489: "postgres"},
+		)
+		found5489 := false
+		for _, d := range dbDiscovered {
+			if d.Port == 5489 && d.Category == "database" {
+				found5489 = true
+				break
+			}
+		}
+		if !found5489 {
+			t.Fatalf("expected DB port 5489 to be discovered on db-node")
+		}
+	}
 }
