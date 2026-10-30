@@ -10,16 +10,13 @@ permissions:
   contents: read
   packages: write
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   build-and-test-go:
     name: Build & Test Go Modules (Axon Muscle + Core Gateway)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Verify Clean Repo Hygiene & < 600 Line Modularization Gate
         run: |
@@ -36,7 +33,7 @@ jobs:
             echo "$HITS"
             exit 1
           fi
-          OVERSIZE=$(find apps/core-web/src apps/core-gateway agents/axon -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.go" \) -exec awk 'END { if (NR >= 600) print FILENAME ":" NR }' {} +)
+          OVERSIZE=$(find apps/core-web/src apps/core-gateway agents/axon -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.go" \) -exec awk 'FNR == 600 { print FILENAME }' {} +)
           if [ -n "$OVERSIZE" ]; then
             echo "ERROR: Code files exceeding 600 lines detected:"
             echo "$OVERSIZE"
@@ -45,7 +42,7 @@ jobs:
           echo "Clean Repo Hygiene & < 600 Line Modularization Gate passed."
 
       - name: Set up Go 1.23
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: "1.23"
           cache-dependency-path: |
@@ -67,7 +64,7 @@ jobs:
           GOOS=linux GOARCH=amd64 go build -C apps/core-gateway -ldflags="-s -w" -o ../../dist/core-gateway-linux-amd64 .
 
       - name: Upload Axon Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: synapse-binaries
           path: dist/
@@ -77,10 +74,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: "npm"
@@ -100,17 +97,17 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Log in to GitHub Container Registry (GHCR)
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & Push synapse-core-gateway Image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: apps/core-gateway/Dockerfile
@@ -120,7 +117,7 @@ jobs:
             ghcr.io/solidstatenetwork/synapse-core-gateway:${{ github.sha }}
 
       - name: Build & Push synapse-core-web Image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: apps/core-web/Dockerfile
