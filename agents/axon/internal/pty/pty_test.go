@@ -106,6 +106,43 @@ func TestPersistentPtySentinelAndState(t *testing.T) {
 		t.Fatalf("unexpected SIGINT response: %+v", sigResp)
 	}
 
+	for _, sig := range []string{"SIGTERM", "SIGKILL"} {
+		r := mgr.Execute(tunnelv1.PtyExecRequest{
+			SessionID:  "sess-test",
+			ProjectID:  "demo-proj",
+			Tier:       tunnelv1.Tier1Unleashed,
+			SendSignal: sig,
+		})
+		if r.ExitCode != 0 || !strings.Contains(r.Output, sig) {
+			t.Fatalf("unexpected %s response: %+v", sig, r)
+		}
+	}
+
+	// Verify command timeout followed by subsequent command auto-interrupting the running command
+	toResp := mgr.Execute(tunnelv1.PtyExecRequest{
+		SessionID:     "sess-test",
+		ProjectID:     "demo-proj",
+		Tier:          tunnelv1.Tier2WorkspaceJail,
+		Command:       "sleep 2",
+		WaitTimeoutMs: 80,
+	})
+	if !toResp.TimedOut {
+		t.Fatalf("expected sleep 2 with 80ms timeout to time out, got %+v", toResp)
+	}
+
+	recoverResp := mgr.Execute(tunnelv1.PtyExecRequest{
+		SessionID:     "sess-test",
+		ProjectID:     "demo-proj",
+		Tier:          tunnelv1.Tier2WorkspaceJail,
+		Command:       "echo RECOVERED_OK",
+		WaitTimeoutMs: 5000,
+	})
+	if !strings.Contains(recoverResp.Output, "RECOVERED_OK") {
+		t.Fatalf("expected session recovery after timeout, got %+v", recoverResp)
+	}
+
+	_ = sess.Resize(0, 0)
+
 	// 4. Test Tier2WorkspaceJail command blocking & Self-Lockout Guardrail blocking
 	jailBlocked := mgr.Execute(tunnelv1.PtyExecRequest{
 		CmdID:     "cmd-jail",

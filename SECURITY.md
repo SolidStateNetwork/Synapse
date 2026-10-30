@@ -25,6 +25,9 @@ Synapse (`v0.5.0`) enforces a defense-in-depth security model that **never relie
    - `TIER_1_UNLEASHED`: Full system administration autonomy.
    - `TIER_2_WORKSPACE_JAIL`: Strict canonical path containment (`filepath.Clean` + `filepath.EvalSymlinks`) inside `/opt/axon/workspaces/<project_id>`.
    - `TIER_3_SUPERVISED`: Mandatory human-in-the-loop approval gate in the Core Policy Interceptor for all mutating filesystem and shell operations.
+5. **HTTP DoS Protection & Hardened Security Headers**:
+   - All Core Gateway HTTP endpoints enforce a strict 16 MiB request body cap (`http.MaxBytesReader`) and panic recovery middleware.
+   - Both Core Gateway and Next.js Studio enforce `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `X-Frame-Options: SAMEORIGIN`.
 
 ## Reporting a Vulnerability
 

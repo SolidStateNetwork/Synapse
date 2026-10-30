@@ -19,22 +19,28 @@ Synapse/
 
 ### Prerequisites
 - **Go 1.23+**
-- **Node.js 22+** & `npm`
+- **Node.js 22+ / 24 LTS** & `npm`
 
 ### Running Tests & Building
 ```bash
-# 1. Run all Go unit & E2E tests (Guardrails, Sentinel PTY, Atomic FS, mTLS PKI)
-CGO_ENABLED=0 go test -v ./proto/... ./agents/axon/... ./apps/core-gateway/...
+# 1. Run all Go unit & concurrency tests (-race) with >= 70% per-package coverage gate
+go test -v -race -cover ./proto/... ./agents/axon/... ./apps/core-gateway/...
 
 # 2. Build static binaries
 CGO_ENABLED=0 go build -C agents/axon -o ../../bin/axon ./cmd/axon
 CGO_ENABLED=0 go build -C apps/core-gateway -o ../../bin/core-gateway .
 
-# 3. Install, test & build Next.js Studio
+# 3. Install, strict type-check (0 any), test & build Next.js Studio
 npm --prefix apps/core-web ci
+npx --prefix apps/core-web tsc -p apps/core-web/tsconfig.json --noEmit
 npm --prefix apps/core-web test
 npm --prefix apps/core-web run build
 ```
+
+## Code Quality & Modularization Gates
+- **File Size Limits**: Every Go file (`*.go`) must stay under `< 500` lines; every TypeScript/React file (`*.ts`, `*.tsx`) must stay under `< 600` lines.
+- **Strict Typing**: `0` occurrences of explicit `any` in `apps/core-web/src` and clean `tsc --noEmit`.
+- **Coverage Gate**: Every Go package in `./proto/...`, `./agents/axon/...`, and `./apps/core-gateway/...` must maintain `>= 70%` statement coverage with `-race` enabled.
 
 ## Commit Message Convention
 

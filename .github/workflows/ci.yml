@@ -33,13 +33,19 @@ jobs:
             echo "$HITS"
             exit 1
           fi
+          OVERSIZE_GO=$(find proto apps/core-gateway agents/axon -type f -name "*.go" -exec awk 'FNR == 500 { print FILENAME }' {} +)
+          if [ -n "$OVERSIZE_GO" ]; then
+            echo "ERROR: Go files exceeding 500 lines detected:"
+            echo "$OVERSIZE_GO"
+            exit 1
+          fi
           OVERSIZE=$(find apps/core-web/src apps/core-gateway agents/axon -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.go" \) -exec awk 'FNR == 600 { print FILENAME }' {} +)
           if [ -n "$OVERSIZE" ]; then
             echo "ERROR: Code files exceeding 600 lines detected:"
             echo "$OVERSIZE"
             exit 1
           fi
-          echo "Clean Repo Hygiene & < 600 Line Modularization Gate passed."
+          echo "Clean Repo Hygiene & < 500 Go / < 600 TS Line Modularization Gate passed."
 
       - name: Set up Go 1.23
         uses: actions/setup-go@v7
@@ -49,8 +55,17 @@ jobs:
             agents/axon/go.sum
             apps/core-gateway/go.sum
 
-      - name: Run Unit Tests with Race Detector (Guardrails, Sentinel PTY, Atomic FS, mTLS PKI, Gateway & CLI)
-        run: go test -v -race ./proto/... ./agents/axon/... ./apps/core-gateway/...
+      - name: Run Unit Tests with Race Detector & >= 70% Coverage Gate
+        run: |
+          OUT=$(go test -race -cover ./proto/... ./agents/axon/... ./apps/core-gateway/...)
+          echo "$OUT"
+          LOW_COV=$(echo "$OUT" | awk '{for(i=1;i<=NF;i++) if($i=="coverage:") {val=$(i+1); gsub(/%/,"",val); if(val+0 < 70.0) print $2, val"%"}}')
+          if [ -n "$LOW_COV" ]; then
+            echo "ERROR: Go packages below 70% minimum statement coverage gate:"
+            echo "$LOW_COV"
+            exit 1
+          fi
+          echo "All 11 Go packages passed the >= 70% statement coverage gate."
 
       - name: Build Static Single-Binary Axon Agent (linux/amd64 & linux/arm64)
         env:
