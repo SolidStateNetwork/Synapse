@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
           project_id: projectId,
           session_id: `offsite-bkp-${Date.now()}`,
           command:
-            'DB_PATH=/opt/axon/workspaces/pulse-analytics/pulse.db; [ -f "$DB_PATH" ] || DB_PATH=/var/lib/synapse/pulse-stack/pulse.db; if [ -f "$DB_PATH" ]; then echo "B64_START"; gzip -c "$DB_PATH" | base64 -w 0; echo ""; echo "B64_END"; else echo "EMPTY_DB"; fi',
+            'DB_PATH=/opt/axon/workspaces/pulse-analytics/pulse.db; [ -f "$DB_PATH" ] || DB_PATH=/var/lib/synapse/pulse-stack/pulse.db; if [ -f "$DB_PATH" ]; then printf "B64_%s\\n" "START"; gzip -c "$DB_PATH" | base64 -w 0; printf "\\nB64_%s\\n" "END"; else printf "EMPTY_%s\\n" "DB"; fi',
           wait_timeout_ms: 8000,
         }),
       });

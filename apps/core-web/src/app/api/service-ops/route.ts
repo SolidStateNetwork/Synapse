@@ -25,7 +25,7 @@ import {
   atomicWriteJsonSync,
   ensureProjectVault,
   getProjectDir,
-  saveProjectState,
+  withProjectStateTransaction,
 } from "@/lib/vault";
 
 const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
@@ -120,6 +120,7 @@ export async function POST(req: NextRequest) {
         ].join("\n");
       }
 
+      const wrappedCmd = `printf "LOG_%s\\n" "START"\n${cmd}\nprintf "\\nLOG_%s\\n" "END"`;
       const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -127,17 +128,24 @@ export async function POST(req: NextRequest) {
           node_id: nodeId,
           cmd_id: `tail-logs-${Date.now()}`,
           project_id: projectId,
-          session_id: `service-logs-${Date.now()}`,
-          command: cmd,
+          session_id: `service-logs-${port || serviceId || "node"}`,
+          command: wrappedCmd,
           wait_timeout_ms: 5000,
         }),
       });
       const ptyJson = await ptyRes.json();
-      const logs = String(ptyJson.output || "No log output available.").trim();
-      const lines = logs
+      const rawOut = String(ptyJson.output || "").trim();
+      const rawLines = rawOut
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter(Boolean);
+      const sIdx = rawLines.findIndex((l) => l.includes("LOG_START"));
+      const eIdx = rawLines.findIndex((l, idx) => idx > sIdx && l.includes("LOG_END"));
+      const lines =
+        sIdx >= 0 && eIdx > sIdx
+          ? rawLines.slice(sIdx + 1, eIdx)
+          : rawLines.filter((l) => !l.includes("LOG_START") && !l.includes("LOG_END"));
+      const logs = lines.length > 0 ? lines.join("\n") : "No log output available.";
       const errorCount = lines.filter((l) =>
         /error|exception|traceback|failed|critical|panic/i.test(l)
       ).length;
@@ -157,7 +165,7 @@ export async function POST(req: NextRequest) {
 
     // FEATURE 3: LIVE SSH-INTRUSION-RADAR & AUTO-BLOCKER
     if (action === "intrusion_scan") {
-      const scanCmd = `FAILED_COUNT=$(journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep -iE "Failed password|Invalid user" | wc -l); ACCEPTED_COUNT=$(journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep -iE "Accepted " | wc -l); TOP_IPS=$(journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep -iE "Failed password|Invalid user" | grep -oE "([0-9]{1,3}\\.){3}[0-9]{1,3}" | sort | uniq -c | sort -nr | head -n 5 | awk '{print $2 ":" $1}' | tr '\\n' ','); echo "INTRUSION_RESULT|$FAILED_COUNT|$ACCEPTED_COUNT|$TOP_IPS"`;
+      const scanCmd = `FAILED_COUNT=$(journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep -iE "Failed password|Invalid user" | wc -l); ACCEPTED_COUNT=$(journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep -iE "Accepted " | wc -l); TOP_IPS=$(journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep -iE "Failed password|Invalid user" | grep -oE "([0-9]{1,3}\\.){3}[0-9]{1,3}" | sort | uniq -c | sort -nr | head -n 5 | awk '{print $2 ":" $1}' | tr '\\n' ','); printf "INTRUSION_%s|%s|%s|%s\\n" "RESULT" "$FAILED_COUNT" "$ACCEPTED_COUNT" "$TOP_IPS"`;
       const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -165,7 +173,7 @@ export async function POST(req: NextRequest) {
           node_id: nodeId,
           cmd_id: `intrusion-scan-${Date.now()}`,
           project_id: projectId,
-          session_id: `security-radar-${Date.now()}`,
+          session_id: `security-radar-${projectId}`,
           command: scanCmd,
           wait_timeout_ms: 5000,
         }),
@@ -221,30 +229,34 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const state = ensureProjectVault(projectId);
-      if (!state.firewall_policies) state.firewall_policies = {};
-      const pol = state.firewall_policies[nodeId] || {
-        node_id: nodeId,
-        profile: "web_standard",
-        anti_lockout_active: true,
-        rollback_guard_seconds: 60,
-        ssh_port: 22,
-        shielded_ports: [],
-        ip_rules: [],
-        last_synced_at: new Date().toISOString(),
-      };
-      if (!pol.ip_rules.some((r) => r.ip_or_cidr === attackerIp)) {
-        pol.ip_rules.push({
-          rule_id: `intrusion-block-${Date.now()}`,
-          ip_or_cidr: attackerIp,
-          action: "block",
-          protocol: "any",
-          note: "Auto-blocked by Synapse SSH Intrusion Radar",
-          created_at: new Date().toISOString(),
-        });
-      }
-      state.firewall_policies[nodeId] = pol;
-      saveProjectState(state);
+      let blockedIps: string[] = [];
+      await withProjectStateTransaction(projectId, (draft) => {
+        if (!draft.firewall_policies) draft.firewall_policies = {};
+        const pol = draft.firewall_policies[nodeId] || {
+          node_id: nodeId,
+          profile: "web_standard",
+          anti_lockout_active: true,
+          rollback_guard_seconds: 60,
+          ssh_port: 22,
+          shielded_ports: [],
+          ip_rules: [],
+          last_synced_at: new Date().toISOString(),
+        };
+        if (!pol.ip_rules.some((r) => r.ip_or_cidr === attackerIp)) {
+          pol.ip_rules.push({
+            rule_id: `intrusion-block-${Date.now()}`,
+            ip_or_cidr: attackerIp,
+            action: "block",
+            protocol: "any",
+            note: "Auto-blocked by Synapse SSH Intrusion Radar",
+            created_at: new Date().toISOString(),
+          });
+        }
+        draft.firewall_policies[nodeId] = pol;
+        blockedIps = pol.ip_rules
+          .filter((r) => r.action === "block")
+          .map((r) => r.ip_or_cidr);
+      });
 
       appendAuditLog(projectId, {
         timestamp: new Date().toISOString(),
@@ -258,9 +270,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         blocked_ip: attackerIp,
-        blocked_ips: pol.ip_rules
-          .filter((r) => r.action === "block")
-          .map((r) => r.ip_or_cidr),
+        blocked_ips: blockedIps,
       });
     }
 

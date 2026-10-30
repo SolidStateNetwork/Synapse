@@ -26,11 +26,13 @@ import {
   CORE_GATEWAY_URL,
   fetchGatewayNodes,
   interceptAndExecuteTool,
+  pushNodeHealthTargets,
 } from "@/lib/orchestrator";
 import { executeServiceAction } from "@/lib/projects/serviceActionRunner";
 import { executeAutonomousSelfHeal } from "@/lib/self-healing";
 
 const activeWatchdogHeals = new Set<string>();
+const lastSyncedTargetsSig = new Map<string, string>();
 
 const CORE_SERVICE_ORDER: Record<string, number> = {
   "vps2-status-api": 1,
@@ -45,7 +47,6 @@ export async function GET(req: NextRequest) {
     req.nextUrl.searchParams.get("projectId") ||
     "synapse-cloud-demo";
   const isLightPoll = req.nextUrl.searchParams.get("light") === "1";
-  const projects = listProjects();
   const liveNodes = await fetchGatewayNodes();
 
   const watchdogTargets: Array<{
@@ -268,6 +269,19 @@ export async function GET(req: NextRequest) {
     });
   });
 
+  for (const assigned of state.assigned_nodes) {
+    if (!assigned.online) continue;
+    const match = liveNodes.find((n) => n.node_id === assigned.node_id);
+    const targetSyncKey = `${assigned.node_id}:${match?.connected_at || ""}:${state.registered_services
+      .filter((s) => s.node_id === assigned.node_id)
+      .map((s) => `${s.service_id}:${s.port}`)
+      .join(",")}`;
+    if (lastSyncedTargetsSig.get(assigned.node_id) !== targetSyncKey) {
+      lastSyncedTargetsSig.set(assigned.node_id, targetSyncKey);
+      void pushNodeHealthTargets(state, assigned.node_id).catch(() => {});
+    }
+  }
+
   if (watchdogTargets.length > 0) {
     void (async () => {
       for (const target of watchdogTargets) {
@@ -291,6 +305,8 @@ export async function GET(req: NextRequest) {
       }
     })();
   }
+
+  const projects = listProjects();
 
   return NextResponse.json({
     projects,

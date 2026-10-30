@@ -52,11 +52,12 @@ export async function loadServiceCodeFromMuscle(params: {
     `  done`,
     `fi`,
     `if [ -n "$FOUND" ] && [ -f "$FOUND" ]; then`,
-    `  echo "CODE_PATH|$FOUND"`,
+    `  printf "CODE_%s|%s\\n" "PATH" "$FOUND"`,
     `  base64 -w0 "$FOUND" 2>/dev/null || base64 "$FOUND" | tr -d '\\n'`,
-    `  echo ""`,
+    `  printf "\\nCODE_%s\\n" "END"`,
     `else`,
-    `  echo "CODE_PATH|${fallbackPath}"`,
+    `  printf "CODE_%s|%s\\n" "PATH" "${fallbackPath}"`,
+    `  printf "CODE_%s\\n" "END"`,
     `fi`,
   ].join("\n");
 
@@ -68,7 +69,7 @@ export async function loadServiceCodeFromMuscle(params: {
         node_id: nodeId,
         cmd_id: `get-code-${Date.now()}`,
         project_id: projectId,
-        session_id: `hot-reload-${projectId}`,
+        session_id: `hot-reload-${projectId}-${port}`,
         command: findCmd,
         wait_timeout_ms: 5000,
       }),
@@ -83,9 +84,11 @@ export async function loadServiceCodeFromMuscle(params: {
       if (pathIdx >= 0) {
         const clean = lines[pathIdx].slice(lines[pathIdx].indexOf("CODE_PATH|"));
         filePath = clean.split("|")[1] || fallbackPath;
-        const b64Line = lines[pathIdx + 1] || "";
-        if (b64Line && !b64Line.includes("CODE_PATH|") && /^[A-Za-z0-9+/=]+$/.test(b64Line)) {
-          code = Buffer.from(b64Line, "base64").toString("utf8");
+        const endIdx = lines.findIndex((l, idx) => idx > pathIdx && l.includes("CODE_END"));
+        const sliceLines = endIdx > pathIdx ? lines.slice(pathIdx + 1, endIdx) : [lines[pathIdx + 1] || ""];
+        const b64Joined = sliceLines.join("").replace(/[^A-Za-z0-9+/=]/g, "");
+        if (b64Joined && b64Joined.length >= 8) {
+          code = Buffer.from(b64Joined, "base64").toString("utf8");
         }
       }
     }
@@ -215,16 +218,26 @@ export async function hotReloadServiceCodeOnMuscle(params: {
       ?.join("\n") || "";
   const reloadCmd = [
     `mkdir -p "$(dirname "${targetPath}")"`,
+    `if [ -f "${targetPath}" ]; then cp -f "${targetPath}" "${targetPath}.synapse.bak"; fi`,
     `base64 -d << 'B64EOF' > "${targetPath}"`,
     b64Chunks,
     `B64EOF`,
     `chmod 755 "${targetPath}"`,
-    `PID_OLD=$(ss -tlnp 2>/dev/null | awk '/:${port} / {match($0, /pid=[0-9]+/); if (RSTART) print substr($0, RSTART+4, RLENGTH-4)}' | head -n1)`,
-    `if [ -n "$PID_OLD" ]; then kill -9 "$PID_OLD" 2>/dev/null || true; sleep 0.15; fi`,
-    `nohup python3 "${targetPath}" >/tmp/synapse-svc-${port}.log 2>&1 </dev/null &`,
-    `sleep 0.4`,
-    `PROBE=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 3 http://127.0.0.1:${port}/ 2>/dev/null || echo "200|0.001")`,
-    `echo "HOT_RELOAD_RESULT|$PROBE"`,
+    `SYNTAX_ERR=""`,
+    `if [[ "${targetPath}" == *.py ]]; then`,
+    `  SYNTAX_ERR=$(python3 -m py_compile "${targetPath}" 2>&1 || true)`,
+    `fi`,
+    `if [ -n "$SYNTAX_ERR" ]; then`,
+    `  if [ -f "${targetPath}.synapse.bak" ]; then mv -f "${targetPath}.synapse.bak" "${targetPath}"; fi`,
+    `  printf "HOT_RELOAD_%s|500|0.001|SYNTAX_ERROR\\n" "RESULT"`,
+    `else`,
+    `  PID_OLD=$(ss -tlnp 2>/dev/null | awk '/:${port} / {match($0, /pid=[0-9]+/); if (RSTART) print substr($0, RSTART+4, RLENGTH-4)}' | head -n1)`,
+    `  if [ -n "$PID_OLD" ]; then kill -9 "$PID_OLD" 2>/dev/null || true; sleep 0.15; fi`,
+    `  nohup python3 "${targetPath}" >/tmp/synapse-svc-${port}.log 2>&1 </dev/null &`,
+    `  sleep 0.45`,
+    `  PROBE=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 3 http://127.0.0.1:${port}/ 2>/dev/null || echo "200|0.001")`,
+    `  printf "HOT_RELOAD_%s|%s\\n" "RESULT" "$PROBE"`,
+    `fi`,
   ].join("\n");
 
   let httpStatus = 200;
@@ -239,7 +252,7 @@ export async function hotReloadServiceCodeOnMuscle(params: {
         node_id: nodeId,
         cmd_id: `hot-reload-${Date.now()}`,
         project_id: projectId,
-        session_id: `hot-reload-${projectId}`,
+        session_id: `hot-reload-${projectId}-${port}`,
         command: reloadCmd,
         wait_timeout_ms: 8000,
       }),
@@ -561,8 +574,8 @@ export async function runCronJobNowOnMuscle(params: {
         node_id: targetNode,
         cmd_id: `cron-run-${Date.now()}`,
         project_id: projectId,
-        session_id: `cron-runner-${projectId}`,
-        command: `${job.command}; echo "CRON_EXIT|$?"`,
+        session_id: `cron-runner-${projectId}-${jobId}`,
+        command: `printf "CRON_%s\\n" "START"; ${job.command}; printf "\\nCRON_%s|%s\\n" "EXIT" "$?"`,
         wait_timeout_ms: 6000,
       }),
     });
@@ -572,12 +585,22 @@ export async function runCronJobNowOnMuscle(params: {
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter(Boolean);
-      const exitLine = rawLines.find((l) => l.includes("CRON_EXIT|"));
-      if (exitLine) {
-        const clean = exitLine.slice(exitLine.indexOf("CRON_EXIT|"));
-        exitCode = Number(clean.split("|")[1] || 0);
+      const startIdx = rawLines.findIndex((l) => l.includes("CRON_START"));
+      const exitIdx = rawLines.findIndex((l) => l.includes("CRON_EXIT|"));
+      if (exitIdx >= 0) {
+        const clean = rawLines[exitIdx].slice(rawLines[exitIdx].indexOf("CRON_EXIT|"));
+        const parsedExit = Number(clean.split("|")[1]);
+        exitCode = Number.isFinite(parsedExit) ? parsedExit : 0;
       }
-      const contentLines = rawLines.filter((l) => !l.includes("CRON_EXIT|"));
+      const contentLines =
+        startIdx >= 0 && exitIdx > startIdx
+          ? rawLines.slice(startIdx + 1, exitIdx)
+          : rawLines.filter(
+              (l) =>
+                !l.includes("CRON_EXIT|") &&
+                !l.includes("CRON_START") &&
+                !l.includes('printf "CRON_')
+            );
       if (contentLines.length > 0) {
         output = contentLines.slice(-4).join(" | ");
       }

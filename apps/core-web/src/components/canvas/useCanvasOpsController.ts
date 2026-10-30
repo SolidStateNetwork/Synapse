@@ -680,21 +680,32 @@ export function useCanvasOpsController({
     const linkId = `${fromId}->${toId}`;
     setServiceLinks((prev) => {
       const exists = prev.some((l) => l.id === linkId);
+      let updated: ServiceMeshLink[];
       if (exists) {
-        return prev.filter((l) => l.id !== linkId);
+        updated = prev.filter((l) => l.id !== linkId);
+      } else {
+        const targetSvc = allServices.find((s) => s.service_id === toId);
+        const proto =
+          targetSvc?.category === "database" ? "SQLite WAL" : "HTTP REST";
+        updated = [
+          ...prev,
+          {
+            id: linkId,
+            fromServiceId: fromId,
+            toServiceId: toId,
+            protocol: proto,
+          },
+        ];
       }
-      const targetSvc = allServices.find((s) => s.service_id === toId);
-      const proto =
-        targetSvc?.category === "database" ? "SQLite / TCP" : "HTTP REST";
-      return [
-        ...prev,
-        {
-          id: linkId,
-          fromServiceId: fromId,
-          toServiceId: toId,
-          protocol: proto,
-        },
-      ];
+      void fetch("/api/service-ops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_service_links",
+          service_links: updated,
+        }),
+      }).catch(() => {});
+      return updated;
     });
   };
 
@@ -952,12 +963,21 @@ export function useCanvasOpsController({
         });
         const data = await res.json();
         if (data.ok) {
-          setHotReloadNotice(
-            t(
-              `🔥 Live Hot-Reload auf :${data.port} in ${data.elapsed_ms} ms aktiv (Snapshot ${data.snapshot_id}, HTTP ${data.http_status})!`,
-              `🔥 Live Hot-Reload active on :${data.port} in ${data.elapsed_ms} ms (Snapshot ${data.snapshot_id}, HTTP ${data.http_status})!`
-            )
-          );
+          if (data.healthy === false || data.http_status >= 500) {
+            setHotReloadNotice(
+              t(
+                `⚠️ Syntax-/Start-Fehler erkannt — Automatischer Rollback auf letzte stabile Version aktiv (Snapshot ${data.snapshot_id})!`,
+                `⚠️ Syntax/startup error detected — automatic rollback to last stable version active (Snapshot ${data.snapshot_id})!`
+              )
+            );
+          } else {
+            setHotReloadNotice(
+              t(
+                `🔥 Live Hot-Reload auf :${data.port} in ${data.elapsed_ms} ms aktiv (Snapshot ${data.snapshot_id}, HTTP ${data.http_status})!`,
+                `🔥 Live Hot-Reload active on :${data.port} in ${data.elapsed_ms} ms (Snapshot ${data.snapshot_id}, HTTP ${data.http_status})!`
+              )
+            );
+          }
         } else {
           setHotReloadNotice(data.error || "Hot-Reload error");
         }

@@ -2,7 +2,7 @@ import crypto from "crypto";
 import {
   appendAuditLog,
   ensureProjectVault,
-  saveProjectState,
+  withProjectStateTransaction,
   type FirewallIpRule,
   type FirewallNodePolicy,
   type FirewallPortItem,
@@ -286,11 +286,12 @@ print("SYNAPSE_FW_JSON:" + json.dumps({
 
   policy.detected_ports = enrichedPorts;
   policy.last_synced_at = new Date().toISOString();
-  state.firewall_policies = {
-    ...(state.firewall_policies || {}),
-    [targetNodeId]: policy,
-  };
-  saveProjectState(state);
+  await withProjectStateTransaction(projectId, (draft) => {
+    draft.firewall_policies = {
+      ...(draft.firewall_policies || {}),
+      [targetNodeId]: policy,
+    };
+  });
 
   const publicUnshielded = enrichedPorts.filter(
     (p) => p.exposure === "public" && !p.shielded && !p.system_protected
@@ -574,11 +575,12 @@ export async function executeFirewallAction(
     summaryMsg = `Removed firewall IP rule ${ruleId} on ${targetNodeId}`;
   }
 
-  state.firewall_policies = {
-    ...(state.firewall_policies || {}),
-    [targetNodeId]: policy,
-  };
-  saveProjectState(state);
+  await withProjectStateTransaction(projectId, (draft) => {
+    draft.firewall_policies = {
+      ...(draft.firewall_policies || {}),
+      [targetNodeId]: policy,
+    };
+  });
 
   const syncRes = await syncFirewallChainOnNode(projectId, targetNodeId, policy);
 

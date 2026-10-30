@@ -16,10 +16,18 @@ import {
   Globe,
   Play,
   RefreshCw,
+  Trash2,
   Zap,
 } from "lucide-react";
 import { SynapseViewHeader } from "@/components/ui/SynapseDesignSystem";
 import type { ProjectState } from "@/types/synapse";
+
+const CORE_DEMO_SERVICE_IDS = new Set([
+  "vps2-status-api",
+  "pulse-webui",
+  "pulse-analytics-api",
+  "pulse-sqlite-db",
+]);
 
 export interface ReverseProxyViewProps {
   activeProject: ProjectState | null;
@@ -62,6 +70,8 @@ export interface ReverseProxyViewProps {
     payload?: string;
   }) => void;
   onDiagnoseService?: (port: number) => void;
+  onRemoveService?: (serviceId: string, nodeId?: string, port?: number) => void;
+  onReloadWorkspace?: () => void;
 }
 
 const ReverseProxyView = React.memo(function ReverseProxyView({
@@ -90,6 +100,8 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
   serviceActionResult,
   handleInvokeServiceAction,
   onDiagnoseService,
+  onRemoveService,
+  onReloadWorkspace,
 }: ReverseProxyViewProps) {
   const { t } = useI18n();
   const [showBuilder, setShowBuilder] = useState(false);
@@ -156,6 +168,38 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
     allSvcs.find((s) => s.service_id === selectedServiceId) ||
     allSvcs.find((s) => s.port === previewPort) ||
     allSvcs[0];
+
+  useEffect(() => {
+    if (v070Mode !== "hot-reload" || !activeSvc) return;
+    let cancelled = false;
+    setCodeLoading(true);
+    setCodeNotice(null);
+    fetch("/api/service-ops", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "get_service_code",
+        project_id: activeProject?.project_id || "synapse-cloud-demo",
+        node_id: activeSvc.node_id || primaryNode || "vps2-muscle",
+        service_id: activeSvc.service_id,
+        port: activeSvc.port,
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d.ok) {
+          setCodePath(d.file_path || "");
+          setCodeText(d.code || "");
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setCodeLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [v070Mode, activeSvc?.service_id, activeSvc?.port]);
 
   useEffect(() => {
     if (!serviceActionResult || !activeSvc) return;
@@ -296,6 +340,7 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
                 );
                 setNewSvcName("");
                 setNewSvcPort(String(pNum + 1));
+                onReloadWorkspace?.();
               }
             } finally {
               setNewSvcBusy(false);
@@ -421,13 +466,37 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
                     <span className="truncate text-xs font-semibold text-white">
                       {cleanName}
                     </span>
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${
-                        healthy
-                          ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"
-                          : "bg-red-500 animate-pulse"
-                      }`}
-                    />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className={`h-2 w-2 shrink-0 rounded-full ${
+                          healthy
+                            ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"
+                            : "bg-red-500 animate-pulse"
+                        }`}
+                      />
+                      {onRemoveService &&
+                        !CORE_DEMO_SERVICE_IDS.has(svc.service_id) && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRemoveService(
+                                svc.service_id,
+                                svc.node_id,
+                                svc.port
+                              );
+                            }}
+                            title={t(
+                              "Dienst aus Projekt entfernen",
+                              "Remove service from project"
+                            )}
+                            className="rounded p-1 text-nb-gray-500 hover:bg-red-950/70 hover:text-red-300 transition"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </span>
+                        )}
+                    </div>
                   </div>
                   <div className="mt-1 flex items-center gap-2 font-mono text-[11px] text-nb-gray-400 whitespace-nowrap">
                     <span
@@ -669,12 +738,21 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
                       });
                       const d = await r.json();
                       if (d.ok) {
-                        setCodeNotice(
-                          t(
-                            `🔥 Hot-Reload auf :${d.port} in ${d.elapsed_ms} ms aktiv (Snapshot ${d.snapshot_id}, HTTP ${d.http_status})!`,
-                            `🔥 Hot-Reload active on :${d.port} in ${d.elapsed_ms} ms (Snapshot ${d.snapshot_id}, HTTP ${d.http_status})!`
-                          )
-                        );
+                        if (d.healthy === false || d.http_status >= 500) {
+                          setCodeNotice(
+                            t(
+                              `⚠️ Syntax-/Start-Fehler erkannt — Automatischer Rollback auf letzte stabile Version aktiv (Snapshot ${d.snapshot_id})!`,
+                              `⚠️ Syntax/startup error detected — automatic rollback to last stable version active (Snapshot ${d.snapshot_id})!`
+                            )
+                          );
+                        } else {
+                          setCodeNotice(
+                            t(
+                              `🔥 Hot-Reload auf :${d.port} in ${d.elapsed_ms} ms aktiv (Snapshot ${d.snapshot_id}, HTTP ${d.http_status})!`,
+                              `🔥 Hot-Reload active on :${d.port} in ${d.elapsed_ms} ms (Snapshot ${d.snapshot_id}, HTTP ${d.http_status})!`
+                            )
+                          );
+                        }
                       }
                     } finally {
                       setCodeSaving(false);

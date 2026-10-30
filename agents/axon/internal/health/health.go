@@ -84,6 +84,18 @@ func (c *Collector) SetTargetsForSource(source string, targets []tunnelv1.Servic
 			}
 		}
 	}
+	// Deduplicate generic auto-svc-<port> targets if an explicit named service exists on the same port
+	namedPorts := make(map[uint32]bool)
+	for _, t := range merged {
+		if t.Port > 0 && !strings.HasPrefix(t.ServiceID, "auto-svc-") {
+			namedPorts[t.Port] = true
+		}
+	}
+	for id, t := range merged {
+		if strings.HasPrefix(id, "auto-svc-") && namedPorts[t.Port] {
+			delete(merged, id)
+		}
+	}
 	c.targets = merged
 }
 

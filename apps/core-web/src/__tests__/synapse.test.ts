@@ -11,6 +11,7 @@ const tempVaultDir = fs.mkdtempSync(
 process.env.SYNAPSE_VAULT_DIR = tempVaultDir;
 process.env.SYNAPSE_MASTER_KEY =
   "test-master-key-for-aes-256-gcm-unit-tests-2026";
+process.env.CORE_GATEWAY_URL = "http://127.0.0.1:18081";
 
 const {
   ensureProjectVault,
@@ -515,6 +516,64 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
       sysUpdateSrc.includes("HEAD:agents/axon") &&
         sysUpdateSrc.includes("matchesAxonCommit"),
       "system-update route must compare git tree hash HEAD:agents/axon to prevent false OTA warnings on shallow clones"
+    );
+  });
+
+  it("15. v0.7.0 Deep-Polish & Multi-Core Lifecycle: dismissed_services persistence, echo-safe printf PTY markers, and syntax-guarded Hot-Reload", async () => {
+    const { ensureProjectVault } = await import("../lib/vault.ts");
+    const { interceptAndExecuteTool } = await import("../lib/orchestrator.ts");
+
+    await interceptAndExecuteTool(testProjectId, "core_register_service", {
+      action: "upsert",
+      service_id: "temp-test-4099",
+      name: "Temp Test Service",
+      node_id: "vps2-muscle",
+      port: 4099,
+      protocol: "http",
+      path: "/",
+    });
+    let st = ensureProjectVault(testProjectId);
+    assert.ok(
+      st.registered_services.some((s) => s.service_id === "temp-test-4099")
+    );
+
+    await interceptAndExecuteTool(testProjectId, "core_register_service", {
+      action: "remove",
+      service_id: "temp-test-4099",
+      node_id: "vps2-muscle",
+      port: 4099,
+    });
+    st = ensureProjectVault(testProjectId);
+    assert.ok(
+      !st.registered_services.some((s) => s.service_id === "temp-test-4099"),
+      "Removed service must be deleted from registered_services"
+    );
+    assert.ok(
+      (st.dismissed_services || []).includes("temp-test-4099") &&
+        (st.dismissed_services || []).includes("port:4099"),
+      "Removed service and port must be recorded in dismissed_services"
+    );
+
+    const selfHealingSrc = fs.readFileSync(
+      path.resolve(import.meta.dirname, "../lib/self-healing.ts"),
+      "utf8"
+    );
+    assert.ok(
+      selfHealingSrc.includes('printf "SELF_HEAL_%s') &&
+        selfHealingSrc.includes('printf "LIVE_%s'),
+      "self-healing.ts must use split printf markers to prevent PTY input echo false-matching"
+    );
+
+    const studioSrc = fs.readFileSync(
+      path.resolve(import.meta.dirname, "../lib/v070-studio.ts"),
+      "utf8"
+    );
+    assert.ok(
+      studioSrc.includes('printf "CODE_%s') &&
+        studioSrc.includes('printf "HOT_RELOAD_%s') &&
+        studioSrc.includes('printf "CRON_%s') &&
+        studioSrc.includes("py_compile"),
+      "v070-studio.ts must use split printf markers and py_compile syntax guard"
     );
   });
 });

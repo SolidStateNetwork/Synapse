@@ -5,7 +5,6 @@ import {
   getDecryptedSecrets,
   listSecretKeys,
   readAuditLogs,
-  saveProjectState,
   setSecret,
   withProjectStateTransaction,
 } from "@/lib/vault";
@@ -136,8 +135,7 @@ export async function POST(req: NextRequest) {
     // 1. Brain Vault & State Persistence Test
     const t1 = Date.now();
     try {
-      const st = ensureProjectVault(projectId);
-      saveProjectState(st);
+      const st = await withProjectStateTransaction(projectId, () => {});
       checks.push({
         id: "vault_state",
         name: "Brain Vault Atomic State.json R/W",

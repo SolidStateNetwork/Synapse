@@ -48,7 +48,15 @@ function stripVolatileTimestamps(val: unknown): unknown {
   if (val && typeof val === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-      if (k === "updated_at") continue;
+      if (
+        k === "updated_at" ||
+        k === "last_checked" ||
+        k === "timestamp_unix" ||
+        k === "uptime_sec" ||
+        k === "telemetry_history"
+      ) {
+        continue;
+      }
       out[k] = stripVolatileTimestamps(v);
     }
     return out;

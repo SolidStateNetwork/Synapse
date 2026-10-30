@@ -292,6 +292,12 @@ export default function SynapseNetBirdControlCenter() {
                 onDiagnoseService={(port) =>
                   c.handleQuickAction(`diagnose and auto-heal service ${port}`)
                 }
+                onRemoveService={c.handleRemoveService}
+                onReloadWorkspace={() =>
+                  c.loadWorkspace(
+                    c.activeProject?.project_id || "synapse-cloud-demo"
+                  )
+                }
               />
             )}
 
