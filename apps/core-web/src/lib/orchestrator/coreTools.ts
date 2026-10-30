@@ -74,29 +74,70 @@ export async function dispatchCoreBrainTool(
     );
 
     if (action === "remove") {
+      let removedPort = Number(args.port || 0);
       const updatedState = await withProjectStateTransaction(
         projectId,
         (draft) => {
+          const targetSvc = draft.registered_services.find(
+            (s) =>
+              s.service_id === serviceId ||
+              (removedPort > 0 && s.port === removedPort && s.node_id === nodeId)
+          );
+          if (targetSvc && !removedPort) {
+            removedPort = targetSvc.port;
+          }
+          const dismissed = new Set<string>(draft.dismissed_services || []);
+          dismissed.add(serviceId);
+          if (targetSvc?.service_id) {
+            dismissed.add(targetSvc.service_id);
+          }
+          if (removedPort > 0) {
+            dismissed.add(`port:${removedPort}`);
+            dismissed.add(`auto-svc-${removedPort}`);
+          }
+          draft.dismissed_services = Array.from(dismissed);
           draft.registered_services = draft.registered_services.filter(
-            (s) => s.service_id !== serviceId
+            (s) =>
+              s.service_id !== serviceId &&
+              !(removedPort > 0 && s.port === removedPort && s.node_id === nodeId)
           );
           return draft;
         }
       );
       await pushNodeHealthTargets(updatedState, nodeId);
+      if (
+        removedPort > 0 &&
+        removedPort !== 4070 &&
+        removedPort !== 4085 &&
+        removedPort !== 4090 &&
+        nodeId
+      ) {
+        void fetch(`${coreGatewayUrl}/api/v1/rpc/pty`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            node_id: nodeId,
+            cmd_id: `stop-svc-${Date.now()}`,
+            project_id: projectId,
+            session_id: `svc-cleanup-${projectId}`,
+            command: `PID_STOP=$(ss -tlnp 2>/dev/null | awk '/:${removedPort} / {match($0, /pid=[0-9]+/); if (RSTART) print substr($0, RSTART+4, RLENGTH-4)}' | head -n1); if [ -n "$PID_STOP" ]; then kill -9 "$PID_STOP" 2>/dev/null || true; fi`,
+            wait_timeout_ms: 3000,
+          }),
+        }).catch(() => {});
+      }
       appendAuditLog(projectId, {
         timestamp: new Date().toISOString(),
         actor: "ai_orchestrator",
         tool_name: toolName,
         node_id: nodeId,
         status: "executed",
-        summary: `Removed service ${serviceId} from ${nodeId}`,
+        summary: `Removed service ${serviceId}${removedPort ? ` (:${removedPort})` : ""} from ${nodeId}`,
         args,
       });
       return {
         tool_name: toolName,
         status: "executed",
-        output: { removed: serviceId, node_id: nodeId },
+        output: { removed: serviceId, port: removedPort || undefined, node_id: nodeId },
       };
     }
 
@@ -235,6 +276,14 @@ export async function dispatchCoreBrainTool(
     const updatedState = await withProjectStateTransaction(
       projectId,
       (draft) => {
+        if (Array.isArray(draft.dismissed_services)) {
+          draft.dismissed_services = draft.dismissed_services.filter(
+            (d) =>
+              d !== svc.service_id &&
+              d !== `port:${svc.port}` &&
+              d !== `auto-svc-${svc.port}`
+          );
+        }
         draft.registered_services = [
           ...draft.registered_services.filter(
             (s) => s.service_id !== svc.service_id

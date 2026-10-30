@@ -224,6 +224,7 @@ export interface InteractiveControlCenterCanvasProps {
   activeCartridges: string[];
   cartridges: CartridgeMeta[];
   registeredServices: RegisteredService[];
+  dismissedServices?: string[];
   secretKeysCount: number;
   modelName: string;
   baseUrl: string;
@@ -240,6 +241,7 @@ export interface InteractiveControlCenterCanvasProps {
   onOpenRemoteFiles: () => void;
   onDeployDemoService: () => void;
   onHealService: (port: number) => void;
+  onRemoveService?: (serviceId: string, nodeId?: string, port?: number) => void;
   firewallPolicies?: Record<
     string,
     {

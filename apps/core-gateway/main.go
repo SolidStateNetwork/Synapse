@@ -576,6 +576,7 @@ ExecStart=$INSTALL_DIR/axon run $DEBUG_FLAG --config-dir $CONFIG_DIR
 Restart=always
 RestartSec=3s
 TimeoutStopSec=2s
+KillMode=process
 LimitNOFILE=65535
 
 [Install]

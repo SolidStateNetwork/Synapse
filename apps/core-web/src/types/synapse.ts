@@ -165,6 +165,7 @@ export interface ProjectState {
     container_name?: string;
     auto_heal?: boolean;
   }>;
+  dismissed_services?: string[];
   active_pty_sessions: string[];
   telemetry: Record<string, NodeHeartbeat>;
   pending_approvals: PendingApproval[];

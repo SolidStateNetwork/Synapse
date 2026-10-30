@@ -30,6 +30,15 @@ import {
 import { executeServiceAction } from "@/lib/projects/serviceActionRunner";
 import { executeAutonomousSelfHeal } from "@/lib/self-healing";
 
+const activeWatchdogHeals = new Set<string>();
+
+const CORE_SERVICE_ORDER: Record<string, number> = {
+  "vps2-status-api": 1,
+  "pulse-webui": 2,
+  "pulse-analytics-api": 3,
+  "pulse-sqlite-db": 4,
+};
+
 export async function GET(req: NextRequest) {
   const projectId =
     req.nextUrl.searchParams.get("project_id") ||
@@ -101,27 +110,44 @@ export async function GET(req: NextRequest) {
           }));
 
         if (Array.isArray(hb.services)) {
-          draft.registered_services = draft.registered_services.filter((s, i, arr) => {
-            if (!s.service_id.startsWith("auto-svc-")) {
-              return (
-                arr.findIndex(
-                  (o) =>
-                    o.node_id === s.node_id &&
-                    o.port === s.port &&
-                    (o.category || "backend") === (s.category || "backend")
-                ) === i
+          const dismissedSet = new Set<string>(draft.dismissed_services || []);
+          draft.registered_services = draft.registered_services.filter(
+            (s, i, arr) => {
+              if (
+                dismissedSet.has(s.service_id) ||
+                dismissedSet.has(`port:${s.port}`)
+              ) {
+                return false;
+              }
+              if (!s.service_id.startsWith("auto-svc-")) {
+                return (
+                  arr.findIndex(
+                    (o) =>
+                      o.node_id === s.node_id &&
+                      o.port === s.port &&
+                      (o.category || "backend") === (s.category || "backend")
+                  ) === i
+                );
+              }
+              return !arr.some(
+                (other, oi) =>
+                  oi !== i &&
+                  other.node_id === s.node_id &&
+                  other.port === s.port &&
+                  !other.service_id.startsWith("auto-svc-")
               );
             }
-            return !arr.some(
-              (other, oi) =>
-                oi !== i &&
-                other.node_id === s.node_id &&
-                other.port === s.port &&
-                !other.service_id.startsWith("auto-svc-")
-            );
-          });
+          );
           for (const liveSvc of hb.services) {
             if (!liveSvc.service_id || !liveSvc.port) continue;
+            // Never auto-register an offline unregistered service or an explicitly dismissed service
+            if (
+              !liveSvc.healthy ||
+              dismissedSet.has(liveSvc.service_id) ||
+              dismissedSet.has(`port:${liveSvc.port}`)
+            ) {
+              continue;
+            }
             const exists = draft.registered_services.some(
               (s) =>
                 s.node_id === assigned.node_id &&
@@ -161,7 +187,7 @@ export async function GET(req: NextRequest) {
                 if (
                   svc.auto_heal !== false &&
                   draft.ai_settings?.enable_auto_watchdog !== false &&
-                  (svc.consecutive_failures || 0) >= 2 &&
+                  (svc.consecutive_failures || 0) >= 1 &&
                   cooldownPassed
                 ) {
                   svc.last_auto_heal_at = new Date().toISOString();
@@ -233,13 +259,23 @@ export async function GET(req: NextRequest) {
         );
       }
     }
+
+    draft.registered_services.sort((a, b) => {
+      const rankA = CORE_SERVICE_ORDER[a.service_id] ?? 100;
+      const rankB = CORE_SERVICE_ORDER[b.service_id] ?? 100;
+      if (rankA !== rankB) return rankA - rankB;
+      return (a.port || 0) - (b.port || 0);
+    });
   });
 
   if (watchdogTargets.length > 0) {
     void (async () => {
       for (const target of watchdogTargets) {
+        const healKey = `${projectId}:${target.node_id}:${target.port}`;
+        if (activeWatchdogHeals.has(healKey)) continue;
+        activeWatchdogHeals.add(healKey);
         try {
-          const healEvent = await executeAutonomousSelfHeal({
+          await executeAutonomousSelfHeal({
             projectId,
             nodeId: target.node_id,
             serviceId: target.service_id,
@@ -247,50 +283,10 @@ export async function GET(req: NextRequest) {
             port: target.port,
             trigger: "auto_watchdog",
           });
-          const healRes = await interceptAndExecuteTool(
-            projectId,
-            "node_pty_exec",
-            {
-              node_id: target.node_id,
-              session_id: `watchdog-${projectId}`,
-              command: `cd /opt/axon/workspaces/${projectId} 2>/dev/null || true; if [ -f docker-compose.yml ] || [ -f compose.yml ]; then docker compose up -d 2>/dev/null || true; fi; for c in $(docker ps -aq --filter status=exited 2>/dev/null); do docker start "$c" >/dev/null 2>&1 || true; done; if [ -f "service/server_${target.port}.py" ] && ! ss -tln 2>/dev/null | grep -q ":${target.port} "; then (nohup python3 "service/server_${target.port}.py" >/tmp/synapse-svc-${target.port}.log 2>&1 </dev/null &); elif [ -f service/server.py ] && ! ss -tln 2>/dev/null | grep -q ":${target.port} "; then (nohup python3 service/server.py >/tmp/synapse-svc-${target.port}.log 2>&1 </dev/null &); elif [ -f service/server.js ] && ! ss -tln 2>/dev/null | grep -q ":${target.port} "; then (nohup node service/server.js >/tmp/synapse-svc-${target.port}.log 2>&1 </dev/null &); fi; sleep 0.8; curl -fsS http://127.0.0.1:${target.port}/`,
-              wait_timeout_ms: 15000,
-            },
-            true
-          );
-
-          if (healRes.status === "executed") {
-            await withProjectStateTransaction(projectId, (freshState) => {
-              const healedSvc = freshState.registered_services.find(
-                (s) =>
-                  s.service_id === target.service_id || s.port === target.port
-              );
-              if (healedSvc) {
-                healedSvc.healthy = true;
-                healedSvc.consecutive_failures = 0;
-                if (healedSvc.health_check) {
-                  healedSvc.health_check.status = "HEALTHY";
-                  healedSvc.health_check.last_error = undefined;
-                }
-              }
-            });
-          }
-
-          writeBrainDoc(
-            projectId,
-            "Memory.md",
-            `- **[${new Date().toISOString()}]** 🤖 **Proactive Auto-Watchdog:** Automatically restarted unhealthy service \`${target.name}\` (\`127.0.0.1:${target.port}\` on \`${target.node_id}\`, MTTR ${healEvent.mttr_ms} ms).`,
-            "append"
-          );
-
-          appendChatMessage(projectId, {
-            role: "assistant",
-            content: `🤖 **Proactive Auto-Watchdog Triggered:** Detected consecutive health probe failures on **${target.name}** (\`127.0.0.1:${target.port}\` on \`${target.node_id}\`). Automatically restarted the container/daemon, verified \`http://127.0.0.1:${target.port}/\`, and logged the recovery in \`Memory.md\`.`,
-            timestamp: new Date().toISOString(),
-            toolResults: [healRes],
-          });
         } catch {
           // ignore background watchdog error
+        } finally {
+          activeWatchdogHeals.delete(healKey);
         }
       }
     })();

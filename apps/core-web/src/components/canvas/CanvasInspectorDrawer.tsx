@@ -297,14 +297,33 @@ export const CanvasEdgesLayer = React.memo(function CanvasEdgesLayer({
           isHovered: boolean;
         }> = [];
         const usedYs: number[] = [];
+        const renderedMeshPorts = new Set<string>();
+        const placedSpans: Array<{ minY: number; maxY: number; lane: number }> = [];
+
+        const getAnchorY = (svcKey: string) => {
+          const p = effectivePositions[svcKey];
+          if (!p) return null;
+          const h =
+            sizes[svcKey]?.h && sizes[svcKey].h <= 165
+              ? sizes[svcKey].h
+              : sizes[svcKey]?.h && sizes[svcKey].h > 165
+              ? 58
+              : 136;
+          return p.y + h / 2;
+        };
+
+        const allAnchorYs = Object.keys(effectivePositions)
+          .filter((k) => k.startsWith("svc:"))
+          .map((k) => getAnchorY(k))
+          .filter((v): v is number => v !== null);
 
         const sortedLinks = [...serviceLinks].sort((a, b) => {
-          const pa1 = effectivePositions[`svc:${a.fromServiceId}`];
-          const pa2 = effectivePositions[`svc:${a.toServiceId}`];
-          const pb1 = effectivePositions[`svc:${b.fromServiceId}`];
-          const pb2 = effectivePositions[`svc:${b.toServiceId}`];
-          const spanA = pa1 && pa2 ? Math.abs(pa2.y - pa1.y) : 0;
-          const spanB = pb1 && pb2 ? Math.abs(pb2.y - pb1.y) : 0;
+          const ya1 = getAnchorY(`svc:${a.fromServiceId}`);
+          const ya2 = getAnchorY(`svc:${a.toServiceId}`);
+          const yb1 = getAnchorY(`svc:${b.fromServiceId}`);
+          const yb2 = getAnchorY(`svc:${b.toServiceId}`);
+          const spanA = ya1 !== null && ya2 !== null ? Math.abs(ya2 - ya1) : 0;
+          const spanB = yb1 !== null && yb2 !== null ? Math.abs(yb2 - yb1) : 0;
           return spanA - spanB;
         });
 
@@ -320,18 +339,38 @@ export const CanvasEdgesLayer = React.memo(function CanvasEdgesLayer({
           const w2 =
             customDims[toKey]?.w || sizes[toKey]?.w || defaultNodeW;
           const h1 =
-            sizes[fromKey]?.h && sizes[fromKey].h <= 80
+            sizes[fromKey]?.h && sizes[fromKey].h <= 165
               ? sizes[fromKey].h
-              : 58;
+              : sizes[fromKey]?.h && sizes[fromKey].h > 165
+              ? 58
+              : 136;
           const h2 =
-            sizes[toKey]?.h && sizes[toKey].h <= 80 ? sizes[toKey].h : 58;
+            sizes[toKey]?.h && sizes[toKey].h <= 165
+              ? sizes[toKey].h
+              : sizes[toKey]?.h && sizes[toKey].h > 165
+              ? 58
+              : 136;
           const x1 = p1.x + w1;
           const y1 = p1.y + h1 / 2;
           const x2 = p2.x + w2;
           const y2 = p2.y + h2 / 2;
 
+          const minY = Math.min(y1, y2);
+          const maxY = Math.max(y1, y2);
+          let lane = 0;
+          while (
+            placedSpans.some(
+              (s) =>
+                s.lane === lane &&
+                Math.max(s.minY + 6, minY + 6) < Math.min(s.maxY - 6, maxY - 6)
+            )
+          ) {
+            lane += 1;
+          }
+          placedSpans.push({ minY, maxY, lane });
+
           const baseRightX = Math.max(x1, x2);
-          const arcOffset = 78 + lIdx * 28;
+          const arcOffset = 88 + lane * 64;
           const ctrlX = baseRightX + arcOffset;
           const d = `M ${x1} ${y1} C ${ctrlX} ${y1}, ${ctrlX} ${y2}, ${x2} ${y2}`;
 
@@ -350,18 +389,37 @@ export const CanvasEdgesLayer = React.memo(function CanvasEdgesLayer({
             return { bx: Math.round(bx), by: Math.round(by) };
           };
 
-          let chosenT = 0.5;
-          let pt = evalBezier(chosenT);
-          if (usedYs.some((uy) => Math.abs(uy - pt.by) < 34)) {
-            const cand1 = evalBezier(0.32);
-            const cand2 = evalBezier(0.68);
-            const dist1 = Math.min(
-              ...usedYs.map((uy) => Math.abs(uy - cand1.by))
-            );
-            const dist2 = Math.min(
-              ...usedYs.map((uy) => Math.abs(uy - cand2.by))
-            );
-            pt = dist1 >= dist2 ? cand1 : cand2;
+          const intermediateAnchors = allAnchorYs.filter(
+            (ay) => ay > minY + 12 && ay < maxY - 12
+          );
+          const candidateTs = [0.5, 0.34, 0.66, 0.26, 0.74];
+          let pt = evalBezier(0.5);
+          const hasCollision = (candY: number) =>
+            usedYs.some((uy) => Math.abs(uy - candY) < 32) ||
+            intermediateAnchors.some((ay) => Math.abs(ay - candY) < 22);
+
+          if (hasCollision(pt.by)) {
+            let bestPt = pt;
+            let bestScore = -Infinity;
+            for (const ct of candidateTs) {
+              const cand = evalBezier(ct);
+              const minUsedDist =
+                usedYs.length > 0
+                  ? Math.min(...usedYs.map((uy) => Math.abs(uy - cand.by)))
+                  : 999;
+              const minAnchorDist =
+                intermediateAnchors.length > 0
+                  ? Math.min(
+                      ...intermediateAnchors.map((ay) => Math.abs(ay - cand.by))
+                    )
+                  : 999;
+              const score = Math.min(minUsedDist, minAnchorDist * 1.2);
+              if (score > bestScore) {
+                bestScore = score;
+                bestPt = cand;
+              }
+            }
+            pt = bestPt;
           }
           usedYs.push(pt.by);
 
@@ -372,7 +430,7 @@ export const CanvasEdgesLayer = React.memo(function CanvasEdgesLayer({
           );
           const safeMidX = Math.max(
             pt.bx,
-            baseRightX + Math.ceil(badgeW / 2) + 16
+            baseRightX + Math.ceil(badgeW / 2) + 14 + lane * 48
           );
 
           const isHovered =
@@ -387,11 +445,18 @@ export const CanvasEdgesLayer = React.memo(function CanvasEdgesLayer({
             isHovered,
           });
 
+          const port1Key = `${Math.round(x1)},${Math.round(y1)}`;
+          const port2Key = `${Math.round(x2)},${Math.round(y2)}`;
+          const drawP1 = !renderedMeshPorts.has(port1Key);
+          const drawP2 = !renderedMeshPorts.has(port2Key);
+          renderedMeshPorts.add(port1Key);
+          renderedMeshPorts.add(port2Key);
+
           return (
             <g
               key={`arc-${link.id}`}
               style={{
-                opacity: isHovered ? 1 : 0.78,
+                opacity: isHovered ? 1 : 0.84,
                 transition: "opacity 180ms ease",
               }}
             >
@@ -422,6 +487,32 @@ export const CanvasEdgesLayer = React.memo(function CanvasEdgesLayer({
                 <circle r={4.5} fill="#38bdf8" fillOpacity={0.45} />
                 <circle r={2} fill="#e0f2fe" />
               </g>
+              {drawP1 && (
+                <g>
+                  <circle
+                    cx={x1}
+                    cy={y1}
+                    r={3.4}
+                    fill="#181a1d"
+                    stroke="#38bdf8"
+                    strokeWidth={1.8}
+                  />
+                  <circle cx={x1} cy={y1} r={1.4} fill="#38bdf8" />
+                </g>
+              )}
+              {drawP2 && (
+                <g>
+                  <circle
+                    cx={x2}
+                    cy={y2}
+                    r={3.4}
+                    fill="#181a1d"
+                    stroke="#38bdf8"
+                    strokeWidth={1.8}
+                  />
+                  <circle cx={x2} cy={y2} r={1.4} fill="#38bdf8" />
+                </g>
+              )}
             </g>
           );
         });

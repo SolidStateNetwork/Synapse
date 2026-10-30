@@ -78,6 +78,7 @@ export default function SynapseNetBirdControlCenter() {
             c.handleQuickAction(`diagnose and auto-heal service ${port}`)
           }
           onRemoveService={c.handleRemoveService}
+          onHealAllServices={c.handleAutoHealUnhealthyServices}
         />
 
         <div className="flex flex-1 overflow-hidden">
@@ -95,6 +96,7 @@ export default function SynapseNetBirdControlCenter() {
                 baseUrl={c.baseUrl}
                 secretKeysCount={c.secretKeys.length}
                 registeredServices={c.activeProject?.registered_services || []}
+                dismissedServices={c.activeProject?.dismissed_services || []}
                 flowView={c.flowView}
                 onSelectNode={(nodeId) => c.setSelectedNodeId(nodeId)}
                 onToggleCartridge={(id) => c.handleToggleCartridge(id)}
@@ -124,6 +126,7 @@ export default function SynapseNetBirdControlCenter() {
                 onHealService={(port) =>
                   c.handleQuickAction(`heal service ${port}`)
                 }
+                onRemoveService={c.handleRemoveService}
                 firewallPolicies={c.activeProject?.firewall_policies}
                 onOpenFirewall={(nodeId) => {
                   if (nodeId) c.setSelectedNodeId(nodeId);

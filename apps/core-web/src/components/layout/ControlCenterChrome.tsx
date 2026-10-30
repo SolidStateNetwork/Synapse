@@ -518,33 +518,66 @@ export function ControlCenterHeader({
 export interface UnhealthyServiceBannerProps {
   unhealthyServices: RegisteredService[];
   onDiagnoseService: (port: number) => void;
-  onRemoveService: (serviceId: string, nodeId: string) => void;
+  onRemoveService: (serviceId: string, nodeId: string, port?: number) => void;
+  onHealAllServices?: () => void;
+}
+
+function formatHealthError(raw?: string): string {
+  if (!raw) return "Port offline";
+  if (raw.includes("connection refused")) return "Port offline (Connection refused)";
+  if (raw.includes("context deadline exceeded") || raw.includes("Timeout")) return "Timeout";
+  return raw.length > 48 ? `${raw.slice(0, 48)}…` : raw;
 }
 
 export function UnhealthyServiceBanner({
   unhealthyServices,
   onDiagnoseService,
   onRemoveService,
+  onHealAllServices,
 }: UnhealthyServiceBannerProps) {
   if (unhealthyServices.length === 0) return null;
 
   return (
-    <div className="flex items-center justify-between border-b border-red-500/40 bg-red-950/40 px-5 py-2 text-xs">
-      <div className="flex items-center gap-2 text-red-300">
-        <AlertTriangle className="h-4 w-4 text-red-400 animate-pulse" />
-        <span>
-          <strong>Dienst-Gesundheitswarnung:</strong>{" "}
-          {unhealthyServices
-            .map(
-              (s) =>
-                `${s.name} (:${s.port} auf ${s.node_id}) — ${
-                  s.health_check?.last_error || "Verbindung fehlgeschlagen"
-                }`
-            )
-            .join(" | ")}
-        </span>
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-red-500/40 bg-red-950/40 px-5 py-2 text-xs">
+      <div className="flex flex-wrap items-center gap-2 text-red-300">
+        <AlertTriangle className="h-4 w-4 shrink-0 text-red-400 animate-pulse" />
+        <strong className="shrink-0">Dienst-Gesundheitswarnung:</strong>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {unhealthyServices.map((s) => {
+            const cleanName = s.name.replace(new RegExp(`\\s*:${s.port}\\b`, "g"), "").trim() || s.service_id;
+            return (
+              <span
+                key={`${s.service_id}-${s.port}`}
+                className="inline-flex items-center gap-1.5 rounded-md border border-red-500/35 bg-red-950/70 px-2 py-0.5 text-[11px] text-red-200"
+                title={s.health_check?.last_error || "Verbindung fehlgeschlagen"}
+              >
+                <span className="font-semibold text-white">{cleanName}</span>
+                <span className="font-mono text-red-300">:{s.port}</span>
+                <span className="text-red-400/90">· {formatHealthError(s.health_check?.last_error)}</span>
+                <button
+                  type="button"
+                  onClick={() => onRemoveService(s.service_id, s.node_id, s.port)}
+                  className="ml-0.5 rounded px-1 py-0.2 text-red-300/80 hover:bg-red-500/30 hover:text-white"
+                  title={`${cleanName} (:${s.port}) aus Projekt entfernen`}
+                >
+                  ×
+                </button>
+              </span>
+            );
+          })}
+        </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
+        {onHealAllServices && (
+          <button
+            onClick={onHealAllServices}
+            className="flex items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-950/60 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-900/60"
+            title="Sofortige autonome Selbstheilung für ausgefallene Dienste ausführen"
+          >
+            <RefreshCw className="h-3 w-3" />
+            <span>Auto-Heal</span>
+          </button>
+        )}
         <button
           onClick={() => onDiagnoseService(unhealthyServices[0].port)}
           className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-red-500"
@@ -553,17 +586,16 @@ export function UnhealthyServiceBanner({
           <span>KI um Diagnose &amp; Reparatur bitten</span>
         </button>
         <button
-          onClick={() =>
-            onRemoveService(
-              unhealthyServices[0].service_id,
-              unhealthyServices[0].node_id
-            )
-          }
+          onClick={() => {
+            for (const svc of unhealthyServices) {
+              onRemoveService(svc.service_id, svc.node_id, svc.port);
+            }
+          }}
           className="flex items-center gap-1 rounded-md border border-red-500/50 bg-nb-gray-940 px-2.5 py-1 text-[11px] font-medium text-red-300 hover:bg-red-950"
-          title="Diesen Dienst aus dem Projekt entfernen"
+          title="Ausgefallene Dienste aus dem Projekt entfernen"
         >
           <Trash2 className="h-3 w-3" />
-          <span>Dienst entfernen</span>
+          <span>{unhealthyServices.length > 1 ? "Alle entfernen" : "Dienst entfernen"}</span>
         </button>
       </div>
     </div>

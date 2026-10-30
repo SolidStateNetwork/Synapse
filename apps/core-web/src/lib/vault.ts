@@ -189,6 +189,7 @@ export interface ProjectState {
   assigned_nodes: AssignedNode[];
   active_cartridges: string[];
   registered_services: RegisteredService[];
+  dismissed_services?: string[];
   peer_mesh_links?: PeerMeshLink[];
   scheduled_playbooks?: ScheduledPlaybook[];
   mcp_api_keys?: McpApiKey[];

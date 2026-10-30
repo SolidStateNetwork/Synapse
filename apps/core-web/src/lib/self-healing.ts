@@ -153,6 +153,10 @@ export async function executeAutonomousSelfHeal(params: {
     `    if [ -f /var/lib/synapse/pulse-stack/pulse_app.py ]; then nohup python3 /var/lib/synapse/pulse-stack/pulse_app.py >/var/lib/synapse/pulse-stack/pulse.log 2>&1 </dev/null & fi`,
     `  elif [ -f "/opt/axon/workspaces/${projectId}/service/server_${port}.py" ]; then`,
     `    nohup python3 "/opt/axon/workspaces/${projectId}/service/server_${port}.py" >/tmp/synapse-svc-${port}.log 2>&1 </dev/null &`,
+    `  elif [ -f "/var/lib/synapse/services/${serviceId}/server_${port}.py" ]; then`,
+    `    nohup python3 "/var/lib/synapse/services/${serviceId}/server_${port}.py" >/tmp/synapse-svc-${port}.log 2>&1 </dev/null &`,
+    `  elif [ -f "/var/lib/synapse/services/server_${port}.py" ]; then`,
+    `    nohup python3 "/var/lib/synapse/services/server_${port}.py" >/tmp/synapse-svc-${port}.log 2>&1 </dev/null &`,
     `  else`,
     `    mkdir -p /var/lib/synapse/services`,
     `    cat << 'PYEOF' > /var/lib/synapse/services/server_${port}.py`,
@@ -191,7 +195,7 @@ export async function executeAutonomousSelfHeal(params: {
     `  sleep 0.45`,
     `fi`,
     `PROBE=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 3 http://127.0.0.1:${port}/ 2>/dev/null || echo "200|0.002")`,
-    `echo "SELF_HEAL_RESULT|$PROBE|$LOG_SNAP"`,
+    `printf "SELF_HEAL_%s|%s|%s\\n" "RESULT" "$PROBE" "$LOG_SNAP"`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -208,9 +212,9 @@ export async function executeAutonomousSelfHeal(params: {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         node_id: nodeId,
-        cmd_id: `self-heal-${Date.now()}`,
+        cmd_id: `self-heal-${port}-${Date.now()}`,
         project_id: projectId,
-        session_id: `self-heal-${projectId}`,
+        session_id: `self-heal-${projectId}-${port}`,
         command: runbookCmd,
         wait_timeout_ms: 8000,
       }),
@@ -374,15 +378,15 @@ export async function executeLiveServiceProbe(params: {
   let healthy = true;
 
   try {
-    const probeCmd = `PROBE=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 3 http://127.0.0.1:${port}/ 2>/dev/null || echo "000|0.001"); echo "LIVE_PROBE|$PROBE"`;
+    const probeCmd = `PROBE=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 3 http://127.0.0.1:${port}/ 2>/dev/null || echo "000|0.001"); printf "LIVE_%s|%s\\n" "PROBE" "$PROBE"`;
     const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         node_id: nodeId,
-        cmd_id: `probe-${Date.now()}`,
+        cmd_id: `probe-${port}-${Date.now()}`,
         project_id: projectId,
-        session_id: `probe-${projectId}`,
+        session_id: `probe-${projectId}-${port}`,
         command: probeCmd,
         wait_timeout_ms: 4000,
       }),
@@ -512,7 +516,7 @@ export async function probeServiceLinkOnMuscle(params: {
   let healthy = true;
 
   try {
-    const cmd = `P1=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 2 http://127.0.0.1:${fromPort}/ 2>/dev/null || echo "200|0.001"); P2=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 2 http://127.0.0.1:${toPort}/ 2>/dev/null || echo "200|0.001"); echo "LINK_PROBE|$P1|$P2"`;
+    const cmd = `P1=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 2 http://127.0.0.1:${fromPort}/ 2>/dev/null || echo "200|0.001"); P2=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 2 http://127.0.0.1:${toPort}/ 2>/dev/null || echo "200|0.001"); printf "LINK_%s|%s|%s\\n" "PROBE" "$P1" "$P2"`;
     const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -701,7 +705,7 @@ export async function deployCustomServiceOnMuscle(params: {
     `nohup python3 /var/lib/synapse/services/${serviceId}/server_${port}.py >/tmp/synapse-svc-${port}.log 2>&1 </dev/null &`,
     `sleep 0.45`,
     `PROBE=$(curl -s -o /dev/null -w "%{http_code}|%{time_total}" --max-time 3 http://127.0.0.1:${port}/ 2>/dev/null || echo "200|0.001")`,
-    `echo "CUSTOM_DEPLOY_RESULT|$PROBE"`,
+    `printf "CUSTOM_DEPLOY_%s|%s\\n" "RESULT" "$PROBE"`,
   ].join("\n");
 
   let latencyMs = 1;
@@ -713,9 +717,9 @@ export async function deployCustomServiceOnMuscle(params: {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         node_id: nodeId,
-        cmd_id: `custom-deploy-${Date.now()}`,
+        cmd_id: `custom-deploy-${port}-${Date.now()}`,
         project_id: projectId,
-        session_id: `custom-deploy-${projectId}`,
+        session_id: `custom-deploy-${projectId}-${port}`,
         command: deployCmd,
         wait_timeout_ms: 8000,
       }),
@@ -748,6 +752,14 @@ export async function deployCustomServiceOnMuscle(params: {
   const nowIso = new Date().toISOString();
   try {
     await withProjectStateTransaction(projectId, (draft) => {
+      if (Array.isArray(draft.dismissed_services)) {
+        draft.dismissed_services = draft.dismissed_services.filter(
+          (d) =>
+            d !== serviceId &&
+            d !== `port:${port}` &&
+            d !== `auto-svc-${port}`
+        );
+      }
       draft.registered_services = draft.registered_services.filter(
         (s) => s.service_id !== serviceId && s.port !== port
       );

@@ -111,13 +111,13 @@ export function useCanvasViewportAndLayout({
     const next: Record<string, CanvasPos> = {};
     const rawPeerIds =
       peerIdsKey !== "empty" ? peerIdsKey.split(",") : ["empty"];
-    const peerStep = 118;
-    const svcStep = 152;
+    const peerStep = 122;
+    const svcStep = 158;
 
     const currentServices = allServicesRef.current;
     const CORE_BASE_H = 74;
-    const PEER_BASE_H = peerIdsKey === "empty" ? 46 : 96;
-    const SVC_BASE_H = currentServices.length === 0 ? 50 : 132;
+    const PEER_BASE_H = peerIdsKey === "empty" ? 46 : 104;
+    const SVC_BASE_H = currentServices.length === 0 ? 50 : 136;
 
 
     const servicesByPeer = new Map<string, RegisteredService[]>();
@@ -302,8 +302,8 @@ export function useCanvasViewportAndLayout({
         }
       });
     };
-    shiftColumn("peer:", 96, 250, coreExtraW);
-    shiftColumn("svc:", 132, 320, coreExtraW + maxPeerExtraW);
+    shiftColumn("peer:", 104, 250, coreExtraW);
+    shiftColumn("svc:", 136, 320, coreExtraW + maxPeerExtraW);
     return out;
   }, [positions, expandedNodes, sizes, customDims]);
 
@@ -357,9 +357,9 @@ export function useCanvasViewportAndLayout({
         const w = sizes[key]?.w || DEFAULT_NODE_W;
         const h =
           sizes[key]?.h ||
-          (key === "core:hub" ? 108 : key.startsWith("peer:") ? 108 : 132);
+          (key === "core:hub" ? 74 : key.startsWith("peer:") ? 104 : 136);
         const extraRight =
-          key.startsWith("svc:") && serviceLinks.length > 0 ? 155 : 0;
+          key.startsWith("svc:") && serviceLinks.length > 0 ? 185 : 0;
         if (pos.x < minX) minX = pos.x;
         if (pos.y < minY) minY = pos.y;
         if (pos.x + w + extraRight > maxX) maxX = pos.x + w + extraRight;
@@ -796,8 +796,13 @@ export function useCanvasViewportAndLayout({
 
   const getNodeAnchorHeight = useCallback(
     (nodeId: string): number => {
-      if (!expandedNodes[nodeId] && sizes[nodeId]?.h) {
-        return sizes[nodeId].h;
+      if (!expandedNodes[nodeId]) {
+        if (sizes[nodeId]?.h) return sizes[nodeId].h;
+        if (nodeId === "core:hub") return 74;
+        if (nodeId === "peer:empty") return 46;
+        if (nodeId.startsWith("peer:")) return 104;
+        if (nodeId === "svc:empty") return 50;
+        return 136;
       }
       if (nodeId === "core:hub") return 74;
       if (nodeId === "peer:empty") return 46;

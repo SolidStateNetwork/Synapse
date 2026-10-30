@@ -522,7 +522,7 @@ export function useControlCenterController() {
     }
   }
 
-  async function handleRemoveService(serviceId: string, nodeId?: string) {
+  async function handleRemoveService(serviceId: string, nodeId?: string, port?: number) {
     if (!activeProject) return;
     await fetch("/api/orchestrator", {
       method: "POST",
@@ -535,6 +535,7 @@ export function useControlCenterController() {
             action: "remove",
             service_id: serviceId,
             node_id: nodeId || primaryNode,
+            port,
           },
         },
       }),
@@ -543,6 +544,33 @@ export function useControlCenterController() {
       isDe ? `Dienst ${serviceId} entfernt` : `Service ${serviceId} removed`
     );
     await loadWorkspace(activeProject.project_id);
+  }
+
+  async function handleAutoHealUnhealthyServices() {
+    if (!activeProject || unhealthyServices.length === 0) return;
+    showToast(
+      isDe
+        ? `Auto-Heal für ${unhealthyServices.length} Dienst(e) gestartet…`
+        : `Starting Auto-Heal for ${unhealthyServices.length} service(s)…`
+    );
+    for (const svc of unhealthyServices) {
+      await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "heal_service",
+          project_id: activeProject.project_id,
+          node_id: svc.node_id || primaryNode,
+          port: svc.port,
+          service_id: svc.service_id,
+          name: svc.name,
+        }),
+      });
+    }
+    await loadWorkspace(activeProject.project_id);
+    showToast(
+      isDe ? "Auto-Heal abgeschlossen" : "Auto-Heal completed"
+    );
   }
 
   useEffect(() => {
@@ -1779,6 +1807,7 @@ export function useControlCenterController() {
     handleSaveBrainDoc,
     handleInvokeServiceAction,
     handleRemoveService,
+    handleAutoHealUnhealthyServices,
     pendingApprovals,
     unhealthyServices,
     activeHeartbeat,

@@ -21,6 +21,7 @@ import {
   X,
   RotateCcw,
   Server,
+  Trash2,
   Unlock,
   Zap,
   ZoomIn,
@@ -50,6 +51,13 @@ import {
 
 export type { AutonomyTier, FlowView };
 
+const CORE_CANVAS_SERVICE_ORDER: Record<string, number> = {
+  "vps2-status-api": 1,
+  "pulse-webui": 2,
+  "pulse-analytics-api": 3,
+  "pulse-sqlite-db": 4,
+};
+
 const InteractiveControlCenterCanvas = React.memo(
   function InteractiveControlCenterCanvas({
     gatewayNodes,
@@ -57,6 +65,7 @@ const InteractiveControlCenterCanvas = React.memo(
     activeCartridges,
     cartridges,
     registeredServices,
+    dismissedServices,
     secretKeysCount,
     modelName,
     baseUrl,
@@ -72,6 +81,7 @@ const InteractiveControlCenterCanvas = React.memo(
     onOpenAccessControl,
     onOpenRemoteFiles,
     onHealService,
+    onRemoveService,
     firewallPolicies,
     onOpenFirewall,
     onOpenSettings,
@@ -80,14 +90,27 @@ const InteractiveControlCenterCanvas = React.memo(
 
     // Feature 1: Merge registeredServices with real-time Auto-Discovered services from Muscle heartbeats
     const allServices = useMemo<RegisteredService[]>(() => {
+      const dismissedSet = new Set<string>(dismissedServices || []);
       const map = new Map<string, RegisteredService>();
       for (const s of registeredServices) {
+        if (
+          dismissedSet.has(s.service_id) ||
+          dismissedSet.has(`port:${s.port}`)
+        ) {
+          continue;
+        }
         map.set(s.service_id, { ...s });
       }
       for (const gn of gatewayNodes) {
         const hbServices = gn.last_heartbeat?.services || [];
         for (const live of hbServices) {
           if (!live.service_id || !live.port) continue;
+          if (
+            dismissedSet.has(live.service_id) ||
+            dismissedSet.has(`port:${live.port}`)
+          ) {
+            continue;
+          }
           const existing =
             map.get(live.service_id) ||
             Array.from(map.values()).find(
@@ -102,7 +125,7 @@ const InteractiveControlCenterCanvas = React.memo(
             if (live.auto_discovered || live.service_id.startsWith("auto-")) {
               existing.auto_discovered = true;
             }
-          } else {
+          } else if (live.healthy) {
             const lower = `${live.service_id} ${live.name}`.toLowerCase();
             const cat: "webui" | "backend" | "database" =
               live.category === "webui" ||
@@ -134,8 +157,15 @@ const InteractiveControlCenterCanvas = React.memo(
           }
         }
       }
-      return Array.from(map.values());
-    }, [registeredServices, gatewayNodes]);
+      const list = Array.from(map.values());
+      list.sort((a, b) => {
+        const rankA = CORE_CANVAS_SERVICE_ORDER[a.service_id] ?? 100;
+        const rankB = CORE_CANVAS_SERVICE_ORDER[b.service_id] ?? 100;
+        if (rankA !== rankB) return rankA - rankB;
+        return (a.port || 0) - (b.port || 0);
+      });
+      return list;
+    }, [registeredServices, dismissedServices, gatewayNodes]);
 
     const {
       authEnabled,
@@ -903,7 +933,12 @@ const InteractiveControlCenterCanvas = React.memo(
                                 }`}
                               />
                               <span className="truncate text-xs font-semibold text-white">
-                                {translateText(svc.name)}
+                                {translateText(
+                                  svc.name.replace(
+                                    new RegExp(`\\s*:${svc.port}\\b`),
+                                    ""
+                                  )
+                                )}
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5 font-mono text-[10px] text-nb-gray-400 mt-0.5 min-w-0">
@@ -913,8 +948,18 @@ const InteractiveControlCenterCanvas = React.memo(
                               <span className="shrink-0 font-semibold text-nb-gray-200">
                                 · {svc.service_id === "pulse-sqlite-db" ? "pulse.db" : `:${svc.port}`}
                               </span>
-                              <span className="shrink-0 rounded bg-emerald-950/90 border border-emerald-500/30 px-1 py-0.2 text-[8.5px] text-emerald-300">
-                                {latencyMs <= 0 ? "<1 ms" : `${latencyMs} ms`}
+                              <span
+                                className={`shrink-0 rounded border px-1 py-0.2 text-[8.5px] ${
+                                  healthy
+                                    ? "bg-emerald-950/90 border-emerald-500/30 text-emerald-300"
+                                    : "bg-red-950/90 border-red-500/40 text-red-300 font-semibold"
+                                }`}
+                              >
+                                {!healthy
+                                  ? "OFFLINE"
+                                  : latencyMs <= 0
+                                  ? "<1 ms"
+                                  : `${latencyMs} ms`}
                               </span>
                             </div>
                           </div>
@@ -1032,6 +1077,13 @@ const InteractiveControlCenterCanvas = React.memo(
                                     <RefreshCw className="h-2.5 w-2.5 shrink-0 animate-spin" />
                                     <span>{t("Heilung...", "Healing...")}</span>
                                   </span>
+                                ) : !healthy ? (
+                                  <span className="inline-flex items-center gap-1 rounded border border-red-500/40 bg-red-950/80 px-1.5 py-0.5 font-mono text-[8.5px] leading-none font-semibold text-red-300">
+                                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400 animate-pulse" />
+                                    <span>
+                                      {t("Offline · Heal bereit", "Offline · Heal ready")}
+                                    </span>
+                                  </span>
                                 ) : latestHeal ? (
                                   <span
                                     title={`${latestHeal.trigger} · HTTP ${latestHeal.http_status} (${latestHeal.mttr_ms} ms)`}
@@ -1141,6 +1193,27 @@ const InteractiveControlCenterCanvas = React.memo(
                               >
                                 <ExternalLink className="h-2.5 w-2.5 text-netbird" />
                               </button>
+                              {onRemoveService &&
+                                !CORE_CANVAS_SERVICE_ORDER[svc.service_id] && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onRemoveService(
+                                        svc.service_id,
+                                        svc.node_id,
+                                        svc.port
+                                      );
+                                    }}
+                                    title={t(
+                                      "Diesen Dienst aus dem Projekt entfernen",
+                                      "Remove this service from the project"
+                                    )}
+                                    className="inline-flex shrink-0 items-center justify-center rounded border border-nb-gray-800 bg-nb-gray-950 p-1 text-nb-gray-400 hover:border-red-500/50 hover:text-red-300 transition"
+                                  >
+                                    <Trash2 className="h-2.5 w-2.5" />
+                                  </button>
+                                )}
                             </div>
                           </div>
                         );
