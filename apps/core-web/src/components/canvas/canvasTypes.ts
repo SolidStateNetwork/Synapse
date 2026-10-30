@@ -188,6 +188,26 @@ export interface IntrusionScanState {
   blocked_ips: string[];
 }
 
+export interface SelfHealingEventItem {
+  id: string;
+  node_id: string;
+  service_id: string;
+  service_name: string;
+  port: number;
+  trigger:
+    | "auto_watchdog"
+    | "quick_restart"
+    | "crash_simulation"
+    | "latency_threshold";
+  status: "HEALING" | "RECOVERED" | "FAILED";
+  mttr_ms: number;
+  http_status: number;
+  latency_ms: number;
+  log_snapshot: string[];
+  runbook_steps: Array<{ step: string; detail: string; elapsed_ms: number }>;
+  timestamp: string;
+}
+
 export interface ChaosResultState {
   mttr_ms: number;
   recovered: boolean;

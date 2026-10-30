@@ -3,6 +3,12 @@ import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { dispatchAlertEvent } from "@/lib/alerts";
 import {
+  executeAutonomousSelfHeal,
+  executeLiveServiceProbe,
+  loadSelfHealingStore,
+  updateSelfHealingPolicy,
+} from "@/lib/self-healing";
+import {
   appendAuditLog,
   atomicWriteJsonSync,
   ensureProjectVault,
@@ -50,6 +56,7 @@ export async function GET(req: NextRequest) {
     req.nextUrl.searchParams.get("project_id") || "synapse-cloud-demo";
   return NextResponse.json({
     domains: loadDomains(projectId),
+    self_healing: loadSelfHealingStore(projectId),
   });
 }
 
@@ -339,6 +346,72 @@ export async function POST(req: NextRequest) {
         recovered: true,
         mttr_ms: mttrMs,
         steps,
+      });
+    }
+
+    // FEATURE 7 (v0.5.0): AUTONOMOUS SELF-HEALING RUNBOOK, QUICK RESTART & LIVE HEALTH PROBE
+    if (
+      action === "self_heal" ||
+      action === "restart_service" ||
+      action === "simulate_crash_and_heal"
+    ) {
+      const serviceId = String(body.service_id || `svc-${body.port || 4050}`);
+      const serviceName = String(body.service_name || serviceId);
+      const port = Number(body.port || 4050);
+      const containerName = String(body.container_name || "").trim();
+      const simulateCrash =
+        action === "simulate_crash_and_heal" || Boolean(body.simulate_crash);
+      const trigger = simulateCrash
+        ? "crash_simulation"
+        : body.trigger === "auto_watchdog"
+        ? "auto_watchdog"
+        : "quick_restart";
+
+      const event = await executeAutonomousSelfHeal({
+        projectId,
+        nodeId,
+        serviceId,
+        serviceName,
+        port,
+        containerName,
+        trigger,
+        simulateCrash,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        event,
+        self_healing: loadSelfHealingStore(projectId),
+      });
+    }
+
+    if (action === "probe_service") {
+      const serviceId = String(body.service_id || `svc-${body.port || 4050}`);
+      const port = Number(body.port || 4050);
+      const probe = await executeLiveServiceProbe({
+        projectId,
+        nodeId,
+        serviceId,
+        port,
+      });
+      return NextResponse.json(probe);
+    }
+
+    if (action === "configure_self_healing") {
+      const updated = updateSelfHealingPolicy(
+        projectId,
+        body.policy || {
+          enabled: body.enabled,
+          max_latency_ms: body.max_latency_ms,
+          failure_threshold: body.failure_threshold,
+          cooldown_seconds: body.cooldown_seconds,
+          capture_forensic_logs: body.capture_forensic_logs,
+          notify_watchdog: body.notify_watchdog,
+        }
+      );
+      return NextResponse.json({
+        ok: true,
+        self_healing: updated,
       });
     }
 

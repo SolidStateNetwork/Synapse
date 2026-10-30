@@ -28,6 +28,7 @@ import {
   interceptAndExecuteTool,
 } from "@/lib/orchestrator";
 import { executeServiceAction } from "@/lib/projects/serviceActionRunner";
+import { executeAutonomousSelfHeal } from "@/lib/self-healing";
 
 export async function GET(req: NextRequest) {
   const projectId =
@@ -222,6 +223,14 @@ export async function GET(req: NextRequest) {
     void (async () => {
       for (const target of watchdogTargets) {
         try {
+          const healEvent = await executeAutonomousSelfHeal({
+            projectId,
+            nodeId: target.node_id,
+            serviceId: target.service_id,
+            serviceName: target.name,
+            port: target.port,
+            trigger: "auto_watchdog",
+          });
           const healRes = await interceptAndExecuteTool(
             projectId,
             "node_pty_exec",
@@ -254,7 +263,7 @@ export async function GET(req: NextRequest) {
           writeBrainDoc(
             projectId,
             "Memory.md",
-            `- **[${new Date().toISOString()}]** 🤖 **Proactive Auto-Watchdog:** Automatically restarted unhealthy service \`${target.name}\` (\`127.0.0.1:${target.port}\` on \`${target.node_id}\`).`,
+            `- **[${new Date().toISOString()}]** 🤖 **Proactive Auto-Watchdog:** Automatically restarted unhealthy service \`${target.name}\` (\`127.0.0.1:${target.port}\` on \`${target.node_id}\`, MTTR ${healEvent.mttr_ms} ms).`,
             "append"
           );
 

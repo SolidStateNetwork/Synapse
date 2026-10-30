@@ -10,6 +10,7 @@ import {
   PanelLeftOpen,
   Plus,
   RefreshCw,
+  Search,
   Sparkles,
   Trash2,
   Wrench,
@@ -307,7 +308,7 @@ export function ControlCenterSidebar({
                 className="group flex min-w-0 items-center gap-1.5 text-left"
               >
                 <span className="whitespace-nowrap font-semibold text-nb-gray-100 group-hover:text-white">
-                  v0.4.0
+                  v0.5.0
                 </span>
                 <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-400">
                   {localShort}
@@ -402,6 +403,7 @@ export interface ControlCenterHeaderProps {
   setCopilotDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>;
   onOpenPeers: () => void;
   onOpenAddPeerModal: () => void;
+  onOpenCommandPalette?: () => void;
 }
 
 export function ControlCenterHeader({
@@ -414,6 +416,7 @@ export function ControlCenterHeader({
   setCopilotDrawerOpen,
   onOpenPeers,
   onOpenAddPeerModal,
+  onOpenCommandPalette,
 }: ControlCenterHeaderProps) {
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-nb-gray-900 bg-nb-gray-950 px-6 py-3">
@@ -469,6 +472,21 @@ export function ControlCenterHeader({
           <span className="hidden xl:inline-block rounded-md border border-emerald-500/40 bg-emerald-950 px-2.5 py-1 font-mono text-[11px] text-emerald-400">
             {statusToast}
           </span>
+        )}
+
+        {onOpenCommandPalette && (
+          <button
+            type="button"
+            onClick={onOpenCommandPalette}
+            title="Globale Command-Palette öffnen (Ctrl+K / Cmd+K)"
+            className="hidden sm:flex h-8 items-center gap-2 rounded-lg border border-nb-gray-800/80 bg-nb-gray-930 px-2.5 text-xs text-nb-gray-300 hover:border-nb-gray-700 hover:text-white transition-colors"
+          >
+            <Search className="h-3.5 w-3.5 text-netbird" />
+            <span>Befehle</span>
+            <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.2 font-mono text-[10px] text-nb-gray-400">
+              Ctrl+K
+            </span>
+          </button>
         )}
 
         <LanguageSwitcher variant="header" />

@@ -154,6 +154,9 @@ const EN_DICTIONARY: Record<string, string> = {
   "Aktiv": "Active",
   "Pausiert": "Paused",
   "Regeln aktiv": "Rules active",
+  "Befehle": "Commands",
+  "Globale Command-Palette öffnen (Ctrl+K / Cmd+K)":
+    "Open Global Command Palette (Ctrl+K / Cmd+K)",
 
   // Rules & Access Control
   "Klicke auf eine Rule Cartridge, um die vollständige Regel-Spezifikation direkt in der Karte aufzuklappen.":

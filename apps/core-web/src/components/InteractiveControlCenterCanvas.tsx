@@ -2,7 +2,13 @@
 
 import React, { useMemo } from "react";
 import {
+  Activity,
   Bot,
+  ExternalLink,
+  FileText,
+  RefreshCw,
+  Shield,
+  Terminal,
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
@@ -175,6 +181,12 @@ const InteractiveControlCenterCanvas = React.memo(
       handleRollbackCheckpoint,
       handleUnlockDashboard,
       handleToggleServiceLink,
+      selfHealingEvents,
+      selfHealBusyId,
+      probeBusyId,
+      serviceSparklineMap,
+      handleQuickRestartService,
+      handleQuickProbeService,
     } = useCanvasOpsController({
       primaryNode,
       allServices,
@@ -505,6 +517,102 @@ const InteractiveControlCenterCanvas = React.memo(
                         </button>
                       </div>
 
+                                            {/* v0.5.0: Compact 60s CPU/RAM Live Sparklines & Quick-Action Bar on Muscle Card */}
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-2.5 flex items-center justify-between gap-2 border-t border-nb-gray-800/80 pt-2"
+                      >
+                        <div className="flex items-center gap-2.5 font-mono text-[9.5px] text-nb-gray-400">
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title={t(
+                              "60s Echtzeit-CPU-Verlauf",
+                              "60s real-time CPU sparkline"
+                            )}
+                          >
+                            <span className="text-nb-gray-300">
+                              CPU {(hb?.cpu_percent ?? 0.2).toFixed(1)}%
+                            </span>
+                            <svg
+                              width="36"
+                              height="12"
+                              viewBox="0 0 72 20"
+                              className="overflow-visible"
+                            >
+                              <polyline
+                                fill="none"
+                                stroke="#34d399"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                points={buildSparklinePoints((s) => s.cpu)}
+                              />
+                            </svg>
+                          </span>
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title={t(
+                              "60s Echtzeit-RAM-Verlauf",
+                              "60s real-time RAM sparkline"
+                            )}
+                          >
+                            <span className="text-nb-gray-300">
+                              RAM {(hb?.ram_percent ?? 2.3).toFixed(1)}%
+                            </span>
+                            <svg
+                              width="36"
+                              height="12"
+                              viewBox="0 0 72 20"
+                              className="overflow-visible"
+                            >
+                              <polyline
+                                fill="none"
+                                stroke="#38bdf8"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                points={buildSparklinePoints((s) => s.ram)}
+                              />
+                            </svg>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectNode(gn.node_id);
+                              onOpenPty();
+                            }}
+                            title={t(
+                              "1-Klick Live-Terminal öffnen",
+                              "1-Click Open Live Terminal"
+                            )}
+                            className="inline-flex items-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-300 hover:border-netbird/60 hover:text-white transition"
+                          >
+                            <Terminal className="h-2.5 w-2.5 text-netbird" />
+                            <span>PTY</span>
+                          </button>
+                          {onOpenFirewall && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenFirewall(gn.node_id);
+                              }}
+                              title={t(
+                                "Firewall für diesen Muscle öffnen",
+                                "Open Firewall for this Muscle"
+                              )}
+                              className="inline-flex items-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-300 hover:border-sky-500/60 hover:text-sky-300 transition"
+                            >
+                              <Shield className="h-2.5 w-2.5 text-sky-400" />
+                              <span>FW</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
                       {isExpanded && (
                         <MuscleNodeInspectorPanel
                           gn={gn}
@@ -803,6 +911,153 @@ const InteractiveControlCenterCanvas = React.memo(
                           )}
                         </button>
                       </div>
+
+                                            {/* v0.5.0: 60s Latency Sparkline, Autonomous Self-Healing Badge & 1-Click Quick-Actions */}
+                      {(() => {
+                        const latSamples = serviceSparklineMap[
+                          svc.service_id
+                        ] || [1, 1, 1, 1, 1, Math.max(1, latencyMs)];
+                        const maxLat = Math.max(10, ...latSamples);
+                        const sparkPts = latSamples
+                          .map((val, idx) => {
+                            const x =
+                              (idx / Math.max(1, latSamples.length - 1)) * 56;
+                            const y =
+                              14 - Math.min(12, Math.max(2, (val / maxLat) * 12));
+                            return `${x.toFixed(1)},${y.toFixed(1)}`;
+                          })
+                          .join(" ");
+                        const latestHeal = selfHealingEvents.find(
+                          (ev) =>
+                            ev.service_id === svc.service_id ||
+                            ev.port === svc.port
+                        );
+                        const isHealingNow = selfHealBusyId === svc.service_id;
+                        const isProbingNow = probeBusyId === svc.service_id;
+
+                        return (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-2 flex items-center justify-between gap-1.5 border-t border-nb-gray-800/80 pt-1.5"
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span
+                                className="inline-flex items-center gap-1 font-mono text-[9px] text-nb-gray-400"
+                                title={t(
+                                  "60s Echtzeit-Latenz-Verlauf",
+                                  "60s real-time latency sparkline"
+                                )}
+                              >
+                                <svg
+                                  width="44"
+                                  height="14"
+                                  viewBox="0 0 56 14"
+                                  className="overflow-visible shrink-0"
+                                >
+                                  <polyline
+                                    fill="none"
+                                    stroke={healthy ? "#34d399" : "#f87171"}
+                                    strokeWidth="1.8"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    points={sparkPts}
+                                  />
+                                </svg>
+                              </span>
+                              {isHealingNow ? (
+                                <span className="inline-flex items-center gap-1 rounded border border-amber-500/50 bg-amber-950/80 px-1.5 py-0.2 font-mono text-[8.5px] font-semibold text-amber-300 animate-pulse">
+                                  <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                                  <span>{t("Heilung...", "Healing...")}</span>
+                                </span>
+                              ) : latestHeal ? (
+                                <span
+                                  title={`${latestHeal.trigger} · HTTP ${latestHeal.http_status} (${latestHeal.mttr_ms} ms)`}
+                                  className="shrink-0 whitespace-nowrap inline-flex items-center gap-0.5 rounded border border-emerald-500/40 bg-emerald-950/80 px-1.2 py-0.2 font-mono text-[8px] font-semibold text-emerald-300"
+                                >
+                                  <span>⚡ {latestHeal.mttr_ms}ms</span>
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                disabled={isHealingNow}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleQuickRestartService(svc, false);
+                                }}
+                                title={t(
+                                  "1-Klick Service-Neustart & Auto-Heal Runbook",
+                                  "1-Click Service Restart & Auto-Heal Runbook"
+                                )}
+                                className="inline-flex items-center gap-0.5 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[8.5px] text-nb-gray-300 hover:border-emerald-500/50 hover:text-emerald-300 disabled:opacity-40 transition"
+                              >
+                                <RotateCcw
+                                  className={`h-2.5 w-2.5 ${
+                                    isHealingNow
+                                      ? "animate-spin text-emerald-400"
+                                      : "text-emerald-400"
+                                  }`}
+                                />
+                                <span>{t("Heal", "Heal")}</span>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isProbingNow}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleQuickProbeService(svc);
+                                }}
+                                title={t(
+                                  "1-Klick Live-Health- & Latenz-Probe",
+                                  "1-Click Live Health & Latency Probe"
+                                )}
+                                className="inline-flex items-center gap-0.5 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[8.5px] text-nb-gray-300 hover:border-sky-500/50 hover:text-sky-300 disabled:opacity-40 transition"
+                              >
+                                <Activity
+                                  className={`h-2.5 w-2.5 ${
+                                    isProbingNow
+                                      ? "animate-pulse text-sky-400"
+                                      : "text-sky-400"
+                                  }`}
+                                />
+                                <span>Probe</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!isExpanded) toggleExpandNode(nodeKey, e);
+                                  void handleTailServiceLogs(svc);
+                                }}
+                                title={t(
+                                  "1-Klick Live-Log-Stream aufklappen",
+                                  "1-Click Expand Live Log Stream"
+                                )}
+                                className="inline-flex items-center gap-0.5 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[8.5px] text-nb-gray-300 hover:border-violet-500/50 hover:text-violet-300 transition"
+                              >
+                                <FileText className="h-2.5 w-2.5 text-violet-400" />
+                                <span>Logs</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenReverseProxy(svc.port);
+                                }}
+                                title={t(
+                                  "Im Reverse-Proxy / API-Tester öffnen",
+                                  "Open in Reverse Proxy / API Tester"
+                                )}
+                                className="inline-flex items-center rounded border border-nb-gray-800 bg-nb-gray-950 p-1 text-nb-gray-300 hover:border-netbird/60 hover:text-white transition"
+                              >
+                                <ExternalLink className="h-2.5 w-2.5 text-netbird" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {isExpanded && (
                         <ServiceNodeInspectorPanel

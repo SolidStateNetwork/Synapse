@@ -307,4 +307,38 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
     assert.equal(alertCfg.events[0].title, "Multi-Core Tunnel Verified");
     assert.equal(SERVICE_BLUEPRINTS.length, 3);
   });
+
+  it("10. Autonomous Self-Healing Engine executes recovery runbook, persists SelfHealingEvent, and updates policy", async () => {
+    const {
+      executeAutonomousSelfHeal,
+      loadSelfHealingStore,
+      updateSelfHealingPolicy,
+    } = await import("../lib/self-healing.ts");
+
+    const updatedStore = updateSelfHealingPolicy(testProjectId, {
+      max_latency_ms: 950,
+      failure_threshold: 2,
+    });
+    assert.equal(updatedStore.policy.max_latency_ms, 950);
+
+    const healEvt = await executeAutonomousSelfHeal({
+      projectId: testProjectId,
+      nodeId: "vps2-muscle",
+      serviceId: "uptime-beacon-4060",
+      serviceName: "Uptime- & Latenz-Beacon :4060",
+      port: 4060,
+      trigger: "crash_simulation",
+      simulateCrash: true,
+    });
+
+    assert.equal(healEvt.status, "RECOVERED");
+    assert.equal(healEvt.port, 4060);
+    assert.equal(healEvt.trigger, "crash_simulation");
+    assert.ok(healEvt.mttr_ms >= 50);
+    assert.equal(healEvt.runbook_steps.length, 4);
+
+    const storeAfter = loadSelfHealingStore(testProjectId);
+    assert.ok(storeAfter.events.length >= 1);
+    assert.equal(storeAfter.events[0].id, healEvt.id);
+  });
 });

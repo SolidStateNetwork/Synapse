@@ -15,6 +15,7 @@ import {
   WorkspaceExplorerView,
 } from "@/components/views/BrainVaultAndWorkspaceViews";
 import ControlCenterModals from "@/components/modals/ControlCenterModals";
+import CommandPaletteModal from "@/components/modals/CommandPaletteModal";
 import {
   ControlCenterHeader,
   ControlCenterSidebar,
@@ -64,6 +65,7 @@ export default function SynapseNetBirdControlCenter() {
           copilotDrawerOpen={c.copilotDrawerOpen}
           setCopilotDrawerOpen={c.setCopilotDrawerOpen}
           onOpenPeers={() => c.setActiveNav("peers")}
+          onOpenCommandPalette={() => c.setCommandPaletteOpen(true)}
           onOpenAddPeerModal={() => {
             c.setAddPeerModalOpen(true);
             if (!c.issuedToken) c.handleGenerateJoinToken();
@@ -563,10 +565,46 @@ export default function SynapseNetBirdControlCenter() {
         newProjName={c.newProjName}
         setNewProjName={c.setNewProjName}
         loadWorkspace={c.loadWorkspace}
-        commandPaletteOpen={c.commandPaletteOpen}
+        commandPaletteOpen={false}
         setCommandPaletteOpen={c.setCommandPaletteOpen}
         commandQuery={c.commandQuery}
         setCommandQuery={c.setCommandQuery}
+        sidebarItems={c.sidebarItems}
+        setActiveNav={c.setActiveNav}
+      />
+
+      <CommandPaletteModal
+        open={c.commandPaletteOpen}
+        onClose={() => c.setCommandPaletteOpen(false)}
+        activeProject={c.activeProject}
+        gatewayNodes={c.gatewayNodes}
+        onNavigate={(nav) => c.setActiveNav(nav)}
+        onOpenSettingsTab={(tab) => {
+          c.setSettingsTab(tab);
+          c.setActiveNav("settings");
+        }}
+        onOpenBrainDoc={(doc) => {
+          c.setBrainDocTab(doc);
+          c.setActiveNav("brain-vault");
+        }}
+        onOpenServiceProxy={(port, serviceId) => {
+          if (serviceId) c.setSelectedServiceId(serviceId);
+          c.setPreviewPort(port);
+          c.setActiveNav("reverse-proxy");
+        }}
+        onOpenNodeTerminal={(nodeId) => {
+          c.setSelectedNodeId(nodeId);
+          c.setTerminalDrawerOpen(true);
+        }}
+        onOpenNodeFirewall={(nodeId) => {
+          c.setSelectedNodeId(nodeId);
+          c.setActiveNav("firewall");
+        }}
+        onRunCopilotSkill={(prompt) => {
+          c.setCopilotDrawerOpen(true);
+          c.runStreamingPrompt(prompt);
+        }}
+        onShowToast={(msg) => c.setStatusToast(msg)}
         sidebarItems={c.sidebarItems}
         setActiveNav={c.setActiveNav}
       />

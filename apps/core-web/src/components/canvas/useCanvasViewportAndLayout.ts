@@ -112,12 +112,13 @@ export function useCanvasViewportAndLayout({
     const rawPeerIds =
       peerIdsKey !== "empty" ? peerIdsKey.split(",") : ["empty"];
     const peerStep = 118;
-    const svcStep = 94;
+    const svcStep = 114;
 
     const currentServices = allServicesRef.current;
     const CORE_BASE_H = 74;
-    const PEER_BASE_H = peerIdsKey === "empty" ? 46 : 66;
-    const SVC_BASE_H = currentServices.length === 0 ? 50 : 58;
+    const PEER_BASE_H = peerIdsKey === "empty" ? 46 : 96;
+    const SVC_BASE_H = currentServices.length === 0 ? 50 : 90;
+
 
     const servicesByPeer = new Map<string, RegisteredService[]>();
     for (const pid of rawPeerIds) {

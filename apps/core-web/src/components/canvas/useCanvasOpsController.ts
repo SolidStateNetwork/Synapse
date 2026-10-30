@@ -10,6 +10,7 @@ import type {
   IntrusionScanState,
   OffsiteBackupItem,
   RegisteredService,
+  SelfHealingEventItem,
   ServiceMeshLink,
 } from "@/components/canvas/canvasTypes";
 
@@ -114,6 +115,33 @@ export function useCanvasOpsController({
   >({});
   const [chaosBusyId, setChaosBusyId] = useState<string | null>(null);
 
+  // v0.5.0: Autonomous Self-Healing Events, Quick-Actions & Rolling 60s Service Sparklines
+  const [selfHealingEvents, setSelfHealingEvents] = useState<
+    SelfHealingEventItem[]
+  >([]);
+  const [selfHealBusyId, setSelfHealBusyId] = useState<string | null>(null);
+  const [probeBusyId, setProbeBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!allServices || allServices.length === 0) return;
+    setServiceSparklineMap((prev) => {
+      const next = { ...prev };
+      for (const s of allServices) {
+        if (!s.service_id || s.service_id === "empty") continue;
+        const lat = Math.max(
+          1,
+          s.latency_ms ?? s.health_check?.latency_ms ?? 1
+        );
+        const cur = next[s.service_id] || [1, 1, 1, 1, 1, lat];
+        next[s.service_id] = [...cur.slice(-11), lat];
+      }
+      return next;
+    });
+  }, [allServices]);
+  const [serviceSparklineMap, setServiceSparklineMap] = useState<
+    Record<string, number[]>
+  >({});
+
   useEffect(() => {
     fetch("/api/auth")
       .then((r) => r.json())
@@ -160,6 +188,9 @@ export function useCanvasOpsController({
       .then((d) => {
         if (d && d.domains) {
           setDomainBindings(d.domains);
+          if (d.self_healing && Array.isArray(d.self_healing.events)) {
+            setSelfHealingEvents(d.self_healing.events);
+          }
         }
       })
       .catch(() => {});
@@ -699,5 +730,76 @@ export function useCanvasOpsController({
     handleConfigureAuth,
     handleUnlockDashboard,
     handleToggleServiceLink,
+    selfHealingEvents,
+    selfHealBusyId,
+    probeBusyId,
+    serviceSparklineMap,
+    handleQuickRestartService: async (
+      svc: RegisteredService,
+      simulateCrash = false
+    ) => {
+      setSelfHealBusyId(svc.service_id);
+      try {
+        const res = await fetch("/api/service-ops", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: simulateCrash ? "simulate_crash_and_heal" : "self_heal",
+            node_id: svc.node_id || primaryNode || "vps2-muscle",
+            service_id: svc.service_id,
+            service_name: svc.name,
+            port: svc.port,
+            container_name: svc.container_name,
+            simulate_crash: simulateCrash,
+          }),
+        });
+        const data = await res.json();
+        if (data.ok && data.event) {
+          setSelfHealingEvents(
+            data.self_healing?.events || [data.event, ...selfHealingEvents]
+          );
+          setServiceSparklineMap((prev) => {
+            const cur = prev[svc.service_id] || [1, 1, 1, 1, 1];
+            return {
+              ...prev,
+              [svc.service_id]: [
+                ...cur.slice(-11),
+                simulateCrash ? Math.max(8, data.event.latency_ms) : data.event.latency_ms || 1,
+                data.event.latency_ms || 1,
+              ],
+            };
+          });
+        }
+      } finally {
+        setSelfHealBusyId(null);
+      }
+    },
+    handleQuickProbeService: async (svc: RegisteredService) => {
+      setProbeBusyId(svc.service_id);
+      try {
+        const res = await fetch("/api/service-ops", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "probe_service",
+            node_id: svc.node_id || primaryNode || "vps2-muscle",
+            service_id: svc.service_id,
+            port: svc.port,
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setServiceSparklineMap((prev) => {
+            const cur = prev[svc.service_id] || [1, 1, 1, 1, 1, 1];
+            return {
+              ...prev,
+              [svc.service_id]: [...cur.slice(-11), data.latency_ms || 1],
+            };
+          });
+        }
+      } finally {
+        setProbeBusyId(null);
+      }
+    },
   };
 }
