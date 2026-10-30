@@ -120,7 +120,7 @@ func TestPersistentPtySentinelAndState(t *testing.T) {
 
 	// Verify command timeout followed by subsequent command auto-interrupting the running command
 	toResp := mgr.Execute(tunnelv1.PtyExecRequest{
-		SessionID:     "sess-test",
+		SessionID:     "sess-timeout",
 		ProjectID:     "demo-proj",
 		Tier:          tunnelv1.Tier2WorkspaceJail,
 		Command:       "sleep 2",
@@ -131,7 +131,7 @@ func TestPersistentPtySentinelAndState(t *testing.T) {
 	}
 
 	recoverResp := mgr.Execute(tunnelv1.PtyExecRequest{
-		SessionID:     "sess-test",
+		SessionID:     "sess-timeout",
 		ProjectID:     "demo-proj",
 		Tier:          tunnelv1.Tier2WorkspaceJail,
 		Command:       "echo RECOVERED_OK",

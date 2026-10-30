@@ -245,7 +245,7 @@ func (m *Manager) Execute(req tunnelv1.PtyExecRequest) tunnelv1.PtyExecResponse 
 	// Optional Signal Injection (SIGINT / SIGTERM / SIGKILL) before or instead of command execution
 	sigUpper := strings.ToUpper(strings.TrimSpace(req.SendSignal))
 	if sigUpper == "SIGINT" {
-		_, _ = sess.Ptmx.Write([]byte{0x03}) // Ctrl+C to foreground process group
+		_, _ = sess.Ptmx.Write([]byte{0x03, '\n'}) // Ctrl+C + newline to reset readline buffer
 		signalShellChildren(sess.ShellPID, syscall.SIGINT)
 		sess.mu.Lock()
 		sess.runningCmd = ""
@@ -265,7 +265,7 @@ func (m *Manager) Execute(req tunnelv1.PtyExecRequest) tunnelv1.PtyExecResponse 
 		if sigUpper == "SIGKILL" {
 			sig = syscall.SIGKILL
 		}
-		_, _ = sess.Ptmx.Write([]byte{0x03})
+		_, _ = sess.Ptmx.Write([]byte{0x03, '\n'})
 		signalShellChildren(sess.ShellPID, sig)
 		sess.mu.Lock()
 		sess.runningCmd = ""

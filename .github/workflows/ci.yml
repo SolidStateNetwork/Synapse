@@ -57,9 +57,9 @@ jobs:
 
       - name: Run Unit Tests with Race Detector & >= 70% Coverage Gate
         run: |
-          OUT=$(go test -race -cover ./proto/... ./agents/axon/... ./apps/core-gateway/...)
-          echo "$OUT"
-          LOW_COV=$(echo "$OUT" | awk '{for(i=1;i<=NF;i++) if($i=="coverage:") {val=$(i+1); gsub(/%/,"",val); if(val+0 < 70.0) print $2, val"%"}}')
+          set -o pipefail
+          go test -v -race -cover ./proto/... ./agents/axon/... ./apps/core-gateway/... | tee /tmp/go-cov.out
+          LOW_COV=$(awk '/^ok[[:space:]]/ {for(i=1;i<=NF;i++) if($i=="coverage:") {val=$(i+1); gsub(/%/,"",val); if(val+0 < 70.0) print $2, val"%"}}' /tmp/go-cov.out)
           if [ -n "$LOW_COV" ]; then
             echo "ERROR: Go packages below 70% minimum statement coverage gate:"
             echo "$LOW_COV"
