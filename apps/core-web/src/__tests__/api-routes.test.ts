@@ -24,6 +24,7 @@ import { POST as postTokens } from "../app/api/tokens/route";
 import { GET as getDebug, POST as postDebug } from "../app/api/debug/route";
 import { GET as getSystemUpdate, POST as postSystemUpdate } from "../app/api/system-update/route";
 import { GET as getMcp, POST as postMcp } from "../app/api/mcp/route";
+import { POST as postOrchestrator } from "../app/api/orchestrator/route";
 
 function makeGetReq(urlPath: string, headers?: Record<string, string>): NextRequest {
   return new NextRequest(`http://localhost:3000${urlPath}`, {
@@ -319,6 +320,55 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     assert.equal(mcpCallRes.status, 200);
     const mcpCallJson = await mcpCallRes.json();
     assert.equal(mcpCallJson.result.isError, false);
+
+    // 8. /api/orchestrator (13th App Router Route: malformed body, list_models offline, rollback_snapshot error, direct_tool & autonomous workflow)
+    const orchBadBodyRes = await postOrchestrator(
+      makePostReq("/api/orchestrator", "{invalid-json", undefined, true)
+    );
+    assert.equal(orchBadBodyRes.status, 200);
+
+    const orchModelsRes = await postOrchestrator(
+      makePostReq("/api/orchestrator", {
+        action: "list_models",
+        project_id: projId,
+        base_url: "http://127.0.0.1:59998/v1",
+      })
+    );
+    assert.equal(orchModelsRes.status, 200);
+    const orchModelsJson = await orchModelsRes.json();
+    assert.deepEqual(orchModelsJson.models, []);
+
+    const orchRollbackRes = await postOrchestrator(
+      makePostReq("/api/orchestrator", {
+        action: "rollback_snapshot",
+        project_id: projId,
+        snapshot_id: "non-existent-snap",
+      })
+    );
+    assert.equal(orchRollbackRes.status, 400);
+
+    const orchDirectRes = await postOrchestrator(
+      makePostReq("/api/orchestrator", {
+        project_id: projId,
+        direct_tool: {
+          name: "core_manage_secret",
+          arguments: { action: "list", key: "ALL" },
+        },
+      })
+    );
+    assert.equal(orchDirectRes.status, 200);
+    const orchDirectJson = await orchDirectRes.json();
+    assert.equal(orchDirectJson.execution.status, "executed");
+
+    const orchChatRes = await postOrchestrator(
+      makePostReq("/api/orchestrator", {
+        project_id: projId,
+        prompt: "Check system status",
+      })
+    );
+    assert.equal(orchChatRes.status, 200);
+    const orchChatJson = await orchChatRes.json();
+    assert.ok(typeof orchChatJson.reply === "string" && orchChatJson.reply.length > 0);
   });
 
   it("23. v0.5.0 Version Synchronization & Hardened Installer Script Parity across Core & Muscle", () => {

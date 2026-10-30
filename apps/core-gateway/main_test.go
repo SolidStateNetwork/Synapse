@@ -47,6 +47,9 @@ func TestGatewayHealthzAndDebugRoutes(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 on /healthz, got %d", rec.Code)
 	}
+	if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("expected X-Content-Type-Options: nosniff header")
+	}
 	var health map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &health); err != nil {
 		t.Fatalf("unmarshal /healthz: %v", err)

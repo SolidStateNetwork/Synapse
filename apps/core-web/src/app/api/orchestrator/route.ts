@@ -21,6 +21,7 @@ import {
   resolveActiveProjectId,
   safeParseRequestJson,
 } from "@/lib/runtimeResolver";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 export type { OrchestratorStreamEvent };
 
@@ -95,17 +96,20 @@ export async function POST(req: NextRequest) {
     try {
       const headers: Record<string, string> = { Accept: "application/json" };
       if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
-      const res = await fetch(modelsUrl, {
+      const { ok, status, data, error } = await safeFetchJson<{
+        data?: Array<{ id?: string; name?: string }>;
+        models?: Array<{ id?: string; name?: string }>;
+      }>(modelsUrl, {
         headers,
         signal: req.signal,
+        timeoutMs: 6000,
       });
-      if (!res.ok) {
+      if (!ok || !data) {
         return NextResponse.json({
           models: [],
-          error: `Endpoint ${modelsUrl} returned HTTP ${res.status}`,
+          error: error || `Endpoint ${modelsUrl} returned HTTP ${status}`,
         });
       }
-      const data = await res.json();
       const rawList = Array.isArray(data.data)
         ? data.data
         : Array.isArray(data.models)

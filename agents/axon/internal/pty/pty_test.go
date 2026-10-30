@@ -1,10 +1,12 @@
 package pty
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/SolidStateNetwork/Synapse/agents/axon/internal/guard"
 	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
@@ -31,6 +33,8 @@ func TestPersistentPtySentinelAndState(t *testing.T) {
 		Tier:          tunnelv1.Tier1Unleashed,
 		Command:       "mkdir -p backend/api && cd backend/api && export SYNAPSE_STATE_TEST='persisted_value_42' && pwd",
 		WaitTimeoutMs: 5000,
+		Cols:          120,
+		Rows:          40,
 	})
 	if resp1.ExitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d (output: %s)", resp1.ExitCode, resp1.Output)
@@ -69,5 +73,59 @@ func TestPersistentPtySentinelAndState(t *testing.T) {
 	}
 	if !strings.HasSuffix(resp2.Cwd, "backend/api") {
 		t.Fatalf("expected CWD to remain backend/api across calls, got %s", resp2.Cwd)
+	}
+
+	// 3. Test ActiveSessionIDs, ActiveSessionMeta, SubscribeLive, Resize, and SendSignal
+	if len(mgr.ActiveSessionIDs()) != 1 || len(mgr.ActiveSessionMeta()) != 1 {
+		t.Fatalf("expected 1 active session in manager")
+	}
+
+	sess, err := mgr.GetOrCreateSession("sess-test", "demo-proj", tunnelv1.Tier1Unleashed)
+	if err != nil {
+		t.Fatalf("GetOrCreateSession failed: %v", err)
+	}
+	liveCh, unsub := sess.SubscribeLive()
+	defer unsub()
+	_ = sess.Resize(100, 30)
+	_ = sess.WriteInteractive([]byte("echo LIVE_STREAM_MARKER\n"))
+
+	select {
+	case <-liveCh:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for SubscribeLive output")
+	}
+
+	sigResp := mgr.Execute(tunnelv1.PtyExecRequest{
+		CmdID:      "cmd-sig",
+		SessionID:  "sess-test",
+		ProjectID:  "demo-proj",
+		Tier:       tunnelv1.Tier1Unleashed,
+		SendSignal: "SIGINT",
+	})
+	if sigResp.ExitCode != 0 || !strings.Contains(sigResp.Output, "SIGINT") {
+		t.Fatalf("unexpected SIGINT response: %+v", sigResp)
+	}
+
+	// 4. Test Tier2WorkspaceJail command blocking & Self-Lockout Guardrail blocking
+	jailBlocked := mgr.Execute(tunnelv1.PtyExecRequest{
+		CmdID:     "cmd-jail",
+		SessionID: "sess-test",
+		ProjectID: "demo-proj",
+		Tier:      tunnelv1.Tier2WorkspaceJail,
+		Command:   "sudo systemctl stop sshd",
+	})
+	if !jailBlocked.BlockedByGuardrail || jailBlocked.ExitCode != 126 {
+		t.Fatalf("expected Tier2WorkspaceJail to block sudo/systemctl, got %+v", jailBlocked)
+	}
+
+	guardBlocked := mgr.Execute(tunnelv1.PtyExecRequest{
+		CmdID:     "cmd-guard",
+		SessionID: "sess-test",
+		ProjectID: "demo-proj",
+		Tier:      tunnelv1.Tier1Unleashed,
+		Command:   fmt.Sprintf("kill -9 %d", os.Getpid()),
+	})
+	if !guardBlocked.BlockedByGuardrail || guardBlocked.ExitCode != 126 {
+		t.Fatalf("expected Self-Lockout Guardrail to block killing agent PID, got %+v", guardBlocked)
 	}
 }
