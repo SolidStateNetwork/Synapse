@@ -373,3 +373,96 @@ func TestMultiCoreSharedHealthCollectorMergesTargets(t *testing.T) {
 		}
 	}
 }
+
+func TestCoreTelemetrySummary_MultiCoreLiveAndStandby(t *testing.T) {
+	cfg := &IdentityConfig{
+		NodeID:      "vps2-muscle",
+		CoreGateway: "127.0.0.1:8443",
+		CoreHTTP:    "http://127.0.0.1:8081",
+		Tier:        tunnelv1.Tier1Unleashed,
+		MultiCore:   true,
+		Cores: []CoreTarget{
+			{
+				Name:        "local-windows-core",
+				CoreGateway: "127.0.0.1:8443",
+				CoreHTTP:    "http://127.0.0.1:8081",
+				Enabled:     true,
+			},
+			{
+				Name:        "local-cachyos-core",
+				CoreGateway: "127.0.0.1:9443",
+				CoreHTTP:    "http://127.0.0.1:9081",
+				Enabled:     true,
+			},
+		},
+	}
+
+	agent := NewAgent(cfg)
+	agent.setTargetConnected("127.0.0.1:8443", true)
+
+	activeCount, summaries := agent.CoreTelemetrySummary()
+	if activeCount != 2 {
+		t.Fatalf("expected activeCount=2, got %d", activeCount)
+	}
+	if len(summaries) != 2 {
+		t.Fatalf("expected 2 summaries, got %d (%v)", len(summaries), summaries)
+	}
+	if summaries[0] != "local-windows-core (127.0.0.1:8443 - LIVE)" {
+		t.Fatalf("unexpected primary summary: %q", summaries[0])
+	}
+	if summaries[1] != "local-cachyos-core (127.0.0.1:9443 - STANDBY)" {
+		t.Fatalf("unexpected secondary summary: %q", summaries[1])
+	}
+
+	agent.setTargetConnected("127.0.0.1:9443", true)
+	_, summaries2 := agent.CoreTelemetrySummary()
+	if summaries2[1] != "local-cachyos-core (127.0.0.1:9443 - LIVE)" {
+		t.Fatalf("expected secondary summary to transition to LIVE, got %q", summaries2[1])
+	}
+}
+
+func TestLoadIdentity_AutoReconcilesLoopbackProfiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	profDir := filepath.Join(tmpDir, "profiles", "local-cachyos-core")
+	if err := os.MkdirAll(profDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"node.crt", "node.key", "ca.crt"} {
+		if err := os.WriteFile(filepath.Join(profDir, f), []byte("pem"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	profCfg := `{
+  "node_id": "vps2-muscle",
+  "core_gateway": "127.0.0.1:9443",
+  "core_http": "http://127.0.0.1:9081",
+  "tier": "TIER_1_UNLEASHED"
+}`
+	if err := os.WriteFile(filepath.Join(profDir, "config.json"), []byte(profCfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	mainCfg := `{
+  "node_id": "vps2-muscle",
+  "core_gateway": "127.0.0.1:8443",
+  "core_http": "http://127.0.0.1:8081",
+  "tier": "TIER_1_UNLEASHED",
+  "multi_core": true,
+  "cores": []
+}`
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.json"), []byte(mainCfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := LoadIdentity(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadIdentity failed: %v", err)
+	}
+	targets := loaded.ActiveCoreTargets()
+	if len(targets) != 2 {
+		t.Fatalf("expected 2 targets after auto-reconciling loopback profile, got %d", len(targets))
+	}
+	if targets[1].Name != "local-cachyos-core" || targets[1].CoreGateway != "127.0.0.1:9443" {
+		t.Fatalf("unexpected auto-reconciled target: %+v", targets[1])
+	}
+}

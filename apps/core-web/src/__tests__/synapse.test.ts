@@ -238,4 +238,73 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
       tier3Res.approval_id
     );
   });
+
+  it("8. Zero-Trust RBAC Auth Engine hashes passwords, enforces 2FA PIN, and separates Admin vs Operator roles", async () => {
+    const { hashPassword, loadAuthConfig, saveAuthConfig, verifyLogin } =
+      await import("../lib/auth.ts");
+
+    const cfg = loadAuthConfig();
+    cfg.enabled = true;
+    cfg.admin_password_hash = hashPassword("admin-secret-2026");
+    cfg.operator_password_hash = hashPassword("operator-readonly-2026");
+    cfg.totp_pin = "4242";
+    saveAuthConfig(cfg);
+
+    // Reject missing or wrong PIN
+    const wrongPin = verifyLogin("admin-secret-2026", "0000");
+    assert.equal(wrongPin.ok, false);
+
+    // Operator login succeeds with role === "operator"
+    const opRes = verifyLogin("operator-readonly-2026", "4242");
+    assert.equal(opRes.ok, true);
+    assert.equal(opRes.role, "operator");
+    assert.ok(opRes.session?.token.startsWith("syn_sess_"));
+
+    // Admin login succeeds with role === "admin"
+    const admRes = verifyLogin("admin-secret-2026", "4242");
+    assert.equal(admRes.ok, true);
+    assert.equal(admRes.role, "admin");
+  });
+
+  it("9. Time-Machine Checkpoints & 24/7 Watchdog Alert Engine persist snapshots and dispatch alerts", async () => {
+    const { loadCheckpoints, saveCheckpoints } = await import(
+      "../lib/checkpoints.ts"
+    );
+    const { loadAlertConfig, dispatchAlertEvent } = await import(
+      "../lib/alerts.ts"
+    );
+    const { SERVICE_BLUEPRINTS } = await import(
+      "../lib/templates/serviceTemplates.ts"
+    );
+
+    const initialChks = loadCheckpoints(testProjectId);
+    assert.ok(initialChks.length >= 1);
+
+    initialChks.unshift({
+      id: "chk-unit-test-1",
+      project_id: testProjectId,
+      node_id: "vps2-muscle",
+      timestamp: new Date().toISOString(),
+      title: "Unit Test Multi-Core Snapshot",
+      actor: "Admin",
+      summary: "Verified 2 active Cores",
+      files_backed_up: ["/etc/axon/config.json"],
+      services_snapshot: [],
+      rollback_cmd: "echo OK",
+    });
+    saveCheckpoints(testProjectId, initialChks);
+    const reloadedChks = loadCheckpoints(testProjectId);
+    assert.equal(reloadedChks[0].id, "chk-unit-test-1");
+
+    const evt = await dispatchAlertEvent(testProjectId, {
+      severity: "INFO",
+      title: "Multi-Core Tunnel Verified",
+      message: "vps2-muscle connected to 2 Cores simultaneously",
+      node_id: "vps2-muscle",
+    });
+    assert.ok(evt.id.startsWith("alt-"));
+    const alertCfg = loadAlertConfig(testProjectId);
+    assert.equal(alertCfg.events[0].title, "Multi-Core Tunnel Verified");
+    assert.equal(SERVICE_BLUEPRINTS.length, 3);
+  });
 });

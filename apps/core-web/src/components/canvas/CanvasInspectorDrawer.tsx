@@ -608,6 +608,52 @@ export const MuscleNodeInspectorPanel = React.memo(
           )}
         </div>
 
+        {/* MULTI-CORE TUNNEL TELEMETRY */}
+        <div className="rounded-lg border border-nb-gray-800/80 bg-nb-gray-950/80 p-2.5 text-[11px] space-y-1.5">
+          <div className="flex items-center justify-between text-nb-gray-400">
+            <span>{t("Multi-Core Tunnels", "Multi-Core Tunnels")}</span>
+            <span className="rounded border border-violet-500/40 bg-violet-950/70 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-violet-300">
+              {hb?.active_cores ?? 1}{" "}
+              {(hb?.active_cores ?? 1) === 1
+                ? t("Core aktiv", "Core active")
+                : t("Cores parallel", "Cores parallel")}
+            </span>
+          </div>
+          {Array.isArray(hb?.connected_cores) && hb.connected_cores.length > 0 && (
+            <div className="space-y-1 pt-0.5">
+              {hb.connected_cores.map((coreDesc) => {
+                const isLive = coreDesc.includes("LIVE");
+                return (
+                  <div
+                    key={coreDesc}
+                    className="flex items-center justify-between gap-1.5 rounded border border-nb-gray-800/80 bg-nb-gray-940/90 px-2 py-1 font-mono text-[9.5px]"
+                  >
+                    <span className="inline-flex items-center gap-1.5 truncate text-nb-gray-200">
+                      <span
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                          isLive ? "bg-emerald-400" : "bg-amber-400"
+                        }`}
+                      />
+                      <span className="truncate">{coreDesc.split(" (")[0]}</span>
+                    </span>
+                    <span
+                      className={`shrink-0 text-[9px] font-semibold ${
+                        isLive ? "text-emerald-300" : "text-amber-300"
+                      }`}
+                    >
+                      {coreDesc.includes("(")
+                        ? coreDesc.slice(coreDesc.indexOf("(") + 1, -1)
+                        : isLive
+                        ? "LIVE"
+                        : "STANDBY"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* FEATURE 2: LIVE TIME-SERIES TELEMETRY SPARKLINES */}
         {hb && (
           <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[10px] space-y-1.5">

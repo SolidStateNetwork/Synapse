@@ -125,4 +125,6 @@ export interface NodeHeartbeat {
   telemetry_history?: TelemetrySample[];
   active_pty_sessions: string[];
   pty_session_details?: PtySessionMeta[];
+  active_cores?: number;
+  connected_cores?: string[];
 }

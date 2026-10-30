@@ -74,6 +74,12 @@ export async function GET(req: NextRequest) {
         assigned.os_arch = hb.os_arch;
         assigned.os_info = hb.os_info || hb.os_arch;
         assigned.last_seen_unix = hb.timestamp_unix;
+        if (typeof hb.active_cores === "number" && hb.active_cores > 0) {
+          assigned.active_cores = hb.active_cores;
+        }
+        if (Array.isArray(hb.connected_cores)) {
+          assigned.connected_cores = hb.connected_cores;
+        }
         assigned.network = {
           public_ipv4: hb.public_ipv4 || null,
           private_ipv4: hb.private_ipv4 || "127.0.0.1",
@@ -87,12 +93,22 @@ export async function GET(req: NextRequest) {
           }));
 
         if (Array.isArray(hb.services)) {
+          draft.registered_services = draft.registered_services.filter((s, i, arr) => {
+            if (!s.service_id.startsWith("auto-svc-")) return true;
+            return !arr.some(
+              (other, oi) =>
+                oi !== i &&
+                other.node_id === s.node_id &&
+                other.port === s.port &&
+                !other.service_id.startsWith("auto-svc-")
+            );
+          });
           for (const liveSvc of hb.services) {
             if (!liveSvc.service_id || !liveSvc.port) continue;
             const exists = draft.registered_services.some(
               (s) =>
                 s.node_id === assigned.node_id &&
-                s.service_id === liveSvc.service_id
+                (s.service_id === liveSvc.service_id || s.port === liveSvc.port)
             );
             if (!exists) {
               draft.registered_services.push({

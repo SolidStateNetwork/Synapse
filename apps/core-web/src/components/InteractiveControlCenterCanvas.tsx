@@ -458,6 +458,29 @@ const InteractiveControlCenterCanvas = React.memo(
                                 {hb?.private_ipv4 || "Online"} ·{" "}
                                 {t(`Stufe ${tierNum}`, `Tier ${tierNum}`)}
                               </span>
+                              {(hb?.active_cores ?? 1) > 1 ? (
+                                <span
+                                  title={
+                                    (hb?.connected_cores || []).join("\n") ||
+                                    t("Mit mehreren Cores verbunden", "Connected to multiple Cores")
+                                  }
+                                  className="shrink-0 inline-flex items-center gap-1 rounded border border-violet-500/40 bg-violet-950/90 px-1.5 py-0.2 font-mono text-[8.5px] font-semibold text-violet-300"
+                                >
+                                  <span>{hb?.active_cores} Cores</span>
+                                </span>
+                              ) : (
+                                <span
+                                  title={
+                                    (hb?.connected_cores || []).join("\n") ||
+                                    t("Aktiver Core-Tunnel", "Active Core tunnel")
+                                  }
+                                  className="shrink-0 rounded border border-emerald-500/30 bg-emerald-950/80 px-1.2 py-0.2 font-mono text-[8.5px] text-emerald-300"
+                                >
+                                  1 Core
+                                </span>
+                              )}
+                              <span className="hidden">
+                              </span>
                             </div>
                           </div>
                         </div>

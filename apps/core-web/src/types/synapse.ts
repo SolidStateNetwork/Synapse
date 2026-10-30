@@ -58,6 +58,8 @@ export interface NodeHeartbeat {
     container_name?: string;
     category?: string;
   }>;
+  active_cores?: number;
+  connected_cores?: string[];
   timestamp_unix: number;
 }
 

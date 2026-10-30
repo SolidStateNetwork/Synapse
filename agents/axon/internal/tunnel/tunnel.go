@@ -82,6 +82,20 @@ func (cfg *IdentityConfig) ActiveCoreTargets() []CoreTarget {
 			Enabled:     true,
 		}
 		seen[primary.CoreGateway] = true
+		for _, c := range cfg.Cores {
+			if c.CoreGateway == primary.CoreGateway {
+				if c.CertFile != "" {
+					primary.CertFile = c.CertFile
+				}
+				if c.KeyFile != "" {
+					primary.KeyFile = c.KeyFile
+				}
+				if c.CACertFile != "" {
+					primary.CACertFile = c.CACertFile
+				}
+				break
+			}
+		}
 		out = append(out, primary)
 	}
 
@@ -627,7 +641,9 @@ type Agent struct {
 	Config    *IdentityConfig
 	FsEngine  *fs.Engine
 	PtyMgr    *pty.Manager
-	HealthCol *health.Collector
+	HealthCol        *health.Collector
+	connectedMu      sync.RWMutex
+	connectedTargets map[string]bool
 }
 
 // NewAgent initializes an Axon Agent with its Guardrail, PTY, FS, and Telemetry subsystems.
@@ -642,8 +658,54 @@ func NewAgent(cfg *IdentityConfig) *Agent {
 		Config:    cfg,
 		FsEngine:  fs.NewEngine(cfg.WorkspaceRoot),
 		PtyMgr:    pty.NewManager(cfg.WorkspaceRoot, guardCfg),
-		HealthCol: health.NewCollector(cfg.NodeID, cfg.Tier),
+		HealthCol:        health.NewCollector(cfg.NodeID, cfg.Tier),
+		connectedTargets: make(map[string]bool),
 	}
+}
+
+func (a *Agent) setTargetConnected(gateway string, connected bool) {
+	a.connectedMu.Lock()
+	if a.connectedTargets == nil {
+		a.connectedTargets = make(map[string]bool)
+	}
+	a.connectedTargets[gateway] = connected
+	a.connectedMu.Unlock()
+}
+
+func (a *Agent) isTargetConnected(gateway string) bool {
+	a.connectedMu.RLock()
+	defer a.connectedMu.RUnlock()
+	return a.connectedTargets[gateway]
+}
+
+// CoreTelemetrySummary returns the total number of configured active Core targets and a formatted summary slice of each Core's live tunnel state.
+func (a *Agent) CoreTelemetrySummary() (int, []string) {
+	if a == nil || a.Config == nil {
+		return 1, nil
+	}
+	targets := a.Config.ActiveCoreTargets()
+	if len(targets) == 0 {
+		return 1, nil
+	}
+	summaries := make([]string, 0, len(targets))
+	for _, t := range targets {
+		state := "STANDBY"
+		if a.isTargetConnected(t.CoreGateway) {
+			state = "LIVE"
+		}
+		name := strings.TrimSpace(t.Name)
+		if name == "" || name == "primary" {
+			name = "primary"
+			for _, c := range a.Config.Cores {
+				if c.CoreGateway == t.CoreGateway && strings.TrimSpace(c.Name) != "" {
+					name = c.Name
+					break
+				}
+			}
+		}
+		summaries = append(summaries, fmt.Sprintf("%s (%s - %s)", name, t.CoreGateway, state))
+	}
+	return len(targets), summaries
 }
 
 // RunForever maintains simultaneous outbound mTLS Yamux connections to all active CoreTargets with automatic backoff reconnection.
@@ -737,6 +799,8 @@ func (a *Agent) connectAndServeTarget(ctx context.Context, target CoreTarget, he
 	log.Printf("[axon][%s] mTLS + Yamux Reverse Tunnel established with %s (node=%s, tier=%s, debug=%v)",
 		target.Name, target.CoreGateway, target.NodeID, target.Tier, DebugEnabled)
 
+	a.setTargetConnected(target.CoreGateway, true)
+	defer a.setTargetConnected(target.CoreGateway, false)
 	// Start Stream Type 4: 5-second Telemetry & Service Health Heartbeat stream to this Core
 	hbCtx, cancelHb := context.WithCancel(ctx)
 	defer cancelHb()
@@ -818,6 +882,7 @@ func (a *Agent) runSingleTelemetryStream(ctx context.Context, session *yamux.Ses
 	// Send immediate heartbeat on connect, then every 5 seconds
 	sendBeat := func() error {
 		hb := healthCol.CollectForNode(target.NodeID, target.Tier, a.PtyMgr.ActiveSessionIDs(), a.PtyMgr.ActiveSessionMeta())
+		hb.ActiveCores, hb.ConnectedCores = a.CoreTelemetrySummary()
 		debugLog("[%s -> %s] sending telemetry heartbeat: cpu=%.1f%% ram=%.1f%% disk=%.1f%% services=%d ptySessions=%d",
 			target.Name, target.CoreGateway, hb.CPUPercent, hb.RAMPercent, hb.DiskPercent, len(hb.Services), len(hb.ActivePtySessions))
 		_ = stream.SetWriteDeadline(time.Now().Add(10 * time.Second))

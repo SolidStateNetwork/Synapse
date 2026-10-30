@@ -267,6 +267,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
+      ok: true,
       timestamp: new Date().toISOString(),
       checks,
     });

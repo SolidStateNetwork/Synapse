@@ -279,9 +279,23 @@ const PeersView = React.memo(function PeersView({
                           </div>
                         </td>
                         <td className="py-3 px-3 whitespace-nowrap">
-                          <span className="rounded-md border border-netbird-500/50 bg-netbird-950 px-2 py-0.5 font-mono text-[10px] text-netbird">
-                            {tierHumanLabel}
-                          </span>
+                          <div className="flex flex-col items-start gap-1">
+                            <span className="rounded-md border border-netbird-500/50 bg-netbird-950 px-2 py-0.5 font-mono text-[10px] text-netbird">
+                              {tierHumanLabel}
+                            </span>
+                            <span
+                              title={(hb?.connected_cores || []).join("\n")}
+                              className={`rounded-md border px-2 py-0.5 font-mono text-[10px] font-semibold ${
+                                (hb?.active_cores ?? 1) > 1
+                                  ? "border-violet-500/50 bg-violet-950/80 text-violet-300"
+                                  : "border-emerald-500/40 bg-emerald-950/60 text-emerald-300"
+                              }`}
+                            >
+                              {(hb?.active_cores ?? 1) > 1
+                                ? `Multi-Core · ${hb?.active_cores} Cores`
+                                : "1 Core"}
+                            </span>
+                          </div>
                         </td>
                         <td className="py-3 px-3 whitespace-nowrap">
                           <div className="font-mono text-nb-gray-200">
@@ -460,6 +474,15 @@ const PeersView = React.memo(function PeersView({
                                     Aktive PTYs:{" "}
                                     <span className="text-white">
                                       {hb?.active_pty_sessions?.length ?? 0}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    Multi-Core ({hb?.active_cores ?? 1} Cores):{" "}
+                                    <span className="text-violet-300">
+                                      {(hb?.connected_cores && hb.connected_cores.length > 0
+                                        ? hb.connected_cores
+                                        : [`primary (${gn.remote_addr} - LIVE)`]
+                                      ).join(" · ")}
                                     </span>
                                   </div>
                                   <div>

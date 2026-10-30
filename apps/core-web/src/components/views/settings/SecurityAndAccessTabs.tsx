@@ -158,6 +158,22 @@ export function SetupKeysTab({
               {rebindCliCmd}
             </pre>
           </div>
+
+          <div className="rounded-xl border border-violet-500/40 bg-nb-gray-950 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-medium text-violet-300">
+                  3. Multi-Core Parallel-Verbindung (axon add-core)
+                </span>
+                <p className="text-[11px] text-nb-gray-400">
+                  Verbinde einen Muscle gleichzeitig mit diesem und weiteren Cores parallel (ohne bestehende Tunnel zu trennen):
+                </p>
+              </div>
+            </div>
+            <pre className="overflow-x-auto rounded-lg bg-nb-gray-960 p-3 font-mono text-xs text-violet-300">
+              {rebindCliCmd.replace("axon switch", "axon add-core --name secondary-core")}
+            </pre>
+          </div>
         </div>
       ) : (
         <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950/70 px-4 py-3.5 text-xs text-nb-gray-400">

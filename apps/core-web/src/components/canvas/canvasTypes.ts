@@ -44,6 +44,8 @@ export interface NodeHeartbeat {
   services?: HeartbeatServiceStatus[];
   telemetry_history?: TelemetrySample[];
   active_pty_sessions: string[];
+  active_cores?: number;
+  connected_cores?: string[];
   timestamp_unix: number;
 }
 

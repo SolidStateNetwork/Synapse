@@ -594,6 +594,7 @@ export async function executeFirewallAction(
 
   const refreshed = await inspectNodeFirewall(projectId, targetNodeId);
   return {
+    ok: true,
     ...refreshed,
     sync: syncRes,
     message: summaryMsg,

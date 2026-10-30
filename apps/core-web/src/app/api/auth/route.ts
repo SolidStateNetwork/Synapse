@@ -32,10 +32,11 @@ export async function POST(req: NextRequest) {
     const action = String(body.action || "");
     const cfg = loadAuthConfig();
 
-    if (action === "login") {
+    if (action === "login" || action === "unlock") {
+      const providedPin = body.pin ?? body.totp_pin;
       const res = verifyLogin(
         String(body.password || ""),
-        body.pin ? String(body.pin) : undefined
+        providedPin ? String(providedPin) : undefined
       );
       if (!res.ok) {
         return NextResponse.json(

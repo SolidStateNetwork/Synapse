@@ -172,6 +172,8 @@ type NodeHeartbeat struct {
 	TelemetryHistory  []TelemetrySample     `json:"telemetry_history,omitempty"`
 	ActivePtySessions []string              `json:"active_pty_sessions"`
 	PtySessionDetails []PtySessionMeta      `json:"pty_session_details,omitempty"`
+	ActiveCores       int                   `json:"active_cores,omitempty"`
+	ConnectedCores    []string              `json:"connected_cores,omitempty"`
 }
 
 type CSRBootstrapRequest struct {

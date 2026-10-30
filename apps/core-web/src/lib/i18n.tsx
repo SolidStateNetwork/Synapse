@@ -795,6 +795,38 @@ const EN_DICTIONARY: Record<string, string> = {
   "Anhang": "Attach",
   "Kontext": "Context",
   "Senden": "Send",
+  "Wächter & Login (RBAC)": "Watchdog & Login (RBAC)",
+  "24/7 Wächter & Push-Alarme": "24/7 Watchdog & Push Alerts",
+  "Automatische Benachrichtigungen bei Server-Ausfällen, hoher Last oder Selbstheilungs-Aktionen.":
+    "Automated notifications for server outages, high resource load, or self-healing actions.",
+  "Test-Alarm senden": "Send Test Alert",
+  "🔔 Test-Alarm erfolgreich ausgelöst!": "🔔 Test alert triggered successfully!",
+  "Telegram Bot-Token": "Telegram Bot Token",
+  "Telegram Chat-ID": "Telegram Chat ID",
+  "Discord / Slack Webhook-URL": "Discord / Slack Webhook URL",
+  "Alarm-Kanäle speichern": "Save Alert Channels",
+  "✔ Alarm-Kanäle & Regeln gespeichert": "✔ Alert channels & rules saved",
+  "Letzte Wächter-Ereignisse": "Recent Watchdog Events",
+  "WebUI Login & Rollen (RBAC)": "WebUI Login & Roles (RBAC)",
+  "Schütze das Control Center mit Admin-Passwort, Nur-Lesen-Operator-Passwort und optionaler 2FA-PIN.":
+    "Protect the Control Center with an Admin password, Read-Only Operator password, and optional 2FA PIN.",
+  "Neues Admin-Passwort (Vollzugriff)": "New Admin Password (Full Access)",
+  "Neues Admin-Passwort...": "New Admin password...",
+  "Operator-Passwort (Nur-Lesen / Read-Only)": "Operator Password (Read-Only)",
+  "Operator-Passwort (Nur-Lesen)...": "Operator password (Read-Only)...",
+  "Optionaler 2FA-PIN (z.B. 2408)": "Optional 2FA PIN (e.g. 2408)",
+  "Optionaler 2FA-PIN...": "Optional 2FA PIN...",
+  "Passwort-Schutz speichern & aktivieren": "Save & Enable Password Protection",
+  "Schutz deaktivieren": "Disable Protection",
+  "🔒 WebUI Passwort-Schutz aktiviert": "🔒 WebUI password protection enabled",
+  "🔓 WebUI Passwort-Schutz deaktiviert": "🔓 WebUI password protection disabled",
+  "3. Multi-Core Parallel-Verbindung (axon add-core)":
+    "3. Multi-Core Parallel Connection (axon add-core)",
+  "Verbinde einen Muscle gleichzeitig mit diesem und weiteren Cores parallel (ohne bestehende Tunnel zu trennen):":
+    "Connect a Muscle to this Core and additional Cores simultaneously in parallel (without dropping existing tunnels):",
+  "Multi-Core Tunnels": "Multi-Core Tunnels",
+  "Core aktiv": "Core active",
+  "Cores parallel": "Cores parallel",
 };
 
 /**

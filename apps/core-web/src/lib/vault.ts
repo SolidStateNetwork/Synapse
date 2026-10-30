@@ -12,6 +12,8 @@ export interface AssignedNode {
   status?: "ONLINE" | "OFFLINE";
   online?: boolean;
   last_seen_unix?: number;
+  active_cores?: number;
+  connected_cores?: string[];
   network?: {
     public_ipv4?: string | null;
     private_ipv4?: string;

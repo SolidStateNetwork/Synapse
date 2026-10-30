@@ -221,7 +221,7 @@ export async function POST(req: NextRequest) {
     }
 
     // FEATURE 5: CUSTOM DOMAIN & AUTO-HTTPS REVERSE PROXY MANAGER
-    if (action === "configure_domain") {
+    if (action === "configure_domain" || action === "bind_domain") {
       const serviceId = String(body.service_id || "");
       const port = Number(body.port || body.target_port || 0);
       const domain = String(body.domain || "")

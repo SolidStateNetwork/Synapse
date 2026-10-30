@@ -13,7 +13,7 @@ import {
 export type { ServiceBlueprint };
 
 export async function GET() {
-  return NextResponse.json({ blueprints: SERVICE_BLUEPRINTS });
+  return NextResponse.json({ blueprints: SERVICE_BLUEPRINTS, templates: SERVICE_BLUEPRINTS });
 }
 
 export async function POST(req: NextRequest) {
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       body.blueprint_id || body.blueprintId || ""
     ).trim();
 
-    const bp = SERVICE_BLUEPRINTS.find((b) => b.id === blueprintId);
+    const bp = SERVICE_BLUEPRINTS.find((b) => b.id === blueprintId || (blueprintId && b.id.startsWith(blueprintId)));
     if (!bp) {
       return NextResponse.json(
         { ok: false, error: `Blueprint ${blueprintId} not found` },
