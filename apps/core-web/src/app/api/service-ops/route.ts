@@ -92,7 +92,21 @@ export async function POST(req: NextRequest) {
         const safeC = containerName.replace(/[^a-zA-Z0-9_.-]/g, "");
         cmd = `docker logs --tail 20 ${safeC} 2>&1; docker inspect -f "Container=${safeC} Status={{.State.Status}} StartedAt={{.State.StartedAt}}" ${safeC} 2>/dev/null || true`;
       } else if (serviceId === "pulse-sqlite-db") {
-        cmd = `DB_PATH=/opt/axon/workspaces/pulse-analytics/pulse.db; [ -f "$DB_PATH" ] || DB_PATH=/var/lib/synapse/pulse-stack/pulse.db; sqlite3 "$DB_PATH" "SELECT * FROM sqlite_master WHERE type='table';" 2>&1; ls -lh "$DB_PATH" 2>&1`;
+        cmd = [
+          `DB_PATH=/opt/axon/workspaces/pulse-analytics/pulse.db`,
+          `[ -f "$DB_PATH" ] || DB_PATH=/var/lib/synapse/pulse-stack/pulse.db`,
+          `python3 - "$DB_PATH" << 'PYEOF'`,
+          `import sqlite3, sys`,
+          `c = sqlite3.connect(sys.argv[1])`,
+          `print("=== SQLite WAL DB:", sys.argv[1], "===")`,
+          `tables = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]`,
+          `print("Tables:", tables)`,
+          `rows = c.execute("SELECT id, event, source, created_at FROM events ORDER BY id DESC LIMIT 4").fetchall()`,
+          `for row in rows:`,
+          `    print("Event:", row)`,
+          `PYEOF`,
+          `ls -lh "$DB_PATH" 2>&1`,
+        ].join("\n");
       } else {
         cmd = [
           `PID=$(ss -tlnp 2>/dev/null | awk '/:${port} / {match($0, /pid=[0-9]+/); if (RSTART) print substr($0, RSTART+4, RLENGTH-4)}' | head -n1)`,

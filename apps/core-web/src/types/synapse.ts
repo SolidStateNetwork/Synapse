@@ -160,6 +160,10 @@ export interface ProjectState {
       last_checked?: string;
       last_error?: string;
     };
+    auto_discovered?: boolean;
+    process_name?: string;
+    container_name?: string;
+    auto_heal?: boolean;
   }>;
   active_pty_sessions: string[];
   telemetry: Record<string, NodeHeartbeat>;

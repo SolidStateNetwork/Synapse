@@ -417,6 +417,7 @@ const InteractiveControlCenterCanvas = React.memo(
               return (
                 <div
                   key={nodeKey}
+                  data-canvas-node-id={nodeKey}
                   ref={(el) => {
                     nodeRefs.current[nodeKey] = el;
                   }}
@@ -683,6 +684,7 @@ const InteractiveControlCenterCanvas = React.memo(
 
               return (
                 <div
+                  data-canvas-node-id={nodeKey}
                   ref={(el) => {
                     nodeRefs.current[nodeKey] = el;
                   }}
@@ -829,6 +831,7 @@ const InteractiveControlCenterCanvas = React.memo(
               return (
                 <div
                   key={nodeKey}
+                  data-canvas-node-id={nodeKey}
                   ref={(el) => {
                     nodeRefs.current[nodeKey] = el;
                   }}

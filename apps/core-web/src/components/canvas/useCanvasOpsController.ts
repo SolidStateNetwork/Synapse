@@ -388,9 +388,12 @@ export function useCanvasOpsController({
     }
   };
 
-  const handleTailServiceLogs = async (svc: RegisteredService) => {
+  const handleTailServiceLogs = async (
+    svc: RegisteredService,
+    forceRefresh = false
+  ) => {
     const current = serviceLogsMap[svc.service_id];
-    if (current?.open) {
+    if (current?.open && !forceRefresh) {
       setServiceLogsMap((prev) => ({
         ...prev,
         [svc.service_id]: { ...current, open: false },

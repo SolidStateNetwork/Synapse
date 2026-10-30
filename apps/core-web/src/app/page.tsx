@@ -286,6 +286,9 @@ export default function SynapseNetBirdControlCenter() {
                 serviceActionBusy={c.serviceActionBusy}
                 serviceActionResult={c.serviceActionResult}
                 handleInvokeServiceAction={c.handleInvokeServiceAction}
+                onDiagnoseService={(port) =>
+                  c.handleQuickAction(`diagnose and auto-heal service ${port}`)
+                }
               />
             )}
 

@@ -4,8 +4,12 @@ import React from "react";
 import {
   ArrowLeftRight,
   Bot,
+  Check,
   ChevronRight,
+  Copy,
   Cpu,
+  RefreshCw,
+  Search,
   FileText,
   Globe,
   KeyRound,
@@ -285,7 +289,7 @@ export interface ServiceNodeInspectorPanelProps {
   onOpenReverseProxy: (port: number) => void;
   onHealService: (port: number) => void;
   onToggleServiceLink: (fromId: string, toId: string) => void;
-  onTailServiceLogs: (svc: RegisteredService) => void;
+  onTailServiceLogs: (svc: RegisteredService, forceRefresh?: boolean) => void;
   onToggleDomainEditor: (serviceId: string) => void;
   onChangeDomainInput: (serviceId: string, value: string) => void;
   onSaveServiceDomain: (svc: RegisteredService) => void;
@@ -329,6 +333,9 @@ export const ServiceNodeInspectorPanel = React.memo(
     onProbeServiceLink,
   }: ServiceNodeInspectorPanelProps) {
     const { t, translateText } = useI18n();
+    const [logFilter, setLogFilter] = React.useState("");
+    const [logErrorsOnly, setLogErrorsOnly] = React.useState(false);
+    const [logCopied, setLogCopied] = React.useState(false);
 
     return (
       <div
@@ -550,42 +557,120 @@ export const ServiceNodeInspectorPanel = React.memo(
         </div>
 
         {/* ROUND-2 FEATURE 2: INLINE LIVE LOGS TAIL CONSOLE */}
-        {serviceLogsMap[svc.service_id]?.open && (
-          <div
-            onWheel={(e) => e.stopPropagation()}
-            className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[9px] space-y-1"
-          >
-            <div className="flex items-center justify-between text-nb-gray-400">
-              <span>{t("Letzte Log-Zeilen", "Recent Log Lines")}</span>
-              <span
-                className={
-                  serviceLogsMap[svc.service_id].errorCount > 0
-                    ? "text-red-400 font-semibold"
-                    : "text-emerald-400"
-                }
-              >
-                {serviceLogsMap[svc.service_id].errorCount}{" "}
-                {t("Fehler", "Errors")}
-              </span>
-            </div>
-            <div className="max-h-32 overflow-y-auto space-y-0.5 rounded bg-black/50 p-1.5 text-[8.5px] text-nb-gray-300 overscroll-contain">
-              {serviceLogsMap[svc.service_id].lines
-                .slice(-40)
-                .map((line, idx) => (
-                  <div
-                    key={idx}
-                    className={`truncate ${
-                      /error|fail|exception|panic/i.test(line)
-                        ? "text-red-400"
-                        : "text-nb-gray-300"
-                    }`}
+        {serviceLogsMap[svc.service_id]?.open && (() => {
+          const rawLines = serviceLogsMap[svc.service_id].lines.slice(-40);
+          const filteredLines = rawLines.filter((line) => {
+            if (logErrorsOnly && !/error|fail|exception|panic|500|501|502|503|404/i.test(line)) {
+              return false;
+            }
+            if (logFilter.trim() && !line.toLowerCase().includes(logFilter.trim().toLowerCase())) {
+              return false;
+            }
+            return true;
+          });
+          return (
+            <div
+              data-canvas-scroll-zone="true"
+              onWheel={(e) => e.stopPropagation()}
+              className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 font-mono text-[9px] space-y-1.5"
+            >
+              <div className="flex items-center justify-between gap-1 text-nb-gray-400">
+                <span className="truncate font-semibold text-nb-gray-200">
+                  {t("Letzte Log-Zeilen", "Recent Log Lines")}
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <span
+                    className={
+                      serviceLogsMap[svc.service_id].errorCount > 0
+                        ? "text-red-400 font-semibold"
+                        : "text-emerald-400"
+                    }
                   >
-                    {line}
+                    {serviceLogsMap[svc.service_id].errorCount}{" "}
+                    {t("Fehler", "Errors")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onTailServiceLogs(svc, true)}
+                    disabled={logBusyId === svc.service_id}
+                    title={t("Logs aktualisieren", "Refresh logs")}
+                    className="inline-flex items-center justify-center rounded border border-nb-gray-800 bg-nb-gray-900 p-1 text-nb-gray-300 hover:border-sky-400 hover:text-white transition"
+                  >
+                    <RefreshCw className={`h-2.5 w-2.5 ${logBusyId === svc.service_id ? "animate-spin text-sky-400" : ""}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(filteredLines.join("\n"));
+                      setLogCopied(true);
+                      setTimeout(() => setLogCopied(false), 1800);
+                    }}
+                    title={t("Logs kopieren", "Copy logs")}
+                    className="inline-flex items-center justify-center rounded border border-nb-gray-800 bg-nb-gray-900 p-1 text-nb-gray-300 hover:border-emerald-400 hover:text-emerald-300 transition"
+                  >
+                    {logCopied ? (
+                      <Check className="h-2.5 w-2.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="h-2.5 w-2.5" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onHealService(svc.port)}
+                    title={t("KI-Diagnose & Auto-Heal für diesen Service starten", "Start AI Diagnosis & Auto-Heal for this service")}
+                    className="inline-flex items-center gap-0.5 rounded border border-violet-500/40 bg-violet-950/70 px-1.5 py-0.5 text-[8px] font-semibold text-violet-300 hover:bg-violet-900/70 transition"
+                  >
+                    <Bot className="h-2.5 w-2.5 shrink-0 text-violet-400" />
+                    <span>{t("KI", "AI")}</span>
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="relative flex-1 min-w-0">
+                  <Search className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-nb-gray-500" />
+                  <input
+                    type="text"
+                    value={logFilter}
+                    onChange={(e) => setLogFilter(e.target.value)}
+                    placeholder={t("Logs filtern...", "Filter logs...")}
+                    className="w-full rounded border border-nb-gray-800 bg-nb-gray-940 pl-5 pr-1.5 py-0.5 font-mono text-[8.5px] text-white placeholder:text-nb-gray-500 focus:border-sky-400 focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLogErrorsOnly((v) => !v)}
+                  className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[8px] font-semibold transition ${
+                    logErrorsOnly
+                      ? "border-red-500/50 bg-red-950/80 text-red-300"
+                      : "border-nb-gray-800 bg-nb-gray-900 text-nb-gray-400 hover:text-white"
+                  }`}
+                >
+                  {t("Nur Fehler", "Errors Only")}
+                </button>
+              </div>
+              <div className="max-h-32 overflow-y-auto space-y-0.5 rounded bg-black/50 p-1.5 text-[8.5px] text-nb-gray-300 overscroll-contain select-text">
+                {filteredLines.length === 0 ? (
+                  <div className="py-1 text-center text-nb-gray-500">
+                    {t("Keine passenden Log-Zeilen", "No matching log lines")}
                   </div>
-                ))}
+                ) : (
+                  filteredLines.map((line, idx) => (
+                    <div
+                      key={idx}
+                      className={`truncate ${
+                        /error|fail|exception|panic/i.test(line)
+                          ? "text-red-400"
+                          : "text-nb-gray-300"
+                      }`}
+                    >
+                      {line}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ROUND-2 FEATURE 5: INLINE CUSTOM DOMAIN & AUTO-HTTPS EDITOR */}
         {domainEditorOpen[svc.service_id] && (

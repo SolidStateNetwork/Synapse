@@ -728,7 +728,7 @@ export const MuscleNodeInspectorPanel = React.memo(
         )}
 
         {/* FEATURE 4: 1-CLICK SNAP & ROLLBACK TIME-MACHINE CHECKPOINTS */}
-        <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
+        <div data-canvas-scroll-zone="true" className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 font-mono text-[9.5px] leading-none uppercase tracking-wider text-nb-gray-300">
               <History className="h-3 w-3 shrink-0 text-amber-400" />
@@ -789,7 +789,7 @@ export const MuscleNodeInspectorPanel = React.memo(
         </div>
 
         {/* ROUND-2 FEATURE 3: LIVE SSH-INTRUSION-RADAR & AUTO-ATTACKER BLOCKER */}
-        <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
+        <div data-canvas-scroll-zone="true" className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 font-mono text-[9.5px] leading-none uppercase tracking-wider text-nb-gray-300">
               <Shield className="h-3 w-3 shrink-0 text-red-400" />
@@ -867,7 +867,7 @@ export const MuscleNodeInspectorPanel = React.memo(
         </div>
 
         {/* ROUND-2 FEATURE 4: AUTOMATED ENCRYPTED OFFSITE BACKUPS (AES-256-GCM) */}
-        <div className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
+        <div data-canvas-scroll-zone="true" className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-2 space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 font-mono text-[9.5px] leading-none uppercase tracking-wider text-nb-gray-300">
               <KeyRound className="h-3 w-3 shrink-0 text-sky-400" />

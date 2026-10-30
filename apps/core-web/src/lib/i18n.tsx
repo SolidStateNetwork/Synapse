@@ -1311,6 +1311,10 @@ const EN_PATTERNS: PatternRule[] = [
     replace: "Autonomous Microservice$1",
   },
   {
+    match: /^JSON-Telemetrie-Collector( :(\d+))?$/,
+    replace: "JSON Telemetry Collector$1",
+  },
+  {
     match: /^Uptime- & Latenz-Beacon( :(\d+))?$/,
     replace: "Uptime & Latency Beacon$1",
   },
@@ -1392,6 +1396,34 @@ const DE_PATTERNS: PatternRule[] = [
   {
     match: /^\[([^\]]+)\] Self-Healing Runbook executed: (.+)$/,
     replace: "[$1] Self-Healing-Runbook ausgeführt: $2",
+  },
+  {
+    match: /^Reachable Frontend Dashboard with interactive status & action endpoints$/,
+    replace: "Erreichbares Frontend-Dashboard mit interaktiven Status- & Aktions-Endpunkten",
+  },
+  {
+    match: /^Interactive SQLite Database Explorer reachable from Core UI$/,
+    replace: "Interaktiver SQLite-Datenbank-Explorer über die Core-UI erreichbar",
+  },
+  {
+    match: /^(GET\s+)?Open Dashboard$/,
+    replace: "$1Dashboard öffnen",
+  },
+  {
+    match: /^(GET\s+)?Live Status$/,
+    replace: "$1Live-Status",
+  },
+  {
+    match: /^(POST\s+)?Refresh Widgets$/,
+    replace: "$1Widgets aktualisieren",
+  },
+  {
+    match: /^(SQL\s+)?List Tables$/,
+    replace: "$1Tabellen auflisten",
+  },
+  {
+    match: /^(SQL\s+)?Query Events$/,
+    replace: "$1Events abfragen",
   },
   { match: /^All \((\d+)\)$/, replace: "Alle ($1)" },
   { match: /^AI Replies \((\d+)\)$/, replace: "KI-Antworten ($1)" },

@@ -705,6 +705,12 @@ export function useCanvasViewportAndLayout({
         target.closest("button") ||
         target.closest("a") ||
         target.closest("input") ||
+        target.closest("select") ||
+        target.closest("textarea") ||
+        target.closest("label") ||
+        target.closest("[data-canvas-scroll-zone='true']") ||
+        target.closest("[data-canvas-modal='true']") ||
+        target.closest(".overflow-y-auto") ||
         target.closest("[data-resize-handle='true']")
       ) {
         return;
@@ -736,6 +742,33 @@ export function useCanvasViewportAndLayout({
             "[data-canvas-modal='true'], textarea, select, input"
           )
         ) {
+          return;
+        }
+        const scrollZone = target.closest(
+          "[data-canvas-scroll-zone='true']"
+        ) as HTMLElement | null;
+        if (scrollZone) {
+          let isInsideScrollable = false;
+          let walk: HTMLElement | null = target;
+          while (walk && walk !== el) {
+            const oy = window.getComputedStyle(walk).overflowY;
+            if (oy === "auto" || oy === "scroll") {
+              isInsideScrollable = true;
+              break;
+            }
+            walk = walk.parentElement;
+          }
+          if (!isInsideScrollable) {
+            const innerScroll = scrollZone.querySelector(
+              ".overflow-y-auto, .overflow-auto"
+            ) as HTMLElement | null;
+            if (innerScroll) {
+              innerScroll.scrollTop += e.deltaY;
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+            }
+          }
           return;
         }
         let curr: HTMLElement | null = target;

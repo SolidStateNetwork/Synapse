@@ -430,4 +430,37 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
     assert.equal(runRes.ok, true);
     assert.equal(runRes.job.last_exit_code, 0);
   });
+
+  it("13. v0.7.0 Power-Polish: generated Python microservices implement GET/POST/PUT/DELETE/OPTIONS and Canvas wheel scroll zones are isolated", async () => {
+    const { loadServiceCodeFromMuscle } = await import("../lib/v070-studio.ts");
+    const codeInfo = await loadServiceCodeFromMuscle({
+      projectId: testProjectId,
+      nodeId: "vps2-muscle",
+      serviceId: "edge-telemetry-api-4095",
+      port: 4095,
+    });
+    assert.equal(codeInfo.ok, true);
+    assert.ok(
+      codeInfo.code.includes("def do_GET") &&
+        codeInfo.code.includes("def do_POST") &&
+        codeInfo.code.includes("def do_OPTIONS") &&
+        (codeInfo.code.includes("def do_PUT") ||
+          codeInfo.code.includes("do_PUT = do_POST")) &&
+        (codeInfo.code.includes("def do_DELETE") ||
+          codeInfo.code.includes("do_DELETE = do_POST")),
+      "Generated microservice must support GET, POST, PUT, DELETE, and OPTIONS without HTTP 501"
+    );
+
+    const viewportHookSrc = fs.readFileSync(
+      path.resolve(
+        import.meta.dirname,
+        "../components/canvas/useCanvasViewportAndLayout.ts"
+      ),
+      "utf8"
+    );
+    assert.ok(
+      viewportHookSrc.includes("[data-canvas-scroll-zone='true']"),
+      "useCanvasViewportAndLayout must isolate [data-canvas-scroll-zone='true'] from background Canvas wheel zoom"
+    );
+  });
 });
