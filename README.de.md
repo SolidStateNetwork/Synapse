@@ -124,15 +124,17 @@ Der Server verbindet sich automatisch im Hintergrund (ohne dass du eingehende Po
 ## 🛠️ Manuelles Kompilieren & Testen (für Entwickler)
 
 ```bash
-# 1. Go-Tests für Agent (axon) und Gateway (core-gateway) ausführen
-CGO_ENABLED=0 go test -v ./proto/... ./agents/axon/... ./apps/core-gateway/...
+# 1. Go-Unit- & Concurrency-Tests (-race) für Protokoll, Agent (axon) und Gateway (core-gateway) ausführen
+go test -v -race ./proto/... ./agents/axon/... ./apps/core-gateway/...
 
 # 2. Statische Binaries bauen
 CGO_ENABLED=0 go build -C agents/axon -o ../../bin/axon ./cmd/axon
 CGO_ENABLED=0 go build -C apps/core-gateway -o ../../bin/core-gateway .
 
-# 3. Next.js Weboberfläche starten / bauen
+# 3. Next.js 15 Weboberfläche prüfen, testen & bauen
 npm --prefix apps/core-web ci
+npx --prefix apps/core-web tsc -p apps/core-web/tsconfig.json --noEmit
+npm --prefix apps/core-web test
 npm --prefix apps/core-web run build
 ```
 

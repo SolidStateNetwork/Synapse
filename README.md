@@ -124,15 +124,17 @@ Your server connects automatically in the background (without opening any inboun
 ## 🛠️ Manual Build & Test (For Developers)
 
 ```bash
-# 1. Run Go unit tests for Agent (axon) and Gateway (core-gateway)
-CGO_ENABLED=0 go test -v ./proto/... ./agents/axon/... ./apps/core-gateway/...
+# 1. Run Go unit & concurrency tests (-race) for Protocol, Agent (axon), and Gateway (core-gateway)
+go test -v -race ./proto/... ./agents/axon/... ./apps/core-gateway/...
 
 # 2. Build static Go binaries
 CGO_ENABLED=0 go build -C agents/axon -o ../../bin/axon ./cmd/axon
 CGO_ENABLED=0 go build -C apps/core-gateway -o ../../bin/core-gateway .
 
-# 3. Install & build Next.js 15 WebUI
+# 3. Install, type-check, test & build Next.js 15 WebUI
 npm --prefix apps/core-web ci
+npx --prefix apps/core-web tsc -p apps/core-web/tsconfig.json --noEmit
+npm --prefix apps/core-web test
 npm --prefix apps/core-web run build
 ```
 

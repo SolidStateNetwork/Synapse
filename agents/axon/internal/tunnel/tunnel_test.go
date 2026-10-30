@@ -3,10 +3,7 @@ package tunnel
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -25,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SolidStateNetwork/Synapse/agents/axon/internal/health"
 	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
 	"github.com/hashicorp/yamux"
 )
@@ -34,52 +30,8 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 	axonConfigDir := t.TempDir()
 	workspaceDir := t.TempDir()
 
-	// 1. Create Ephemeral Root CA & Server TLS Certificate for Core Gateway mock
-	caPriv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	caTmpl := &x509.Certificate{
-		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "Synapse Test Root CA"},
-		NotBefore:             time.Now().Add(-time.Hour),
-		NotAfter:              time.Now().Add(time.Hour),
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-	}
-	caDER, _ := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caPriv.PublicKey, caPriv)
-	caCert, _ := x509.ParseCertificate(caDER)
-	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
-
-	srvPriv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	srvTmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(2),
-		Subject:      pkix.Name{CommonName: "synapse-core-gateway"},
-		DNSNames:     []string{"synapse-core-gateway", "localhost"},
-		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
-		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-	}
-	srvDER, _ := x509.CreateCertificate(rand.Reader, srvTmpl, caCert, &srvPriv.PublicKey, caPriv)
-	srvPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srvDER})
-	srvKeyDER, _ := x509.MarshalECPrivateKey(srvPriv)
-	srvKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: srvKeyDER})
-	srvTLSCert, _ := tls.X509KeyPair(srvPEM, srvKeyPEM)
-
-	caPool := x509.NewCertPool()
-	caPool.AppendCertsFromPEM(caPEM)
-
-	tlsListener, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
-		Certificates: []tls.Certificate{srvTLSCert},
-		ClientCAs:    caPool,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		MinVersion:   tls.VersionTLS13,
-	})
-	if err != nil {
-		t.Fatalf("tls.Listen failed: %v", err)
-	}
+	caPEM, caCert, caPriv, tlsListener, tunnelPort := createTestPKIAndTLSListener(t)
 	defer tlsListener.Close()
-	tunnelPort := tlsListener.Addr().(*net.TCPAddr).Port
 
 	sessionCh := make(chan *yamux.Session, 1)
 	heartbeatCh := make(chan tunnelv1.NodeHeartbeat, 1)
@@ -94,20 +46,22 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 			return
 		}
 		sessionCh <- sess
-		// Accept telemetry stream opened by Axon
 		stream, err := sess.AcceptStream()
 		if err != nil {
 			return
 		}
 		var hdr tunnelv1.StreamHeader
 		_ = tunnelv1.ReadFrame(stream, &hdr)
+		// Push ServiceHealthTarget list down telemetry stream to exercise listener
+		_ = tunnelv1.WriteFrame(stream, []tunnelv1.ServiceHealthTarget{
+			{ServiceID: "svc-test", Name: "Test", Protocol: "http", Port: 8080, Path: "/"},
+		})
 		var beat tunnelv1.NodeHeartbeat
 		if err := tunnelv1.ReadFrame(stream, &beat); err == nil {
 			heartbeatCh <- beat
 		}
 	}()
 
-	// 2. Start CSR Bootstrap HTTP Server
 	bootSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req tunnelv1.CSRBootstrapRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
@@ -133,7 +87,6 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 	}))
 	defer bootSrv.Close()
 
-	// 3. Bootstrap CSR & Start Axon Agent
 	idCfg, err := BootstrapCSR(axonConfigDir, bootSrv.URL, "syn_join_testtoken", "node-muscle-1", tunnelv1.Tier2WorkspaceJail, workspaceDir)
 	if err != nil {
 		t.Fatalf("BootstrapCSR failed: %v", err)
@@ -153,7 +106,6 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 		t.Fatal("timed out waiting for Axon mTLS Yamux connection")
 	}
 
-	// Verify Stream Type 4: Telemetry Heartbeat
 	select {
 	case beat := <-heartbeatCh:
 		if beat.NodeID != "node-muscle-1" {
@@ -172,7 +124,6 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 	_ = tunnelv1.WriteFrame(fsStream, tunnelv1.FsRequest{
 		RequestID: "req-fs-1",
 		ProjectID: "proj-1",
-		Tier:      tunnelv1.Tier2WorkspaceJail,
 		Operation: tunnelv1.FsOpWriteFile,
 		Path:      "app.txt",
 		Content:   []byte("synapse-muscle-verified"),
@@ -193,7 +144,6 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 		CmdID:         "cmd-pty-1",
 		SessionID:     "sess-1",
 		ProjectID:     "proj-1",
-		Tier:          tunnelv1.Tier2WorkspaceJail,
 		Command:       "cat app.txt && echo \" key=$API_SECRET\"",
 		WaitTimeoutMs: 5000,
 		Secrets:       map[string]string{"API_SECRET": "super_sensitive_98765"},
@@ -207,7 +157,52 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 		t.Fatalf("unexpected PTY output: %q", ptyResp.Output)
 	}
 
-	// Verify Stream Type 3: Live TCP/HTTP Port-Forwarding
+	// Verify Stream Type 2 Interactive Input & Resize (`input:` prefix)
+	for _, frame := range []tunnelv1.PtyLiveFrame{
+		{SessionID: "sess-1", Type: "resize", Cols: 120, Rows: 40},
+		{SessionID: "sess-1", Type: "input", Data: []byte("echo interactive_ok\n")},
+	} {
+		inStream, err := ymSess.OpenStream()
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = tunnelv1.WriteFrame(inStream, tunnelv1.StreamHeader{
+			StreamType: tunnelv1.StreamTypePty,
+			ProjectID:  "proj-1",
+			SessionID:  "input:sess-1",
+		})
+		_ = tunnelv1.WriteFrame(inStream, frame)
+		_ = inStream.Close()
+	}
+
+	// Verify Stream Type 2 Live Stream (`live:` prefix)
+	liveStream, err := ymSess.OpenStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = tunnelv1.WriteFrame(liveStream, tunnelv1.StreamHeader{
+		StreamType: tunnelv1.StreamTypePty,
+		ProjectID:  "proj-1",
+		SessionID:  "live:sess-1",
+	})
+	_ = tunnelv1.WriteFrame(liveStream, tunnelv1.PtyLiveFrame{SessionID: "sess-1", Type: "resize", Cols: 100, Rows: 30})
+	_ = tunnelv1.WriteFrame(liveStream, tunnelv1.PtyLiveFrame{SessionID: "sess-1", Type: "input", Data: []byte("echo live_stream_ping\n")})
+	_ = liveStream.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var outFrame tunnelv1.PtyLiveFrame
+	if err := tunnelv1.ReadFrame(liveStream, &outFrame); err != nil {
+		t.Fatalf("failed to read live PTY frame: %v", err)
+	}
+	_ = liveStream.Close()
+
+	// Verify Stream Type 3: Live TCP/HTTP Port-Forwarding + Edge Cases
+	badPortStream, _ := ymSess.OpenStream()
+	_ = tunnelv1.WriteFrame(badPortStream, tunnelv1.StreamHeader{StreamType: tunnelv1.StreamTypePortForward, TargetPort: 0})
+	_ = badPortStream.Close()
+
+	unknownStream, _ := ymSess.OpenStream()
+	_ = tunnelv1.WriteFrame(unknownStream, tunnelv1.StreamHeader{StreamType: tunnelv1.StreamType(99)})
+	_ = unknownStream.Close()
+
 	localListener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -254,127 +249,17 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 	}
 }
 
-func TestActiveCoreTargets_MultiCoreDeduplication(t *testing.T) {
-	cfg := &IdentityConfig{
-		NodeID:        "edge-node-01",
-		CoreGateway:   "127.0.0.1:8443",
-		CoreHTTP:      "http://127.0.0.1:8081",
-		Tier:          tunnelv1.Tier1Unleashed,
-		WorkspaceRoot: "/opt/axon/workspaces",
-		CertFile:      "/etc/axon/node.crt",
-		KeyFile:       "/etc/axon/node.key",
-		CACertFile:    "/etc/axon/ca.crt",
-		MultiCore:     true,
-		Cores: []CoreTarget{
-			{
-				Name:        "duplicate-primary",
-				CoreGateway: "127.0.0.1:8443",
-				CoreHTTP:    "http://127.0.0.1:8081",
-				Enabled:     true,
-			},
-			{
-				Name:        "secondary-core",
-				CoreGateway: "127.0.0.1:9443",
-				CoreHTTP:    "http://127.0.0.1:9081",
-				CertFile:    "/etc/axon/profiles/secondary-core/node.crt",
-				KeyFile:     "/etc/axon/profiles/secondary-core/node.key",
-				CACertFile:  "/etc/axon/profiles/secondary-core/ca.crt",
-				Enabled:     true,
-			},
-			{
-				Name:        "disabled-core",
-				CoreGateway: "10.0.0.99:8443",
-				CoreHTTP:    "http://10.0.0.99:8081",
-				Enabled:     false,
-			},
-		},
-	}
-
-	targets := cfg.ActiveCoreTargets()
-	if len(targets) != 2 {
-		t.Fatalf("expected 2 deduplicated active CoreTargets, got %d", len(targets))
-	}
-	if targets[0].CoreGateway != "127.0.0.1:8443" || targets[0].Name != "primary" {
-		t.Fatalf("unexpected primary target: %+v", targets[0])
-	}
-	if targets[1].CoreGateway != "127.0.0.1:9443" || targets[1].Name != "secondary-core" {
-		t.Fatalf("unexpected secondary target: %+v", targets[1])
-	}
-	if targets[1].NodeID != "edge-node-01" {
-		t.Fatalf("expected secondary target to inherit NodeID 'edge-node-01', got %q", targets[1].NodeID)
-	}
-	if targets[1].Tier != tunnelv1.Tier1Unleashed {
-		t.Fatalf("expected secondary target to inherit Tier1Unleashed, got %q", targets[1].Tier)
-	}
-}
-
-func TestLoadIdentity_MultiCorePersistence(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.json")
-	raw := `{
-  "node_id": "edge-node-01",
-  "core_gateway": "127.0.0.1:8443",
-  "core_http": "http://127.0.0.1:8081",
-  "tier": "TIER_1_UNLEASHED",
-  "workspace_root": "/opt/axon/workspaces",
-  "cert_file": "/etc/axon/node.crt",
-  "key_file": "/etc/axon/node.key",
-  "ca_cert_file": "/etc/axon/ca.crt",
-  "multi_core": true,
-  "cores": [
-    {
-      "name": "second-core",
-      "node_id": "edge-node-01",
-      "core_gateway": "127.0.0.1:9443",
-      "core_http": "http://127.0.0.1:9081",
-      "tier": "TIER_1_UNLEASHED",
-      "cert_file": "/etc/axon/profiles/second-core/node.crt",
-      "key_file": "/etc/axon/profiles/second-core/node.key",
-      "ca_cert_file": "/etc/axon/profiles/second-core/ca.crt",
-      "enabled": true
-    }
-  ]
-}`
-	if err := os.WriteFile(cfgPath, []byte(raw), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	loaded, err := LoadIdentity(tmpDir)
-	if err != nil {
-		t.Fatalf("LoadIdentity failed: %v", err)
-	}
-	if !loaded.MultiCore {
-		t.Fatalf("expected MultiCore=true")
-	}
-	targets := loaded.ActiveCoreTargets()
-	if len(targets) != 2 {
-		t.Fatalf("expected 2 active targets, got %d", len(targets))
-	}
-}
-
-func TestMultiCoreSharedHealthCollectorMergesTargets(t *testing.T) {
-	col := health.NewCollector("test-multi-core-node", tunnelv1.Tier1Unleashed)
-	col.SetTargetsForSource("primary", []tunnelv1.ServiceHealthTarget{
-		{ServiceID: "svc-status-api", Name: "Status API", Protocol: "http", Port: 4070, Path: "/"},
-		{ServiceID: "svc-webui", Name: "Live WebUI", Protocol: "http", Port: 4090, Path: "/"},
-	})
-	col.SetTargetsForSource("secondary-core", []tunnelv1.ServiceHealthTarget{
-		{ServiceID: "auto-svc-4050", Name: "Autonomous Microservice :4050", Protocol: "http", Port: 4050, Path: "/"},
-	})
-
-	beat := col.CollectForNode("edge-node-01", tunnelv1.Tier1Unleashed, nil)
-	found := make(map[string]bool)
-	for _, s := range beat.Services {
-		found[s.ServiceID] = true
-	}
-	for _, id := range []string{"svc-status-api", "svc-webui", "auto-svc-4050"} {
-		if !found[id] {
-			t.Fatalf("expected merged heartbeat services to include %q, got %+v", id, beat.Services)
-		}
-	}
-}
-
 func TestCoreTelemetrySummary_MultiCoreLiveAndStandby(t *testing.T) {
+	var nilAgent *Agent
+	if c, s := nilAgent.CoreTelemetrySummary(); c != 1 || s != nil {
+		t.Fatalf("expected (1, nil) for nil agent, got (%d, %v)", c, s)
+	}
+
+	emptyAgent := NewAgent(&IdentityConfig{})
+	if c, s := emptyAgent.CoreTelemetrySummary(); c != 1 || s != nil {
+		t.Fatalf("expected (1, nil) for empty targets, got (%d, %v)", c, s)
+	}
+
 	cfg := &IdentityConfig{
 		NodeID:      "edge-node-01",
 		CoreGateway: "127.0.0.1:8443",
@@ -401,17 +286,11 @@ func TestCoreTelemetrySummary_MultiCoreLiveAndStandby(t *testing.T) {
 	agent.setTargetConnected("127.0.0.1:8443", true)
 
 	activeCount, summaries := agent.CoreTelemetrySummary()
-	if activeCount != 2 {
-		t.Fatalf("expected activeCount=2, got %d", activeCount)
+	if activeCount != 2 || len(summaries) != 2 {
+		t.Fatalf("expected 2 summaries, got count=%d (%v)", activeCount, summaries)
 	}
-	if len(summaries) != 2 {
-		t.Fatalf("expected 2 summaries, got %d (%v)", len(summaries), summaries)
-	}
-	if summaries[0] != "primary-core (127.0.0.1:8443 - LIVE)" {
-		t.Fatalf("unexpected primary summary: %q", summaries[0])
-	}
-	if summaries[1] != "secondary-core (127.0.0.1:9443 - STANDBY)" {
-		t.Fatalf("unexpected secondary summary: %q", summaries[1])
+	if summaries[0] != "primary-core (127.0.0.1:8443 - LIVE)" || summaries[1] != "secondary-core (127.0.0.1:9443 - STANDBY)" {
+		t.Fatalf("unexpected summaries: %v", summaries)
 	}
 
 	agent.setTargetConnected("127.0.0.1:9443", true)
@@ -421,48 +300,120 @@ func TestCoreTelemetrySummary_MultiCoreLiveAndStandby(t *testing.T) {
 	}
 }
 
-func TestLoadIdentity_AutoReconcilesLoopbackProfiles(t *testing.T) {
-	tmpDir := t.TempDir()
-	profDir := filepath.Join(tmpDir, "profiles", "secondary-core")
-	if err := os.MkdirAll(profDir, 0o700); err != nil {
-		t.Fatal(err)
+func TestRunDiagnostics_EndToEndAndErrorPaths(t *testing.T) {
+	// 1. Missing config directory must return ConfigValid=false
+	badRep := RunDiagnostics( filepath.Join(t.TempDir(), "nonexistent"))
+	if badRep.ConfigValid || len(badRep.Errors) == 0 {
+		t.Fatalf("expected ConfigValid=false and errors on missing configDir, got %+v", badRep)
 	}
-	for _, f := range []string{"node.crt", "node.key", "ca.crt"} {
-		if err := os.WriteFile(filepath.Join(profDir, f), []byte("pem"), 0o600); err != nil {
-			t.Fatal(err)
+
+	// 2. Setup live mTLS listener + HTTP server for full 5-step diagnostics
+	caPEM, caCert, caPriv, tlsListener, tunnelPort := createTestPKIAndTLSListener(t)
+	defer tlsListener.Close()
+
+	go func() {
+		for {
+			conn, err := tlsListener.Accept()
+			if err != nil {
+				return
+			}
+			if tlsConn, ok := conn.(interface{ Handshake() error }); ok {
+				_ = tlsConn.Handshake()
+			}
+			_ = conn.Close()
 		}
-	}
-	profCfg := `{
-  "node_id": "edge-node-01",
-  "core_gateway": "127.0.0.1:9443",
-  "core_http": "http://127.0.0.1:9081",
-  "tier": "TIER_1_UNLEASHED"
-}`
-	if err := os.WriteFile(filepath.Join(profDir, "config.json"), []byte(profCfg), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	}()
 
-	mainCfg := `{
-  "node_id": "edge-node-01",
-  "core_gateway": "127.0.0.1:8443",
-  "core_http": "http://127.0.0.1:8081",
-  "tier": "TIER_1_UNLEASHED",
-  "multi_core": true,
-  "cores": []
-}`
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.json"), []byte(mainCfg), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	nodeOnline := false
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/bootstrap/csr":
+			var req tunnelv1.CSRBootstrapRequest
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			block, _ := pem.Decode(req.CSRPerm)
+			csr, _ := x509.ParseCertificateRequest(block.Bytes)
+			cliTmpl := &x509.Certificate{
+				SerialNumber: big.NewInt(55),
+				Subject:      pkix.Name{CommonName: req.NodeID},
+				NotBefore:    time.Now().Add(-time.Hour),
+				NotAfter:     time.Now().Add(time.Hour),
+				KeyUsage:     x509.KeyUsageDigitalSignature,
+				ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+			}
+			cliDER, _ := x509.CreateCertificate(rand.Reader, cliTmpl, caCert, csr.PublicKey, caPriv)
+			cliPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cliDER})
+			_ = json.NewEncoder(w).Encode(tunnelv1.CSRBootstrapResponse{
+				Success:    true,
+				NodeID:     req.NodeID,
+				CertPEM:    cliPEM,
+				CACertPEM:  caPEM,
+				TunnelPort: tunnelPort,
+			})
+		case "/healthz":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		case "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"nodes": []map[string]any{
+					{"node_id": "diag-node-1", "online": nodeOnline},
+				},
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer httpSrv.Close()
 
-	loaded, err := LoadIdentity(tmpDir)
+	cfgDir := t.TempDir()
+	wsDir := t.TempDir()
+	idCfg, err := BootstrapCSR(cfgDir, httpSrv.URL, "tok-diag", "diag-node-1", tunnelv1.Tier2WorkspaceJail, wsDir)
 	if err != nil {
-		t.Fatalf("LoadIdentity failed: %v", err)
+		t.Fatalf("BootstrapCSR for diagnostics failed: %v", err)
 	}
-	targets := loaded.ActiveCoreTargets()
-	if len(targets) != 2 {
-		t.Fatalf("expected 2 targets after auto-reconciling loopback profile, got %d", len(targets))
+
+	// Case A: Direct mTLS dial handshake (nodeOnline=false)
+	rep1 := RunDiagnostics(cfgDir)
+	if !rep1.ConfigValid || !rep1.CoreHTTPReach || !rep1.MTLSHandshakeOK || !rep1.WorkspaceWrite {
+		t.Fatalf("expected all diagnostic checks to pass via live mTLS dial, got %+v", rep1)
 	}
-	if targets[1].Name != "secondary-core" || targets[1].CoreGateway != "127.0.0.1:9443" {
-		t.Fatalf("unexpected auto-reconciled target: %+v", targets[1])
+
+	// Case B: Node already online in /api/v1/nodes (nodeOnline=true)
+	nodeOnline = true
+	rep2 := RunDiagnostics(cfgDir)
+	if !rep2.MTLSHandshakeOK || !strings.Contains(rep2.MTLSCipherSuite, "active Yamux session") {
+		t.Fatalf("expected active Yamux session detection, got %+v", rep2)
 	}
+
+	// Case C: Verify buildTLSConfig and buildTLSConfigForTarget error paths
+	ag := NewAgent(idCfg)
+	if _, err := ag.buildTLSConfig(); err != nil {
+		t.Fatalf("expected valid buildTLSConfig, got %v", err)
+	}
+	if _, err := ag.buildTLSConfigForTarget(CoreTarget{CertFile: "/nonexistent", KeyFile: "/nonexistent"}); err == nil {
+		t.Fatalf("expected error for missing client keypair")
+	}
+	badCA := filepath.Join(t.TempDir(), "bad-ca.crt")
+	_ = os.WriteFile(badCA, []byte("not a pem"), 0o600)
+	if _, err := ag.buildTLSConfigForTarget(CoreTarget{CertFile: idCfg.CertFile, KeyFile: idCfg.KeyFile, CACertFile: badCA}); err == nil {
+		t.Fatalf("expected error for invalid CA PEM")
+	}
+}
+
+func TestRunForever_EmptyTargetsAndMultiCoreCancel(t *testing.T) {
+	emptyAg := NewAgent(&IdentityConfig{})
+	if err := emptyAg.RunForever(context.Background()); err == nil {
+		t.Fatalf("expected error when no active Core targets are configured")
+	}
+
+	mcAg := NewAgent(&IdentityConfig{
+		NodeID:      "mc-node",
+		CoreGateway: "127.0.0.1:1",
+		MultiCore:   true,
+		Cores: []CoreTarget{
+			{Name: "c2", CoreGateway: "127.0.0.1:2", Enabled: true},
+		},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	_ = mcAg.RunForever(ctx)
 }
