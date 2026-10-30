@@ -6,28 +6,46 @@ import {
 } from "@/lib/templates/serviceTemplates";
 import {
   appendAuditLog,
+  ensureProjectVault,
   setSecret,
   withProjectStateTransaction,
 } from "@/lib/vault";
+import {
+  resolveTargetNodeId,
+  safeParseRequestJson,
+} from "@/lib/runtimeResolver";
 
 export type { ServiceBlueprint };
 
 export async function GET() {
-  return NextResponse.json({ blueprints: SERVICE_BLUEPRINTS, templates: SERVICE_BLUEPRINTS });
+  return NextResponse.json({
+    blueprints: SERVICE_BLUEPRINTS,
+    templates: SERVICE_BLUEPRINTS,
+  });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as Record<string, unknown>;
-    const { projectId, nodeId: rawNodeId, action: rawAction } =
-      normalizeApiParams(body);
-    const nodeId = rawNodeId || "vps2-muscle";
+    const body = await safeParseRequestJson(req);
+    const {
+      projectId,
+      nodeId: rawNodeId,
+      action: rawAction,
+    } = normalizeApiParams(body);
+    const state = ensureProjectVault(projectId);
+    const nodeId = resolveTargetNodeId(state, rawNodeId) || "local-node";
     const action = rawAction || "deploy";
     const blueprintId = String(
       body.blueprint_id || body.blueprintId || ""
     ).trim();
 
-    const bp = SERVICE_BLUEPRINTS.find((b) => b.id === blueprintId || (blueprintId && b.id.startsWith(blueprintId)));
+    const bp =
+      SERVICE_BLUEPRINTS.find(
+        (b) =>
+          b.id === blueprintId ||
+          (blueprintId && b.id.startsWith(blueprintId)) ||
+          (blueprintId.includes("4060") && b.port === 4060)
+      ) || null;
     if (!bp) {
       return NextResponse.json(
         { ok: false, error: `Blueprint ${blueprintId} not found` },
@@ -45,15 +63,14 @@ export async function POST(req: NextRequest) {
         wait_timeout_ms: 4000,
       });
 
-      await withProjectStateTransaction(projectId, (state) => {
-        state.registered_services = (state.registered_services || []).filter(
+      await withProjectStateTransaction(projectId, (draft) => {
+        draft.registered_services = (draft.registered_services || []).filter(
           (s) => s.service_id !== bp.id && s.port !== bp.port
         );
       });
       return NextResponse.json({ ok: true, undeployed: bp.id });
     }
 
-    // 1. Generate and store secret in Secrets.enc if specified
     if (bp.secret_key) {
       setSecret(
         projectId,
@@ -62,7 +79,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Deploy on Muscle via mTLS+Yamux PTY
     const ptyJson = await gatewayExecPty({
       node_id: nodeId,
       cmd_id: `bp-deploy-${Date.now()}`,
@@ -72,7 +88,6 @@ export async function POST(req: NextRequest) {
       wait_timeout_ms: 8000,
     });
 
-    // 3. Register in Project State atomically
     const svcEntry = {
       service_id: bp.id,
       name: bp.name,
@@ -112,15 +127,15 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    await withProjectStateTransaction(projectId, (state) => {
-      const existingIdx = (state.registered_services || []).findIndex(
+    await withProjectStateTransaction(projectId, (draft) => {
+      const existingIdx = (draft.registered_services || []).findIndex(
         (s) => s.service_id === bp.id || s.port === bp.port
       );
       if (existingIdx >= 0) {
-        state.registered_services[existingIdx] = svcEntry;
+        draft.registered_services[existingIdx] = svcEntry;
       } else {
-        state.registered_services = [
-          ...(state.registered_services || []),
+        draft.registered_services = [
+          ...(draft.registered_services || []),
           svcEntry,
         ];
       }

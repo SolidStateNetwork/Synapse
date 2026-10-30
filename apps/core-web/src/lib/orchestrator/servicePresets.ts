@@ -16,7 +16,7 @@ export function buildDefaultServiceEndpoints(
   const combined = `${serviceId} ${name} ${projectId}`.toLowerCase();
 
   if (category === "database") {
-    if (serviceId === "vps2-db-mesh" || combined.includes("mesh db")) {
+    if (combined.includes("mesh") && !combined.includes("sqlite")) {
       return [
         {
           id: "mesh-db-root",
@@ -35,11 +35,7 @@ export function buildDefaultServiceEndpoints(
         },
       ];
     }
-    const defaultDbPath =
-      dbPath ||
-      (combined.includes("pulse")
-        ? "/opt/axon/workspaces/pulse-analytics/pulse.db"
-        : `/opt/axon/workspaces/${projectId}/pulse.db`);
+    const defaultDbPath = dbPath || `/opt/axon/workspaces/${projectId}/app.db`;
     return [
       {
         id: "sql-tables",
@@ -108,13 +104,8 @@ export function buildDefaultServiceEndpoints(
     ];
   }
 
-  if (
-    combined.includes("pulse") ||
-    combined.includes("event") ||
-    combined.includes("analytics")
-  ) {
-    const pulseDbPath =
-      dbPath || "/opt/axon/workspaces/pulse-analytics/pulse.db";
+  if (combined.includes("event") || combined.includes("analytics")) {
+    const resolvedDbPath = dbPath || `/opt/axon/workspaces/${projectId}/app.db`;
     return [
       {
         id: "get-root",
@@ -144,11 +135,11 @@ export function buildDefaultServiceEndpoints(
       },
       {
         id: "sql-events",
-        label: "SQL: Inspect pulse.db",
+        label: "SQL: Inspect Database",
         method: "SQL",
-        path: pulseDbPath,
+        path: resolvedDbPath,
         description:
-          "Run an interactive SQL query against pulse.db on the Muscle node.",
+          "Run an interactive SQL query against the SQLite database on the Muscle node.",
         sample_payload: "SELECT * FROM events ORDER BY id DESC LIMIT 10;",
       },
     ];

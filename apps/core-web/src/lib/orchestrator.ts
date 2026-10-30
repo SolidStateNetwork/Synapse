@@ -8,26 +8,16 @@ import type {
 } from "@proto/tunnel";
 import {
   appendAuditLog,
-  deleteSecret,
   ensureProjectVault,
-  generateRandomSecret,
   getDecryptedSecrets,
   getRollbackSnapshot,
-  listSecretKeys,
   recordRollbackSnapshot,
-  setSecret,
   withProjectStateTransaction,
-  writeBrainDoc,
   type FileRollbackSnapshot,
   type ProjectState,
-  type RegisteredService,
-  type ServiceEndpointAction,
 } from "./vault";
 import { recordCheckpoint } from "./checkpoints";
-import {
-  executeFirewallAction,
-  type FirewallActionInput,
-} from "./firewall";
+import { executeFirewallAction, type FirewallActionInput } from "./firewall";
 import { SYNAPSE_TOOL_SCHEMAS } from "./orchestrator/toolSchemas";
 import {
   buildDefaultServiceEndpoints,
@@ -63,10 +53,6 @@ export interface GatewayNodeSummary {
   last_heartbeat?: NodeHeartbeat;
 }
 
-/**
- * Bounded In-Memory Read-Only Tool & File Cache (`read_file`, `list_dir`, `stat`)
- * Automatically invalidated whenever a write/diff/delete or PTY command runs on that node.
- */
 interface CachedFsResult {
   cachedAt: number;
   response: FsResponse;
@@ -88,9 +74,7 @@ function makeFsCacheKey(
 
 function setBoundedFsReadCache(key: string, response: FsResponse): void {
   const contentLen = response.content ? String(response.content).length : 0;
-  if (contentLen > MAX_FS_CACHE_CONTENT_CHARS) {
-    return;
-  }
+  if (contentLen > MAX_FS_CACHE_CONTENT_CHARS) return;
   const now = Date.now();
   if (fsReadCache.has(key)) {
     fsReadCache.delete(key);
@@ -102,23 +86,16 @@ function setBoundedFsReadCache(key: string, response: FsResponse): void {
     }
     if (fsReadCache.size >= MAX_FS_CACHE_ENTRIES) {
       const oldestKey = fsReadCache.keys().next().value;
-      if (oldestKey !== undefined) {
-        fsReadCache.delete(oldestKey);
-      }
+      if (oldestKey !== undefined) fsReadCache.delete(oldestKey);
     }
   }
   fsReadCache.set(key, { cachedAt: now, response });
 }
 
-export function invalidateNodeReadCache(
-  projectId: string,
-  nodeId?: string
-): void {
+export function invalidateNodeReadCache(projectId: string, nodeId?: string): void {
   const prefix = nodeId ? `${projectId}::${nodeId}::` : `${projectId}::`;
   for (const key of fsReadCache.keys()) {
-    if (key.startsWith(prefix)) {
-      fsReadCache.delete(key);
-    }
+    if (key.startsWith(prefix)) fsReadCache.delete(key);
   }
 }
 
@@ -138,11 +115,7 @@ export async function fetchGatewayNodes(): Promise<GatewayNodeSummary[]> {
 
 export interface ToolDispatchResult {
   tool_name: string;
-  status:
-    | "executed"
-    | "paused_tier3"
-    | "blocked_planning_mode"
-    | "error";
+  status: "executed" | "paused_tier3" | "blocked_planning_mode" | "error";
   output: unknown;
   approval_id?: string;
   cached?: boolean;
@@ -162,31 +135,18 @@ function resolveNodeTier(
   return "TIER_2_WORKSPACE_JAIL";
 }
 
-function isWriteOrExecTool(
-  toolName: string,
-  args: Record<string, unknown>
-): boolean {
-  if (toolName === "node_pty_exec") {
-    return true;
-  }
-  if (
-    toolName === "node_firewall_control" ||
-    toolName === "core_manage_firewall"
-  ) {
+function isWriteOrExecTool(toolName: string, args: Record<string, unknown>): boolean {
+  if (toolName === "node_pty_exec") return true;
+  if (toolName === "node_firewall_control" || toolName === "core_manage_firewall") {
     return String(args.action || "inspect") !== "inspect";
   }
   if (toolName === "node_fs_operation") {
     const op = String(args.operation || "");
-    return (
-      op === "write_file" || op === "apply_unified_diff" || op === "delete"
-    );
+    return op === "write_file" || op === "apply_unified_diff" || op === "delete";
   }
   return false;
 }
 
-/**
- * Restores a pre-write file snapshot created before an AI write/diff mutation.
- */
 export async function executeRollbackSnapshot(
   projectId: string,
   snapshotId: string
@@ -249,14 +209,6 @@ export async function executeRollbackSnapshot(
   }
 }
 
-/**
- * Policy Interceptor & Tool Dispatcher:
- * - Enforces Planning-Only Mode when zero Connector Nodes are assigned.
- * - Enforces TIER_3_SUPERVISED by pausing write/exec tools and creating an approval request.
- * - Caches read-only FS operations (`read_file`, `list_dir`, `stat`) per node & invalidates on writes.
- * - Automatically captures pre-write file snapshots for 1-click rollback.
- * - Records every action in the append-only Audit.jsonl log.
- */
 export async function interceptAndExecuteTool(
   projectId: string,
   toolName: string,
@@ -266,7 +218,6 @@ export async function interceptAndExecuteTool(
   const state = ensureProjectVault(projectId);
   const liveNodes = await fetchGatewayNodes();
 
-  // 1. Core Brain Tools (always allowed even in Planning-Only Mode)
   const coreToolOut = await dispatchCoreBrainTool(
     CORE_GATEWAY_URL,
     projectId,
@@ -274,15 +225,12 @@ export async function interceptAndExecuteTool(
     toolName,
     args
   );
-  if (coreToolOut) {
-    return coreToolOut;
-  }
+  if (coreToolOut) return coreToolOut;
 
   if (toolName === "core_vault_search") {
     return executeCoreVaultSearch(projectId, state, toolName, args);
   }
 
-  // 2. Remote Node Tools: Enforce Planning-Only Mode Lock
   if (state.assigned_nodes.length === 0) {
     const msg =
       "ARCHITECTURAL LOCK (Planning-Only Mode): Project has zero assigned Connector Nodes. Remote execution tools (`node_pty_exec`, `node_fs_operation`) are locked until at least one Axon Muscle Node is assigned.";
@@ -301,12 +249,9 @@ export async function interceptAndExecuteTool(
     };
   }
 
-  const targetNodeId = String(
-    args.node_id || state.assigned_nodes[0]?.node_id || ""
-  );
+  const targetNodeId = String(args.node_id || state.assigned_nodes[0]?.node_id || "");
   const tier = resolveNodeTier(state, liveNodes, targetNodeId);
 
-  // 3. Enforce TIER_3_SUPERVISED Interceptor Approval Gate
   if (
     tier === "TIER_3_SUPERVISED" &&
     !bypassTier3Approval &&
@@ -346,24 +291,17 @@ export async function interceptAndExecuteTool(
     };
   }
 
-  // 4. Dispatch Remote Node Tool via Core Gateway mTLS Yamux Tunnel
   if (toolName === "node_pty_exec") {
     invalidateNodeReadCache(projectId, targetNodeId);
-
     const cmdId = `cmd-${crypto.randomBytes(4).toString("hex")}`;
     const allSecrets = getDecryptedSecrets(projectId);
     let injectedSecrets: Record<string, string> = allSecrets;
 
-    if (
-      Array.isArray(args.inject_secret_keys) &&
-      args.inject_secret_keys.length > 0
-    ) {
+    if (Array.isArray(args.inject_secret_keys) && args.inject_secret_keys.length > 0) {
       injectedSecrets = {};
       for (const rawKey of args.inject_secret_keys) {
         const k = String(rawKey).trim().toUpperCase();
-        if (allSecrets[k] !== undefined) {
-          injectedSecrets[k] = allSecrets[k];
-        }
+        if (allSecrets[k] !== undefined) injectedSecrets[k] = allSecrets[k];
       }
     }
 
@@ -392,9 +330,7 @@ export async function interceptAndExecuteTool(
         tool_name: toolName,
         node_id: targetNodeId,
         status: data.blocked_by_guardrail ? "error" : "executed",
-        summary: `PTY [${targetNodeId}] (${data.cwd || "~"}): ${String(
-          args.command
-        ).slice(0, 80)} -> exit=${data.exit_code}`,
+        summary: `PTY [${targetNodeId}] (${data.cwd || "~"}): ${String(args.command).slice(0, 80)} -> exit=${data.exit_code}`,
         args: {
           command: args.command,
           session_id: payload.session_id,
@@ -432,10 +368,7 @@ export async function interceptAndExecuteTool(
     );
   }
 
-  if (
-    toolName === "node_firewall_control" ||
-    toolName === "core_manage_firewall"
-  ) {
+  if (toolName === "node_firewall_control" || toolName === "core_manage_firewall") {
     try {
       const fwInput: FirewallActionInput = {
         action: (args.action as FirewallActionInput["action"]) || "inspect",
@@ -449,18 +382,10 @@ export async function interceptAndExecuteTool(
         actor: "ai_orchestrator",
       };
       const fwRes = await executeFirewallAction(projectId, fwInput);
-      return {
-        tool_name: toolName,
-        status: "executed",
-        output: fwRes,
-      };
+      return { tool_name: toolName, status: "executed", output: fwRes };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      return {
-        tool_name: toolName,
-        status: "error",
-        output: { error: msg },
-      };
+      return { tool_name: toolName, status: "error", output: { error: msg } };
     }
   }
 
@@ -469,38 +394,24 @@ export async function interceptAndExecuteTool(
     const operation = String(args.operation || "read_file") as FsOperation;
     const targetPath = String(args.path || ".");
     const isReadOnlyOp =
-      operation === "read_file" ||
-      operation === "list_dir" ||
-      operation === "stat";
+      operation === "read_file" || operation === "list_dir" || operation === "stat";
 
-    // Check Read-Only Tool Cache first
     if (isReadOnlyOp && state.ai_settings?.enable_prompt_caching !== false) {
-      const cacheKey = makeFsCacheKey(
-        projectId,
-        targetNodeId,
-        operation,
-        targetPath
-      );
+      const cacheKey = makeFsCacheKey(projectId, targetNodeId, operation, targetPath);
       const hit = fsReadCache.get(cacheKey);
       if (hit && Date.now() - hit.cachedAt < FS_READ_CACHE_TTL_MS) {
         return {
           tool_name: toolName,
           status: "executed",
           cached: true,
-          output: {
-            ...hit.response,
-            _cached: true,
-          },
+          output: { ...hit.response, _cached: true },
         };
       }
     }
 
     const contentOrPatch =
-      args.content_or_patch !== undefined
-        ? String(args.content_or_patch)
-        : undefined;
+      args.content_or_patch !== undefined ? String(args.content_or_patch) : undefined;
 
-    // Pre-Write Snapshot for 1-Click Rollback before mutating files
     let rollbackSnapshotId: string | undefined;
     if (
       operation === "write_file" ||
@@ -527,9 +438,7 @@ export async function interceptAndExecuteTool(
           node_id: targetNodeId,
           path: targetPath,
           existed: Boolean(preReadData.success),
-          previous_content: preReadData.success
-            ? String(preReadData.content || "")
-            : "",
+          previous_content: preReadData.success ? String(preReadData.content || "") : "",
           file_mode: String(args.file_mode || "0644"),
           created_at: new Date().toISOString(),
         });
@@ -568,12 +477,7 @@ export async function interceptAndExecuteTool(
       const data = (await res.json()) as FsResponse;
 
       if (isReadOnlyOp && data.success) {
-        const cacheKey = makeFsCacheKey(
-          projectId,
-          targetNodeId,
-          operation,
-          targetPath
-        );
+        const cacheKey = makeFsCacheKey(projectId, targetNodeId, operation, targetPath);
         setBoundedFsReadCache(cacheKey, data);
       }
 
@@ -606,11 +510,7 @@ export async function interceptAndExecuteTool(
         tool_name: toolName,
         node_id: targetNodeId,
         status: data.success ? "executed" : "error",
-        summary: `FS [${targetNodeId}] ${payload.operation} ${payload.path} (${
-          payload.file_mode
-        }) -> ${data.success ? "OK" : data.error}${
-          rollbackSnapshotId ? ` [snapshot: ${rollbackSnapshotId}]` : ""
-        }`,
+        summary: `FS [${targetNodeId}] ${payload.operation} ${payload.path} (${payload.file_mode}) -> ${data.success ? "OK" : data.error}${rollbackSnapshotId ? ` [snapshot: ${rollbackSnapshotId}]` : ""}`,
         args: {
           operation: payload.operation,
           path: payload.path,

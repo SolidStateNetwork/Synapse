@@ -1,20 +1,8 @@
 "use client";
 
 import React from "react";
-import {
-  Activity,
-  RefreshCw,
-  Shield,
-  ShieldCheck,
-  Sparkles,
-  Trash2,
-  X,
-} from "lucide-react";
-import {
-  FirewallDetectedPort,
-  GatewayNode,
-  ProjectState,
-} from "@/types/synapse";
+import { Activity, RefreshCw, Shield, ShieldCheck, Sparkles, Trash2, X } from "lucide-react";
+import { FirewallDetectedPort, GatewayNode, ProjectState } from "@/types/synapse";
 import { SynapseViewHeader } from "@/components/ui/SynapseDesignSystem";
 
 export interface FirewallViewProps {
@@ -28,13 +16,7 @@ export interface FirewallViewProps {
   setFirewallError: (err: string) => void;
   fetchFirewallStatus: (nodeId?: string) => void;
   handleFirewallAction: (payload: {
-    action:
-      | "inspect"
-      | "set_profile"
-      | "shield_port"
-      | "unshield_port"
-      | "add_ip_rule"
-      | "remove_ip_rule";
+    action: "inspect" | "set_profile" | "shield_port" | "unshield_port" | "add_ip_rule" | "remove_ip_rule";
     node_id?: string;
     profile?: "web_standard" | "synapse_stealth" | "custom";
     port?: number;
@@ -56,32 +38,17 @@ export interface FirewallViewProps {
 }
 
 const FirewallView = React.memo(function FirewallView({
-  activeProject,
-  gatewayNodes,
-  selectedNodeId,
-  setSelectedNodeId,
-  liveFirewallPorts,
-  firewallBusy,
-  firewallError,
-  setFirewallError,
-  fetchFirewallStatus,
-  handleFirewallAction,
-  fwRuleAction,
-  setFwRuleAction,
-  fwIpInput,
-  setFwIpInput,
-  fwRulePort,
-  setFwRulePort,
-  fwRuleNote,
-  setFwRuleNote,
-  handleAddFirewallIpRule,
-  onAskCopilot,
+  activeProject, gatewayNodes, selectedNodeId, setSelectedNodeId,
+  liveFirewallPorts, firewallBusy, firewallError, setFirewallError,
+  fetchFirewallStatus, handleFirewallAction, fwRuleAction, setFwRuleAction,
+  fwIpInput, setFwIpInput, fwRulePort, setFwRulePort, fwRuleNote, setFwRuleNote,
+  handleAddFirewallIpRule, onAskCopilot,
 }: FirewallViewProps) {
   const targetNode =
     selectedNodeId ||
     activeProject?.assigned_nodes?.[0]?.node_id ||
     gatewayNodes[0]?.node_id ||
-    "vps2-muscle";
+    "local-node";
 
   const nodePolicy = activeProject?.firewall_policies?.[targetNode] || {
     node_id: targetNode,
@@ -181,13 +148,9 @@ const FirewallView = React.memo(function FirewallView({
               className="flex items-center gap-1.5 rounded-xl border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs font-medium text-nb-gray-200 hover:bg-nb-gray-900 hover:text-white disabled:opacity-50"
             >
               <RefreshCw
-                className={`h-3.5 w-3.5 ${
-                  firewallBusy ? "animate-spin text-netbird" : ""
-                }`}
+                className={`h-3.5 w-3.5 ${firewallBusy ? "animate-spin text-netbird" : ""}`}
               />
-              <span>
-                {firewallBusy ? "Synchronisiere..." : "Port-Radar scannen"}
-              </span>
+              <span>{firewallBusy ? "Synchronisiere..." : "Port-Radar scannen"}</span>
             </button>
 
             <button
@@ -219,7 +182,6 @@ const FirewallView = React.memo(function FirewallView({
         </div>
       )}
 
-      {/* 1. 1-CLICK SECURITY PROFILES */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wider text-nb-gray-400">
@@ -231,14 +193,11 @@ const FirewallView = React.memo(function FirewallView({
               {nodePolicy.backend || "iptables + SYNAPSE_FW"}
             </span>{" "}
             · SSH-Schutz:{" "}
-            <span className="text-emerald-400">
-              Port :{nodePolicy.ssh_port || 22}
-            </span>
+            <span className="text-emerald-400">Port :{nodePolicy.ssh_port || 22}</span>
           </span>
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {/* Profile 1: Web-Server Standard */}
           <div
             onClick={() =>
               handleFirewallAction({
@@ -267,13 +226,12 @@ const FirewallView = React.memo(function FirewallView({
               Webseiten offen, interne Dienste geschützt
             </h3>
             <p className="mt-1 text-xs text-nb-gray-400 leading-relaxed">
-              Erlaubt öffentlich nur SSH (:{nodePolicy.ssh_port || 22}) sowie
-              HTTP/HTTPS (:80/:443). Interne Backend- &amp; Datenbank-Ports
-              werden nach außen abgeschirmt.
+              Erlaubt öffentlich nur SSH (:{nodePolicy.ssh_port || 22}) sowie HTTP/HTTPS
+              (:80/:443). Interne Backend- &amp; Datenbank-Ports werden nach außen
+              abgeschirmt.
             </p>
           </div>
 
-          {/* Profile 2: Synapse Stealth / Zero-Port */}
           <div
             onClick={() =>
               handleFirewallAction({
@@ -302,13 +260,11 @@ const FirewallView = React.memo(function FirewallView({
               Alle App-Ports nach außen unsichtbar
             </h3>
             <p className="mt-1 text-xs text-nb-gray-400 leading-relaxed">
-              Blockiert alle Anwendungs-Ports für das Internet (nur SSH bleibt
-              als Notfallzugang offen). Alle Apps laufen sicher über den
-              Synapse-Tunnel!
+              Blockiert alle Anwendungs-Ports für das Internet (nur SSH bleibt als
+              Notfallzugang offen). Alle Apps laufen sicher über den Synapse-Tunnel!
             </p>
           </div>
 
-          {/* Profile 3: Custom */}
           <div
             onClick={() =>
               handleFirewallAction({
@@ -337,30 +293,27 @@ const FirewallView = React.memo(function FirewallView({
               Einzelne Ports &amp; IPs selbst steuern
             </h3>
             <p className="mt-1 text-xs text-nb-gray-400 leading-relaxed">
-              Entscheide unten im Live Port-Radar für jeden Port einzeln per
-              Klick, ob er öffentlich oder nur über Synapse erreichbar sein
-              soll.
+              Entscheide unten im Live Port-Radar für jeden Port einzeln per Klick, ob er
+              öffentlich oder nur über Synapse erreichbar sein soll.
             </p>
           </div>
         </div>
       </div>
 
-      {/* 2. LIVE PORT-RADAR */}
       <div className="rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <Activity className="h-4 w-4 text-netbird" />
               <span>
-                2. Live Port-Radar ({portsList.length} aktive Ports auf{" "}
-                {targetNode})
+                2. Live Port-Radar ({portsList.length} aktive Ports auf {targetNode})
               </span>
             </h3>
             <p className="text-xs text-nb-gray-400 mt-0.5">
-              Wenn du einen Port „Nach außen sperrst“, wird er für Fremde im
-              Internet blockiert, funktioniert aber unter{" "}
-              <strong className="text-nb-gray-200">Services</strong> im
-              Synapse-Browser weiterhin!
+              Wenn du einen Port „Nach außen sperrst“, wird er für Fremde im Internet
+              blockiert, funktioniert aber unter{" "}
+              <strong className="text-nb-gray-200">Services</strong> im Synapse-Browser
+              weiterhin!
             </p>
           </div>
 
@@ -391,8 +344,7 @@ const FirewallView = React.memo(function FirewallView({
             <tbody className="divide-y divide-nb-gray-900">
               {portsList.map((item) => {
                 const isSsh =
-                  item.system_protected ||
-                  item.port === (nodePolicy.ssh_port || 22);
+                  item.system_protected || item.port === (nodePolicy.ssh_port || 22);
                 return (
                   <tr
                     key={`${item.protocol}:${item.port}`}
@@ -406,7 +358,9 @@ const FirewallView = React.memo(function FirewallView({
                     </td>
                     <td className="py-2.5 px-2.5 min-w-[140px]">
                       <div className="font-medium text-white">
-                        {(item.service_name || item.process).replace(new RegExp(`\\s*:${item.port}\\b`), "").trim()}
+                        {(item.service_name || item.process)
+                          .replace(new RegExp(`\\s*:${item.port}\\b`), "")
+                          .trim()}
                       </div>
                       <div className="font-mono text-[10px] text-nb-gray-400 whitespace-nowrap">
                         {item.process}
@@ -486,20 +440,16 @@ const FirewallView = React.memo(function FirewallView({
         </div>
       </div>
 
-      {/* 3. IP-BLOCKER & WHITELIST */}
       <div className="rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <Shield className="h-4 w-4 text-emerald-400" />
-              <span>
-                3. IP-Blocker &amp; Whitelist (
-                {nodePolicy.ip_rules?.length || 0} Regeln)
-              </span>
+              <span>3. IP-Blocker &amp; Whitelist ({nodePolicy.ip_rules?.length || 0} Regeln)</span>
             </h3>
             <p className="text-xs text-nb-gray-400 mt-0.5">
-              Sperre verdächtige IP-Adressen sofort oder gib bestimmte Ports
-              exklusiv für deine eigene IP-Adresse frei.
+              Sperre verdächtige IP-Adressen sofort oder gib bestimmte Ports exklusiv für
+              deine eigene IP-Adresse frei.
             </p>
           </div>
 
@@ -537,9 +487,7 @@ const FirewallView = React.memo(function FirewallView({
         >
           <select
             value={fwRuleAction}
-            onChange={(e) =>
-              setFwRuleAction(e.target.value as "block" | "allow")
-            }
+            onChange={(e) => setFwRuleAction(e.target.value as "block" | "allow")}
             className="sm:col-span-3 rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 text-white"
           >
             <option value="block">🚫 Sperren (Block)</option>
@@ -581,8 +529,7 @@ const FirewallView = React.memo(function FirewallView({
 
         {(nodePolicy.ip_rules?.length || 0) === 0 ? (
           <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950 p-4 text-center text-xs text-nb-gray-500">
-            Noch keine benutzerdefinierten IP-Sperren oder Whitelists
-            eingetragen.
+            Noch keine benutzerdefinierten IP-Sperren oder Whitelists eingetragen.
           </div>
         ) : (
           <div className="space-y-2">
@@ -601,15 +548,11 @@ const FirewallView = React.memo(function FirewallView({
                   >
                     {r.action === "block" ? "🚫 BLOCKIERT" : "✅ ERLAUBT"}
                   </span>
-                  <span className="font-mono font-semibold text-white">
-                    {r.ip_or_cidr}
-                  </span>
+                  <span className="font-mono font-semibold text-white">{r.ip_or_cidr}</span>
                   <span className="font-mono text-nb-gray-400">
                     →{" "}
                     {r.port
-                      ? `Port :${r.port} (${(
-                          r.protocol || "tcp"
-                        ).toUpperCase()})`
+                      ? `Port :${r.port} (${(r.protocol || "tcp").toUpperCase()})`
                       : "Alle Ports"}
                   </span>
                   {r.note && (

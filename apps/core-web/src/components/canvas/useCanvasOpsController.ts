@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import type {
   AlertConfigState,
   BlueprintItem,
-  ChaosResultState,
   CheckpointItem,
   DomainBindingItem,
   IntrusionScanState,
@@ -13,6 +12,7 @@ import type {
   SelfHealingEventItem,
   ServiceMeshLink,
 } from "@/components/canvas/canvasTypes";
+import { useCanvasStudioAndDomainActions } from "./useCanvasStudioAndDomainActions";
 
 export interface UseCanvasOpsControllerParams {
   primaryNode: string;
@@ -25,7 +25,8 @@ export function useCanvasOpsController({
   allServices,
   t,
 }: UseCanvasOpsControllerParams) {
-  // Feature 3: WebUI Auth & RBAC State
+  const defaultNodeId = primaryNode || "local-node";
+
   const [authEnabled, setAuthEnabled] = useState(false);
   const [authLocked, setAuthLocked] = useState(false);
   const [authRole, setAuthRole] = useState<"admin" | "operator">("admin");
@@ -37,51 +38,56 @@ export function useCanvasOpsController({
   const [unlockPinInput, setUnlockPinInput] = useState("");
   const [authNotice, setAuthNotice] = useState<string | null>(null);
 
-  // Feature 4: 1-Click Snap & Rollback Checkpoints State
   const [checkpoints, setCheckpoints] = useState<CheckpointItem[]>([]);
   const [checkpointBusyId, setCheckpointBusyId] = useState<string | null>(null);
   const [checkpointNotice, setCheckpointNotice] = useState<string | null>(null);
 
-  // Feature 5: 24/7 Proactive Watchdog & Multi-Channel Alerting State
   const [alertConfig, setAlertConfig] = useState<AlertConfigState | null>(null);
   const [showAlertChannels, setShowAlertChannels] = useState(false);
   const [alertBusy, setAlertBusy] = useState(false);
   const [alertNotice, setAlertNotice] = useState<string | null>(null);
 
-  // Feature 6: Service-to-Service Mesh Data-Flow Links
-  const [serviceLinks, setServiceLinks] = useState<ServiceMeshLink[]>([
-    {
-      id: "pulse-webui->pulse-analytics-api",
-      fromServiceId: "pulse-webui",
-      toServiceId: "pulse-analytics-api",
-      protocol: "HTTP REST",
-    },
-    {
-      id: "pulse-analytics-api->pulse-sqlite-db",
-      fromServiceId: "pulse-analytics-api",
-      toServiceId: "pulse-sqlite-db",
-      protocol: "SQLite WAL",
-    },
-    {
-      id: "auto-svc-4050->pulse-analytics-api",
-      fromServiceId: "auto-svc-4050",
-      toServiceId: "pulse-analytics-api",
-      protocol: "JSON Telemetry",
-    },
-  ]);
+  const [serviceLinks, setServiceLinks] = useState<ServiceMeshLink[]>([]);
 
-  // Round-2 Feature 1: 1-Click Blueprint / App-Store State
+  // Dynamically derive initial topology links from registered service categories if none are stored yet
+  useEffect(() => {
+    if (!allServices || allServices.length < 2) return;
+    setServiceLinks((prev) => {
+      if (prev.length > 0) return prev;
+      const derived: ServiceMeshLink[] = [];
+      const webuis = allServices.filter((s) => s.category === "webui");
+      const backends = allServices.filter(
+        (s) => !s.category || s.category === "backend"
+      );
+      const dbs = allServices.filter((s) => s.category === "database");
+
+      const primaryBackend = backends[0];
+      const primaryDb = dbs[0];
+
+      if (webuis[0] && primaryBackend) {
+        derived.push({
+          id: `${webuis[0].service_id}->${primaryBackend.service_id}`,
+          fromServiceId: webuis[0].service_id,
+          toServiceId: primaryBackend.service_id,
+          protocol: "HTTP REST",
+        });
+      }
+      if (primaryBackend && primaryDb) {
+        derived.push({
+          id: `${primaryBackend.service_id}->${primaryDb.service_id}`,
+          fromServiceId: primaryBackend.service_id,
+          toServiceId: primaryDb.service_id,
+          protocol: "SQLite WAL",
+        });
+      }
+      return derived;
+    });
+  }, [allServices]);
+
   const [blueprints, setBlueprints] = useState<BlueprintItem[]>([]);
   const [blueprintBusyId, setBlueprintBusyId] = useState<string | null>(null);
   const [blueprintNotice, setBlueprintNotice] = useState<string | null>(null);
 
-  // Round-2 Feature 2: Live Log Streaming (Tail) State per Service
-  const [serviceLogsMap, setServiceLogsMap] = useState<
-    Record<string, { lines: string[]; errorCount: number; open: boolean }>
-  >({});
-  const [logBusyId, setLogBusyId] = useState<string | null>(null);
-
-  // Round-2 Feature 3: Live SSH-Intrusion-Radar & Auto-Blocker State per Muscle Node
   const [intrusionMap, setIntrusionMap] = useState<
     Record<string, IntrusionScanState>
   >({});
@@ -90,60 +96,20 @@ export function useCanvasOpsController({
   );
   const [intrusionNotice, setIntrusionNotice] = useState<string | null>(null);
 
-  // Round-2 Feature 4: Automated Encrypted Offsite Backups State
   const [offsiteBackups, setOffsiteBackups] = useState<OffsiteBackupItem[]>([]);
   const [backupBusyId, setBackupBusyId] = useState<string | null>(null);
   const [backupNotice, setBackupNotice] = useState<string | null>(null);
 
-  // Round-2 Feature 5: Custom Domain & Auto-HTTPS Bindings per Service
   const [domainBindings, setDomainBindings] = useState<
     Record<string, DomainBindingItem>
   >({});
-  const [domainEditorOpen, setDomainEditorOpen] = useState<
-    Record<string, boolean>
-  >({});
-  const [domainInputMap, setDomainInputMap] = useState<Record<string, string>>(
-    {}
-  );
-  const [domainNoticeMap, setDomainNoticeMap] = useState<
-    Record<string, string>
-  >({});
 
-  // Round-2 Feature 6: Chaos-Engineering & Resilience Simulator State per Service
-  const [chaosResultMap, setChaosResultMap] = useState<
-    Record<string, ChaosResultState>
-  >({});
-  const [chaosBusyId, setChaosBusyId] = useState<string | null>(null);
-
-  // v0.5.0: Autonomous Self-Healing Events, Quick-Actions & Rolling 60s Service Sparklines
   const [selfHealingEvents, setSelfHealingEvents] = useState<
     SelfHealingEventItem[]
   >([]);
-  const [selfHealBusyId, setSelfHealBusyId] = useState<string | null>(null);
-  const [probeBusyId, setProbeBusyId] = useState<string | null>(null);
-  const [linkProbeBusyId, setLinkProbeBusyId] = useState<string | null>(null);
-  const [showCustomServiceModal, setShowCustomServiceModal] = useState(false);
-  const [customSvcName, setCustomSvcName] = useState("");
-  const [customSvcPort, setCustomSvcPort] = useState("4095");
-  const [customSvcCategory, setCustomSvcCategory] = useState<
-    "backend" | "webui" | "database"
-  >("backend");
-  const [customSvcRuntime, setCustomSvcRuntime] = useState<
-    "python_http" | "static_webui" | "sqlite_rest"
-  >("python_http");
-  const [customSvcAutoHeal, setCustomSvcAutoHeal] = useState(true);
-  const [customSvcBusy, setCustomSvcBusy] = useState(false);
-  const [customSvcNotice, setCustomSvcNotice] = useState<string | null>(null);
-  const [showSelfHealingDrawer, setShowSelfHealingDrawer] = useState(false);
-
-  // v0.7.0: Live Code Editor & Hot-Reload Modal State on Canvas
-  const [hotReloadModalSvc, setHotReloadModalSvc] =
-    useState<RegisteredService | null>(null);
-  const [hotReloadFilePath, setHotReloadFilePath] = useState("");
-  const [hotReloadCode, setHotReloadCode] = useState("");
-  const [hotReloadLoading, setHotReloadLoading] = useState(false);
-  const [hotReloadSaving, setHotReloadSaving] = useState(false);
-  const [hotReloadNotice, setHotReloadNotice] = useState<string | null>(null);
+  const [serviceSparklineMap, setServiceSparklineMap] = useState<
+    Record<string, number[]>
+  >({});
 
   useEffect(() => {
     if (!allServices || allServices.length === 0) return;
@@ -161,9 +127,6 @@ export function useCanvasOpsController({
       return next;
     });
   }, [allServices]);
-  const [serviceSparklineMap, setServiceSparklineMap] = useState<
-    Record<string, number[]>
-  >({});
 
   useEffect(() => {
     fetch("/api/auth")
@@ -214,7 +177,7 @@ export function useCanvasOpsController({
           if (d.self_healing && Array.isArray(d.self_healing.events)) {
             setSelfHealingEvents(d.self_healing.events);
           }
-          if (Array.isArray(d.service_links)) {
+          if (Array.isArray(d.service_links) && d.service_links.length > 0) {
             setServiceLinks(d.service_links);
           }
         }
@@ -235,7 +198,7 @@ export function useCanvasOpsController({
         body: JSON.stringify({
           action,
           blueprint_id: bp.id,
-          node_id: primaryNode || "vps2-muscle",
+          node_id: defaultNodeId,
         }),
       });
       const data = await res.json();
@@ -388,119 +351,6 @@ export function useCanvasOpsController({
     }
   };
 
-  const handleTailServiceLogs = async (
-    svc: RegisteredService,
-    forceRefresh = false
-  ) => {
-    const current = serviceLogsMap[svc.service_id];
-    if (current?.open && !forceRefresh) {
-      setServiceLogsMap((prev) => ({
-        ...prev,
-        [svc.service_id]: { ...current, open: false },
-      }));
-      return;
-    }
-    setLogBusyId(svc.service_id);
-    try {
-      const res = await fetch("/api/service-ops", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "tail_logs",
-          node_id: svc.node_id || primaryNode || "vps2-muscle",
-          service_id: svc.service_id,
-          port: svc.port,
-          container_name: svc.container_name,
-        }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setServiceLogsMap((prev) => ({
-          ...prev,
-          [svc.service_id]: {
-            lines: data.lines || [],
-            errorCount: data.error_count || 0,
-            open: true,
-          },
-        }));
-      }
-    } finally {
-      setLogBusyId(null);
-    }
-  };
-
-  const handleSaveServiceDomain = async (svc: RegisteredService) => {
-    const rawDomain = (
-      domainInputMap[svc.service_id] ??
-      domainBindings[svc.service_id]?.domain ??
-      `${svc.service_id}.synapse.local`
-    ).trim();
-    try {
-      const res = await fetch("/api/service-ops", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "configure_domain",
-          service_id: svc.service_id,
-          domain: rawDomain,
-          auto_tls: true,
-          target_port: svc.port,
-          node_id: svc.node_id || primaryNode || "vps2-muscle",
-        }),
-      });
-      const data = await res.json();
-      if (data.domains) {
-        setDomainBindings(data.domains);
-      }
-      setDomainNoticeMap((prev) => ({
-        ...prev,
-        [svc.service_id]: t(
-          `🔒 HTTPS aktiv: https://${rawDomain}`,
-          `🔒 HTTPS active: https://${rawDomain}`
-        ),
-      }));
-      setTimeout(() => {
-        setDomainNoticeMap((prev) => {
-          const copy = { ...prev };
-          delete copy[svc.service_id];
-          return copy;
-        });
-      }, 4000);
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleRunChaosTest = async (svc: RegisteredService) => {
-    setChaosBusyId(svc.service_id);
-    try {
-      const res = await fetch("/api/service-ops", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "chaos_test",
-          node_id: svc.node_id || primaryNode || "vps2-muscle",
-          service_id: svc.service_id,
-          port: svc.port,
-          container_name: svc.container_name,
-        }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setChaosResultMap((prev) => ({
-          ...prev,
-          [svc.service_id]: {
-            mttr_ms: data.mttr_ms || 120,
-            recovered: Boolean(data.recovered),
-            steps: data.steps || [],
-          },
-        }));
-      }
-    } finally {
-      setChaosBusyId(null);
-    }
-  };
-
   const handleCreateCheckpoint = async (nodeId: string) => {
     setCheckpointBusyId("create");
     setCheckpointNotice(null);
@@ -570,7 +420,7 @@ export function useCanvasOpsController({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "test_alert",
-          node_id: primaryNode || "vps2-muscle",
+          node_id: defaultNodeId,
         }),
       });
       const data = await res.json();
@@ -675,39 +525,19 @@ export function useCanvasOpsController({
     }
   };
 
-  const handleToggleServiceLink = (fromId: string, toId: string) => {
-    if (fromId === toId) return;
-    const linkId = `${fromId}->${toId}`;
-    setServiceLinks((prev) => {
-      const exists = prev.some((l) => l.id === linkId);
-      let updated: ServiceMeshLink[];
-      if (exists) {
-        updated = prev.filter((l) => l.id !== linkId);
-      } else {
-        const targetSvc = allServices.find((s) => s.service_id === toId);
-        const proto =
-          targetSvc?.category === "database" ? "SQLite WAL" : "HTTP REST";
-        updated = [
-          ...prev,
-          {
-            id: linkId,
-            fromServiceId: fromId,
-            toServiceId: toId,
-            protocol: proto,
-          },
-        ];
-      }
-      void fetch("/api/service-ops", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "save_service_links",
-          service_links: updated,
-        }),
-      }).catch(() => {});
-      return updated;
-    });
-  };
+  const studioAndDomain = useCanvasStudioAndDomainActions({
+    primaryNode,
+    allServices,
+    t,
+    serviceLinks,
+    setServiceLinks,
+    domainBindings,
+    setDomainBindings,
+    selfHealingEvents,
+    setSelfHealingEvents,
+    serviceSparklineMap,
+    setServiceSparklineMap,
+  });
 
   return {
     authEnabled,
@@ -739,8 +569,6 @@ export function useCanvasOpsController({
     blueprints,
     blueprintBusyId,
     blueprintNotice,
-    serviceLogsMap,
-    logBusyId,
     intrusionMap,
     intrusionBusyNode,
     intrusionNotice,
@@ -748,283 +576,19 @@ export function useCanvasOpsController({
     backupBusyId,
     backupNotice,
     domainBindings,
-    domainEditorOpen,
-    setDomainEditorOpen,
-    domainInputMap,
-    setDomainInputMap,
-    domainNoticeMap,
-    chaosResultMap,
-    chaosBusyId,
+    selfHealingEvents,
+    serviceSparklineMap,
     handleDeployBlueprint,
     handleCreateOffsiteBackup,
     handleRestoreOffsiteBackup,
     handleScanIntrusions,
     handleBlockAttackerIp,
-    handleTailServiceLogs,
-    handleSaveServiceDomain,
-    handleRunChaosTest,
     handleCreateCheckpoint,
     handleRollbackCheckpoint,
     handleSendTestAlert,
     handleSaveAlertConfig,
     handleConfigureAuth,
     handleUnlockDashboard,
-    handleToggleServiceLink,
-    selfHealingEvents,
-    selfHealBusyId,
-    probeBusyId,
-    serviceSparklineMap,
-    handleQuickRestartService: async (
-      svc: RegisteredService,
-      simulateCrash = false
-    ) => {
-      setSelfHealBusyId(svc.service_id);
-      try {
-        const res = await fetch("/api/service-ops", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: simulateCrash ? "simulate_crash_and_heal" : "self_heal",
-            node_id: svc.node_id || primaryNode || "vps2-muscle",
-            service_id: svc.service_id,
-            service_name: svc.name,
-            port: svc.port,
-            container_name: svc.container_name,
-            simulate_crash: simulateCrash,
-          }),
-        });
-        const data = await res.json();
-        if (data.ok && data.event) {
-          setSelfHealingEvents(
-            data.self_healing?.events || [data.event, ...selfHealingEvents]
-          );
-          setServiceSparklineMap((prev) => {
-            const cur = prev[svc.service_id] || [1, 1, 1, 1, 1];
-            return {
-              ...prev,
-              [svc.service_id]: [
-                ...cur.slice(-11),
-                simulateCrash ? Math.max(8, data.event.latency_ms) : data.event.latency_ms || 1,
-                data.event.latency_ms || 1,
-              ],
-            };
-          });
-        }
-      } finally {
-        setSelfHealBusyId(null);
-      }
-    },
-    handleQuickProbeService: async (svc: RegisteredService) => {
-      setProbeBusyId(svc.service_id);
-      try {
-        const res = await fetch("/api/service-ops", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "probe_service",
-            node_id: svc.node_id || primaryNode || "vps2-muscle",
-            service_id: svc.service_id,
-            port: svc.port,
-          }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          setServiceSparklineMap((prev) => {
-            const cur = prev[svc.service_id] || [1, 1, 1, 1, 1, 1];
-            return {
-              ...prev,
-              [svc.service_id]: [...cur.slice(-11), data.latency_ms || 1],
-            };
-          });
-        }
-      } finally {
-        setProbeBusyId(null);
-      }
-    },
-    linkProbeBusyId,
-    handleUpdateServiceLinkProtocol: async (
-      fromId: string,
-      toId: string,
-      protocol: string
-    ) => {
-      const linkId = `${fromId}->${toId}`;
-      const updated = serviceLinks.map((l) =>
-        l.id === linkId ? { ...l, protocol } : l
-      );
-      setServiceLinks(updated);
-      try {
-        await fetch("/api/service-ops", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "save_service_links",
-            service_links: updated,
-          }),
-        });
-      } catch {
-        // ignore
-      }
-    },
-    handleProbeServiceLink: async (
-      fromSvc: RegisteredService,
-      toSvc: RegisteredService
-    ) => {
-      const linkId = `${fromSvc.service_id}->${toSvc.service_id}`;
-      setLinkProbeBusyId(linkId);
-      try {
-        const currentLink = serviceLinks.find((l) => l.id === linkId);
-        const res = await fetch("/api/service-ops", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "probe_service_link",
-            node_id: fromSvc.node_id || primaryNode || "vps2-muscle",
-            from_service_id: fromSvc.service_id,
-            to_service_id: toSvc.service_id,
-            from_port: fromSvc.port,
-            to_port: toSvc.port,
-            protocol: currentLink?.protocol || "HTTP REST",
-          }),
-        });
-        const data = await res.json();
-        if (data.ok && Array.isArray(data.links)) {
-          setServiceLinks(data.links);
-        }
-      } finally {
-        setLinkProbeBusyId(null);
-      }
-    },
-    showCustomServiceModal,
-    setShowCustomServiceModal,
-    customSvcName,
-    setCustomSvcName,
-    customSvcPort,
-    setCustomSvcPort,
-    customSvcCategory,
-    setCustomSvcCategory,
-    customSvcRuntime,
-    setCustomSvcRuntime,
-    customSvcAutoHeal,
-    setCustomSvcAutoHeal,
-    customSvcBusy,
-    customSvcNotice,
-    showSelfHealingDrawer,
-    setShowSelfHealingDrawer,
-    hotReloadModalSvc,
-    setHotReloadModalSvc,
-    hotReloadFilePath,
-    setHotReloadFilePath,
-    hotReloadCode,
-    setHotReloadCode,
-    hotReloadLoading,
-    hotReloadSaving,
-    hotReloadNotice,
-    handleOpenHotReloadModal: async (svc: RegisteredService) => {
-      setHotReloadModalSvc(svc);
-      setHotReloadLoading(true);
-      setHotReloadNotice(null);
-      try {
-        const res = await fetch("/api/service-ops", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "get_service_code",
-            node_id: svc.node_id || primaryNode || "vps2-muscle",
-            service_id: svc.service_id,
-            port: svc.port,
-          }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          setHotReloadFilePath(data.file_path || "");
-          setHotReloadCode(data.code || "");
-        }
-      } finally {
-        setHotReloadLoading(false);
-      }
-    },
-    handleSaveAndHotReloadCode: async (e?: React.FormEvent) => {
-      if (e) e.preventDefault();
-      if (!hotReloadModalSvc || !hotReloadCode.trim()) return;
-      setHotReloadSaving(true);
-      setHotReloadNotice(null);
-      try {
-        const res = await fetch("/api/service-ops", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "hot_reload_service_code",
-            node_id: hotReloadModalSvc.node_id || primaryNode || "vps2-muscle",
-            service_id: hotReloadModalSvc.service_id,
-            port: hotReloadModalSvc.port,
-            file_path: hotReloadFilePath,
-            code: hotReloadCode,
-          }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          if (data.healthy === false || data.http_status >= 500) {
-            setHotReloadNotice(
-              t(
-                `⚠️ Syntax-/Start-Fehler erkannt — Automatischer Rollback auf letzte stabile Version aktiv (Snapshot ${data.snapshot_id})!`,
-                `⚠️ Syntax/startup error detected — automatic rollback to last stable version active (Snapshot ${data.snapshot_id})!`
-              )
-            );
-          } else {
-            setHotReloadNotice(
-              t(
-                `🔥 Live Hot-Reload auf :${data.port} in ${data.elapsed_ms} ms aktiv (Snapshot ${data.snapshot_id}, HTTP ${data.http_status})!`,
-                `🔥 Live Hot-Reload active on :${data.port} in ${data.elapsed_ms} ms (Snapshot ${data.snapshot_id}, HTTP ${data.http_status})!`
-              )
-            );
-          }
-        } else {
-          setHotReloadNotice(data.error || "Hot-Reload error");
-        }
-      } finally {
-        setHotReloadSaving(false);
-      }
-    },
-    handleDeployCustomService: async (e?: React.FormEvent) => {
-      if (e) e.preventDefault();
-      const portNum = Number(customSvcPort || 4095);
-      if (!customSvcName.trim() || !Number.isInteger(portNum)) return;
-      setCustomSvcBusy(true);
-      setCustomSvcNotice(null);
-      try {
-        const res = await fetch("/api/service-ops", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "deploy_custom_service",
-            node_id: primaryNode || "vps2-muscle",
-            name: customSvcName.trim(),
-            port: portNum,
-            category: customSvcCategory,
-            runtime: customSvcRuntime,
-            auto_heal: customSvcAutoHeal,
-          }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          setCustomSvcNotice(
-            t(
-              `🚀 ${data.service.name} auf :${data.service.port} live gestartet (${data.service.latency_ms} ms)!`,
-              `🚀 ${data.service.name} deployed live on :${data.service.port} (${data.service.latency_ms} ms)!`
-            )
-          );
-          setCustomSvcName("");
-          setCustomSvcPort(String(portNum + 1));
-          setTimeout(() => {
-            setShowCustomServiceModal(false);
-            setCustomSvcNotice(null);
-          }, 1200);
-        } else {
-          setCustomSvcNotice(data.error || "Deploy error");
-        }
-      } finally {
-        setCustomSvcBusy(false);
-      }
-    },
+    ...studioAndDomain,
   };
 }

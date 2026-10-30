@@ -9,9 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -71,7 +69,7 @@ func main() {
 		}
 	}()
 
-	// Self-Healing Reverse Tunnel Supervisor for NAT/Local Core Gateways
+	// Optional Self-Healing Reverse Tunnel Supervisor (only active if SYNAPSE_SSH_REVERSE_HOST is set)
 	go startSelfHealingMuscleTunnel(nodeHub, tunnelPort)
 
 	mux := http.NewServeMux()
@@ -109,12 +107,13 @@ func main() {
 				nodeHub.ClearDebugEvents()
 			case "ping_nodes":
 				nodes := nodeHub.ListNodes()
+				defaultProj := nodeHub.ResolveDefaultProjectID()
 				pingResults := make([]map[string]any, 0, len(nodes))
 				for _, n := range nodes {
 					start := time.Now()
 					fsResp, fsErr := nodeHub.ExecFs(n.NodeID, tunnelv1.FsRequest{
 						RequestID: fmt.Sprintf("dbg-fs-%d", time.Now().UnixNano()),
-						ProjectID: "synapse-cloud-demo",
+						ProjectID: defaultProj,
 						Tier:      n.Tier,
 						Operation: tunnelv1.FsOpListDir,
 						Path:      ".",
@@ -122,7 +121,7 @@ func main() {
 					ptyResp, ptyErr := nodeHub.ExecPty(n.NodeID, tunnelv1.PtyExecRequest{
 						CmdID:         fmt.Sprintf("dbg-pty-%d", time.Now().UnixNano()),
 						SessionID:     "debug-self-test",
-						ProjectID:     "synapse-cloud-demo",
+						ProjectID:     defaultProj,
 						Tier:          n.Tier,
 						Command:       "echo SYNAPSE_DEBUG_PING_OK && uname -a",
 						WaitTimeoutMs: 5000,
@@ -239,7 +238,7 @@ func main() {
 			Tier      tunnelv1.AutonomyTier `json:"tier"`
 			Operation tunnelv1.FsOperation  `json:"operation"`
 			Path      string                `json:"path"`
-			Content   string                `json:"content"` // raw UTF-8 string or base64 if is_base64=true
+			Content   string                `json:"content"`
 			IsBase64  bool                  `json:"is_base64"`
 			Diff      string                `json:"diff"`
 			FileMode  string                `json:"file_mode"`
@@ -343,7 +342,6 @@ func main() {
 		}
 
 		if r.Method == http.MethodPost {
-			// Interactive keystroke or resize event from xterm.js
 			var frame tunnelv1.PtyLiveFrame
 			if err := json.NewDecoder(r.Body).Decode(&frame); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -365,7 +363,6 @@ func main() {
 			return
 		}
 
-		// GET: Server-Sent Events (SSE) live byte stream from Axon PTY
 		flusher, ok := w.(http.Flusher)
 		if !ok {
 			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
@@ -387,7 +384,6 @@ func main() {
 		w.Header().Set("Connection", "keep-alive")
 		w.Header().Set("X-Accel-Buffering", "no")
 
-		// Immediately flush SSE headers so EventSource.onopen fires without waiting for first PTY output byte
 		_, _ = fmt.Fprintf(w, ": connected\n\n")
 		flusher.Flush()
 
@@ -440,159 +436,11 @@ func main() {
 	mux.HandleFunc("/preview/", proxy.NewLivePreviewHandler(nodeHub))
 
 	// 9. Zero-Dependency Axon Static Binary Download (/dl/axon-linux-amd64 & /dl/axon-linux-arm64)
-	serveAxonBinary := func(arch string) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			candidates := []string{
-				os.Getenv("SYNAPSE_AXON_BINARY_PATH"),
-				fmt.Sprintf("/usr/local/bin/axon-linux-%s", arch),
-				fmt.Sprintf("./bin/axon-linux-%s", arch),
-				"./bin/axon",
-				"../../bin/axon",
-			}
-			for _, candidate := range candidates {
-				if candidate == "" {
-					continue
-				}
-				if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-					w.Header().Set("Content-Type", "application/octet-stream")
-					w.Header().Set("Content-Disposition", "attachment; filename=\"axon\"")
-					http.ServeFile(w, r, candidate)
-					return
-				}
-			}
-			// Fallback to official GitHub Release asset
-			ghReleaseURL := fmt.Sprintf("https://github.com/SolidStateNetwork/Synapse/releases/latest/download/axon-linux-%s", arch)
-			http.Redirect(w, r, ghReleaseURL, http.StatusFound)
-		}
-	}
 	mux.HandleFunc("/dl/axon-linux-amd64", serveAxonBinary("amd64"))
 	mux.HandleFunc("/dl/axon-linux-arm64", serveAxonBinary("arm64"))
 
 	// 10. One-Liner Axon Node Enrollment & Systemd Installer Script (/install.sh)
-	mux.HandleFunc("/install.sh", func(w http.ResponseWriter, r *http.Request) {
-		scheme := "http"
-		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-			scheme = "https"
-		}
-		host := r.Host
-		if host == "" {
-			host = "127.0.0.1:8081"
-		}
-		coreBaseURL := fmt.Sprintf("%s://%s", scheme, host)
-
-		w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
-		script := fmt.Sprintf(`#!/usr/bin/env sh
-set -eu
-
-CORE_URL="%s"
-TOKEN=""
-TIER="TIER_2_WORKSPACE_JAIL"
-NODE_ID=""
-DEBUG_FLAG=""
-
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --core)
-      CORE_URL="$2"
-      shift 2
-      ;;
-    --token)
-      TOKEN="$2"
-      shift 2
-      ;;
-    --tier)
-      TIER="$2"
-      shift 2
-      ;;
-    --node-id)
-      NODE_ID="$2"
-      shift 2
-      ;;
-    --debug|-d)
-      DEBUG_FLAG="--debug"
-      shift
-      ;;
-    *)
-      if [ -z "$TOKEN" ]; then
-        TOKEN="$1"
-      elif [ "$TIER" = "TIER_2_WORKSPACE_JAIL" ] && ( [ "$1" = "TIER_1_UNLEASHED" ] || [ "$1" = "TIER_2_WORKSPACE_JAIL" ] || [ "$1" = "TIER_3_SUPERVISED" ] ); then
-        TIER="$1"
-      elif [ -z "$NODE_ID" ]; then
-        NODE_ID="$1"
-      fi
-      shift
-      ;;
-  esac
-done
-
-if [ -z "$TOKEN" ]; then
-  echo "Usage: curl -fsSL $CORE_URL/install.sh | sudo sh -s -- <join_token> [TIER_1_UNLEASHED|TIER_2_WORKSPACE_JAIL|TIER_3_SUPERVISED] [node_id] [--debug]"
-  exit 1
-fi
-
-ARCH_RAW="$(uname -m)"
-case "$ARCH_RAW" in
-  x86_64|amd64) ARCH="amd64" ;;
-  aarch64|arm64) ARCH="arm64" ;;
-  *) ARCH="amd64" ;;
-esac
-
-INSTALL_DIR="/usr/local/bin"
-CONFIG_DIR="/etc/axon"
-WORKSPACE_DIR="/opt/axon/workspaces"
-
-if [ "$(id -u)" -ne 0 ]; then
-  INSTALL_DIR="${HOME}/.local/bin"
-  CONFIG_DIR="${HOME}/.config/axon"
-  WORKSPACE_DIR="${HOME}/.local/share/axon/workspaces"
-fi
-
-mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$WORKSPACE_DIR"
-
-echo "[synapse] Downloading static Axon Muscle binary (linux/${ARCH})..."
-if ! curl -fsSL "$CORE_URL/dl/axon-linux-${ARCH}" -o "$INSTALL_DIR/axon" 2>/dev/null; then
-  echo "[synapse] Falling back to GitHub Releases (axon-linux-${ARCH})..."
-  curl -fsSL "https://github.com/SolidStateNetwork/Synapse/releases/latest/download/axon-linux-${ARCH}" -o "$INSTALL_DIR/axon"
-fi
-chmod +x "$INSTALL_DIR/axon"
-
-echo "[synapse] Authenticating one-time token & bootstrapping mTLS 1.3 CSR with Core ($CORE_URL)..."
-if [ -n "$NODE_ID" ]; then
-  "$INSTALL_DIR/axon" join $DEBUG_FLAG --core "$CORE_URL" --tier "$TIER" --node-id "$NODE_ID" --config-dir "$CONFIG_DIR" --workspace-root "$WORKSPACE_DIR" "$TOKEN"
-else
-  "$INSTALL_DIR/axon" join $DEBUG_FLAG --core "$CORE_URL" --tier "$TIER" --config-dir "$CONFIG_DIR" --workspace-root "$WORKSPACE_DIR" "$TOKEN"
-fi
-
-if [ "$(id -u)" -eq 0 ] && command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
-  cat >/etc/systemd/system/axon.service <<EOF
-[Unit]
-Description=Synapse Axon Muscle Node Agent
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=$INSTALL_DIR/axon run $DEBUG_FLAG --config-dir $CONFIG_DIR
-Restart=always
-RestartSec=3s
-TimeoutStopSec=2s
-KillMode=process
-LimitNOFILE=65535
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  systemctl daemon-reload
-  systemctl enable --now axon.service
-  echo "[synapse] ✔ axon.service enabled and started via systemd (mTLS + Yamux Reverse Tunnel active)."
-else
-  pkill -f "$INSTALL_DIR/axon run" 2>/dev/null || true
-  nohup "$INSTALL_DIR/axon" run $DEBUG_FLAG --config-dir "$CONFIG_DIR" >/tmp/axon-agent.log 2>&1 &
-  echo "[synapse] ✔ Axon daemon started in background (PID $!, logs at /tmp/axon-agent.log)."
-fi
-`, coreBaseURL)
-		_, _ = w.Write([]byte(script))
-	})
+	mux.HandleFunc("/install.sh", handleInstallScript)
 
 	log.Printf("[core-gateway] HTTP Control & Live-Preview Reverse Proxy listening on %s (VaultRoot=%s, Debug=%v)", httpAddr, vaultRoot, nodeHub.IsDebugEnabled())
 	httpServer := &http.Server{
@@ -603,142 +451,5 @@ fi
 	}
 	if err := httpServer.ListenAndServe(); err != nil {
 		log.Fatalf("[core-gateway] HTTP server error: %v", err)
-	}
-}
-
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-// startSelfHealingMuscleTunnel ensures that if this Core Gateway runs behind NAT (e.g. local Windows Core on 8443
-// or local Linux Core on 9443), its dedicated SSH reverse tunnel to the Muscle host is automatically established
-// and healed whenever the Muscle node is disconnected, without interfering with other simultaneous Cores.
-func startSelfHealingMuscleTunnel(nodeHub *hub.Hub, localTunnelPort int) {
-	if os.Getenv("SYNAPSE_AUTO_SSH_TUNNEL") == "0" {
-		return
-	}
-	homeDir, err := os.UserHomeDir()
-	if err != nil || homeDir == "" {
-		return
-	}
-	keyCandidates := []string{
-		os.Getenv("SYNAPSE_SSH_KEY_PATH"),
-		filepath.Join(homeDir, ".ssh", "synapse_vps_ed25519"),
-		filepath.Join(homeDir, ".ssh", "id_ed25519"),
-	}
-	var sshKeyPath string
-	for _, cand := range keyCandidates {
-		if cand == "" {
-			continue
-		}
-		if st, err := os.Stat(cand); err == nil && !st.IsDir() {
-			sshKeyPath = cand
-			break
-		}
-	}
-	if sshKeyPath == "" {
-		return
-	}
-
-	remoteHost := getEnv("SYNAPSE_SSH_REVERSE_HOST", "root@217.154.20.24")
-	defaultRemoteTunnel := "8443"
-	defaultRemoteHTTP := "8081"
-	if runtime.GOOS != "windows" {
-		defaultRemoteTunnel = "9443"
-		defaultRemoteHTTP = "9081"
-	}
-	remoteTunnelPort := getEnv("SYNAPSE_REMOTE_TUNNEL_PORT", defaultRemoteTunnel)
-	remoteHTTPPort := getEnv("SYNAPSE_REMOTE_HTTP_PORT", defaultRemoteHTTP)
-
-	var activeCmd *exec.Cmd
-	var lastSpawn time.Time
-
-	time.Sleep(2 * time.Second)
-	for {
-		nodes := nodeHub.ListNodes()
-		hasOnline := false
-		for _, n := range nodes {
-			if n.Online {
-				hasOnline = true
-				break
-			}
-		}
-
-		if hasOnline {
-			time.Sleep(6 * time.Second)
-			continue
-		}
-
-		// Wait up to 12s after spawning a tunnel before restarting it to let Axon complete its 2s backoff + mTLS handshake
-		if activeCmd != nil && activeCmd.Process != nil && time.Since(lastSpawn) < 12*time.Second {
-			time.Sleep(2 * time.Second)
-			continue
-		}
-
-		if activeCmd != nil && activeCmd.Process != nil {
-			_ = activeCmd.Process.Kill()
-			_, _ = activeCmd.Process.Wait()
-			activeCmd = nil
-		}
-
-		// Clear only THIS Core's dedicated remote tunnel ports on the Muscle host
-		cleanScript := fmt.Sprintf("fuser -k %s/tcp %s/tcp 2>/dev/null || true", remoteTunnelPort, remoteHTTPPort)
-		cleanCmd := exec.Command(
-			"ssh",
-			"-i", sshKeyPath,
-			"-o", "StrictHostKeyChecking=no",
-			"-o", "BatchMode=yes",
-			"-o", "ConnectTimeout=5",
-			remoteHost,
-			cleanScript,
-		)
-		_ = cleanCmd.Run()
-
-		tunnelCmd := exec.Command(
-			"ssh",
-			"-i", sshKeyPath,
-			"-o", "StrictHostKeyChecking=no",
-			"-o", "BatchMode=yes",
-			"-o", "ConnectTimeout=6",
-			"-o", "ServerAliveInterval=10",
-			"-o", "ServerAliveCountMax=2",
-			"-o", "ExitOnForwardFailure=yes",
-			"-N",
-			"-R", fmt.Sprintf("%s:127.0.0.1:%d", remoteTunnelPort, localTunnelPort),
-			"-R", fmt.Sprintf("%s:127.0.0.1:8081", remoteHTTPPort),
-			remoteHost,
-		)
-		if err := tunnelCmd.Start(); err == nil {
-			activeCmd = tunnelCmd
-			lastSpawn = time.Now()
-			nodeHub.RecordEvent("mtls", "vps2-muscle", fmt.Sprintf("Self-healing reverse tunnel spawned (%s -> 127.0.0.1:%d)", remoteTunnelPort, localTunnelPort), 0, nil)
-			go func(c *exec.Cmd) {
-				_ = c.Wait()
-			}(tunnelCmd)
-		}
-
-		time.Sleep(4 * time.Second)
 	}
 }

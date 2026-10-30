@@ -104,13 +104,13 @@ export function buildMicroserviceLaunchCommand(port: number): string {
 
 export const SERVICE_BLUEPRINTS: ServiceBlueprint[] = [
   {
-    id: "uptime-beacon-4060",
-    name: "Uptime & Latency Beacon :4060",
+    id: "health-beacon-4060",
+    name: "Health & Latency Beacon :4060",
     category: "backend",
     port: 4060,
     description:
       "Lightweight JSON health and latency telemetry beacon running on port 4060.",
-    secret_key: "UPTIME_BEACON_TOKEN",
+    secret_key: "HEALTH_BEACON_TOKEN",
     deploy_cmd: `mkdir -p /var/lib/synapse/blueprints/beacon && cat << 'EOF' > /var/lib/synapse/blueprints/beacon/server.py
 import http.server, json, time, socket
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -123,15 +123,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
     def do_GET(self):
-        self._send({"status": "healthy", "service": "uptime-beacon-4060", "method": "GET", "path": self.path, "host": socket.gethostname(), "ts": int(time.time())})
+        self._send({"status": "healthy", "service": "health-beacon-4060", "method": "GET", "path": self.path, "host": socket.gethostname(), "ts": int(time.time())})
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0) or 0)
         raw = self.rfile.read(length).decode("utf-8", errors="ignore") if length > 0 else "{}"
         try: data = json.loads(raw)
         except Exception: data = {"raw": raw}
-        self._send({"status": "healthy", "service": "uptime-beacon-4060", "method": "POST", "path": self.path, "received": data, "host": socket.gethostname(), "ts": int(time.time())})
+        self._send({"status": "healthy", "service": "health-beacon-4060", "method": "POST", "path": self.path, "received": data, "host": socket.gethostname(), "ts": int(time.time())})
     def do_PUT(self): self.do_POST()
-    def do_DELETE(self): self._send({"status": "healthy", "service": "uptime-beacon-4060", "deleted": True})
+    def do_DELETE(self): self._send({"status": "healthy", "service": "health-beacon-4060", "deleted": True})
 if __name__ == "__main__":
     http.server.ThreadingHTTPServer(("127.0.0.1", 4060), Handler).serve_forever()
 EOF

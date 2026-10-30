@@ -1,26 +1,9 @@
 "use client";
 
 import React from "react";
-import {
-  AlertTriangle,
-  ChevronsUpDown,
-  Lock,
-  Network,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Plus,
-  RefreshCw,
-  Search,
-  Sparkles,
-  Trash2,
-  Wrench,
-} from "lucide-react";
+import { AlertTriangle, ChevronsUpDown, Lock, Network, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search, Sparkles, Trash2, Wrench } from "lucide-react";
 import { LanguageSwitcher } from "@/lib/i18n";
-import {
-  GatewayNode,
-  NavSection,
-  ProjectState,
-} from "@/types/synapse";
+import { GatewayNode, NavSection, ProjectState } from "@/types/synapse";
 
 type RegisteredService = ProjectState["registered_services"][number];
 
@@ -424,7 +407,7 @@ export function ControlCenterHeader({
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 text-sm">
           <span className="font-normal text-nb-gray-400">
-            {activeProject?.name || "synapse-cloud-demo"}
+            {activeProject?.name || "default-project"}
           </span>
           <span className="text-nb-gray-700">/</span>
           <span className="font-medium text-nb-gray-100">
@@ -448,9 +431,7 @@ export function ControlCenterHeader({
           >
             <span
               className={`h-1.5 w-1.5 rounded-full ${
-                primaryNodeOnline
-                  ? "bg-emerald-400"
-                  : "bg-amber-400 animate-pulse"
+                primaryNodeOnline ? "bg-emerald-400" : "bg-amber-400 animate-pulse"
               }`}
             />
             <span className="font-mono">{primaryNode}</span>

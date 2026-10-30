@@ -1,223 +1,45 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import type { AutonomyTier, NodeHeartbeat } from "@proto/tunnel";
+import type {
+  AIProviderSettings,
+  AssignedNode,
+  AuditEntry,
+  ChatAttachment,
+  FileRollbackSnapshot,
+  FirewallIpRule,
+  FirewallNodePolicy,
+  FirewallPortItem,
+  McpApiKey,
+  PeerMeshLink,
+  PendingApproval,
+  ProjectState,
+  PromptCacheMetrics,
+  RegisteredService,
+  ScheduledPlaybook,
+  ServiceEndpointAction,
+  ServiceHealthCheckSpec,
+} from "./vault/vaultTypes";
 
-export interface AssignedNode {
-  node_id: string;
-  tier: AutonomyTier;
-  hostname?: string;
-  os_arch?: string;
-  os_info?: string;
-  status?: "ONLINE" | "OFFLINE";
-  online?: boolean;
-  last_seen_unix?: number;
-  active_cores?: number;
-  connected_cores?: string[];
-  network?: {
-    public_ipv4?: string | null;
-    private_ipv4?: string;
-  };
-  active_pty_sessions?: Array<{
-    session_id: string;
-    cwd: string;
-    running_cmd?: string | null;
-  }>;
-}
-
-export interface ServiceHealthCheckSpec {
-  type: "HTTP" | "TCP" | "EXEC";
-  target: string;
-  interval_sec: number;
-  status?: "HEALTHY" | "UNHEALTHY";
-  last_checked?: string;
-  last_error?: string;
-}
-
-export interface ServiceEndpointAction {
-  id: string;
-  label: string;
-  method: "GET" | "POST" | "PUT" | "DELETE" | "SQL";
-  path: string;
-  description?: string;
-  sample_payload?: string;
-}
-
-export interface RegisteredService {
-  service_id: string;
-  name: string;
-  node_id: string;
-  category?: "webui" | "backend" | "database" | "worker";
-  description?: string;
-  db_path?: string;
-  endpoints?: ServiceEndpointAction[];
-  runtime?: "docker" | "systemd" | "pm2" | "binary";
-  unit_or_container?: string;
-  bind_address?: string;
-  protocol: "http" | "tcp" | "exec";
-  port: number;
-  path?: string;
-  enable_preview_tunnel?: boolean;
-  auto_heal?: boolean;
-  consecutive_failures?: number;
-  last_auto_heal_at?: string;
-  health_check?: ServiceHealthCheckSpec;
-  healthy?: boolean;
-  registered_at: string;
-}
-
-export interface ChatAttachment {
-  id: string;
-  name: string;
-  mime_type: string;
-  data_url: string;
-  size_bytes?: number;
-}
-
-export interface FileRollbackSnapshot {
-  snapshot_id: string;
-  node_id: string;
-  path: string;
-  existed: boolean;
-  previous_content: string;
-  file_mode?: string;
-  created_at: string;
-}
-
-export interface PromptCacheMetrics {
-  cached_tokens: number;
-  prompt_tokens: number;
-  completion_tokens?: number;
-  tool_cache_hits: number;
-  provider_cache_active: boolean;
-}
-
-export interface PendingApproval {
-  approval_id: string;
-  tool_name: string;
-  node_id: string;
-  arguments: Record<string, unknown>;
-  created_at: string;
-  status: "pending" | "approved" | "rejected";
-}
-
-export interface PeerMeshLink {
-  link_id: string;
-  source_node_id: string;
-  target_node_id: string;
-  local_port: number;
-  remote_port: number;
-  target_port?: number;
-  protocol: "tcp" | "http";
-  alias_env?: string;
-  description?: string;
-  created_at: string;
-}
-
-export interface ScheduledPlaybook {
-  playbook_id: string;
-  name: string;
-  cron_expression: string;
-  cron?: string;
-  prompt: string;
-  target_node_id?: string;
-  enabled: boolean;
-  last_run_at?: string;
-  last_status?: string;
-}
-
-export interface AIProviderSettings {
-  provider: string; // "openai-compatible" | "openrouter" | "ollama" | "anthropic" | "synapse-autonomous"
-  base_url: string;
-  model: string;
-  api_key_secret_name?: string;
-  enable_prompt_caching?: boolean;
-  enable_auto_watchdog?: boolean;
-  custom_headers?: Record<string, string>;
-}
-
-export interface McpApiKey {
-  key_id: string;
-  name: string;
-  token_prefix: string;
-  token_sha256: string;
-  scopes: Array<"read" | "execute" | "admin">;
-  created_at: string;
-  last_used_at?: string;
-}
-
-export interface FirewallPortItem {
-  port: number;
-  protocol: "tcp" | "udp";
-  bind_address: string;
-  exposure: "public" | "local";
-  process: string;
-  pid?: number;
-  service_name?: string;
-  shielded: boolean;
-  system_protected?: boolean;
-}
-
-export interface FirewallIpRule {
-  rule_id: string;
-  ip_or_cidr: string;
-  action: "allow" | "block";
-  port?: number | null;
-  protocol?: "tcp" | "udp" | "any";
-  note?: string;
-  created_at: string;
-}
-
-export interface FirewallNodePolicy {
-  node_id: string;
-  profile: "web_standard" | "synapse_stealth" | "custom";
-  backend?: string;
-  anti_lockout_active: boolean;
-  rollback_guard_seconds: number;
-  ssh_port: number;
-  shielded_ports: number[];
-  ip_rules: FirewallIpRule[];
-  detected_ports?: FirewallPortItem[];
-  last_synced_at: string;
-}
-
-export interface ProjectState {
-  project_id: string;
-  name: string;
-  description: string;
-  planning_only: boolean;
-  assigned_nodes: AssignedNode[];
-  active_cartridges: string[];
-  registered_services: RegisteredService[];
-  dismissed_services?: string[];
-  peer_mesh_links?: PeerMeshLink[];
-  scheduled_playbooks?: ScheduledPlaybook[];
-  mcp_api_keys?: McpApiKey[];
-  firewall_policies?: Record<string, FirewallNodePolicy>;
-  active_pty_sessions: string[];
-  telemetry: Record<string, NodeHeartbeat>;
-  pending_approvals: PendingApproval[];
-  rollback_snapshots?: FileRollbackSnapshot[];
-  ai_settings?: AIProviderSettings;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AuditEntry {
-  timestamp: string;
-  actor: "ai_orchestrator" | "user" | "policy_interceptor";
-  tool_name: string;
-  node_id?: string;
-  status:
-    | "executed"
-    | "paused_tier3"
-    | "approved"
-    | "rejected"
-    | "blocked_planning_mode"
-    | "error";
-  summary: string;
-  args?: Record<string, unknown>;
-}
+export type {
+  AIProviderSettings,
+  AssignedNode,
+  AuditEntry,
+  ChatAttachment,
+  FileRollbackSnapshot,
+  FirewallIpRule,
+  FirewallNodePolicy,
+  FirewallPortItem,
+  McpApiKey,
+  PeerMeshLink,
+  PendingApproval,
+  ProjectState,
+  PromptCacheMetrics,
+  RegisteredService,
+  ScheduledPlaybook,
+  ServiceEndpointAction,
+  ServiceHealthCheckSpec,
+};
 
 function resolveVaultBaseDir(): string {
   const configured =
@@ -278,13 +100,85 @@ export function decryptSecretsMap(rawEnc: string): Record<string, string> {
 }
 
 export function sanitizeProjectId(id: string): string {
-  const cleaned = id.toLowerCase().replace(/[^a-z0-9-_]/g, "-");
+  const cleaned = String(id || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]/g, "-");
   return cleaned || "default-project";
 }
 
 export function getProjectDir(projectId: string): string {
   const base = resolveVaultBaseDir();
   return path.join(base, sanitizeProjectId(projectId));
+}
+
+export function atomicWriteTextSync(
+  targetPath: string,
+  content: string,
+  mode?: number
+): void {
+  const dir = path.dirname(targetPath);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmpPath = path.join(
+    dir,
+    `.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  );
+  fs.writeFileSync(
+    tmpPath,
+    content,
+    mode !== undefined ? { encoding: "utf8", mode } : "utf8"
+  );
+  fs.renameSync(tmpPath, targetPath);
+}
+
+/**
+ * Atomically writes JSON to targetPath and maintains a `<targetPath>.bak` recovery copy.
+ */
+export function atomicWriteJsonSync(targetPath: string, data: unknown): void {
+  const serialized = JSON.stringify(data, null, 2);
+  atomicWriteTextSync(targetPath, serialized);
+  try {
+    atomicWriteTextSync(`${targetPath}.bak`, serialized);
+  } catch {
+    // ignore backup write errors
+  }
+}
+
+/**
+ * Safely reads and parses a JSON file, automatically falling back to and restoring from
+ * `<targetPath>.bak` if the primary file is corrupted or truncated.
+ */
+export function safeReadJsonWithBackupSync<T>(
+  targetPath: string,
+  fallback: T
+): T {
+  if (fs.existsSync(targetPath)) {
+    try {
+      const raw = fs.readFileSync(targetPath, "utf8").replace(/^\uFEFF/, "");
+      if (raw.trim()) {
+        return JSON.parse(raw) as T;
+      }
+    } catch {
+      // Primary file corrupted; try .bak recovery below
+    }
+  }
+  const bakPath = `${targetPath}.bak`;
+  if (fs.existsSync(bakPath)) {
+    try {
+      const rawBak = fs.readFileSync(bakPath, "utf8").replace(/^\uFEFF/, "");
+      if (rawBak.trim()) {
+        const parsed = JSON.parse(rawBak) as T;
+        try {
+          atomicWriteTextSync(targetPath, rawBak);
+        } catch {
+          // ignore self-heal write failure
+        }
+        return parsed;
+      }
+    } catch {
+      // Backup also unreadable
+    }
+  }
+  return fallback;
 }
 
 export function ensureProjectVault(
@@ -343,15 +237,19 @@ flowchart LR
     fs.writeFileSync(auditPath, JSON.stringify(initAudit) + "\n", "utf8");
   }
 
-  if (fs.existsSync(statePath)) {
-    try {
-      const rawState = fs.readFileSync(statePath, "utf8").replace(/^\uFEFF/, "");
-      const existing = JSON.parse(rawState) as ProjectState;
-      existing.planning_only = (existing.assigned_nodes || []).length === 0;
-      return existing;
-    } catch {
-      // Fall through to recreate default state
-    }
+  const existing = safeReadJsonWithBackupSync<ProjectState | null>(
+    statePath,
+    null
+  );
+  if (existing && typeof existing === "object" && existing.project_id) {
+    existing.assigned_nodes = Array.isArray(existing.assigned_nodes)
+      ? existing.assigned_nodes
+      : [];
+    existing.registered_services = Array.isArray(existing.registered_services)
+      ? existing.registered_services
+      : [];
+    existing.planning_only = existing.assigned_nodes.length === 0;
+    return existing;
   }
 
   const now = new Date().toISOString();
@@ -406,35 +304,8 @@ flowchart LR
   return initialState;
 }
 
-export function atomicWriteTextSync(
-  targetPath: string,
-  content: string,
-  mode?: number
-): void {
-  const dir = path.dirname(targetPath);
-  fs.mkdirSync(dir, { recursive: true });
-  const tmpPath = path.join(
-    dir,
-    `.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
-  );
-  fs.writeFileSync(
-    tmpPath,
-    content,
-    mode !== undefined ? { encoding: "utf8", mode } : "utf8"
-  );
-  fs.renameSync(tmpPath, targetPath);
-}
-
-export function atomicWriteJsonSync(targetPath: string, data: unknown): void {
-  atomicWriteTextSync(targetPath, JSON.stringify(data, null, 2));
-}
-
 const projectStateLocks = new Map<string, Promise<unknown>>();
 
-/**
- * Serializes concurrent async state mutations per project to prevent lost updates
- * when background health polling and user actions run simultaneously.
- */
 export async function withProjectStateTransaction(
   projectId: string,
   mutator: (state: ProjectState) => Promise<void> | void
@@ -463,7 +334,7 @@ export async function withProjectStateTransaction<T = ProjectState>(
     const state = ensureProjectVault(cleanId);
     const result = await mutator(state);
     const saved = saveProjectState(state);
-    return (result !== undefined ? result : (saved as unknown as T));
+    return result !== undefined ? result : (saved as unknown as T);
   } finally {
     releaseLock();
     if (projectStateLocks.get(cleanId) === currentLock) {
@@ -491,14 +362,27 @@ export function listProjects(): ProjectState[] {
     }
   }
   if (projects.length === 0) {
+    const defaultId = sanitizeProjectId(
+      process.env.SYNAPSE_DEFAULT_PROJECT || "default-project"
+    );
     projects.push(
       ensureProjectVault(
-        "synapse-cloud-demo",
-        "Synapse Cloud Demo",
-        "Reference Full-Stack Microservice orchestrated via Axon mTLS Muscle Nodes."
+        defaultId,
+        "Default Infrastructure Workspace",
+        "Distributed Microservice Mesh orchestrated via Axon mTLS Muscle Nodes."
       )
     );
   }
+  projects.sort((a, b) => {
+    const scoreA =
+      (a.assigned_nodes?.length || 0) * 10 +
+      (a.registered_services?.length || 0);
+    const scoreB =
+      (b.assigned_nodes?.length || 0) * 10 +
+      (b.registered_services?.length || 0);
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    return a.project_id.localeCompare(b.project_id);
+  });
   return projects;
 }
 
@@ -684,4 +568,3 @@ export {
   verifyMcpApiKey,
   type PersistedChatMessage,
 } from "./vault/auditChatAndMcp";
-

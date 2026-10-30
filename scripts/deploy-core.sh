@@ -114,7 +114,8 @@ if [ -z "$PUBLIC_IP" ]; then
   PUBLIC_IP="127.0.0.1"
 fi
 
-TOKEN_JSON="$(curl -fsSL -X POST http://127.0.0.1:8081/api/v1/tokens -H 'Content-Type: application/json' -d '{"project_id":"synapse-cloud-demo","tier":"TIER_2_WORKSPACE_JAIL","ttl_minutes":60}' 2>/dev/null || true)"
+DEFAULT_PROJ="${SYNAPSE_DEFAULT_PROJECT:-default-project}"
+TOKEN_JSON="$(curl -fsSL -X POST http://127.0.0.1:8081/api/v1/tokens -H 'Content-Type: application/json' -d "{\"project_id\":\"${DEFAULT_PROJ}\",\"tier\":\"TIER_2_WORKSPACE_JAIL\",\"ttl_minutes\":60}" 2>/dev/null || true)"
 JOIN_TOKEN="$(printf '%s' "$TOKEN_JSON" | sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 
 echo ""

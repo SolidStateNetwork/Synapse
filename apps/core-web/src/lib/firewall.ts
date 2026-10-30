@@ -8,6 +8,7 @@ import {
   type FirewallPortItem,
   type ProjectState,
 } from "./vault";
+import { resolveActiveProjectId, resolveTargetNodeId } from "./runtimeResolver";
 
 const CORE_GATEWAY_URL =
   process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
@@ -39,10 +40,6 @@ export function getOrCreateNodeFirewallPolicy(
   return created;
 }
 
-/**
- * Runs a live socket & firewall inspection on the target Linux Muscle node
- * and correlates open ports with registered Synapse services and active shield rules.
- */
 export async function inspectNodeFirewall(
   projectId: string,
   nodeId?: string
@@ -58,55 +55,43 @@ export async function inspectNodeFirewall(
   };
   live_node_reached: boolean;
 }> {
-  const state = ensureProjectVault(projectId);
-  const targetNodeId =
-    nodeId || state.assigned_nodes[0]?.node_id || "vps2-muscle";
+  const resolvedProjectId = resolveActiveProjectId(projectId);
+  const state = ensureProjectVault(resolvedProjectId);
+  const targetNodeId = resolveTargetNodeId(state, nodeId) || "unassigned-node";
   const policy = getOrCreateNodeFirewallPolicy(state, targetNodeId);
 
   const pyInspect = `
 import json, re, subprocess
-
 def sh(cmd):
     try:
         return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=6, text=True)
-    except Exception as e:
+    except Exception:
         return ""
-
 ss_out = sh("ss -tulpn")
 ipt_out = sh("iptables -S SYNAPSE_FW 2>/dev/null || iptables -S INPUT 2>/dev/null")
 ufw_out = sh("ufw status 2>/dev/null")
-
 shielded_ports = set()
 for m in re.finditer(r"--dport\\s+(\\d+)\\s+-j\\s+(DROP|REJECT)", ipt_out):
     shielded_ports.add(int(m.group(1)))
 for m in re.finditer(r"(\\d+)/(tcp|udp)\\s+DENY", ufw_out):
     shielded_ports.add(int(m.group(1)))
-
 ports_map = {}
 ssh_port = 22
-
 for line in ss_out.splitlines():
     line = line.strip()
     if not line or line.startswith("Netid"):
         continue
     parts = line.split()
-    if len(parts) < 5:
+    if len(parts) < 5 or ":" not in parts[4]:
         continue
     proto = "udp" if parts[0].startswith("udp") else "tcp"
-    local_addr = parts[4]
-    if ":" not in local_addr:
-        continue
-    host_part, port_str = local_addr.rsplit(":", 1)
+    host_part, port_str = parts[4].rsplit(":", 1)
     if not port_str.isdigit():
         continue
     port = int(port_str)
-    host_clean = host_part.strip("[]")
-    if "%" in host_clean:
-        host_clean = host_clean.split("%")[0]
-
+    host_clean = host_part.strip("[]").split("%")[0]
     is_local = host_clean in ("127.0.0.1", "::1") or host_clean.startswith("127.")
     exposure = "local" if is_local else "public"
-
     proc_name = "system"
     pid_val = None
     proc_match = re.search(r'users:\\(\\("([^"]+)",pid=(\\d+)', line)
@@ -115,7 +100,6 @@ for line in ss_out.splitlines():
         pid_val = int(proc_match.group(2))
     if proc_name == "sshd" and port != 22:
         ssh_port = port
-
     key = f"{proto}:{port}"
     existing = ports_map.get(key)
     if not existing or (existing["exposure"] == "local" and exposure == "public"):
@@ -128,11 +112,7 @@ for line in ss_out.splitlines():
             "pid": pid_val,
             "shielded": port in shielded_ports,
         }
-
-backend = "iptables + SYNAPSE_FW Shield"
-if "Status: active" in ufw_out:
-    backend = "UFW + SYNAPSE_FW Shield"
-
+backend = "UFW + SYNAPSE_FW Shield" if "Status: active" in ufw_out else "iptables + SYNAPSE_FW Shield"
 print("SYNAPSE_FW_JSON:" + json.dumps({
     "backend": backend,
     "ssh_port": ssh_port,
@@ -152,72 +132,73 @@ print("SYNAPSE_FW_JSON:" + json.dumps({
     shielded: boolean;
   }> = [];
 
-  try {
-    await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        node_id: targetNodeId,
-        request_id: `fw-fs-${Date.now()}`,
-        project_id: projectId,
-        tier: "TIER_1_UNLEASHED",
-        operation: "write_file",
-        path: ".synapse_fw_inspect.py",
-        content: pyInspect,
-        file_mode: "0755",
-      }),
-      signal: AbortSignal.timeout(4000),
-    });
+  if (targetNodeId !== "unassigned-node") {
+    try {
+      await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: targetNodeId,
+          request_id: `fw-fs-${Date.now()}`,
+          project_id: resolvedProjectId,
+          tier: "TIER_1_UNLEASHED",
+          operation: "write_file",
+          path: ".synapse_fw_inspect.py",
+          content: pyInspect,
+          file_mode: "0755",
+        }),
+        signal: AbortSignal.timeout(4000),
+      });
 
-    const ptyRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        node_id: targetNodeId,
-        cmd_id: `fw-scan-${Date.now()}`,
-        session_id: `fw-v1-${projectId}`,
-        project_id: projectId,
-        tier: "TIER_1_UNLEASHED",
-        command: `python3 .synapse_fw_inspect.py; rm -f .synapse_fw_inspect.py`,
-        wait_timeout_ms: 8000,
-      }),
-      signal: AbortSignal.timeout(9000),
-    });
+      const ptyRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: targetNodeId,
+          cmd_id: `fw-scan-${Date.now()}`,
+          session_id: `fw-v1-${resolvedProjectId}`,
+          project_id: resolvedProjectId,
+          tier: "TIER_1_UNLEASHED",
+          command: `python3 .synapse_fw_inspect.py; rm -f .synapse_fw_inspect.py`,
+          wait_timeout_ms: 8000,
+        }),
+        signal: AbortSignal.timeout(9000),
+      });
 
-    if (ptyRes.ok) {
-      const ptyData = await ptyRes.json();
-      const out = String(ptyData.output || "");
-      const markerIdx = out.indexOf("SYNAPSE_FW_JSON:");
-      if (markerIdx !== -1) {
-        const jsonLine = out
-          .slice(markerIdx + "SYNAPSE_FW_JSON:".length)
-          .trim()
-          .split("\n")[0];
-        const parsed = JSON.parse(jsonLine);
-        liveReached = true;
-        if (parsed.backend) policy.backend = String(parsed.backend);
-        if (typeof parsed.ssh_port === "number") {
-          policy.ssh_port = parsed.ssh_port;
-        }
-        if (Array.isArray(parsed.ports)) {
-          rawPorts = parsed.ports;
-        }
-        if (Array.isArray(parsed.shielded_ports)) {
-          const merged = new Set<number>([
-            ...policy.shielded_ports,
-            ...parsed.shielded_ports.map((n: unknown) => Number(n)),
-          ]);
-          policy.shielded_ports = Array.from(merged)
-            .filter((p) => p > 0 && p !== policy.ssh_port)
-            .sort((a, b) => a - b);
+      if (ptyRes.ok) {
+        const ptyData = await ptyRes.json();
+        const out = String(ptyData.output || "");
+        const markerIdx = out.indexOf("SYNAPSE_FW_JSON:");
+        if (markerIdx !== -1) {
+          const jsonLine = out
+            .slice(markerIdx + "SYNAPSE_FW_JSON:".length)
+            .trim()
+            .split("\n")[0];
+          const parsed = JSON.parse(jsonLine);
+          liveReached = true;
+          if (parsed.backend) policy.backend = String(parsed.backend);
+          if (typeof parsed.ssh_port === "number") {
+            policy.ssh_port = parsed.ssh_port;
+          }
+          if (Array.isArray(parsed.ports)) {
+            rawPorts = parsed.ports;
+          }
+          if (Array.isArray(parsed.shielded_ports)) {
+            const merged = new Set<number>([
+              ...policy.shielded_ports,
+              ...parsed.shielded_ports.map((n: unknown) => Number(n)),
+            ]);
+            policy.shielded_ports = Array.from(merged)
+              .filter((p) => p > 0 && p !== policy.ssh_port)
+              .sort((a, b) => a - b);
+          }
         }
       }
+    } catch {
+      // Fallback if node is unreachable
     }
-  } catch {
-    // Fallback if node is unreachable
   }
 
-  // Fallback / enrichment from registered services if node offline or no ports returned
   if (rawPorts.length === 0) {
     rawPorts = [
       {
@@ -247,46 +228,51 @@ print("SYNAPSE_FW_JSON:" + json.dumps({
     (s) => s.node_id === targetNodeId
   );
 
-  const enrichedPorts: FirewallPortItem[] = rawPorts.map((item) => {
-    const matchedSvc = nodeServices.find((s) => s.port === item.port);
-    const isSsh = item.port === (policy.ssh_port || 22) || item.process === "sshd";
-    const isShielded =
-      !isSsh &&
-      (item.shielded || policy.shielded_ports.includes(item.port));
+  const enrichedPorts: FirewallPortItem[] = rawPorts
+    .map((item) => {
+      const matchedSvc = nodeServices.find((s) => s.port === item.port);
+      const isSsh =
+        item.port === (policy.ssh_port || 22) || item.process === "sshd";
+      const isShielded =
+        !isSsh &&
+        (item.shielded || policy.shielded_ports.includes(item.port));
 
-    let label = matchedSvc?.name;
-    if (!label) {
-      if (isSsh) label = "SSH Server-Zugang (Anti-Lockout)";
-      else if (item.port === 80 || item.port === 443) label = "Webserver (HTTP/HTTPS)";
-      else if (item.port === 53) label = "DNS Resolver";
-      else label = `Prozess: ${item.process}`;
-    }
+      let label = matchedSvc?.name;
+      if (!label) {
+        if (isSsh) label = "SSH Server-Zugang (Anti-Lockout)";
+        else if (item.port === 80 || item.port === 443)
+          label = "Webserver (HTTP/HTTPS)";
+        else if (item.port === 53) label = "DNS Resolver";
+        else label = `Prozess: ${item.process}`;
+      }
 
-    return {
-      port: item.port,
-      protocol: item.protocol,
-      bind_address: item.bind_address,
-      exposure: item.exposure,
-      process: item.process,
-      pid: item.pid,
-      service_name: label,
-      shielded: isShielded,
-      system_protected: isSsh,
-    };
-  }).sort((a, b) => {
-    const rank = (p: FirewallPortItem) => {
-      if (p.exposure === "public" && !p.shielded && !p.system_protected) return 0;
-      if (p.shielded) return 1;
-      if (p.system_protected) return 2;
-      return 3;
-    };
-    const rDiff = rank(a) - rank(b);
-    return rDiff !== 0 ? rDiff : a.port - b.port;
-  });
+      return {
+        port: item.port,
+        protocol: item.protocol,
+        bind_address: item.bind_address,
+        exposure: item.exposure,
+        process: item.process,
+        pid: item.pid,
+        service_name: label,
+        shielded: isShielded,
+        system_protected: isSsh,
+      };
+    })
+    .sort((a, b) => {
+      const rank = (p: FirewallPortItem) => {
+        if (p.exposure === "public" && !p.shielded && !p.system_protected)
+          return 0;
+        if (p.shielded) return 1;
+        if (p.system_protected) return 2;
+        return 3;
+      };
+      const rDiff = rank(a) - rank(b);
+      return rDiff !== 0 ? rDiff : a.port - b.port;
+    });
 
   policy.detected_ports = enrichedPorts;
   policy.last_synced_at = new Date().toISOString();
-  await withProjectStateTransaction(projectId, (draft) => {
+  await withProjectStateTransaction(resolvedProjectId, (draft) => {
     draft.firewall_policies = {
       ...(draft.firewall_policies || {}),
       [targetNodeId]: policy,
@@ -315,11 +301,6 @@ print("SYNAPSE_FW_JSON:" + json.dumps({
   };
 }
 
-/**
- * Synchronizes the node's `SYNAPSE_FW` iptables chain on the remote Linux server
- * with Built-In Anti-Lockout (Loopback + Established Tunnel + SSH Port 22) and
- * 15-second Dead-Man's Switch Rollback protection.
- */
 async function syncFirewallChainOnNode(
   projectId: string,
   nodeId: string,
@@ -330,36 +311,22 @@ async function syncFirewallChainOnNode(
     (p) => p > 0 && p <= 65535 && p !== sshPort
   );
 
-  // Build deterministic Python enforcement script with Anti-Lockout + 15s Rollback Backup
   const pyApply = `
-import subprocess, time
-
+import subprocess
 SSH_PORT = ${JSON.stringify(sshPort)}
 SHIELDED_PORTS = ${JSON.stringify(shieldedPorts)}
 IP_RULES = ${JSON.stringify(policy.ip_rules || [])}
-
 def run(cmd):
     subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-# 1. Save backup for 15-second Dead-Man's Switch Rollback protection
 run("iptables-save > /tmp/synapse-fw-backup.rules 2>/dev/null || true")
 run("rm -f /tmp/synapse-fw-confirmed")
-
-# Start 15s background rollback guard: if /tmp/synapse-fw-confirmed is not written within 15s, restore backup!
-rollback_cmd = "(sleep 15; if [ ! -f /tmp/synapse-fw-confirmed ] && [ -f /tmp/synapse-fw-backup.rules ]; then iptables-restore < /tmp/synapse-fw-backup.rules 2>/dev/null || true; fi) >/dev/null 2>&1 &"
-run(rollback_cmd)
-
-# 2. Create or flush dedicated SYNAPSE_FW chain
+run("(sleep 15; if [ ! -f /tmp/synapse-fw-confirmed ] && [ -f /tmp/synapse-fw-backup.rules ]; then iptables-restore < /tmp/synapse-fw-backup.rules 2>/dev/null || true; fi) >/dev/null 2>&1 &")
 run("iptables -N SYNAPSE_FW 2>/dev/null || true")
 run("iptables -F SYNAPSE_FW")
 run("iptables -C INPUT -j SYNAPSE_FW 2>/dev/null || iptables -I INPUT 1 -j SYNAPSE_FW")
-
-# 3. HARD ANTI-LOCKOUT GUARDRAILS (Loopback + Outbound/Established Tunnel + SSH Port)
 run("iptables -A SYNAPSE_FW -i lo -j ACCEPT")
 run("iptables -A SYNAPSE_FW -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT")
 run(f"iptables -A SYNAPSE_FW -p tcp --dport {SSH_PORT} -j ACCEPT")
-
-# 4. Apply Custom IP Whitelist & Blocklist Rules
 for r in IP_RULES:
     ip = str(r.get("ip_or_cidr", "")).strip()
     if not ip or ip in ("127.0.0.1", "localhost", "0.0.0.0", "0.0.0.0/0"):
@@ -378,62 +345,61 @@ for r in IP_RULES:
             run(f"iptables -A SYNAPSE_FW ! -i lo -s {ip} -j DROP")
         else:
             run(f"iptables -A SYNAPSE_FW -s {ip} -j ACCEPT")
-
-# 5. Apply External Port Shielding (! -i lo -> blocks public internet while keeping 127.0.0.1 Synapse Tunnel open!)
 for p in SHIELDED_PORTS:
     if int(p) == SSH_PORT:
         continue
     run(f"iptables -A SYNAPSE_FW ! -i lo -p tcp --dport {int(p)} -j DROP")
     run(f"iptables -A SYNAPSE_FW ! -i lo -p udp --dport {int(p)} -j DROP")
-
 run("iptables -A SYNAPSE_FW -j RETURN")
 print("SYNAPSE_FW_APPLIED_OK")
 `;
 
-  try {
-    await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        node_id: nodeId,
-        request_id: `fw-apply-fs-${Date.now()}`,
-        project_id: projectId,
-        tier: "TIER_1_UNLEASHED",
-        operation: "write_file",
-        path: ".synapse_fw_apply.py",
-        content: pyApply,
-        file_mode: "0755",
-      }),
-      signal: AbortSignal.timeout(4000),
-    });
+  if (nodeId && nodeId !== "unassigned-node") {
+    try {
+      await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: nodeId,
+          request_id: `fw-apply-fs-${Date.now()}`,
+          project_id: projectId,
+          tier: "TIER_1_UNLEASHED",
+          operation: "write_file",
+          path: ".synapse_fw_apply.py",
+          content: pyApply,
+          file_mode: "0755",
+        }),
+        signal: AbortSignal.timeout(4000),
+      });
 
-    const ptyRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        node_id: nodeId,
-        cmd_id: `fw-apply-${Date.now()}`,
-        session_id: `fw-v1-${projectId}`,
-        project_id: projectId,
-        tier: "TIER_1_UNLEASHED",
-        command: `python3 .synapse_fw_apply.py && touch /tmp/synapse-fw-confirmed; rm -f .synapse_fw_apply.py`,
-        wait_timeout_ms: 8000,
-      }),
-      signal: AbortSignal.timeout(9000),
-    });
+      const ptyRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: nodeId,
+          cmd_id: `fw-apply-${Date.now()}`,
+          session_id: `fw-v1-${projectId}`,
+          project_id: projectId,
+          tier: "TIER_1_UNLEASHED",
+          command: `python3 .synapse_fw_apply.py && touch /tmp/synapse-fw-confirmed; rm -f .synapse_fw_apply.py`,
+          wait_timeout_ms: 8000,
+        }),
+        signal: AbortSignal.timeout(9000),
+      });
 
-    if (ptyRes.ok) {
-      const ptyData = await ptyRes.json();
-      const out = String(ptyData.output || "");
-      if (out.includes("SYNAPSE_FW_APPLIED_OK")) {
-        return {
-          applied_on_node: true,
-          details: `SYNAPSE_FW chain updated on ${nodeId} (Anti-Lockout + 15s Rollback Guard confirmed, ${shieldedPorts.length} ports shielded, ${policy.ip_rules.length} IP rules).`,
-        };
+      if (ptyRes.ok) {
+        const ptyData = await ptyRes.json();
+        const out = String(ptyData.output || "");
+        if (out.includes("SYNAPSE_FW_APPLIED_OK")) {
+          return {
+            applied_on_node: true,
+            details: `SYNAPSE_FW chain updated on ${nodeId} (Anti-Lockout + 15s Rollback Guard confirmed, ${shieldedPorts.length} ports shielded, ${policy.ip_rules.length} IP rules).`,
+          };
+        }
       }
+    } catch {
+      // Fallback if node is offline
     }
-  } catch {
-    // Fallback if node is offline
   }
 
   return {
@@ -465,16 +431,16 @@ export async function executeFirewallAction(
   projectId: string,
   input: FirewallActionInput
 ) {
-  const state = ensureProjectVault(projectId);
+  const resolvedProjectId = resolveActiveProjectId(projectId);
+  const state = ensureProjectVault(resolvedProjectId);
   const targetNodeId =
-    input.node_id || state.assigned_nodes[0]?.node_id || "vps2-muscle";
+    resolveTargetNodeId(state, input.node_id) || "unassigned-node";
 
   if (input.action === "inspect") {
-    return inspectNodeFirewall(projectId, targetNodeId);
+    return inspectNodeFirewall(resolvedProjectId, targetNodeId);
   }
 
-  // First ensure we have up-to-date detected ports
-  const current = await inspectNodeFirewall(projectId, targetNodeId);
+  const current = await inspectNodeFirewall(resolvedProjectId, targetNodeId);
   const policy = getOrCreateNodeFirewallPolicy(state, targetNodeId);
   const sshPort = policy.ssh_port || 22;
   let summaryMsg = "";
@@ -484,11 +450,12 @@ export async function executeFirewallAction(
     policy.profile = profile;
 
     if (profile === "synapse_stealth") {
-      // Zero-Port Stealth Mode: Shield ALL public ports except SSH (22)
       const publicPorts = current.ports
         .filter((p) => p.exposure === "public" && p.port !== sshPort)
         .map((p) => p.port);
-      const standardAppPorts = [80, 443, 3000, 4050, 4070, 4085, 4090, 5432, 6379, 8080];
+      const standardAppPorts = [
+        80, 443, 3000, 4050, 4070, 4085, 4090, 5432, 6379, 8080,
+      ];
       policy.shielded_ports = Array.from(
         new Set([...publicPorts, ...standardAppPorts])
       )
@@ -496,7 +463,6 @@ export async function executeFirewallAction(
         .sort((a, b) => a - b);
       summaryMsg = `Activated 'Synapse Stealth (Zero-Port)' firewall profile on ${targetNodeId} (all app ports shielded from internet; SSH :${sshPort} & Synapse Tunnel protected)`;
     } else if (profile === "web_standard") {
-      // Web-Server Mode: Allow 22, 80, 443 publicly, shield internal app/database ports
       const publicInternalPorts = current.ports
         .filter(
           (p) =>
@@ -536,7 +502,9 @@ export async function executeFirewallAction(
   } else if (input.action === "add_ip_rule") {
     const rawIp = String(input.ip_or_cidr || "").trim();
     if (!rawIp || !/^[0-9a-fA-F:./]+$/.test(rawIp)) {
-      throw new Error("Bitte eine gültige IPv4/IPv6-Adresse oder CIDR angeben (z. B. 203.0.113.50 oder 10.0.0.0/24).");
+      throw new Error(
+        "Bitte eine gültige IPv4/IPv6-Adresse oder CIDR angeben (z. B. 203.0.113.50 oder 10.0.0.0/24)."
+      );
     }
     if (
       input.rule_action === "block" &&
@@ -575,16 +543,20 @@ export async function executeFirewallAction(
     summaryMsg = `Removed firewall IP rule ${ruleId} on ${targetNodeId}`;
   }
 
-  await withProjectStateTransaction(projectId, (draft) => {
+  await withProjectStateTransaction(resolvedProjectId, (draft) => {
     draft.firewall_policies = {
       ...(draft.firewall_policies || {}),
       [targetNodeId]: policy,
     };
   });
 
-  const syncRes = await syncFirewallChainOnNode(projectId, targetNodeId, policy);
+  const syncRes = await syncFirewallChainOnNode(
+    resolvedProjectId,
+    targetNodeId,
+    policy
+  );
 
-  appendAuditLog(projectId, {
+  appendAuditLog(resolvedProjectId, {
     timestamp: new Date().toISOString(),
     actor: input.actor || "user",
     tool_name: "node_firewall_control",
@@ -594,7 +566,7 @@ export async function executeFirewallAction(
     args: input as unknown as Record<string, unknown>,
   });
 
-  const refreshed = await inspectNodeFirewall(projectId, targetNodeId);
+  const refreshed = await inspectNodeFirewall(resolvedProjectId, targetNodeId);
   return {
     ok: true,
     ...refreshed,

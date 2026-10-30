@@ -4,20 +4,29 @@ import {
   loadAlertConfig,
   saveAlertConfig,
 } from "@/lib/alerts";
+import { ensureProjectVault } from "@/lib/vault";
+import {
+  resolveActiveProjectId,
+  resolveTargetNodeId,
+  safeParseRequestJson,
+} from "@/lib/runtimeResolver";
 
 const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
 export async function GET(req: NextRequest) {
-  const projectId =
-    req.nextUrl.searchParams.get("project_id") || "synapse-cloud-demo";
+  const projectId = resolveActiveProjectId(
+    req.nextUrl.searchParams.get("project_id")
+  );
   const config = loadAlertConfig(projectId);
   return NextResponse.json({ config });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const projectId = String(body.project_id || "synapse-cloud-demo");
+    const body = await safeParseRequestJson(req);
+    const projectId = resolveActiveProjectId(
+      String(body.project_id || body.projectId || "")
+    );
     const action = String(body.action || "");
     const cfg = loadAlertConfig(projectId);
 
@@ -55,13 +64,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "test_alert") {
+      const state = ensureProjectVault(projectId);
+      const targetNode =
+        resolveTargetNodeId(state, String(body.node_id || "")) || "local-node";
       const evt = await dispatchAlertEvent(projectId, {
         severity: "INFO",
         title: "Test Push Notification",
         message:
-          body.message ||
+          String(body.message || "") ||
           "24/7 Proactive Watchdog verified from Synapse Control Center.",
-        node_id: body.node_id || "vps2-muscle",
+        node_id: targetNode,
       });
       return NextResponse.json({
         ok: true,
@@ -73,7 +85,9 @@ export async function POST(req: NextRequest) {
     if (action === "evaluate") {
       const triggered: unknown[] = [];
       try {
-        const res = await fetch(`${GATEWAY_URL}/api/v1/nodes`);
+        const res = await fetch(`${GATEWAY_URL}/api/v1/nodes`, {
+          signal: AbortSignal.timeout(4000),
+        });
         if (res.ok) {
           const data = await res.json();
           const nodes = Array.isArray(data.nodes) ? data.nodes : [];

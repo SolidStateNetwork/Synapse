@@ -4,13 +4,18 @@ import {
   inspectNodeFirewall,
   type FirewallActionInput,
 } from "@/lib/firewall";
+import {
+  resolveActiveProjectId,
+  safeParseRequestJson,
+} from "@/lib/runtimeResolver";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const projectId =
-      req.nextUrl.searchParams.get("project_id") || "synapse-cloud-demo";
+    const projectId = resolveActiveProjectId(
+      req.nextUrl.searchParams.get("project_id")
+    );
     const nodeId = req.nextUrl.searchParams.get("node_id") || undefined;
     const data = await inspectNodeFirewall(projectId, nodeId);
     return NextResponse.json(data);
@@ -22,22 +27,25 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const projectId = String(
-      body.project_id ||
-        req.nextUrl.searchParams.get("project_id") ||
-        "synapse-cloud-demo"
+    const body = await safeParseRequestJson(req);
+    const projectId = resolveActiveProjectId(
+      String(
+        body.project_id ||
+          body.projectId ||
+          req.nextUrl.searchParams.get("project_id") ||
+          ""
+      )
     );
     const input: FirewallActionInput = {
-      action: body.action || "inspect",
-      node_id: body.node_id,
-      profile: body.profile,
+      action: (body.action as FirewallActionInput["action"]) || "inspect",
+      node_id: body.node_id ? String(body.node_id) : undefined,
+      profile: body.profile as FirewallActionInput["profile"],
       port: body.port !== undefined ? Number(body.port) : undefined,
-      ip_or_cidr: body.ip_or_cidr,
-      rule_action: body.rule_action,
-      protocol: body.protocol,
-      note: body.note,
-      rule_id: body.rule_id,
+      ip_or_cidr: body.ip_or_cidr ? String(body.ip_or_cidr) : undefined,
+      rule_action: body.rule_action as FirewallActionInput["rule_action"],
+      protocol: body.protocol as FirewallActionInput["protocol"],
+      note: body.note ? String(body.note) : undefined,
+      rule_id: body.rule_id ? String(body.rule_id) : undefined,
       actor: "user",
     };
     const result = await executeFirewallAction(projectId, input);

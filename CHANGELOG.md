@@ -33,7 +33,7 @@ All notable changes to **Synapse** are documented in this file.
   - NetBird-style version & update status card in the bottom-left sidebar.
 - **5 Specialized DevOps AI Skills & Interactive Interview Mode**:
   - `CheckSystem` (6-phase SRE infrastructure audit), `CheckOpsec` (DevSecOps socket, SSH & firewall audit), `CheckUpdates` (Muscle & backend update inspector), `DeepForensics` (root-cause & log analysis), and `SkillSearch` (full-stack code, DB & UI search).
-  - Step-by-step **DevOps Interview Mode** (`Fragen` toggle) and `@` context mention autocomplete (`@vps2-muscle`, `@service:4070`, `@Architecture.md`).
+  - Step-by-step **DevOps Interview Mode** (`Fragen` toggle) and `@` context mention autocomplete (`@edge-node-01`, `@service:4070`, `@Architecture.md`).
 
 ---
 

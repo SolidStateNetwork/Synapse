@@ -256,7 +256,7 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 
 func TestActiveCoreTargets_MultiCoreDeduplication(t *testing.T) {
 	cfg := &IdentityConfig{
-		NodeID:        "vps2-muscle",
+		NodeID:        "edge-node-01",
 		CoreGateway:   "127.0.0.1:8443",
 		CoreHTTP:      "http://127.0.0.1:8081",
 		Tier:          tunnelv1.Tier1Unleashed,
@@ -273,12 +273,12 @@ func TestActiveCoreTargets_MultiCoreDeduplication(t *testing.T) {
 				Enabled:     true,
 			},
 			{
-				Name:        "local-cachyos-core",
+				Name:        "secondary-core",
 				CoreGateway: "127.0.0.1:9443",
 				CoreHTTP:    "http://127.0.0.1:9081",
-				CertFile:    "/etc/axon/profiles/local-cachyos-core/node.crt",
-				KeyFile:     "/etc/axon/profiles/local-cachyos-core/node.key",
-				CACertFile:  "/etc/axon/profiles/local-cachyos-core/ca.crt",
+				CertFile:    "/etc/axon/profiles/secondary-core/node.crt",
+				KeyFile:     "/etc/axon/profiles/secondary-core/node.key",
+				CACertFile:  "/etc/axon/profiles/secondary-core/ca.crt",
 				Enabled:     true,
 			},
 			{
@@ -297,11 +297,11 @@ func TestActiveCoreTargets_MultiCoreDeduplication(t *testing.T) {
 	if targets[0].CoreGateway != "127.0.0.1:8443" || targets[0].Name != "primary" {
 		t.Fatalf("unexpected primary target: %+v", targets[0])
 	}
-	if targets[1].CoreGateway != "127.0.0.1:9443" || targets[1].Name != "local-cachyos-core" {
+	if targets[1].CoreGateway != "127.0.0.1:9443" || targets[1].Name != "secondary-core" {
 		t.Fatalf("unexpected secondary target: %+v", targets[1])
 	}
-	if targets[1].NodeID != "vps2-muscle" {
-		t.Fatalf("expected secondary target to inherit NodeID 'vps2-muscle', got %q", targets[1].NodeID)
+	if targets[1].NodeID != "edge-node-01" {
+		t.Fatalf("expected secondary target to inherit NodeID 'edge-node-01', got %q", targets[1].NodeID)
 	}
 	if targets[1].Tier != tunnelv1.Tier1Unleashed {
 		t.Fatalf("expected secondary target to inherit Tier1Unleashed, got %q", targets[1].Tier)
@@ -312,7 +312,7 @@ func TestLoadIdentity_MultiCorePersistence(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "config.json")
 	raw := `{
-  "node_id": "vps2-muscle",
+  "node_id": "edge-node-01",
   "core_gateway": "127.0.0.1:8443",
   "core_http": "http://127.0.0.1:8081",
   "tier": "TIER_1_UNLEASHED",
@@ -324,7 +324,7 @@ func TestLoadIdentity_MultiCorePersistence(t *testing.T) {
   "cores": [
     {
       "name": "second-core",
-      "node_id": "vps2-muscle",
+      "node_id": "edge-node-01",
       "core_gateway": "127.0.0.1:9443",
       "core_http": "http://127.0.0.1:9081",
       "tier": "TIER_1_UNLEASHED",
@@ -355,19 +355,19 @@ func TestLoadIdentity_MultiCorePersistence(t *testing.T) {
 func TestMultiCoreSharedHealthCollectorMergesTargets(t *testing.T) {
 	col := health.NewCollector("test-multi-core-node", tunnelv1.Tier1Unleashed)
 	col.SetTargetsForSource("primary", []tunnelv1.ServiceHealthTarget{
-		{ServiceID: "vps2-status-api", Name: "VPS2 Status API", Protocol: "http", Port: 4070, Path: "/"},
-		{ServiceID: "pulse-webui", Name: "Pulse Live WebUI", Protocol: "http", Port: 4090, Path: "/"},
+		{ServiceID: "svc-status-api", Name: "Status API", Protocol: "http", Port: 4070, Path: "/"},
+		{ServiceID: "svc-webui", Name: "Live WebUI", Protocol: "http", Port: 4090, Path: "/"},
 	})
-	col.SetTargetsForSource("local-cachyos-core", []tunnelv1.ServiceHealthTarget{
+	col.SetTargetsForSource("secondary-core", []tunnelv1.ServiceHealthTarget{
 		{ServiceID: "auto-svc-4050", Name: "Autonomous Microservice :4050", Protocol: "http", Port: 4050, Path: "/"},
 	})
 
-	beat := col.CollectForNode("vps2-muscle", tunnelv1.Tier1Unleashed, nil)
+	beat := col.CollectForNode("edge-node-01", tunnelv1.Tier1Unleashed, nil)
 	found := make(map[string]bool)
 	for _, s := range beat.Services {
 		found[s.ServiceID] = true
 	}
-	for _, id := range []string{"vps2-status-api", "pulse-webui", "auto-svc-4050"} {
+	for _, id := range []string{"svc-status-api", "svc-webui", "auto-svc-4050"} {
 		if !found[id] {
 			t.Fatalf("expected merged heartbeat services to include %q, got %+v", id, beat.Services)
 		}
@@ -376,20 +376,20 @@ func TestMultiCoreSharedHealthCollectorMergesTargets(t *testing.T) {
 
 func TestCoreTelemetrySummary_MultiCoreLiveAndStandby(t *testing.T) {
 	cfg := &IdentityConfig{
-		NodeID:      "vps2-muscle",
+		NodeID:      "edge-node-01",
 		CoreGateway: "127.0.0.1:8443",
 		CoreHTTP:    "http://127.0.0.1:8081",
 		Tier:        tunnelv1.Tier1Unleashed,
 		MultiCore:   true,
 		Cores: []CoreTarget{
 			{
-				Name:        "local-windows-core",
+				Name:        "primary-core",
 				CoreGateway: "127.0.0.1:8443",
 				CoreHTTP:    "http://127.0.0.1:8081",
 				Enabled:     true,
 			},
 			{
-				Name:        "local-cachyos-core",
+				Name:        "secondary-core",
 				CoreGateway: "127.0.0.1:9443",
 				CoreHTTP:    "http://127.0.0.1:9081",
 				Enabled:     true,
@@ -407,23 +407,23 @@ func TestCoreTelemetrySummary_MultiCoreLiveAndStandby(t *testing.T) {
 	if len(summaries) != 2 {
 		t.Fatalf("expected 2 summaries, got %d (%v)", len(summaries), summaries)
 	}
-	if summaries[0] != "local-windows-core (127.0.0.1:8443 - LIVE)" {
+	if summaries[0] != "primary-core (127.0.0.1:8443 - LIVE)" {
 		t.Fatalf("unexpected primary summary: %q", summaries[0])
 	}
-	if summaries[1] != "local-cachyos-core (127.0.0.1:9443 - STANDBY)" {
+	if summaries[1] != "secondary-core (127.0.0.1:9443 - STANDBY)" {
 		t.Fatalf("unexpected secondary summary: %q", summaries[1])
 	}
 
 	agent.setTargetConnected("127.0.0.1:9443", true)
 	_, summaries2 := agent.CoreTelemetrySummary()
-	if summaries2[1] != "local-cachyos-core (127.0.0.1:9443 - LIVE)" {
+	if summaries2[1] != "secondary-core (127.0.0.1:9443 - LIVE)" {
 		t.Fatalf("expected secondary summary to transition to LIVE, got %q", summaries2[1])
 	}
 }
 
 func TestLoadIdentity_AutoReconcilesLoopbackProfiles(t *testing.T) {
 	tmpDir := t.TempDir()
-	profDir := filepath.Join(tmpDir, "profiles", "local-cachyos-core")
+	profDir := filepath.Join(tmpDir, "profiles", "secondary-core")
 	if err := os.MkdirAll(profDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -433,7 +433,7 @@ func TestLoadIdentity_AutoReconcilesLoopbackProfiles(t *testing.T) {
 		}
 	}
 	profCfg := `{
-  "node_id": "vps2-muscle",
+  "node_id": "edge-node-01",
   "core_gateway": "127.0.0.1:9443",
   "core_http": "http://127.0.0.1:9081",
   "tier": "TIER_1_UNLEASHED"
@@ -443,7 +443,7 @@ func TestLoadIdentity_AutoReconcilesLoopbackProfiles(t *testing.T) {
 	}
 
 	mainCfg := `{
-  "node_id": "vps2-muscle",
+  "node_id": "edge-node-01",
   "core_gateway": "127.0.0.1:8443",
   "core_http": "http://127.0.0.1:8081",
   "tier": "TIER_1_UNLEASHED",
@@ -462,7 +462,7 @@ func TestLoadIdentity_AutoReconcilesLoopbackProfiles(t *testing.T) {
 	if len(targets) != 2 {
 		t.Fatalf("expected 2 targets after auto-reconciling loopback profile, got %d", len(targets))
 	}
-	if targets[1].Name != "local-cachyos-core" || targets[1].CoreGateway != "127.0.0.1:9443" {
+	if targets[1].Name != "secondary-core" || targets[1].CoreGateway != "127.0.0.1:9443" {
 		t.Fatalf("unexpected auto-reconciled target: %+v", targets[1])
 	}
 }

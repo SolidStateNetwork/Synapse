@@ -389,7 +389,7 @@ export function McpServerTab({
               typeof window !== "undefined"
                 ? window.location.origin
                 : "http://localhost:3000";
-            const pid = activeProject?.project_id || "synapse-cloud-demo";
+            const pid = activeProject?.project_id || "default-project";
             const tokenVal = issuedMcpToken || "syn_mcp_<DEIN_API_KEY>";
             const mcpJsonSnippet = `{
   "mcpServers": {

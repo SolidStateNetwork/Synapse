@@ -9,6 +9,10 @@ import {
   withProjectStateTransaction,
 } from "@/lib/vault";
 import { listCartridges, OFFICIAL_STACK_BLUEPRINTS } from "@/lib/cartridges";
+import {
+  resolveActiveProjectId,
+  safeParseRequestJson,
+} from "@/lib/runtimeResolver";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +22,9 @@ const CORE_GATEWAY_URL =
   "http://127.0.0.1:8081";
 
 export async function GET(req: NextRequest) {
-  const projectId =
-    req.nextUrl.searchParams.get("project_id") || "synapse-cloud-demo";
+  const projectId = resolveActiveProjectId(
+    req.nextUrl.searchParams.get("project_id")
+  );
   const state = ensureProjectVault(projectId);
   const auditLogs = readAuditLogs(projectId, 30);
   const secretKeys = listSecretKeys(projectId);
@@ -78,17 +83,21 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const projectId = String(body.project_id || "synapse-cloud-demo");
+  const body = await safeParseRequestJson(req);
+  const projectId = resolveActiveProjectId(
+    String(body.project_id || body.projectId || "")
+  );
   const action = String(body.action || "");
-  const state = ensureProjectVault(projectId);
+  ensureProjectVault(projectId);
 
   if (action === "toggle_debug") {
     let nextDebug = false;
     await withProjectStateTransaction(projectId, (st) => {
       const rawState = st as unknown as Record<string, unknown>;
       nextDebug =
-        body.enabled !== undefined ? Boolean(body.enabled) : !rawState.debug_mode;
+        body.enabled !== undefined
+          ? Boolean(body.enabled)
+          : !rawState.debug_mode;
       rawState.debug_mode = nextDebug;
     });
 
@@ -132,7 +141,6 @@ export async function POST(req: NextRequest) {
       detail: string;
     }> = [];
 
-    // 1. Brain Vault & State Persistence Test
     const t1 = Date.now();
     try {
       const st = await withProjectStateTransaction(projectId, () => {});
@@ -153,7 +161,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. AES-256-GCM Zero-Knowledge Secret Vault Test
     const t2 = Date.now();
     try {
       const probeKey = "__SYNAPSE_DEBUG_PROBE__";
@@ -184,7 +191,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. Rule Cartridges & Stack Blueprints
     const t3 = Date.now();
     try {
       const carts = listCartridges();
@@ -205,7 +211,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 4. Core Gateway Control Plane & mTLS Hub + Muscle Node Round-Trip Ping
     const t4 = Date.now();
     try {
       const gwRes = await fetch(`${CORE_GATEWAY_URL}/api/v1/debug`, {

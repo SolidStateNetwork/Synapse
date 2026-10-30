@@ -419,33 +419,16 @@ func isIgnoredSystemPortOrProcess(port uint32, procName string) bool {
 	return false
 }
 
-// discoverLocalTargets inspects /proc/net/tcp, /proc/net/tcp6, Docker containers, and known SQLite databases
+// discoverLocalTargets inspects /proc/net/tcp, /proc/net/tcp6, and Docker containers
 // on Linux to auto-discover active local application, web, and database services not yet in coveredPorts.
 func (c *Collector) discoverLocalTargets(coveredPorts map[uint32]bool, coveredIDs map[string]bool, portContainers map[uint32]string, portProcesses map[uint32]string) []tunnelv1.ServiceHealthTarget {
 	if runtime.GOOS != "linux" {
 		return nil
 	}
+	_ = coveredIDs
 	isDBNode := strings.Contains(strings.ToLower(c.NodeID), "db")
 	seenPorts := make(map[uint32]bool)
 	var discovered []tunnelv1.ServiceHealthTarget
-
-	// Check if local Pulse SQLite database file exists and is not yet registered
-	if !isDBNode && !coveredIDs["pulse-sqlite-db"] && !coveredPorts[3001] {
-		if info, err := os.Stat("/var/lib/synapse/pulse-stack/pulse.db"); err == nil && info.Size() > 0 {
-			seenPorts[3001] = true
-			discovered = append(discovered, tunnelv1.ServiceHealthTarget{
-				ServiceID:      "pulse-sqlite-db",
-				Name:           "Pulse SQLite Database",
-				Protocol:       "exec",
-				Port:           3001,
-				Path:           "/var/lib/synapse/pulse-stack/pulse.db",
-				Target:         "test -s /var/lib/synapse/pulse-stack/pulse.db",
-				AutoDiscovered: true,
-				ProcessName:    "sqlite3",
-				Category:       "database",
-			})
-		}
-	}
 
 	for _, procFile := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
 		raw, err := os.ReadFile(procFile)
@@ -490,10 +473,6 @@ func (c *Collector) discoverLocalTargets(coveredPorts map[uint32]bool, coveredID
 				seenPorts[port] = true
 				svcID := fmt.Sprintf("auto-db-%d", port)
 				svcName := fmt.Sprintf("Encrypted Mesh DB :%d", port)
-				if port == 5499 {
-					svcID = "vps2-db-mesh"
-					svcName = "VPS2 Encrypted Mesh DB"
-				}
 				discovered = append(discovered, tunnelv1.ServiceHealthTarget{
 					ServiceID:      svcID,
 					Name:           svcName,
@@ -528,18 +507,6 @@ func (c *Collector) discoverLocalTargets(coveredPorts map[uint32]bool, coveredID
 					proto = "tcp"
 					category = "database"
 					svcID = fmt.Sprintf("auto-db-%d", port)
-				case 4070:
-					svcID = "vps2-status-api"
-					svcName = "VPS2 Status API"
-					category = "backend"
-				case 4085:
-					svcID = "pulse-analytics-api"
-					svcName = "Pulse Analytics API"
-					category = "backend"
-				case 4090:
-					svcID = "pulse-webui"
-					svcName = "Pulse Live WebUI"
-					category = "webui"
 				}
 				discovered = append(discovered, tunnelv1.ServiceHealthTarget{
 					ServiceID:      svcID,

@@ -91,10 +91,10 @@ export default function BottomPtyDrawer({
           {primaryNode ? (
             <XTermTerminal
               gatewayUrl={gatewayUrl}
-              projectId={activeProject?.project_id || "synapse-cloud-demo"}
+              projectId={activeProject?.project_id || "default-project"}
               nodeId={primaryNode}
               sessionId={`default-${
-                activeProject?.project_id || "synapse-cloud-demo"
+                activeProject?.project_id || "default-project"
               }`}
             />
           ) : (

@@ -87,7 +87,7 @@ const AccessRulesView = React.memo(function AccessRulesView({
   const [newCronCmd, setNewCronCmd] = useState("");
 
   useEffect(() => {
-    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    const pid = activeProject?.project_id || "default-project";
     fetch(`/api/service-ops?project_id=${encodeURIComponent(pid)}`)
       .then((r) => r.json())
       .then((d) => {
@@ -337,8 +337,8 @@ const AccessRulesView = React.memo(function AccessRulesView({
             </h2>
             <p className="text-xs text-nb-gray-400 mt-0.5">
               {t(
-                "Zeitgesteuerte Shell-Runbooks auf vps2-muscle mit 1-Klick Sofort-Test (Jetzt ausführen), Exit-Code & Laufzeit-Überwachung.",
-                "Scheduled shell runbooks on vps2-muscle with 1-Click Run Now, exit code & duration monitoring."
+                "Zeitgesteuerte Shell-Runbooks auf deinen Muscle-Knoten mit 1-Klick Sofort-Test (Jetzt ausführen), Exit-Code & Laufzeit-Überwachung.",
+                "Scheduled shell runbooks on your Muscle nodes with 1-Click Run Now, exit code & duration monitoring."
               )}
             </p>
           </div>
@@ -396,9 +396,12 @@ const AccessRulesView = React.memo(function AccessRulesView({
                           body: JSON.stringify({
                             action: "run_cron_job",
                             project_id:
-                              activeProject?.project_id || "synapse-cloud-demo",
+                              activeProject?.project_id || "default-project",
                             id: job.id,
-                            node_id: job.node_id || "vps2-muscle",
+                            node_id:
+                              job.node_id ||
+                              activeProject?.assigned_nodes?.[0]?.node_id ||
+                              "local-node",
                           }),
                         });
                         const d = await r.json();
@@ -428,7 +431,7 @@ const AccessRulesView = React.memo(function AccessRulesView({
                         body: JSON.stringify({
                           action: "delete_cron_job",
                           project_id:
-                            activeProject?.project_id || "synapse-cloud-demo",
+                            activeProject?.project_id || "default-project",
                           id: job.id,
                         }),
                       });
@@ -473,10 +476,11 @@ const AccessRulesView = React.memo(function AccessRulesView({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 action: "save_cron_job",
-                project_id: activeProject?.project_id || "synapse-cloud-demo",
+                project_id: activeProject?.project_id || "default-project",
                 name: newCronName.trim(),
                 cron_expression: newCronExpr.trim() || "*/15 * * * *",
-                node_id: "vps2-muscle",
+                node_id:
+                  activeProject?.assigned_nodes?.[0]?.node_id || "local-node",
                 command: newCronCmd.trim(),
                 enabled: true,
               }),

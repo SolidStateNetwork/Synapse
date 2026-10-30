@@ -17,6 +17,10 @@ import {
   interceptAndExecuteTool,
   SYNAPSE_TOOL_SCHEMAS,
 } from "@/lib/orchestrator";
+import {
+  resolveActiveProjectId,
+  safeParseRequestJson,
+} from "@/lib/runtimeResolver";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +54,7 @@ function getMcpToolDefinitions() {
         properties: {
           project_id: {
             type: "string",
-            description: "Optional project ID (defaults to synapse-cloud-demo)",
+            description: "Optional project ID (defaults to active workspace)",
           },
         },
       },
@@ -64,7 +68,7 @@ function getMcpToolDefinitions() {
         properties: {
           project_id: {
             type: "string",
-            description: "Optional project ID (defaults to synapse-cloud-demo)",
+            description: "Optional project ID (defaults to active workspace)",
           },
         },
       },
@@ -120,14 +124,15 @@ async function executeMcpTool(
 ): Promise<{ isError: boolean; result: unknown }> {
   const canExecute = scopes.includes("execute") || scopes.includes("admin");
 
-  // Check read-only vs execute permissions
   const isReadOnlyTool =
     toolName === "synapse_list_peers" ||
     toolName === "synapse_get_project_state" ||
     toolName === "core_vault_search" ||
     toolName === "node_deep_search" ||
     (toolName === "node_fs_operation" &&
-      ["read_file", "list_dir", "stat"].includes(String(args.operation || ""))) ||
+      ["read_file", "list_dir", "stat"].includes(
+        String(args.operation || "")
+      )) ||
     (toolName === "core_manage_secret" &&
       (args.action === "list_keys" || args.action === "list")) ||
     ((toolName === "node_firewall_control" ||
@@ -260,8 +265,9 @@ async function executeMcpTool(
 }
 
 export async function GET(req: NextRequest) {
-  const projectId =
-    req.nextUrl.searchParams.get("project_id") || "synapse-cloud-demo";
+  const projectId = resolveActiveProjectId(
+    req.nextUrl.searchParams.get("project_id")
+  );
   const state = ensureProjectVault(projectId);
   const tools = getMcpToolDefinitions();
 
@@ -288,19 +294,21 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const projectId = String(
-    body.project_id ||
-      req.nextUrl.searchParams.get("project_id") ||
-      "synapse-cloud-demo"
+  const body = await safeParseRequestJson(req);
+  const projectId = resolveActiveProjectId(
+    String(
+      body.project_id ||
+        body.projectId ||
+        req.nextUrl.searchParams.get("project_id") ||
+        ""
+    )
   );
   ensureProjectVault(projectId);
 
-  // 1. UI Key Management Actions (create_key / revoke_key)
   if (body.action === "create_key") {
     const scopes = Array.isArray(body.scopes)
-      ? body.scopes
-      : ["read", "execute"];
+      ? (body.scopes as Array<"read" | "execute" | "admin">)
+      : (["read", "execute"] as Array<"read" | "execute" | "admin">);
     const created = createMcpApiKey(
       projectId,
       String(body.name || "External AI / MCP Client"),
@@ -314,7 +322,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ keys: remaining });
   }
 
-  // 2. Verify API Key for External AI / MCP Calls (unless internal UI test flag `internal_ui_test` is set)
   const rawToken = extractApiKey(req);
   let activeScopes: Array<"read" | "execute" | "admin"> = ["read", "execute"];
 
@@ -337,7 +344,6 @@ export async function POST(req: NextRequest) {
     activeScopes = verified.scopes;
   }
 
-  // 3. Handle Standard JSON-RPC 2.0 MCP Requests (`initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`)
   if (body.jsonrpc === "2.0" || typeof body.method === "string") {
     const rpcId = body.id ?? 1;
     const method = String(body.method || "");
@@ -490,7 +496,6 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // 4. Direct REST Tool Call Mode (`{ "tool": "node_pty_exec", "arguments": { ... } }`)
   if (typeof body.tool === "string") {
     const execOut = await executeMcpTool(
       projectId,

@@ -24,11 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import type {
-  GatewayNode,
-  NavSection,
-  ProjectState,
-} from "@/types/synapse";
+import type { GatewayNode, NavSection, ProjectState } from "@/types/synapse";
 
 export interface CommandPaletteItem {
   id: string;
@@ -99,88 +95,25 @@ export default function CommandPaletteModal({
   const items = useMemo<CommandPaletteItem[]>(() => {
     const list: CommandPaletteItem[] = [];
     const services = activeProject?.registered_services || [];
+    const defaultNode =
+      activeProject?.assigned_nodes?.[0]?.node_id ||
+      gatewayNodes[0]?.node_id ||
+      "local-node";
+    const defaultProjId = activeProject?.project_id || "default-project";
 
-    // 1. Navigation (All 9 Main Menus)
     const navEntries: Array<{
-      id: NavSection;
-      titleDe: string;
-      titleEn: string;
-      subDe: string;
-      subEn: string;
+      id: NavSection; titleDe: string; titleEn: string; subDe: string; subEn: string;
       icon: React.ComponentType<{ className?: string }>;
     }> = [
-      {
-        id: "control-center",
-        titleDe: "Übersicht (Interaktiver Canvas)",
-        titleEn: "Overview (Interactive Canvas)",
-        subDe: "Topologie, Live-Sparklines & 1-Klick Quick-Actions",
-        subEn: "Topology, live sparklines & 1-click quick-actions",
-        icon: Network,
-      },
-      {
-        id: "reverse-proxy",
-        titleDe: "Services (Reverse-Proxy & API-Tester)",
-        titleEn: "Services (Reverse Proxy & API Tester)",
-        subDe: "Alle bereitgestellten HTTP/SQLite-Endpunkte live testen",
-        subEn: "Test all deployed HTTP/SQLite endpoints live",
-        icon: Globe,
-      },
-      {
-        id: "peers",
-        titleDe: "Server & Mesh-Netzwerk",
-        titleEn: "Servers & Mesh Network",
-        subDe: "Multi-Core Muscle-Server, P2P-Links, Blueprints & Playbooks",
-        subEn: "Multi-Core Muscle servers, P2P links, blueprints & playbooks",
-        icon: Server,
-      },
-      {
-        id: "brain-vault",
-        titleDe: "Brain Vault (Wissensspeicher)",
-        titleEn: "Brain Vault (Knowledge Store)",
-        subDe: "Architecture.md & Memory.md einsehen und bearbeiten",
-        subEn: "View and edit Architecture.md & Memory.md",
-        icon: BookOpen,
-      },
-      {
-        id: "workspace",
-        titleDe: "Dateien (Remote-Workspace Explorer)",
-        titleEn: "Files (Remote Workspace Explorer)",
-        subDe: "Dateien auf dem Muscle-Server bearbeiten & Diffs anwenden",
-        subEn: "Edit files on the Muscle server & apply diffs",
-        icon: FolderGit2,
-      },
-      {
-        id: "firewall",
-        titleDe: "Firewall & Port-Shield",
-        titleEn: "Firewall & Port Shield",
-        subDe: "UFW/iptables Regeln, Port-Freigaben & Anti-Lockout-Schutz",
-        subEn: "UFW/iptables rules, port shielding & anti-lockout guard",
-        icon: Shield,
-      },
-      {
-        id: "access-control",
-        titleDe: "Regeln & Sicherheits-Cartridges",
-        titleEn: "Rules & Security Cartridges",
-        subDe: "Autonomie-Stufen & DevOps-Leitplanken verwalten",
-        subEn: "Manage autonomy tiers & DevOps guardrails",
-        icon: Lock,
-      },
-      {
-        id: "activity",
-        titleDe: "Audit-Log & Aktivitäten",
-        titleEn: "Audit Log & Activity",
-        subDe: "Revisionssicheres Protokoll aller KI- & System-Aktionen",
-        subEn: "Tamper-evident log of all AI & system actions",
-        icon: Activity,
-      },
-      {
-        id: "settings",
-        titleDe: "Einstellungen & System-Konfiguration",
-        titleEn: "Settings & System Configuration",
-        subDe: "RBAC, Server-Onboarding, Geheimnis-Tresor, KI, MCP & Debug",
-        subEn: "RBAC, Server Onboarding, Secret Vault, AI, MCP & Debug",
-        icon: Settings,
-      },
+      { id: "control-center", titleDe: "Übersicht (Interaktiver Canvas)", titleEn: "Overview (Interactive Canvas)", subDe: "Topologie, Live-Sparklines & 1-Klick Quick-Actions", subEn: "Topology, live sparklines & 1-click quick-actions", icon: Network },
+      { id: "reverse-proxy", titleDe: "Services (Reverse-Proxy & API-Tester)", titleEn: "Services (Reverse Proxy & API Tester)", subDe: "Alle bereitgestellten HTTP/SQLite-Endpunkte live testen", subEn: "Test all deployed HTTP/SQLite endpoints live", icon: Globe },
+      { id: "peers", titleDe: "Server & Mesh-Netzwerk", titleEn: "Servers & Mesh Network", subDe: "Multi-Core Muscle-Server, P2P-Links, Blueprints & Playbooks", subEn: "Multi-Core Muscle servers, P2P links, blueprints & playbooks", icon: Server },
+      { id: "brain-vault", titleDe: "Brain Vault (Wissensspeicher)", titleEn: "Brain Vault (Knowledge Store)", subDe: "Architecture.md & Memory.md einsehen und bearbeiten", subEn: "View and edit Architecture.md & Memory.md", icon: BookOpen },
+      { id: "workspace", titleDe: "Dateien (Remote-Workspace Explorer)", titleEn: "Files (Remote Workspace Explorer)", subDe: "Dateien auf dem Muscle-Server bearbeiten & Diffs anwenden", subEn: "Edit files on the Muscle server & apply diffs", icon: FolderGit2 },
+      { id: "firewall", titleDe: "Firewall & Port-Shield", titleEn: "Firewall & Port Shield", subDe: "UFW/iptables Regeln, Port-Freigaben & Anti-Lockout-Schutz", subEn: "UFW/iptables rules, port shielding & anti-lockout guard", icon: Shield },
+      { id: "access-control", titleDe: "Regeln & Sicherheits-Cartridges", titleEn: "Rules & Security Cartridges", subDe: "Autonomie-Stufen & DevOps-Leitplanken verwalten", subEn: "Manage autonomy tiers & DevOps guardrails", icon: Lock },
+      { id: "activity", titleDe: "Audit-Log & Aktivitäten", titleEn: "Audit Log & Activity", subDe: "Revisionssicheres Protokoll aller KI- & System-Aktionen", subEn: "Tamper-evident log of all AI & system actions", icon: Activity },
+      { id: "settings", titleDe: "Einstellungen & System-Konfiguration", titleEn: "Settings & System Configuration", subDe: "RBAC, Server-Onboarding, Geheimnis-Tresor, KI, MCP & Debug", subEn: "RBAC, Server Onboarding, Secret Vault, AI, MCP & Debug", icon: Settings },
     ];
 
     for (const nav of navEntries) {
@@ -199,15 +132,11 @@ export default function CommandPaletteModal({
       });
     }
 
-    // 2. Active Services & Autonomous Self-Healing Actions
     for (const svc of services) {
       const svcName = translateText(svc.name);
       list.push({
         id: `svc-heal:${svc.service_id}`,
-        category: t(
-          "Dienste & Autonomous Self-Healing",
-          "Services & Autonomous Self-Healing"
-        ),
+        category: t("Dienste & Autonomous Self-Healing", "Services & Autonomous Self-Healing"),
         title: `${t("⚡ Autonomous Self-Heal / Neustart:", "⚡ Autonomous Self-Heal / Restart:")} ${svcName} (:${svc.port})`,
         subtitle: t(
           `Startet den Dienst auf ${svc.node_id} neu, sichert Logs und prüft HTTP 200`,
@@ -224,8 +153,8 @@ export default function CommandPaletteModal({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 action: "self_heal",
-                project_id: activeProject?.project_id || "synapse-cloud-demo",
-                node_id: svc.node_id || "vps2-muscle",
+                project_id: defaultProjId,
+                node_id: svc.node_id || defaultNode,
                 service_id: svc.service_id,
                 service_name: svc.name,
                 port: svc.port,
@@ -249,10 +178,7 @@ export default function CommandPaletteModal({
 
       list.push({
         id: `svc-crash:${svc.service_id}`,
-        category: t(
-          "Dienste & Autonomous Self-Healing",
-          "Services & Autonomous Self-Healing"
-        ),
+        category: t("Dienste & Autonomous Self-Healing", "Services & Autonomous Self-Healing"),
         title: `${t("💥 Crash & Auto-Heal simulieren:", "💥 Simulate Crash & Auto-Heal:")} ${svcName} (:${svc.port})`,
         subtitle: t(
           `Beendet Prozess auf :${svc.port} und führt das Self-Healing-Runbook live aus`,
@@ -269,8 +195,8 @@ export default function CommandPaletteModal({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 action: "simulate_crash_and_heal",
-                project_id: activeProject?.project_id || "synapse-cloud-demo",
-                node_id: svc.node_id || "vps2-muscle",
+                project_id: defaultProjId,
+                node_id: svc.node_id || defaultNode,
                 service_id: svc.service_id,
                 service_name: svc.name,
                 port: svc.port,
@@ -295,10 +221,7 @@ export default function CommandPaletteModal({
 
       list.push({
         id: `svc-open:${svc.service_id}`,
-        category: t(
-          "Dienste & Autonomous Self-Healing",
-          "Services & Autonomous Self-Healing"
-        ),
+        category: t("Dienste & Autonomous Self-Healing", "Services & Autonomous Self-Healing"),
         title: `${t("🌐 Im Reverse-Proxy öffnen:", "🌐 Open in Reverse Proxy:")} ${svcName} (:${svc.port})`,
         subtitle: `${svc.node_id} · 127.0.0.1:${svc.port}`,
         badge: "Proxy",
@@ -311,7 +234,6 @@ export default function CommandPaletteModal({
       });
     }
 
-    // 3. Connected Muscle Nodes
     for (const gn of gatewayNodes) {
       const cores = gn.last_heartbeat?.active_cores ?? 1;
       list.push({
@@ -345,15 +267,11 @@ export default function CommandPaletteModal({
       });
     }
 
-    // 4. Brain Vault Documents & Settings Sub-Tabs
     list.push(
       {
         id: "doc:arch",
         category: "Brain Vault & Einstellungen",
-        title: t(
-          "Brain Vault: Architecture.md öffnen",
-          "Brain Vault: Open Architecture.md"
-        ),
+        title: t("Brain Vault: Architecture.md öffnen", "Brain Vault: Open Architecture.md"),
         subtitle: t(
           "Infrastruktur-Architektur & Topologie-Dokumentation",
           "Infrastructure architecture & topology documentation"
@@ -369,10 +287,7 @@ export default function CommandPaletteModal({
       {
         id: "doc:mem",
         category: "Brain Vault & Einstellungen",
-        title: t(
-          "Brain Vault: Memory.md öffnen",
-          "Brain Vault: Open Memory.md"
-        ),
+        title: t("Brain Vault: Memory.md öffnen", "Brain Vault: Open Memory.md"),
         subtitle: t(
           "Chronologisches Gedächtnis aller Deployments & Auto-Heals",
           "Chronological memory of all deployments & auto-heals"
@@ -425,33 +340,24 @@ export default function CommandPaletteModal({
       }
     );
 
-    // 5. AI Copilot DevOps Skills
-    const skills: Array<{
-      id: string;
-      titleDe: string;
-      titleEn: string;
-      prompt: string;
-    }> = [
+    const skills: Array<{ id: string; titleDe: string; titleEn: string; prompt: string }> = [
       {
         id: "skill:syscheck",
         titleDe: "KI-Skill: 6-Phasen System- & SRE-Check ausführen",
         titleEn: "AI Skill: Run 6-Phase System & SRE Check",
-        prompt:
-          "Führe einen vollständigen System-Check auf vps2-muscle durch (Uptime, CPU/RAM, aktive Ports und Dienste).",
+        prompt: `Führe einen vollständigen System-Check auf ${defaultNode} durch (Uptime, CPU/RAM, aktive Ports und Dienste).`,
       },
       {
         id: "skill:opsec",
         titleDe: "KI-Skill: OpSec- & Firewall-Audit starten",
         titleEn: "AI Skill: Run OpSec & Firewall Audit",
-        prompt:
-          "Prüfe die offene Port-Landschaft, SSH-Sicherheit und Firewall-Regeln auf vps2-muscle.",
+        prompt: `Prüfe die offene Port-Landschaft, SSH-Sicherheit und Firewall-Regeln auf ${defaultNode}.`,
       },
       {
         id: "skill:forensics",
         titleDe: "KI-Skill: Deep-Forensik & Fehleranalyse starten",
         titleEn: "AI Skill: Run Deep Forensics & Log Analysis",
-        prompt:
-          "Analysiere die neuesten Prozess- und Service-Logs auf vps2-muscle auf Warnungen oder Fehler.",
+        prompt: `Analysiere die neuesten Prozess- und Service-Logs auf ${defaultNode} auf Warnungen oder Fehler.`,
       },
     ];
 
@@ -542,7 +448,6 @@ export default function CommandPaletteModal({
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-2xl overflow-hidden rounded-2xl border border-nb-gray-800 bg-nb-gray-940 shadow-2xl"
       >
-        {/* Top Search Input */}
         <div className="flex items-center gap-3 border-b border-nb-gray-800 bg-nb-gray-950 px-4 py-3.5">
           <Search className="h-4 w-4 shrink-0 text-netbird" />
           <input
@@ -551,8 +456,8 @@ export default function CommandPaletteModal({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t(
-              "Befehl, Menü, Server, Port (:4060), Self-Heal oder KI-Skill suchen...",
-              "Search command, menu, server, port (:4060), Self-Heal or AI skill..."
+              "Befehl, Menü, Server, Port, Self-Heal oder KI-Skill suchen...",
+              "Search command, menu, server, port, Self-Heal or AI skill..."
             )}
             className="flex-1 bg-transparent text-sm text-white placeholder-nb-gray-500 focus:outline-none"
           />
@@ -570,7 +475,6 @@ export default function CommandPaletteModal({
           </div>
         </div>
 
-        {/* Filtered Results List */}
         <div className="max-h-[60vh] overflow-y-auto p-2 space-y-1">
           {filteredItems.length === 0 ? (
             <div className="py-10 text-center text-xs text-nb-gray-400">
@@ -585,8 +489,7 @@ export default function CommandPaletteModal({
               const isSelected = idx === selectedIndex;
               const isBusy = busyItemId === item.id;
               const showCatHeader =
-                idx === 0 ||
-                filteredItems[idx - 1].category !== item.category;
+                idx === 0 || filteredItems[idx - 1].category !== item.category;
 
               return (
                 <React.Fragment key={item.id}>
@@ -650,7 +553,6 @@ export default function CommandPaletteModal({
           )}
         </div>
 
-        {/* Footer Hints */}
         <div className="flex items-center justify-between border-t border-nb-gray-800 bg-nb-gray-950 px-4 py-2 text-[11px] text-nb-gray-400">
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1">

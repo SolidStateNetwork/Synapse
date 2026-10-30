@@ -1,33 +1,15 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Database, Globe, Plus, Trash2, Zap } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import {
-  Bot,
-  Check,
-  Code2,
-  Copy,
-  FileText,
-  History,
-  Search,
-  Database,
-  ExternalLink,
-  Globe,
-  Play,
-  RefreshCw,
-  Trash2,
-  Zap,
-} from "lucide-react";
 import { SynapseViewHeader } from "@/components/ui/SynapseDesignSystem";
 import type { ProjectState } from "@/types/synapse";
-
-const CORE_DEMO_SERVICE_IDS = new Set([
-  "vps2-status-api",
-  "pulse-webui",
-  "pulse-analytics-api",
-  "pulse-sqlite-db",
-]);
+import { ReverseProxyCodeAndSqliteStudios } from "./reverse-proxy/ReverseProxyCodeAndSqliteStudios";
+import {
+  ReverseProxyRequestHistoryItem,
+  ReverseProxyWorkbenchPanel,
+} from "./reverse-proxy/ReverseProxyWorkbenchPanel";
 
 export interface ReverseProxyViewProps {
   activeProject: ProjectState | null;
@@ -46,28 +28,17 @@ export interface ReverseProxyViewProps {
   selectedEndpointId: string;
   setSelectedEndpointId: (id: string) => void;
   serviceActionMethod: "GET" | "POST" | "PUT" | "DELETE" | "SQL";
-  setServiceActionMethod: (
-    m: "GET" | "POST" | "PUT" | "DELETE" | "SQL"
-  ) => void;
+  setServiceActionMethod: (m: "GET" | "POST" | "PUT" | "DELETE" | "SQL") => void;
   serviceActionPath: string;
   setServiceActionPath: (p: string) => void;
   serviceActionPayload: string;
   setServiceActionPayload: (p: string) => void;
   serviceActionBusy: boolean;
   serviceActionResult: {
-    ok: boolean;
-    status_code: number;
-    latency_ms: number;
-    method: string;
-    proxy_url: string;
-    response_text: string;
+    ok: boolean; status_code: number; latency_ms: number; method: string; proxy_url: string; response_text: string;
   } | null;
   handleInvokeServiceAction: (override?: {
-    nodeId?: string;
-    port?: number;
-    method?: "GET" | "POST" | "PUT" | "DELETE" | "SQL";
-    path?: string;
-    payload?: string;
+    nodeId?: string; port?: number; method?: "GET" | "POST" | "PUT" | "DELETE" | "SQL"; path?: string; payload?: string;
   }) => void;
   onDiagnoseService?: (port: number) => void;
   onRemoveService?: (serviceId: string, nodeId?: string, port?: number) => void;
@@ -75,33 +46,13 @@ export interface ReverseProxyViewProps {
 }
 
 const ReverseProxyView = React.memo(function ReverseProxyView({
-  activeProject,
-  primaryNode,
-  gatewayUrl,
-  selectedServiceId,
-  setSelectedServiceId,
-  previewPort,
-  setPreviewPort,
-  previewSubPath,
-  setPreviewSubPath,
-  previewReloadNonce,
-  setPreviewReloadNonce,
-  serviceWorkspaceTab,
-  setServiceWorkspaceTab,
-  selectedEndpointId,
-  setSelectedEndpointId,
-  serviceActionMethod,
-  setServiceActionMethod,
-  serviceActionPath,
-  setServiceActionPath,
-  serviceActionPayload,
-  setServiceActionPayload,
-  serviceActionBusy,
-  serviceActionResult,
-  handleInvokeServiceAction,
-  onDiagnoseService,
-  onRemoveService,
-  onReloadWorkspace,
+  activeProject, primaryNode, gatewayUrl, selectedServiceId, setSelectedServiceId,
+  previewPort, setPreviewPort, previewSubPath, setPreviewSubPath,
+  previewReloadNonce, setPreviewReloadNonce, serviceWorkspaceTab, setServiceWorkspaceTab,
+  selectedEndpointId, setSelectedEndpointId, serviceActionMethod, setServiceActionMethod,
+  serviceActionPath, setServiceActionPath, serviceActionPayload, setServiceActionPayload,
+  serviceActionBusy, serviceActionResult, handleInvokeServiceAction,
+  onDiagnoseService, onRemoveService, onReloadWorkspace,
 }: ReverseProxyViewProps) {
   const { t } = useI18n();
   const [showBuilder, setShowBuilder] = useState(false);
@@ -113,7 +64,6 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
   const [newSvcBusy, setNewSvcBusy] = useState(false);
   const [newSvcNotice, setNewSvcNotice] = useState<string | null>(null);
 
-  // v0.7.0 Sub-View Mode: "workbench" | "hot-reload" | "sqlite-studio"
   const [v070Mode, setV070Mode] = useState<
     "workbench" | "hot-reload" | "sqlite-studio"
   >("workbench");
@@ -123,10 +73,7 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
   const [codeSaving, setCodeSaving] = useState(false);
   const [codeNotice, setCodeNotice] = useState<string | null>(null);
 
-  // v0.7.0 SQLite Data Studio State
-  const [dbPathInput, setDbPathInput] = useState(
-    "/opt/axon/workspaces/pulse-analytics/pulse.db"
-  );
+  const [dbPathInput, setDbPathInput] = useState("/var/lib/synapse/app.db");
   const [dbTables, setDbTables] = useState<string[]>(["events", "metrics"]);
   const [activeDbTable, setActiveDbTable] = useState("events");
   const [dbColumns, setDbColumns] = useState<string[]>([
@@ -143,18 +90,7 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
   const [dbBusy, setDbBusy] = useState(false);
   const [copiedResponse, setCopiedResponse] = useState(false);
   const [requestHistory, setRequestHistory] = useState<
-    Array<{
-      id: string;
-      port: number;
-      serviceName: string;
-      method: "GET" | "POST" | "PUT" | "DELETE" | "SQL";
-      path: string;
-      payload: string;
-      statusCode: number;
-      latencyMs: number;
-      ok: boolean;
-      timestamp: string;
-    }>
+    ReverseProxyRequestHistoryItem[]
   >([]);
   const [wbLogsOpen, setWbLogsOpen] = useState(false);
   const [wbLogsBusy, setWbLogsBusy] = useState(false);
@@ -163,11 +99,14 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
   const [wbLogsFilter, setWbLogsFilter] = useState("");
   const [wbLogsErrorsOnly, setWbLogsErrorsOnly] = useState(false);
   const [wbLogsCopied, setWbLogsCopied] = useState(false);
+
   const allSvcs = activeProject?.registered_services || [];
   const activeSvc =
     allSvcs.find((s) => s.service_id === selectedServiceId) ||
     allSvcs.find((s) => s.port === previewPort) ||
     allSvcs[0];
+  const projectId = activeProject?.project_id || "default-project";
+  const resolvedNodeId = activeSvc?.node_id || primaryNode || "local-node";
 
   useEffect(() => {
     if (v070Mode !== "hot-reload" || !activeSvc) return;
@@ -179,8 +118,8 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "get_service_code",
-        project_id: activeProject?.project_id || "synapse-cloud-demo",
-        node_id: activeSvc.node_id || primaryNode || "vps2-muscle",
+        project_id: projectId,
+        node_id: resolvedNodeId,
         service_id: activeSvc.service_id,
         port: activeSvc.port,
       }),
@@ -206,19 +145,34 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
     const entryId = `${activeSvc.port}-${serviceActionResult.method}-${serviceActionPath}-${serviceActionResult.status_code}-${serviceActionResult.latency_ms}`;
     setRequestHistory((prev) => {
       if (prev[0]?.id === entryId) return prev;
-      const nextItem = {
+      const nextItem: ReverseProxyRequestHistoryItem = {
         id: entryId,
         port: activeSvc.port,
-        serviceName: activeSvc.name.replace(new RegExp(`\\s*:${activeSvc.port}\\b`), "").trim(),
-        method: (serviceActionResult.method as "GET" | "POST" | "PUT" | "DELETE" | "SQL") || serviceActionMethod,
+        serviceName: activeSvc.name
+          .replace(new RegExp(`\\s*:${activeSvc.port}\\b`), "")
+          .trim(),
+        method:
+          (serviceActionResult.method as
+            | "GET"
+            | "POST"
+            | "PUT"
+            | "DELETE"
+            | "SQL") || serviceActionMethod,
         path: serviceActionPath,
         payload: serviceActionPayload,
         statusCode: serviceActionResult.status_code,
         latencyMs: serviceActionResult.latency_ms,
         ok: serviceActionResult.ok,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
       };
-      return [nextItem, ...prev.filter((item) => item.id !== entryId)].slice(0, 6);
+      return [nextItem, ...prev.filter((item) => item.id !== entryId)].slice(
+        0,
+        6
+      );
     });
   }, [serviceActionResult]);
 
@@ -232,7 +186,7 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "tail_logs",
-          node_id: svcTarget.node_id || primaryNode || "vps2-muscle",
+          node_id: svcTarget.node_id || primaryNode || "local-node",
           service_id: svcTarget.service_id,
           port: svcTarget.port,
           container_name: svcTarget.container_name,
@@ -269,8 +223,7 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
       (e.sample_payload || "") === serviceActionPayload
   );
   const byMethodPathIdx = activeEndpoints.findIndex(
-    (e) =>
-      e.method === serviceActionMethod && e.path === serviceActionPath
+    (e) => e.method === serviceActionMethod && e.path === serviceActionPath
   );
   const activeEndpointIdx =
     bySelectedIdIdx !== -1
@@ -322,8 +275,8 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   action: "deploy_custom_service",
-                  project_id: activeProject?.project_id || "synapse-cloud-demo",
-                  node_id: primaryNode || "vps2-muscle",
+                  project_id: projectId,
+                  node_id: primaryNode || "local-node",
                   name: newSvcName.trim(),
                   port: pNum,
                   category: newSvcCat,
@@ -474,37 +427,34 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
                             : "bg-red-500 animate-pulse"
                         }`}
                       />
-                      {onRemoveService &&
-                        !CORE_DEMO_SERVICE_IDS.has(svc.service_id) && (
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onRemoveService(
-                                svc.service_id,
-                                svc.node_id,
-                                svc.port
-                              );
-                            }}
-                            title={t(
-                              "Dienst aus Projekt entfernen",
-                              "Remove service from project"
-                            )}
-                            className="rounded p-1 text-nb-gray-500 hover:bg-red-950/70 hover:text-red-300 transition"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </span>
-                        )}
+                      {onRemoveService && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveService(
+                              svc.service_id,
+                              svc.node_id,
+                              svc.port
+                            );
+                          }}
+                          title={t(
+                            "Dienst aus Projekt entfernen",
+                            "Remove service from project"
+                          )}
+                          className="rounded p-1 text-nb-gray-500 hover:bg-red-950/70 hover:text-red-300 transition"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="mt-1 flex items-center gap-2 font-mono text-[11px] text-nb-gray-400 whitespace-nowrap">
                     <span
                       data-no-i18n="true"
                       className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                        cat === "webui"
-                          ? "bg-sky-950/80 text-sky-300 border border-sky-500/30"
-                          : cat === "database"
+                        cat === "webui" || cat === "database"
                           ? "bg-sky-950/80 text-sky-300 border border-sky-500/30"
                           : "bg-amber-950/70 text-amber-300 border border-amber-500/30"
                       }`}
@@ -516,7 +466,9 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
                         : "API"}
                     </span>
                     <span className="shrink-0 whitespace-nowrap text-nb-gray-300">
-                      {svc.service_id === "pulse-sqlite-db" ? "pulse.db (WAL)" : `Port ${svc.port}`}
+                      {svc.db_path
+                        ? `${svc.db_path.split("/").pop()} (WAL)`
+                        : `Port ${svc.port}`}
                     </span>
                   </div>
                 </div>
@@ -528,933 +480,88 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
 
       {activeSvc && (
         <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 shadow-lg">
-          <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-nb-gray-800/80 bg-nb-gray-930/70 px-5 py-3">
-            <div className="flex flex-wrap min-w-0 flex-1 items-center gap-2">
-              <span className="shrink-0 text-sm font-semibold text-white">
-                {activeSvc.name
-                  .replace(new RegExp(`\\s*:${activeSvc.port}\\b`), "")
-                  .trim()}
-              </span>
-              <span className="shrink-0 rounded-md border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[11px] text-nb-gray-300">
-                {activeSvc.node_id}:{activeSvc.port}
-              </span>
+          <ReverseProxyCodeAndSqliteStudios
+            v070Mode={v070Mode}
+            setV070Mode={setV070Mode}
+            activeSvc={activeSvc}
+            activeExtUrl={activeExtUrl}
+            serviceWorkspaceTab={serviceWorkspaceTab}
+            setServiceWorkspaceTab={setServiceWorkspaceTab}
+            activeProject={activeProject}
+            primaryNode={primaryNode}
+            codePath={codePath}
+            setCodePath={setCodePath}
+            codeText={codeText}
+            setCodeText={setCodeText}
+            codeLoading={codeLoading}
+            setCodeLoading={setCodeLoading}
+            codeSaving={codeSaving}
+            setCodeSaving={setCodeSaving}
+            codeNotice={codeNotice}
+            setCodeNotice={setCodeNotice}
+            dbPathInput={dbPathInput}
+            setDbPathInput={setDbPathInput}
+            dbTables={dbTables}
+            setDbTables={setDbTables}
+            activeDbTable={activeDbTable}
+            setActiveDbTable={setActiveDbTable}
+            dbColumns={dbColumns}
+            setDbColumns={setDbColumns}
+            dbRows={dbRows}
+            setDbRows={setDbRows}
+            dbRowCount={dbRowCount}
+            setDbRowCount={setDbRowCount}
+            dbCustomSql={dbCustomSql}
+            setDbCustomSql={setDbCustomSql}
+            dbNewEventVal={dbNewEventVal}
+            setDbNewEventVal={setDbNewEventVal}
+            dbNewSourceVal={dbNewSourceVal}
+            setDbNewSourceVal={setDbNewSourceVal}
+            dbBusy={dbBusy}
+            setDbBusy={setDbBusy}
+          />
 
-              <a
-                href={activeExtUrl}
-                target="_blank"
-                rel="noreferrer"
-                title={activeExtUrl}
-                className="group flex min-w-0 items-center gap-2 rounded-lg border border-nb-gray-800/90 bg-nb-gray-950/90 px-2.5 py-1 font-mono text-[11px] text-nb-gray-300 transition hover:border-netbird/50 hover:text-white"
-              >
-                <Globe className="h-3.5 w-3.5 shrink-0 text-netbird" />
-                <span className="truncate max-w-[460px] xl:max-w-[580px]">
-                  {activeExtUrl}
-                </span>
-                <span className="flex shrink-0 items-center gap-1 rounded bg-netbird/15 px-1.5 py-0.5 font-sans text-[10px] font-medium text-netbird group-hover:bg-netbird group-hover:text-white transition-colors">
-                  <span>Extern</span>
-                  <ExternalLink className="h-2.5 w-2.5" />
-                </span>
-              </a>
-            </div>
-
-            <div className="flex shrink-0 items-center rounded-lg border border-nb-gray-800 bg-nb-gray-950 p-1">
-              {[
-                {
-                  id: "tester",
-                  label: "API- & DB-Tester",
-                  icon: Code2,
-                },
-                {
-                  id: "preview",
-                  label: "Web-Vorschau",
-                  icon: Globe,
-                },
-              ].map((mode) => {
-                const ModeIcon = mode.icon;
-                const active = serviceWorkspaceTab === mode.id;
-                return (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    onClick={() =>
-                      setServiceWorkspaceTab(
-                        mode.id as "split" | "preview" | "tester"
-                      )
-                    }
-                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-                      active
-                        ? "bg-netbird text-white shadow-sm"
-                        : "text-nb-gray-400 hover:text-white"
-                    }`}
-                  >
-                    <ModeIcon className="h-3.5 w-3.5" />
-                    <span>{mode.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-800/80 bg-nb-gray-950/60 px-5 py-2 text-xs">
-            <span className="font-mono text-[10.5px] text-nb-gray-400">
-              {t(
-                "v0.7.0 Developer Workbench · API-Tester, Live Code Hot-Reload & Interactive SQLite Data Studio",
-                "v0.7.0 Developer Workbench · API Tester, Live Code Hot-Reload & Interactive SQLite Data Studio"
-              )}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setV070Mode("workbench")}
-                className={`rounded-md border px-2.5 py-1 font-mono text-[10.5px] font-medium transition ${
-                  v070Mode === "workbench"
-                    ? "border-netbird bg-netbird/20 text-white"
-                    : "border-nb-gray-800 bg-nb-gray-940 text-nb-gray-400 hover:text-white"
-                }`}
-              >
-                {t("⚡ API- & Web-Tester", "⚡ API & Web Tester")}
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  setV070Mode("hot-reload");
-                  if (activeSvc) {
-                    setCodeLoading(true);
-                    setCodeNotice(null);
-                    try {
-                      const r = await fetch("/api/service-ops", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          action: "get_service_code",
-                          project_id:
-                            activeProject?.project_id || "synapse-cloud-demo",
-                          node_id:
-                            activeSvc.node_id || primaryNode || "vps2-muscle",
-                          service_id: activeSvc.service_id,
-                          port: activeSvc.port,
-                        }),
-                      });
-                      const d = await r.json();
-                      if (d.ok) {
-                        setCodePath(d.file_path || "");
-                        setCodeText(d.code || "");
-                      }
-                    } finally {
-                      setCodeLoading(false);
-                    }
-                  }
-                }}
-                className={`rounded-md border px-2.5 py-1 font-mono text-[10.5px] font-medium transition ${
-                  v070Mode === "hot-reload"
-                    ? "border-amber-500/60 bg-amber-950/70 text-amber-300"
-                    : "border-nb-gray-800 bg-nb-gray-940 text-nb-gray-400 hover:text-white"
-                }`}
-              >
-                {t("🔥 Code & Hot-Reload", "🔥 Code & Hot-Reload")}
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  setV070Mode("sqlite-studio");
-                  setDbBusy(true);
-                  try {
-                    const targetDb = activeSvc?.db_path || dbPathInput;
-                    setDbPathInput(targetDb);
-                    const r = await fetch("/api/service-ops", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        action: "sqlite_studio",
-                        project_id:
-                          activeProject?.project_id || "synapse-cloud-demo",
-                        node_id:
-                          activeSvc?.node_id || primaryNode || "vps2-muscle",
-                        db_path: targetDb,
-                        table: activeDbTable,
-                      }),
-                    });
-                    const d = await r.json();
-                    if (d.ok) {
-                      setDbTables(d.tables || ["events"]);
-                      setActiveDbTable(d.active_table || "events");
-                      setDbColumns(d.columns || []);
-                      setDbRows(d.rows || []);
-                      setDbRowCount(d.row_count || 0);
-                    }
-                  } finally {
-                    setDbBusy(false);
-                  }
-                }}
-                className={`rounded-md border px-2.5 py-1 font-mono text-[10.5px] font-medium transition ${
-                  v070Mode === "sqlite-studio"
-                    ? "border-sky-500/60 bg-sky-950/70 text-sky-300"
-                    : "border-nb-gray-800 bg-nb-gray-940 text-nb-gray-400 hover:text-white"
-                }`}
-              >
-                {t("🗄️ SQLite Data Studio", "🗄️ SQLite Data Studio")}
-              </button>
-            </div>
-          </div>
-
-          {v070Mode === "hot-reload" && (
-            <div className="p-5 space-y-3.5 text-xs">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="font-semibold text-white">
-                    {t(
-                      `Live Service Code-Editor & Hot-Reload — ${activeSvc.name}`,
-                      `Live Service Code Editor & Hot-Reload — ${activeSvc.name}`
-                    )}
-                  </div>
-                  <div className="font-mono text-[11px] text-nb-gray-400">
-                    {activeSvc.node_id}:{activeSvc.port} ·{" "}
-                    {codePath ||
-                      `/var/lib/synapse/services/${activeSvc.service_id}/server_${activeSvc.port}.py`}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  disabled={codeLoading || codeSaving}
-                  onClick={async () => {
-                    if (!codeText.trim()) return;
-                    setCodeSaving(true);
-                    setCodeNotice(null);
-                    try {
-                      const r = await fetch("/api/service-ops", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          action: "hot_reload_service_code",
-                          project_id:
-                            activeProject?.project_id || "synapse-cloud-demo",
-                          node_id:
-                            activeSvc.node_id || primaryNode || "vps2-muscle",
-                          service_id: activeSvc.service_id,
-                          port: activeSvc.port,
-                          file_path: codePath,
-                          code: codeText,
-                        }),
-                      });
-                      const d = await r.json();
-                      if (d.ok) {
-                        if (d.healthy === false || d.http_status >= 500) {
-                          setCodeNotice(
-                            t(
-                              `⚠️ Syntax-/Start-Fehler erkannt — Automatischer Rollback auf letzte stabile Version aktiv (Snapshot ${d.snapshot_id})!`,
-                              `⚠️ Syntax/startup error detected — automatic rollback to last stable version active (Snapshot ${d.snapshot_id})!`
-                            )
-                          );
-                        } else {
-                          setCodeNotice(
-                            t(
-                              `🔥 Hot-Reload auf :${d.port} in ${d.elapsed_ms} ms aktiv (Snapshot ${d.snapshot_id}, HTTP ${d.http_status})!`,
-                              `🔥 Hot-Reload active on :${d.port} in ${d.elapsed_ms} ms (Snapshot ${d.snapshot_id}, HTTP ${d.http_status})!`
-                            )
-                          );
-                        }
-                      }
-                    } finally {
-                      setCodeSaving(false);
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-netbird px-4 py-2 text-xs font-semibold text-white hover:bg-netbird-500 disabled:opacity-50 transition"
-                >
-                  <Zap className="h-3.5 w-3.5" />
-                  <span>
-                    {codeSaving
-                      ? t("Hot-Reload läuft...", "Hot-Reloading...")
-                      : t("Save & Hot-Reload", "Save & Hot-Reload")}
-                  </span>
-                </button>
-              </div>
-              {codeNotice && (
-                <div className="rounded-lg border border-emerald-500/40 bg-emerald-950/70 px-3 py-2 font-mono text-[11px] text-emerald-300">
-                  {codeNotice}
-                </div>
-              )}
-              <textarea
-                rows={14}
-                value={
-                  codeLoading
-                    ? t(
-                        "Lade Quellcode vom Muscle-Server...",
-                        "Loading source code from Muscle server..."
-                      )
-                    : codeText
-                }
-                onChange={(e) => setCodeText(e.target.value)}
-                disabled={codeLoading}
-                className="w-full rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-3.5 font-mono text-xs leading-relaxed text-nb-gray-100 focus:border-netbird focus:outline-none"
-              />
-            </div>
-          )}
-
-          {v070Mode === "sqlite-studio" && (
-            <div className="p-5 space-y-4 text-xs">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Database className="h-4 w-4 text-sky-400" />
-                  <span className="font-semibold text-white">
-                    {t(
-                      "Interactive SQLite Data Studio (v0.7.0)",
-                      "Interactive SQLite Data Studio (v0.7.0)"
-                    )}
-                  </span>
-                  <span className="rounded border border-sky-500/40 bg-sky-950/70 px-2 py-0.5 font-mono text-[10px] text-sky-300">
-                    {dbRowCount} {t("Zeilen", "Rows")}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {dbTables.map((tbl) => (
-                    <button
-                      key={tbl}
-                      type="button"
-                      onClick={async () => {
-                        setActiveDbTable(tbl);
-                        setDbBusy(true);
-                        try {
-                          const r = await fetch("/api/service-ops", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              action: "sqlite_studio",
-                              project_id:
-                                activeProject?.project_id ||
-                                "synapse-cloud-demo",
-                              node_id:
-                                activeSvc?.node_id ||
-                                primaryNode ||
-                                "vps2-muscle",
-                              db_path: dbPathInput,
-                              table: tbl,
-                            }),
-                          });
-                          const d = await r.json();
-                          if (d.ok) {
-                            setDbColumns(d.columns || []);
-                            setDbRows(d.rows || []);
-                            setDbRowCount(d.row_count || 0);
-                          }
-                        } finally {
-                          setDbBusy(false);
-                        }
-                      }}
-                      className={`rounded-md border px-2.5 py-1 font-mono text-[10.5px] transition ${
-                        activeDbTable === tbl
-                          ? "border-sky-500 bg-sky-950 text-sky-300 font-semibold"
-                          : "border-nb-gray-800 bg-nb-gray-950 text-nb-gray-400 hover:text-white"
-                      }`}
-                    >
-                      📋 {tbl}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const blob = new Blob([JSON.stringify(dbRows, null, 2)], {
-                        type: "application/json",
-                      });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = `${activeDbTable}-export.json`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                    className="rounded-md border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1 font-mono text-[10.5px] text-nb-gray-300 hover:text-white"
-                  >
-                    ⬇ JSON Export
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-12">
-                <input
-                  type="text"
-                  value={dbNewEventVal}
-                  onChange={(e) => setDbNewEventVal(e.target.value)}
-                  placeholder={t(
-                    "Event-Name (z.B. deploy_ok)",
-                    "Event name (e.g. deploy_ok)"
-                  )}
-                  className="sm:col-span-4 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-1.5 font-mono text-xs text-white"
-                />
-                <input
-                  type="text"
-                  value={dbNewSourceVal}
-                  onChange={(e) => setDbNewSourceVal(e.target.value)}
-                  placeholder="Source"
-                  className="sm:col-span-2 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-1.5 font-mono text-xs text-nb-gray-300"
-                />
-                <input
-                  type="text"
-                  value={dbCustomSql}
-                  onChange={(e) => setDbCustomSql(e.target.value)}
-                  placeholder="SQL-Abfrage (optional)"
-                  className="sm:col-span-3 rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-1.5 font-mono text-xs text-sky-300"
-                />
-                <button
-                  type="button"
-                  disabled={dbBusy}
-                  onClick={async () => {
-                    setDbBusy(true);
-                    try {
-                      const r = await fetch("/api/service-ops", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          action: "sqlite_studio",
-                          project_id:
-                            activeProject?.project_id || "synapse-cloud-demo",
-                          node_id:
-                            activeSvc?.node_id || primaryNode || "vps2-muscle",
-                          db_path: dbPathInput,
-                          table: activeDbTable,
-                          custom_sql: dbCustomSql.trim() || undefined,
-                          insert_row: dbNewEventVal.trim()
-                            ? activeDbTable === "metrics"
-                              ? {
-                                  metric_key: dbNewEventVal.trim(),
-                                  metric_val: "1.0",
-                                }
-                              : {
-                                  event: dbNewEventVal.trim(),
-                                  source: dbNewSourceVal.trim() || "studio",
-                                }
-                            : undefined,
-                        }),
-                      });
-                      const d = await r.json();
-                      if (d.ok) {
-                        setDbColumns(d.columns || []);
-                        setDbRows(d.rows || []);
-                        setDbRowCount(d.row_count || 0);
-                        setDbNewEventVal("");
-                      }
-                    } finally {
-                      setDbBusy(false);
-                    }
-                  }}
-                  className="sm:col-span-3 whitespace-nowrap rounded-lg bg-netbird px-3 py-1.5 font-semibold text-white hover:bg-netbird-500 disabled:opacity-50"
-                >
-                  {dbBusy
-                    ? t("Lädt...", "Loading...")
-                    : dbNewEventVal.trim()
-                    ? t("+ Zeile einfügen & Abfragen", "+ Insert Row & Query")
-                    : t("SQL ausführen", "Run SQL")}
-                </button>
-              </div>
-
-              <div className="overflow-x-auto rounded-xl border border-nb-gray-800 bg-nb-gray-950">
-                <table className="w-full text-left font-mono text-[11px]">
-                  <thead className="border-b border-nb-gray-800 bg-nb-gray-930/70 text-[10px] uppercase text-nb-gray-400">
-                    <tr>
-                      {dbColumns.map((col) => (
-                        <th key={col} className="px-3 py-2">
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-nb-gray-900">
-                    {dbRows.map((row, rIdx) => (
-                      <tr key={rIdx} className="hover:bg-nb-gray-930/50">
-                        {dbColumns.map((col) => (
-                          <td
-                            key={col}
-                            className="px-3 py-2 text-nb-gray-200 whitespace-nowrap"
-                          >
-                            {String(row[col] ?? "")}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {v070Mode === "workbench" && serviceWorkspaceTab !== "preview" && (
-            <div className="grid grid-cols-1 divide-y divide-nb-gray-800/80 lg:grid-cols-12 lg:divide-y-0 lg:divide-x">
-              <div className="lg:col-span-4 bg-nb-gray-950/35 p-4 space-y-3">
-                <div className="flex items-center justify-between px-1">
-                  <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
-                    Verfügbare Endpunkte
-                  </span>
-                  <span className="rounded-full border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 font-mono text-[10px] text-nb-gray-400">
-                    {activeEndpoints.length}
-                  </span>
-                </div>
-
-                {activeEndpoints.length === 0 ? (
-                  <div className="rounded-lg border border-nb-gray-800/60 bg-nb-gray-950/60 p-3.5 text-xs text-nb-gray-400">
-                    Sende rechts eine Anfrage an{" "}
-                    <code className="font-mono text-white">
-                      :{activeSvc.port}
-                    </code>
-                    .
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {activeEndpoints.map((ep, idx) => {
-                      const isCurrentEp = idx === activeEndpointIdx;
-                      const cleanLabel = ep.label
-                        .replace(new RegExp(`^${ep.method}\\s+`, "i"), "")
-                        .trim();
-
-                      return (
-                        <button
-                          key={`${ep.id || idx}::${ep.label}`}
-                          type="button"
-                          onClick={() => {
-                            setSelectedServiceId(activeSvc.service_id);
-                            setSelectedEndpointId(
-                              `${ep.id || idx}::${ep.label}`
-                            );
-                            setPreviewPort(activeSvc.port);
-                            setServiceActionMethod(ep.method);
-                            setServiceActionPath(ep.path);
-                            setServiceActionPayload(ep.sample_payload || "");
-                            handleInvokeServiceAction({
-                              nodeId: activeSvc.node_id,
-                              port: activeSvc.port,
-                              method: ep.method,
-                              path: ep.path,
-                              payload: ep.sample_payload || "",
-                            });
-                          }}
-                          className={`group flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left text-xs transition-all ${
-                            isCurrentEp
-                              ? "border-netbird/60 bg-netbird/10 text-white shadow-sm"
-                              : "border-nb-gray-800/70 bg-nb-gray-950/60 text-nb-gray-300 hover:border-nb-gray-700 hover:bg-nb-gray-900/70 hover:text-white"
-                          }`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase ${
-                                  ep.method === "POST"
-                                    ? "bg-amber-950/90 text-amber-300 border border-amber-500/30"
-                                    : ep.method === "SQL"
-                                    ? "bg-sky-950/90 text-sky-300 border border-sky-500/30"
-                                    : "bg-emerald-950/90 text-emerald-300 border border-emerald-500/30"
-                                }`}
-                              >
-                                {ep.method}
-                              </span>
-                              <span className="truncate font-mono text-xs font-medium text-white">
-                                {cleanLabel}
-                              </span>
-                            </div>
-                            {ep.description && (
-                              <div className="mt-1.5 line-clamp-2 leading-snug text-[11px] text-nb-gray-400">
-                                {ep.description}
-                              </div>
-                            )}
-                          </div>
-                          <span
-                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                              isCurrentEp
-                                ? "border-netbird/50 bg-netbird text-white"
-                                : "border-nb-gray-800 bg-nb-gray-900 text-nb-gray-400 group-hover:border-netbird/40 group-hover:text-netbird"
-                            }`}
-                          >
-                            <Play className="h-3 w-3" />
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="lg:col-span-8 p-5 space-y-4">
-                <div className="flex items-center gap-2 rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-1.5 focus-within:border-netbird/60 transition-colors">
-                  <select
-                    value={serviceActionMethod}
-                    onChange={(e) => {
-                      setSelectedEndpointId("");
-                      setServiceActionMethod(
-                        e.target.value as
-                          | "GET"
-                          | "POST"
-                          | "PUT"
-                          | "DELETE"
-                          | "SQL"
-                      );
-                    }}
-                    className="rounded-lg border border-nb-gray-800/80 bg-nb-gray-900 px-3 py-1.5 font-mono text-xs font-bold text-netbird focus:outline-none cursor-pointer"
-                  >
-                    <option value="GET">GET</option>
-                    <option value="POST">POST</option>
-                    <option value="PUT">PUT</option>
-                    <option value="DELETE">DELETE</option>
-                    <option value="SQL">SQL</option>
-                  </select>
-
-                  <div className="h-5 w-px bg-nb-gray-800 shrink-0" />
-
-                  <input
-                    type="text"
-                    value={serviceActionPath}
-                    onChange={(e) => {
-                      setSelectedEndpointId("");
-                      setServiceActionPath(e.target.value);
-                    }}
-                    placeholder={
-                      serviceActionMethod === "SQL"
-                        ? "/opt/axon/workspaces/.../pulse.db"
-                        : "/"
-                    }
-                    className="flex-1 bg-transparent px-2.5 py-1.5 font-mono text-xs text-white placeholder:text-nb-gray-500 focus:outline-none"
-                  />
-
-                  <button
-                    type="button"
-                    disabled={serviceActionBusy}
-                    onClick={() => handleInvokeServiceAction()}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-netbird px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-netbird-500 disabled:opacity-50 transition-colors"
-                  >
-                    <Play className="h-3.5 w-3.5" />
-                    <span>
-                      {serviceActionBusy ? "Läuft..." : "Ausführen"}
-                    </span>
-                  </button>
-                </div>
-
-                {(serviceActionMethod !== "GET" ||
-                  serviceActionPayload.trim().length > 0) && (
-                  <div className="space-y-1.5">
-                    <div className="px-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
-                      {serviceActionMethod === "SQL"
-                        ? "SQL-Abfrage"
-                        : "Request-Body (JSON)"}
-                    </div>
-                    <textarea
-                      rows={3}
-                      value={serviceActionPayload}
-                      onChange={(e) => {
-                        setSelectedEndpointId("");
-                        setServiceActionPayload(e.target.value);
-                      }}
-                      placeholder={
-                        serviceActionMethod === "SQL"
-                          ? "SELECT * FROM events ORDER BY id DESC LIMIT 10;"
-                          : '{"action": "ping"}'
-                      }
-                      className="w-full rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-3.5 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
-                    />
-                  </div>
-                )}
-
-                <div className="overflow-hidden rounded-xl border border-nb-gray-800/90 bg-nb-gray-950">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-800/80 bg-nb-gray-930/60 px-4 py-2.5 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                      <span className="font-medium text-nb-gray-200">
-                        Antwort
-                      </span>
-                      <span className="font-mono text-[11px] text-nb-gray-400">
-                        ({activeSvc.name})
-                      </span>
-                    </div>
-
-                    {serviceActionResult && (
-                      <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
-                        <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 text-nb-gray-300">
-                          {serviceActionResult.method}
-                        </span>
-                        <span
-                          className={`rounded border px-2 py-0.5 font-semibold ${
-                            serviceActionResult.ok
-                              ? "border-emerald-500/40 bg-emerald-950/80 text-emerald-300"
-                              : "border-red-500/40 bg-red-950/80 text-red-300"
-                          }`}
-                        >
-                          HTTP {serviceActionResult.status_code}
-                        </span>
-                        <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 text-nb-gray-400">
-                          {serviceActionResult.latency_ms} ms
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard?.writeText(
-                              serviceActionResult.response_text || ""
-                            );
-                            setCopiedResponse(true);
-                            setTimeout(() => setCopiedResponse(false), 1800);
-                          }}
-                          className="inline-flex items-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 text-[10.5px] text-nb-gray-300 hover:border-emerald-400 hover:text-emerald-300 transition"
-                        >
-                          {copiedResponse ? (
-                            <Check className="h-3 w-3 text-emerald-400" />
-                          ) : (
-                            <Copy className="h-3 w-3" />
-                          )}
-                          <span>{t("Kopieren", "Copy")}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleFetchWorkbenchLogs(activeSvc)}
-                          className="inline-flex items-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-950 px-2 py-0.5 text-[10.5px] text-sky-300 hover:border-sky-400 hover:text-white transition"
-                        >
-                          <FileText className="h-3 w-3 text-sky-400" />
-                          <span>{t("Live-Logs", "Live Logs")}</span>
-                        </button>
-                        {onDiagnoseService && (
-                          <button
-                            type="button"
-                            onClick={() => onDiagnoseService(activeSvc.port)}
-                            className="inline-flex items-center gap-1 rounded border border-violet-500/40 bg-violet-950/70 px-2 py-0.5 text-[10.5px] font-semibold text-violet-300 hover:bg-violet-900/70 transition"
-                          >
-                            <Bot className="h-3 w-3 text-violet-400" />
-                            <span>{t("KI-Diagnose", "AI Diagnosis")}</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <pre className="max-h-80 min-h-[180px] overflow-auto p-4 font-mono text-xs whitespace-pre-wrap text-nb-gray-100 leading-relaxed select-text">
-                    {serviceActionResult
-                      ? serviceActionResult.response_text
-                      : t(
-                          "Klicke links auf einen Endpunkt oder oben auf 'Ausführen'.",
-                          "Click an endpoint on the left or 'Execute' above."
-                        )}
-                  </pre>
-                </div>
-
-                {/* v0.7.0 COMFORT UPGRADE: REQUEST HISTORY & 1-CLICK REPLAY */}
-                {requestHistory.length > 0 && (
-                  <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-950/80 p-3 space-y-2">
-                    <div className="flex items-center justify-between text-[11px] text-nb-gray-400">
-                      <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-300">
-                        <History className="h-3.5 w-3.5 text-netbird" />
-                        <span>
-                          {t(
-                            "Letzte API-Aufrufe (1-Klick Replay)",
-                            "Recent API Calls (1-Click Replay)"
-                          )}
-                        </span>
-                      </span>
-                      <span className="font-mono text-[10px] text-nb-gray-400">
-                        {requestHistory.length} {t("Aufrufe", "Calls")}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {requestHistory.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => {
-                            setPreviewPort(item.port);
-                            setServiceActionMethod(item.method);
-                            setServiceActionPath(item.path);
-                            setServiceActionPayload(item.payload);
-                            handleInvokeServiceAction({
-                              nodeId: activeSvc.node_id,
-                              port: item.port,
-                              method: item.method,
-                              path: item.path,
-                              payload: item.payload,
-                            });
-                          }}
-                          title={t(
-                            "Klicken für sofortiges 1-Klick Replay",
-                            "Click for instant 1-Click Replay"
-                          )}
-                          className="group inline-flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-940 px-2.5 py-1 font-mono text-[10.5px] text-nb-gray-200 hover:border-netbird/60 hover:text-white transition"
-                        >
-                          <span
-                            className={`rounded px-1 py-0.5 text-[9px] font-bold ${
-                              item.method === "POST"
-                                ? "bg-amber-950 text-amber-300"
-                                : item.method === "SQL"
-                                ? "bg-sky-950 text-sky-300"
-                                : "bg-emerald-950 text-emerald-300"
-                            }`}
-                          >
-                            {item.method}
-                          </span>
-                          <span className="text-nb-gray-300">:{item.port}</span>
-                          <span className="max-w-[140px] truncate text-white">
-                            {item.path}
-                          </span>
-                          <span
-                            className={`text-[9.5px] ${
-                              item.ok ? "text-emerald-400" : "text-red-400"
-                            }`}
-                          >
-                            {item.statusCode} · {item.latencyMs}ms
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* v0.7.0 COMFORT UPGRADE: WORKBENCH LIVE-LOG CONSOLE WITH FILTER, COPY & AI DIAGNOSIS */}
-                {wbLogsOpen && (() => {
-                  const filteredWbLines = wbLogsLines.slice(-50).filter((line) => {
-                    if (
-                      wbLogsErrorsOnly &&
-                      !/error|fail|exception|panic|500|501|502|503|404/i.test(line)
-                    ) {
-                      return false;
-                    }
-                    if (
-                      wbLogsFilter.trim() &&
-                      !line.toLowerCase().includes(wbLogsFilter.trim().toLowerCase())
-                    ) {
-                      return false;
-                    }
-                    return true;
-                  });
-                  return (
-                    <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-3.5 font-mono text-xs space-y-2.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-3.5 w-3.5 text-sky-400" />
-                          <span className="font-semibold text-white">
-                            {t("Live-Log-Konsole", "Live Log Console")} (:{activeSvc.port})
-                          </span>
-                          <span
-                            className={`rounded border px-1.5 py-0.5 text-[10px] ${
-                              wbLogsErrorCount > 0
-                                ? "border-red-500/40 bg-red-950/70 text-red-300"
-                                : "border-emerald-500/40 bg-emerald-950/70 text-emerald-300"
-                            }`}
-                          >
-                            {wbLogsErrorCount} {t("Fehler", "Errors")}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="relative">
-                            <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-nb-gray-500" />
-                            <input
-                              type="text"
-                              value={wbLogsFilter}
-                              onChange={(e) => setWbLogsFilter(e.target.value)}
-                              placeholder={t("Logs durchsuchen...", "Search logs...")}
-                              className="w-40 rounded-lg border border-nb-gray-800 bg-nb-gray-940 pl-6 pr-2 py-1 text-[10.5px] text-white placeholder:text-nb-gray-500 focus:border-sky-400 focus:outline-none"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setWbLogsErrorsOnly((v) => !v)}
-                            className={`rounded-lg border px-2 py-1 text-[10px] font-semibold transition ${
-                              wbLogsErrorsOnly
-                                ? "border-red-500/50 bg-red-950/80 text-red-300"
-                                : "border-nb-gray-800 bg-nb-gray-900 text-nb-gray-400 hover:text-white"
-                            }`}
-                          >
-                            {t("Nur Fehler", "Errors Only")}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={wbLogsBusy}
-                            onClick={() => void handleFetchWorkbenchLogs(activeSvc)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-nb-gray-800 bg-nb-gray-900 px-2 py-1 text-[10px] text-nb-gray-300 hover:border-sky-400 hover:text-white transition"
-                          >
-                            <RefreshCw className={`h-3 w-3 ${wbLogsBusy ? "animate-spin text-sky-400" : ""}`} />
-                            <span>{t("Aktualisieren", "Refresh")}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard?.writeText(filteredWbLines.join("\n"));
-                              setWbLogsCopied(true);
-                              setTimeout(() => setWbLogsCopied(false), 1800);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-nb-gray-800 bg-nb-gray-900 px-2 py-1 text-[10px] text-nb-gray-300 hover:border-emerald-400 hover:text-emerald-300 transition"
-                          >
-                            {wbLogsCopied ? (
-                              <Check className="h-3 w-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                            <span>{t("Kopieren", "Copy")}</span>
-                          </button>
-                          {onDiagnoseService && (
-                            <button
-                              type="button"
-                              onClick={() => onDiagnoseService(activeSvc.port)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-950/70 px-2 py-1 text-[10px] font-semibold text-violet-300 hover:bg-violet-900/70 transition"
-                            >
-                              <Bot className="h-3 w-3 text-violet-400" />
-                              <span>{t("KI-Diagnose", "AI Diagnosis")}</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="max-h-44 overflow-y-auto space-y-0.5 rounded-lg bg-black/60 p-2.5 text-[11px] text-nb-gray-300 select-text">
-                        {filteredWbLines.length === 0 ? (
-                          <div className="py-2 text-center text-nb-gray-500">
-                            {t("Keine passenden Log-Einträge gefunden.", "No matching log entries found.")}
-                          </div>
-                        ) : (
-                          filteredWbLines.map((line, lIdx) => (
-                            <div
-                              key={lIdx}
-                              className={`break-all ${
-                                /error|fail|exception|panic/i.test(line)
-                                  ? "text-red-400"
-                                  : "text-nb-gray-300"
-                              }`}
-                            >
-                              {line}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          )}
-
-          {v070Mode === "workbench" && serviceWorkspaceTab === "preview" && (
-            <div className="flex flex-col">
-              <div className="flex items-center justify-between gap-2 border-b border-nb-gray-800 bg-nb-gray-950 px-5 py-2.5 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[11px] text-nb-gray-400">
-                    Pfad auf :{previewPort}
-                  </span>
-                  <input
-                    type="text"
-                    value={previewSubPath}
-                    onChange={(e) => setPreviewSubPath(e.target.value || "/")}
-                    className="w-56 rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-3 py-1 font-mono text-xs text-white focus:border-netbird focus:outline-none"
-                    placeholder="/"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setPreviewReloadNonce((n) => n + 1)}
-                  className="flex items-center gap-1.5 rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-3 py-1.5 text-xs text-nb-gray-300 hover:text-white transition"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  <span>Neu laden</span>
-                </button>
-              </div>
-              <iframe
-                key={`${previewPort}-${previewSubPath}-${previewReloadNonce}`}
-                title="Synapse Reverse Proxy Preview"
-                src={`${gatewayUrl}/preview/${activeProject?.project_id}/${
-                  activeSvc?.node_id || primaryNode || "unassigned"
-                }/${previewPort}${
-                  previewSubPath.startsWith("/")
-                    ? previewSubPath
-                    : `/${previewSubPath}`
-                }`}
-                className="w-full bg-white h-[500px]"
-              />
-            </div>
+          {v070Mode === "workbench" && (
+            <ReverseProxyWorkbenchPanel
+              activeSvc={activeSvc}
+              activeProject={activeProject}
+              primaryNode={primaryNode}
+              gatewayUrl={gatewayUrl}
+              serviceWorkspaceTab={serviceWorkspaceTab}
+              activeEndpointIdx={activeEndpointIdx}
+              setSelectedServiceId={setSelectedServiceId}
+              setSelectedEndpointId={setSelectedEndpointId}
+              previewPort={previewPort}
+              setPreviewPort={setPreviewPort}
+              previewSubPath={previewSubPath}
+              setPreviewSubPath={setPreviewSubPath}
+              previewReloadNonce={previewReloadNonce}
+              setPreviewReloadNonce={setPreviewReloadNonce}
+              serviceActionMethod={serviceActionMethod}
+              setServiceActionMethod={setServiceActionMethod}
+              serviceActionPath={serviceActionPath}
+              setServiceActionPath={setServiceActionPath}
+              serviceActionPayload={serviceActionPayload}
+              setServiceActionPayload={setServiceActionPayload}
+              serviceActionBusy={serviceActionBusy}
+              serviceActionResult={serviceActionResult}
+              handleInvokeServiceAction={handleInvokeServiceAction}
+              copiedResponse={copiedResponse}
+              setCopiedResponse={setCopiedResponse}
+              requestHistory={requestHistory}
+              wbLogsOpen={wbLogsOpen}
+              wbLogsBusy={wbLogsBusy}
+              wbLogsLines={wbLogsLines}
+              wbLogsErrorCount={wbLogsErrorCount}
+              wbLogsFilter={wbLogsFilter}
+              setWbLogsFilter={setWbLogsFilter}
+              wbLogsErrorsOnly={wbLogsErrorsOnly}
+              setWbLogsErrorsOnly={setWbLogsErrorsOnly}
+              wbLogsCopied={wbLogsCopied}
+              setWbLogsCopied={setWbLogsCopied}
+              handleFetchWorkbenchLogs={handleFetchWorkbenchLogs}
+              onDiagnoseService={onDiagnoseService}
+            />
           )}
         </div>
       )}

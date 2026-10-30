@@ -5,28 +5,40 @@ import {
   saveCheckpoints,
 } from "@/lib/checkpoints";
 import { appendAuditLog, ensureProjectVault } from "@/lib/vault";
+import {
+  resolveActiveProjectId,
+  resolveProjectDbPath,
+  resolveTargetNodeId,
+  safeParseRequestJson,
+} from "@/lib/runtimeResolver";
 
 const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
 export async function GET(req: NextRequest) {
-  const projectId =
-    req.nextUrl.searchParams.get("project_id") || "synapse-cloud-demo";
+  const projectId = resolveActiveProjectId(
+    req.nextUrl.searchParams.get("project_id")
+  );
   const checkpoints = loadCheckpoints(projectId);
   return NextResponse.json({ checkpoints });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const projectId = String(body.project_id || "synapse-cloud-demo");
+    const body = await safeParseRequestJson(req);
+    const projectId = resolveActiveProjectId(
+      String(body.project_id || body.projectId || "")
+    );
     const action = String(body.action || "");
 
     if (action === "create") {
-      const nodeId = String(body.node_id || "vps2-muscle");
+      const state = ensureProjectVault(projectId);
+      const nodeId =
+        resolveTargetNodeId(state, String(body.node_id || body.nodeId || "")) ||
+        "local-node";
+      const dbPath = resolveProjectDbPath(state);
       const title = String(body.title || "Manual Server Snapshot");
       const actor =
         (body.actor as "Synapse AI" | "Admin" | "Auto-Watchdog") || "Admin";
-      const state = ensureProjectVault(projectId);
       const nodeServices = (state.registered_services || [])
         .filter((s) => s.node_id === nodeId)
         .map((s) => ({
@@ -36,9 +48,8 @@ export async function POST(req: NextRequest) {
           healthy: Boolean(s.healthy),
         }));
 
-      // Trigger an atomic backup copy of pulse.db and any .synapse.bak files on the Muscle node
       let snapSummary =
-        body.summary ||
+        String(body.summary || "") ||
         `Captured ${nodeServices.length} active services and atomic state backup on ${nodeId}.`;
       try {
         const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {
@@ -49,10 +60,10 @@ export async function POST(req: NextRequest) {
             cmd_id: `chk-snap-${Date.now()}`,
             project_id: projectId,
             session_id: "checkpoint-snap",
-            command:
-              "if [ -f /var/lib/synapse/pulse-stack/pulse.db ]; then cp -f /var/lib/synapse/pulse-stack/pulse.db /var/lib/synapse/pulse-stack/pulse.db.synapse.bak; fi && echo SNAPSHOT_SYNCED",
+            command: `if [ -f ${JSON.stringify(dbPath)} ]; then cp -f ${JSON.stringify(dbPath)} ${JSON.stringify(dbPath + ".synapse.bak")}; fi && echo SNAPSHOT_SYNCED`,
             wait_timeout_ms: 4000,
           }),
+          signal: AbortSignal.timeout(5000),
         });
         if (ptyRes.ok) {
           snapSummary = `${snapSummary} (Atomic .synapse.bak verified on ${nodeId})`;
@@ -66,14 +77,13 @@ export async function POST(req: NextRequest) {
         title,
         actor,
         summary: snapSummary,
-        files_backed_up: body.files_backed_up || [
-          "/var/lib/synapse/pulse-stack/pulse.db.synapse.bak",
-          "/etc/systemd/system/axon.service",
-        ],
+        files_backed_up: Array.isArray(body.files_backed_up)
+          ? (body.files_backed_up as string[])
+          : [`${dbPath}.synapse.bak`, "/etc/systemd/system/axon.service"],
         services_snapshot: nodeServices,
         rollback_cmd:
-          body.rollback_cmd ||
-          "if [ -f /var/lib/synapse/pulse-stack/pulse.db.synapse.bak ]; then cp -f /var/lib/synapse/pulse-stack/pulse.db.synapse.bak /var/lib/synapse/pulse-stack/pulse.db; fi && docker start synapse-cloud-demo-status 2>/dev/null || true && echo 'CHECKPOINT_RESTORED_OK'",
+          String(body.rollback_cmd || "") ||
+          `if [ -f ${dbPath}.synapse.bak ]; then cp -f ${dbPath}.synapse.bak ${dbPath}; fi && echo 'CHECKPOINT_RESTORED_OK'`,
       });
 
       appendAuditLog(projectId, {
@@ -117,6 +127,7 @@ export async function POST(req: NextRequest) {
             command: target.rollback_cmd,
             wait_timeout_ms: 8000,
           }),
+          signal: AbortSignal.timeout(9500),
         });
         const ptyJson = await ptyRes.json();
         restoreOutput = String(

@@ -6,6 +6,7 @@ import type {
   NodeHeartbeat,
   PtyExecResponse,
 } from "@proto/tunnel";
+import { resolveActiveProjectId } from "./runtimeResolver";
 
 export const CORE_GATEWAY_URL =
   process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
@@ -31,11 +32,12 @@ export interface NormalizedApiParams {
  */
 export function normalizeApiParams(
   body: Record<string, unknown>,
-  defaultProjectId = "synapse-cloud-demo"
+  defaultProjectId?: string
 ): NormalizedApiParams {
-  const projectId = String(
-    body.projectId || body.project_id || defaultProjectId
+  const rawProjectId = String(
+    body.projectId || body.project_id || defaultProjectId || ""
   ).trim();
+  const projectId = resolveActiveProjectId(rawProjectId);
   const nodeId = String(body.nodeId || body.node_id || "").trim();
   const serviceId = String(body.serviceId || body.service_id || "").trim();
   const action = String(body.action || "").trim();
@@ -88,6 +90,7 @@ export async function gatewayExecPty(params: {
   const cmdId =
     params.cmd_id || `pty-${crypto.randomBytes(4).toString("hex")}`;
   const waitMs = params.wait_timeout_ms ?? 10000;
+  const projectId = resolveActiveProjectId(params.project_id);
   try {
     const res = await fetchWithTimeout(
       `${CORE_GATEWAY_URL}/api/v1/rpc/pty`,
@@ -97,7 +100,7 @@ export async function gatewayExecPty(params: {
         body: JSON.stringify({
           node_id: params.node_id,
           cmd_id: cmdId,
-          project_id: params.project_id || "synapse-cloud-demo",
+          project_id: projectId,
           session_id: params.session_id || "default",
           tier: params.tier,
           command: params.command,
@@ -132,6 +135,7 @@ export async function gatewayFsOperation(params: {
 }): Promise<FsResponse> {
   const reqId =
     params.request_id || `fs-${crypto.randomBytes(4).toString("hex")}`;
+  const projectId = resolveActiveProjectId(params.project_id);
   try {
     const res = await fetchWithTimeout(
       `${CORE_GATEWAY_URL}/api/v1/rpc/fs`,
@@ -141,7 +145,7 @@ export async function gatewayFsOperation(params: {
         body: JSON.stringify({
           node_id: params.node_id,
           request_id: reqId,
-          project_id: params.project_id || "synapse-cloud-demo",
+          project_id: projectId,
           operation: params.operation,
           path: params.path,
           content: params.content || "",

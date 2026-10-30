@@ -30,7 +30,9 @@ next-env.d.ts
 # Runtime Data & Logs
 /tmp/
 *.log
+*.bak
 .synapse-data/
+**/.synapse-data/
 /var/lib/synapse/
 
 # OS & IDE

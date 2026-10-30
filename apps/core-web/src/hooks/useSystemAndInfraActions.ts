@@ -8,6 +8,12 @@ import {
   NavSection,
   ProjectState,
 } from "@/types/synapse";
+import {
+  useFirewallAndMcpActions,
+  LiveFirewallPortItem,
+} from "./useFirewallAndMcpActions";
+
+export type { LiveFirewallPortItem };
 
 export interface SystemUpdateStatusData {
   checked_at: string;
@@ -55,18 +61,6 @@ export interface SystemUpdateStatusData {
   }>;
 }
 
-export interface LiveFirewallPortItem {
-  port: number;
-  protocol: "tcp" | "udp";
-  bind_address: string;
-  exposure: "public" | "local";
-  process: string;
-  pid?: number;
-  service_name?: string;
-  shielded: boolean;
-  system_protected?: boolean;
-}
-
 interface UseSystemAndInfraActionsParams {
   locale: string;
   activeProject: ProjectState | null;
@@ -112,18 +106,6 @@ export function useSystemAndInfraActions({
     }>
   >([]);
 
-  const [mcpKeyName, setMcpKeyName] = useState("External AI Agent (MCP)");
-  const [mcpKeyScopeMode, setMcpKeyScopeMode] = useState<
-    "read-exec" | "read-only"
-  >("read-exec");
-  const [issuedMcpToken, setIssuedMcpToken] = useState<string | null>(null);
-  const [copiedMcpToken, setCopiedMcpToken] = useState(false);
-  const [showMcpConfigExamples, setShowMcpConfigExamples] = useState(false);
-  const [copiedMcpConfig, setCopiedMcpConfig] = useState<
-    "json" | "curl" | null
-  >(null);
-  const [mcpTestOutput, setMcpTestOutput] = useState<string>("");
-
   const [debugModeEnabled, setDebugModeEnabled] = useState(false);
   const [debugSnapshot, setDebugSnapshot] = useState<Record<
     string,
@@ -160,15 +142,15 @@ export function useSystemAndInfraActions({
   const [meshTargetPort, setMeshTargetPort] = useState(5432);
   const [meshAliasEnv, setMeshAliasEnv] = useState("PEER_DB_URL");
 
-  const [firewallBusy, setFirewallBusy] = useState(false);
-  const [firewallError, setFirewallError] = useState("");
-  const [fwIpInput, setFwIpInput] = useState("");
-  const [fwRuleAction, setFwRuleAction] = useState<"block" | "allow">("block");
-  const [fwRulePort, setFwRulePort] = useState("");
-  const [fwRuleNote, setFwRuleNote] = useState("");
-  const [liveFirewallPorts, setLiveFirewallPorts] = useState<
-    LiveFirewallPortItem[]
-  >([]);
+  const fwAndMcp = useFirewallAndMcpActions({
+    isDe,
+    activeProject,
+    activeNav,
+    selectedNodeId,
+    gatewayNodes,
+    showToast,
+    loadWorkspace,
+  });
 
   async function handleGenerateJoinToken() {
     if (!activeProject) return;
@@ -436,7 +418,7 @@ export function useSystemAndInfraActions({
   }
 
   const fetchDebugSnapshot = useCallback(async () => {
-    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    const pid = activeProject?.project_id || "default-project";
     try {
       const res = await fetch(
         `/api/debug?project_id=${encodeURIComponent(pid)}`,
@@ -454,7 +436,7 @@ export function useSystemAndInfraActions({
   }, [activeProject?.project_id]);
 
   async function handleToggleDebugMode() {
-    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    const pid = activeProject?.project_id || "default-project";
     const next = !debugModeEnabled;
     setDebugModeEnabled(next);
     await fetch("/api/debug", {
@@ -479,7 +461,7 @@ export function useSystemAndInfraActions({
   }
 
   async function handleRunSelfTest() {
-    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    const pid = activeProject?.project_id || "default-project";
     setRunningSelfTest(true);
     try {
       const res = await fetch("/api/debug", {
@@ -541,56 +523,32 @@ export function useSystemAndInfraActions({
     targetNodeId?: string
   ) {
     if (systemUpdateBusy) return;
-    const pid = activeProject?.project_id || "synapse-cloud-demo";
+    const pid = activeProject?.project_id || "default-project";
     setSystemUpdateBusy(true);
     setSystemUpdateActionLabel(
       action === "check"
-        ? isDe
-          ? "Prüfe Git & Muscle Versionen..."
-          : "Checking Git & Muscle versions..."
+        ? isDe ? "Prüfe Git & Muscle Versionen..." : "Checking Git & Muscle versions..."
         : action === "update_core"
-        ? isDe
-          ? "Aktualisiere Core Plane..."
-          : "Updating Core Plane..."
+        ? isDe ? "Aktualisiere Core Plane..." : "Updating Core Plane..."
         : action === "update_muscle"
-        ? targetNodeId
-          ? `OTA-Update (${targetNodeId})...`
-          : isDe
-          ? "OTA-Update auf allen Muscle-Knoten..."
-          : "OTA update on all Muscle nodes..."
-        : isDe
-        ? "Komplett-Update (Core + Muscle OTA)..."
-        : "Full update (Core + Muscle OTA)..."
+        ? targetNodeId ? `OTA-Update (${targetNodeId})...` : isDe ? "OTA-Update auf allen Muscle-Knoten..." : "OTA update on all Muscle nodes..."
+        : isDe ? "Komplett-Update (Core + Muscle OTA)..." : "Full update (Core + Muscle OTA)..."
     );
     try {
       const res = await fetch("/api/system-update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          project_id: pid,
-          node_id: targetNodeId,
-        }),
+        body: JSON.stringify({ action, project_id: pid, node_id: targetNodeId }),
       });
       const data = await res.json();
-      if (data.status) {
-        setSystemUpdateStatus(data.status);
-      }
-      if (Array.isArray(data.steps)) {
-        setSystemUpdateSteps(data.steps);
-      }
+      if (data.status) setSystemUpdateStatus(data.status);
+      if (Array.isArray(data.steps)) setSystemUpdateSteps(data.steps);
       showToast(
         data.success
           ? action === "check"
-            ? isDe
-              ? "Versionsprüfung abgeschlossen"
-              : "Version check completed"
-            : isDe
-            ? "System-Update erfolgreich durchgeführt!"
-            : "System update completed successfully!"
-          : isDe
-          ? "Update mit Hinweisen/Warnungen beendet"
-          : "Update finished with warnings",
+            ? isDe ? "Versionsprüfung abgeschlossen" : "Version check completed"
+            : isDe ? "System-Update erfolgreich durchgeführt!" : "System update completed successfully!"
+          : isDe ? "Update mit Hinweisen/Warnungen beendet" : "Update finished with warnings",
         4000
       );
       await loadWorkspace(pid);
@@ -609,288 +567,19 @@ export function useSystemAndInfraActions({
     }
   }
 
-  async function handleCreateMcpKey(e: React.FormEvent) {
-    e.preventDefault();
-    if (!activeProject) return;
-    const scopes =
-      mcpKeyScopeMode === "read-only" ? ["read"] : ["read", "execute", "admin"];
-    const res = await fetch("/api/mcp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        project_id: activeProject.project_id,
-        action: "create_key",
-        name: mcpKeyName.trim() || "External AI Agent (MCP)",
-        scopes,
-      }),
-    });
-    const data = await res.json();
-    if (data.plaintext_token) {
-      setIssuedMcpToken(data.plaintext_token);
-      showToast(
-        isDe
-          ? "Externer KI / MCP API-Token generiert"
-          : "Generated External AI / MCP API Token"
-      );
-      await loadWorkspace(activeProject.project_id);
-    }
-  }
-
-  async function handleRevokeMcpKey(keyId: string) {
-    if (!activeProject) return;
-    await fetch("/api/mcp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        project_id: activeProject.project_id,
-        action: "revoke_key",
-        key_id: keyId,
-      }),
-    });
-    await loadWorkspace(activeProject.project_id);
-  }
-
-  async function handleTestMcpEndpoint(
-    method: "tools/list" | "resources/list" | "call_state"
-  ) {
-    const pid = activeProject?.project_id || "synapse-cloud-demo";
-    const payload =
-      method === "call_state"
-        ? {
-            jsonrpc: "2.0",
-            id: 1,
-            project_id: pid,
-            internal_ui_test: true,
-            method: "tools/call",
-            params: {
-              name: "synapse_get_project_state",
-              arguments: { project_id: pid },
-            },
-          }
-        : {
-            jsonrpc: "2.0",
-            id: 1,
-            project_id: pid,
-            internal_ui_test: true,
-            method,
-          };
-
-    const res = await fetch("/api/mcp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    setMcpTestOutput(JSON.stringify(data, null, 2));
-  }
-
-  const fetchFirewallStatus = useCallback(
-    async (targetNode?: string) => {
-      const pid = activeProject?.project_id || "synapse-cloud-demo";
-      const nid =
-        targetNode ||
-        selectedNodeId ||
-        activeProject?.assigned_nodes?.[0]?.node_id ||
-        gatewayNodes[0]?.node_id ||
-        "vps2-muscle";
-      setFirewallBusy(true);
-      setFirewallError("");
-      try {
-        const res = await fetch(
-          `/api/firewall?project_id=${encodeURIComponent(
-            pid
-          )}&node_id=${encodeURIComponent(nid)}`,
-          { cache: "no-store" }
-        );
-        const data = await res.json();
-        if (Array.isArray(data.ports)) {
-          setLiveFirewallPorts(data.ports);
-        }
-        await loadWorkspace(pid, false);
-      } catch (err) {
-        setFirewallError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setFirewallBusy(false);
-      }
-    },
-    [
-      activeProject?.project_id,
-      activeProject?.assigned_nodes,
-      selectedNodeId,
-      gatewayNodes,
-      loadWorkspace,
-    ]
-  );
-
-  useEffect(() => {
-    if (activeNav === "firewall") {
-      fetchFirewallStatus();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeNav, selectedNodeId]);
-
-  async function handleFirewallAction(payload: {
-    action:
-      | "inspect"
-      | "set_profile"
-      | "shield_port"
-      | "unshield_port"
-      | "add_ip_rule"
-      | "remove_ip_rule";
-    node_id?: string;
-    profile?: "web_standard" | "synapse_stealth" | "custom";
-    port?: number;
-    ip_or_cidr?: string;
-    rule_action?: "allow" | "block";
-    note?: string;
-    rule_id?: string;
-  }) {
-    if (firewallBusy) return;
-    const pid = activeProject?.project_id || "synapse-cloud-demo";
-    const nid =
-      payload.node_id ||
-      selectedNodeId ||
-      activeProject?.assigned_nodes?.[0]?.node_id ||
-      gatewayNodes[0]?.node_id ||
-      "vps2-muscle";
-    setFirewallBusy(true);
-    setFirewallError("");
-    try {
-      const res = await fetch("/api/firewall", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...payload,
-          project_id: pid,
-          node_id: nid,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setFirewallError(
-          data.error ||
-            (isDe ? "Firewall-Aktion fehlgeschlagen" : "Firewall action failed")
-        );
-      } else {
-        if (Array.isArray(data.ports)) {
-          setLiveFirewallPorts(data.ports);
-        }
-        if (data.message) {
-          showToast(data.message, 3500);
-        }
-        await loadWorkspace(pid, false);
-      }
-    } catch (err) {
-      setFirewallError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setFirewallBusy(false);
-    }
-  }
-
-  async function handleAddFirewallIpRule(e: React.FormEvent) {
-    e.preventDefault();
-    if (!fwIpInput.trim()) return;
-    await handleFirewallAction({
-      action: "add_ip_rule",
-      ip_or_cidr: fwIpInput.trim(),
-      rule_action: fwRuleAction,
-      port: fwRulePort.trim() ? Number(fwRulePort.trim()) : undefined,
-      note: fwRuleNote.trim() || undefined,
-    });
-    setFwIpInput("");
-    setFwRulePort("");
-    setFwRuleNote("");
-  }
-
   return {
-    systemUpdateBusy,
-    systemUpdateActionLabel,
-    showReleaseNotes,
-    setShowReleaseNotes,
-    systemUpdateStatus,
-    setSystemUpdateStatus,
-    systemUpdateSteps,
-    setSystemUpdateSteps,
-    fetchSystemUpdateStatus,
-    handleRunSystemUpdate,
-    mcpKeyName,
-    setMcpKeyName,
-    mcpKeyScopeMode,
-    setMcpKeyScopeMode,
-    issuedMcpToken,
-    copiedMcpToken,
-    setCopiedMcpToken,
-    showMcpConfigExamples,
-    setShowMcpConfigExamples,
-    copiedMcpConfig,
-    setCopiedMcpConfig,
-    mcpTestOutput,
-    handleCreateMcpKey,
-    handleRevokeMcpKey,
-    handleTestMcpEndpoint,
-    debugModeEnabled,
-    debugSnapshot,
-    selfTestChecks,
-    runningSelfTest,
-    fetchDebugSnapshot,
-    handleToggleDebugMode,
-    handleRunSelfTest,
-    issuedToken,
-    newSecretKey,
-    setNewSecretKey,
-    newSecretVal,
-    setNewSecretVal,
-    handleGenerateJoinToken,
-    handleAssignNode,
-    handleUnassignNode,
-    handleToggleCartridge,
-    handleAddSecret,
-    handleDeleteSecret,
-    handleResolveApproval,
-    showCustomCartModal,
-    setShowCustomCartModal,
-    customCartName,
-    setCustomCartName,
-    customCartCategory,
-    setCustomCartCategory,
-    customCartDesc,
-    setCustomCartDesc,
-    customCartContent,
-    setCustomCartContent,
-    handleCreateCustomCartridge,
-    playbookName,
-    setPlaybookName,
-    playbookCron,
-    setPlaybookCron,
-    playbookPrompt,
-    setPlaybookPrompt,
-    handleAddPlaybook,
-    handleTogglePlaybook,
-    handleDeletePlaybook,
-    meshSourceNode,
-    setMeshSourceNode,
-    meshTargetNode,
-    setMeshTargetNode,
-    meshTargetPort,
-    setMeshTargetPort,
-    meshAliasEnv,
-    setMeshAliasEnv,
-    handleAddMeshLink,
-    handleRemoveMeshLink,
-    firewallBusy,
-    firewallError,
-    setFirewallError,
-    fwIpInput,
-    setFwIpInput,
-    fwRuleAction,
-    setFwRuleAction,
-    fwRulePort,
-    setFwRulePort,
-    fwRuleNote,
-    setFwRuleNote,
-    liveFirewallPorts,
-    fetchFirewallStatus,
-    handleFirewallAction,
-    handleAddFirewallIpRule,
+    systemUpdateBusy, systemUpdateActionLabel, showReleaseNotes, setShowReleaseNotes,
+    systemUpdateStatus, setSystemUpdateStatus, systemUpdateSteps, setSystemUpdateSteps,
+    fetchSystemUpdateStatus, handleRunSystemUpdate, debugModeEnabled, debugSnapshot,
+    selfTestChecks, runningSelfTest, fetchDebugSnapshot, handleToggleDebugMode, handleRunSelfTest,
+    issuedToken, newSecretKey, setNewSecretKey, newSecretVal, setNewSecretVal,
+    handleGenerateJoinToken, handleAssignNode, handleUnassignNode, handleToggleCartridge,
+    handleAddSecret, handleDeleteSecret, handleResolveApproval, showCustomCartModal, setShowCustomCartModal,
+    customCartName, setCustomCartName, customCartCategory, setCustomCartCategory,
+    customCartDesc, setCustomCartDesc, customCartContent, setCustomCartContent, handleCreateCustomCartridge,
+    playbookName, setPlaybookName, playbookCron, setPlaybookCron, playbookPrompt, setPlaybookPrompt,
+    handleAddPlaybook, handleTogglePlaybook, handleDeletePlaybook, meshSourceNode, setMeshSourceNode,
+    meshTargetNode, setMeshTargetNode, meshTargetPort, setMeshTargetPort, meshAliasEnv, setMeshAliasEnv,
+    handleAddMeshLink, handleRemoveMeshLink, ...fwAndMcp,
   };
 }

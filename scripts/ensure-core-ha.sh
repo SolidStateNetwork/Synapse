@@ -2,12 +2,14 @@
 set -euo pipefail
 
 # Synapse Core High-Availability (HA) & Self-Healing Bootstrap Script
-# Ensures local systemd --user units for Core Gateway, Core WebUI, and the mTLS Reverse Tunnel
-# are installed, enabled, and active, and clears stale remote port forwardings automatically.
+# Ensures local systemd --user units for Core Gateway and Core WebUI (plus an optional
+# SSH reverse tunnel if SYNAPSE_SSH_REVERSE_HOST is explicitly set) are installed and active.
 
-REPO_ROOT="/home/denis/Projekte/Synapse"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
-VPS2_HOST="root@217.154.20.24"
+SSH_REVERSE_HOST="${SYNAPSE_SSH_REVERSE_HOST:-}"
+REMOTE_TUNNEL_PORT="${SYNAPSE_REMOTE_TUNNEL_PORT:-9443}"
+REMOTE_HTTP_PORT="${SYNAPSE_REMOTE_HTTP_PORT:-9081}"
 
 mkdir -p "${SYSTEMD_USER_DIR}"
 
@@ -50,23 +52,28 @@ RestartSec=2s
 WantedBy=default.target
 EOF
 
-cat > "${SYSTEMD_USER_DIR}/synapse-vps2-tunnel.service" <<EOF
+SERVICES_TO_START=("synapse-core-gateway.service" "synapse-core-web.service")
+
+if [ -n "${SSH_REVERSE_HOST}" ]; then
+  cat > "${SYSTEMD_USER_DIR}/synapse-reverse-tunnel.service" <<EOF
 [Unit]
-Description=Self-Healing mTLS Reverse Tunnel to vps2-muscle (9443 -> 127.0.0.1:8443, 9081 -> 127.0.0.1:8081)
+Description=Self-Healing mTLS Reverse Tunnel (${REMOTE_TUNNEL_PORT} -> 127.0.0.1:8443, ${REMOTE_HTTP_PORT} -> 127.0.0.1:8081)
 After=network-online.target synapse-core-gateway.service
 
 [Service]
 Type=simple
-ExecStartPre=-/usr/bin/ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 ${VPS2_HOST} "fuser -k 9443/tcp 9081/tcp 2>/dev/null || true"
-ExecStart=/usr/bin/ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o ExitOnForwardFailure=yes -N -R 9443:127.0.0.1:8443 -R 9081:127.0.0.1:8081 ${VPS2_HOST}
+ExecStartPre=-/usr/bin/ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 ${SSH_REVERSE_HOST} "fuser -k ${REMOTE_TUNNEL_PORT}/tcp ${REMOTE_HTTP_PORT}/tcp 2>/dev/null || true"
+ExecStart=/usr/bin/ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o ExitOnForwardFailure=yes -N -R ${REMOTE_TUNNEL_PORT}:127.0.0.1:8443 -R ${REMOTE_HTTP_PORT}:127.0.0.1:8081 ${SSH_REVERSE_HOST}
 Restart=always
 RestartSec=2s
 
 [Install]
 WantedBy=default.target
 EOF
+  SERVICES_TO_START+=("synapse-reverse-tunnel.service")
+fi
 
 systemctl --user daemon-reload
-systemctl --user enable synapse-core-gateway.service synapse-core-web.service synapse-vps2-tunnel.service
-systemctl --user restart synapse-core-gateway.service synapse-core-web.service synapse-vps2-tunnel.service
-echo "[synapse-ha] All 3 High-Availability systemd --user services enabled and active."
+systemctl --user enable "${SERVICES_TO_START[@]}"
+systemctl --user restart "${SERVICES_TO_START[@]}"
+echo "[synapse-ha] High-Availability systemd --user services (${SERVICES_TO_START[*]}) enabled and active."

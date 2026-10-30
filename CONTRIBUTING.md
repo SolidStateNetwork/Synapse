@@ -30,8 +30,9 @@ CGO_ENABLED=0 go test -v ./proto/... ./agents/axon/... ./apps/core-gateway/...
 CGO_ENABLED=0 go build -C agents/axon -o ../../bin/axon ./cmd/axon
 CGO_ENABLED=0 go build -C apps/core-gateway -o ../../bin/core-gateway .
 
-# 3. Install & build Next.js 15 Studio
+# 3. Install, test & build Next.js Studio
 npm --prefix apps/core-web ci
+npm --prefix apps/core-web test
 npm --prefix apps/core-web run build
 ```
 

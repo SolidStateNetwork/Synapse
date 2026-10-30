@@ -204,6 +204,10 @@ export interface ProjectState {
   firewall_policies?: Record<string, NodeFirewallPolicyState>;
 }
 
+export type RegisteredServiceItem = NonNullable<
+  ProjectState["registered_services"]
+>[number];
+
 export interface StackBlueprint {
   id: string;
   name: string;

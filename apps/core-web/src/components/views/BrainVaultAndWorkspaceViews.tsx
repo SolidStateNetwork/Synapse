@@ -97,7 +97,7 @@ export const BrainVaultView = React.memo(function BrainVaultView({
               ]}
             />
             <span className="hidden sm:inline font-mono text-[11px] text-nb-gray-400">
-              /projects/{projectId || "synapse-cloud-demo"}/{brainDocTab}
+              /projects/{projectId || "default-project"}/{brainDocTab}
             </span>
           </div>
         }

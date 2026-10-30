@@ -4,6 +4,7 @@ export type AutonomyTier =
   | "TIER_3_SUPERVISED";
 
 export type FlowView = "peers" | "ai-agent" | "groups" | "networks";
+export type Point = { x: number; y: number };
 
 export interface HeartbeatServiceStatus {
   service_id: string;

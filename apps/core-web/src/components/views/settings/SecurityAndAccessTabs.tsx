@@ -340,7 +340,7 @@ export function WatchdogRbacTab({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   action: "test_alert",
-                  node_id: primaryNode || "vps2-muscle",
+                  node_id: primaryNode || "local-node",
                 }),
               });
               const d = await r.json();

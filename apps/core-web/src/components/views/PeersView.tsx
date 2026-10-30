@@ -10,7 +10,6 @@ import {
   Search,
   Server,
   Sparkles,
-  Trash2,
 } from "lucide-react";
 import {
   SynapseSubTabs,
@@ -23,10 +22,12 @@ import {
   ProjectState,
   StackBlueprint,
 } from "@/types/synapse";
+import {
+  PeersMeshAndAutomationSubTabs,
+  ScheduledPlaybookItem,
+} from "./peers/PeersMeshAndAutomationSubTabs";
 
-export type ScheduledPlaybookItem = NonNullable<
-  ProjectState["scheduled_playbooks"]
->[number];
+export type { ScheduledPlaybookItem };
 
 export interface PeersViewProps {
   activeProject: ProjectState | null;
@@ -140,9 +141,7 @@ const PeersView = React.memo(function PeersView({
           <SynapseSubTabs
             activeTab={peersSubTab}
             onChange={(id) =>
-              setPeersSubTab(
-                id as "nodes" | "mesh" | "blueprints" | "playbooks"
-              )
+              setPeersSubTab(id as "nodes" | "mesh" | "blueprints" | "playbooks")
             }
             tabs={[
               {
@@ -174,7 +173,6 @@ const PeersView = React.memo(function PeersView({
         }
       />
 
-      {/* SUB-TAB 1: MUSCLE NODES TABLE */}
       {peersSubTab === "nodes" && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-3">
@@ -192,14 +190,8 @@ const PeersView = React.memo(function PeersView({
               {[
                 { id: "ALL", label: "Alle Stufen" },
                 { id: "TIER_1_UNLEASHED", label: "Stufe 1 · Vollzugriff" },
-                {
-                  id: "TIER_2_WORKSPACE_JAIL",
-                  label: "Stufe 2 · Workspace",
-                },
-                {
-                  id: "TIER_3_SUPERVISED",
-                  label: "Stufe 3 · Überwacht",
-                },
+                { id: "TIER_2_WORKSPACE_JAIL", label: "Stufe 2 · Workspace" },
+                { id: "TIER_3_SUPERVISED", label: "Stufe 3 · Überwacht" },
               ].map((tierOpt) => (
                 <button
                   key={tierOpt.id}
@@ -234,9 +226,9 @@ const PeersView = React.memo(function PeersView({
                     (a) => a.node_id === gn.node_id
                   );
                   const rowExpanded = Boolean(expandedPeerRows[gn.node_id]);
-                  const nodeSvcs = (
-                    activeProject?.registered_services || []
-                  ).filter((s) => s.node_id === gn.node_id);
+                  const nodeSvcs = (activeProject?.registered_services || []).filter(
+                    (s) => s.node_id === gn.node_id
+                  );
 
                   const tierHumanLabel =
                     gn.tier === "TIER_1_UNLEASHED"
@@ -303,9 +295,7 @@ const PeersView = React.memo(function PeersView({
                           </div>
                           <div
                             className="font-mono text-[10.5px] text-nb-gray-400 max-w-[140px] truncate"
-                            title={
-                              hb?.os_info || hb?.os_arch || "linux/amd64"
-                            }
+                            title={hb?.os_info || hb?.os_arch || "linux/amd64"}
                           >
                             {hb?.os_info
                               ? hb.os_info.split("(")[0].trim()
@@ -376,7 +366,6 @@ const PeersView = React.memo(function PeersView({
                         <tr className="bg-nb-gray-950/80">
                           <td colSpan={5} className="p-4">
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-3 text-xs">
-                              {/* Resource Bars */}
                               <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-940 p-3 space-y-2">
                                 <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
                                   Live Ressourcen-Metriken
@@ -412,10 +401,7 @@ const PeersView = React.memo(function PeersView({
                                       <div
                                         className={`h-full rounded-full ${m.color}`}
                                         style={{
-                                          width: `${Math.min(
-                                            100,
-                                            Math.max(3, m.val)
-                                          )}%`,
+                                          width: `${Math.min(100, Math.max(3, m.val))}%`,
                                         }}
                                       />
                                     </div>
@@ -423,7 +409,6 @@ const PeersView = React.memo(function PeersView({
                                 ))}
                               </div>
 
-                              {/* Assigned Services on this Peer */}
                               <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-940 p-3 space-y-2">
                                 <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400">
                                   Registrierte Dienste ({nodeSvcs.length})
@@ -439,15 +424,14 @@ const PeersView = React.memo(function PeersView({
                                         key={s.service_id}
                                         type="button"
                                         onClick={() =>
-                                          onOpenServiceInProxy(
-                                            s.service_id,
-                                            s.port
-                                          )
+                                          onOpenServiceInProxy(s.service_id, s.port)
                                         }
                                         className="flex w-full items-center justify-between gap-2 rounded border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 text-left font-mono text-[11px] text-nb-gray-200 hover:border-netbird hover:text-white"
                                       >
                                         <span className="truncate min-w-0">
-                                          {s.name.replace(new RegExp(`\\s*:${s.port}\\b`), "").trim()}
+                                          {s.name
+                                            .replace(new RegExp(`\\s*:${s.port}\\b`), "")
+                                            .trim()}
                                         </span>
                                         <span className="text-netbird shrink-0 whitespace-nowrap">
                                           :{s.port} →
@@ -458,7 +442,6 @@ const PeersView = React.memo(function PeersView({
                                 )}
                               </div>
 
-                              {/* Quick Peer Actions & Connection Info */}
                               <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-940 p-3 flex flex-col justify-between space-y-2">
                                 <div className="space-y-1 font-mono text-[11px] text-nb-gray-300">
                                   <div className="text-[10px] font-semibold uppercase tracking-wider text-nb-gray-400 mb-1">
@@ -466,9 +449,7 @@ const PeersView = React.memo(function PeersView({
                                   </div>
                                   <div>
                                     Remote:{" "}
-                                    <span className="text-white">
-                                      {gn.remote_addr}
-                                    </span>
+                                    <span className="text-white">{gn.remote_addr}</span>
                                   </div>
                                   <div>
                                     Aktive PTYs:{" "}
@@ -479,7 +460,8 @@ const PeersView = React.memo(function PeersView({
                                   <div>
                                     Multi-Core ({hb?.active_cores ?? 1} Cores):{" "}
                                     <span className="text-violet-300">
-                                      {(hb?.connected_cores && hb.connected_cores.length > 0
+                                      {(hb?.connected_cores &&
+                                      hb.connected_cores.length > 0
                                         ? hb.connected_cores
                                         : [`primary (${gn.remote_addr} - LIVE)`]
                                       ).join(" · ")}
@@ -488,9 +470,7 @@ const PeersView = React.memo(function PeersView({
                                   <div>
                                     Verbunden seit:{" "}
                                     <span className="text-nb-gray-400">
-                                      {gn.connected_at
-                                        ?.replace("T", " ")
-                                        .slice(0, 19)}
+                                      {gn.connected_at?.replace("T", " ").slice(0, 19)}
                                     </span>
                                   </div>
                                 </div>
@@ -498,10 +478,7 @@ const PeersView = React.memo(function PeersView({
                                   <button
                                     type="button"
                                     onClick={() =>
-                                      onSelectNodeAndNavigate(
-                                        gn.node_id,
-                                        "workspace"
-                                      )
+                                      onSelectNodeAndNavigate(gn.node_id, "workspace")
                                     }
                                     className="flex-1 rounded border border-nb-gray-800 bg-nb-gray-950 py-1.5 text-[11px] font-medium text-nb-gray-200 hover:border-netbird hover:text-white"
                                   >
@@ -509,9 +486,7 @@ const PeersView = React.memo(function PeersView({
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      onOpenTerminalForNode(gn.node_id)
-                                    }
+                                    onClick={() => onOpenTerminalForNode(gn.node_id)}
                                     className="flex-1 rounded bg-netbird py-1.5 text-[11px] font-medium text-white hover:bg-netbird-500"
                                   >
                                     Live Shell
@@ -531,255 +506,32 @@ const PeersView = React.memo(function PeersView({
         </div>
       )}
 
-      {/* SUB-TAB 2: PEER-TO-PEER MESH LINKS (`core_link_peers`) */}
-      {peersSubTab === "mesh" && (
-        <div className="rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-4">
-          <div>
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Network className="h-4 w-4 text-sky-400" />
-              Multi-Server Peer-to-Peer Mesh-Verbindungen (core_link_peers)
-            </h2>
-            <p className="text-xs text-nb-gray-400 mt-0.5">
-              Verbinde Dienste zwischen verschiedenen Muscle-Servern über
-              verschlüsselte mTLS-Loopback-Tunnels.
-            </p>
-          </div>
-          <datalist id="synapse-peer-nodes">
-            {Array.from(
-              new Set([
-                ...gatewayNodes.map((n) => n.node_id),
-                ...(activeProject?.assigned_nodes || []).map((n) => n.node_id),
-              ])
-            ).map((nid) => (
-              <option key={nid} value={nid} />
-            ))}
-          </datalist>
-          <form
-            onSubmit={onAddMeshLink}
-            className="grid grid-cols-1 gap-2.5 sm:grid-cols-12 text-xs"
-          >
-            <input
-              type="text"
-              list="synapse-peer-nodes"
-              value={meshSourceNode}
-              onChange={(e) => setMeshSourceNode(e.target.value)}
-              placeholder="Quell-Server (vps2)"
-              className="sm:col-span-3 rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-white"
-            />
-            <input
-              type="text"
-              list="synapse-peer-nodes"
-              value={meshTargetNode}
-              onChange={(e) => setMeshTargetNode(e.target.value)}
-              placeholder="Ziel-Server (db-node)"
-              className="sm:col-span-3 rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-white"
-            />
-            <input
-              type="number"
-              value={meshTargetPort}
-              onChange={(e) =>
-                setMeshTargetPort(Number(e.target.value) || 5432)
-              }
-              placeholder="Port"
-              className="sm:col-span-2 rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-netbird"
-            />
-            <input
-              type="text"
-              value={meshAliasEnv}
-              onChange={(e) => setMeshAliasEnv(e.target.value)}
-              placeholder="ENV-Alias (PEER_DB_URL)"
-              className="sm:col-span-2 rounded border border-nb-gray-800 bg-nb-gray-920 px-2.5 py-2 font-mono text-xs text-nb-gray-200"
-            />
-            <button
-              type="submit"
-              className="sm:col-span-2 whitespace-nowrap rounded bg-netbird px-2.5 py-2 text-xs font-medium text-white hover:bg-netbird-500"
-            >
-              + Mesh-Link
-            </button>
-          </form>
-          <div className="space-y-2">
-            {(activeProject?.peer_mesh_links || []).length === 0 ? (
-              <div className="rounded-lg border border-nb-gray-850 bg-nb-gray-950/70 px-4 py-3 text-xs text-nb-gray-400">
-                Noch keine P2P-Mesh-Verknüpfungen aktiv. Wähle oben Quell- und
-                Ziel-Server sowie den Ziel-Port aus, um einen verschlüsselten
-                mTLS-Loopback-Tunnel bereitzustellen.
-              </div>
-            ) : (
-              (activeProject?.peer_mesh_links || []).map((lnk) => (
-                <div
-                  key={lnk.link_id}
-                  className="flex items-center justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-930 px-4 py-2.5 font-mono text-xs"
-                >
-                  <span className="text-nb-gray-200">
-                    <strong className="text-white">{lnk.source_node_id}</strong>{" "}
-                    ⇄{" "}
-                    <strong className="text-sky-400">
-                      {lnk.target_node_id}:
-                      {lnk.target_port ||
-                        lnk.remote_port ||
-                        lnk.local_port ||
-                        5432}
-                    </strong>{" "}
-                    <span className="text-nb-gray-400">
-                      ({lnk.alias_env || lnk.description || "mTLS-Tunnel"})
-                    </span>
-                  </span>
-                  <button
-                    onClick={() => onRemoveMeshLink(lnk.link_id)}
-                    className="text-nb-gray-500 hover:text-red-400"
-                    title="Mesh-Link trennen"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* SUB-TAB 3: 1-CLICK AI STACK BLUEPRINTS */}
-      {peersSubTab === "blueprints" && (
-        <div className="rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-4">
-          <div>
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-netbird" />
-              1-Click AI Stack Blueprints
-            </h2>
-            <p className="text-xs text-nb-gray-400 mt-0.5">
-              Fertige Infrastruktur-Stacks mit einem Klick autonom über den
-              KI-Orchestrator bereitstellen.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {blueprints.map((bp) => (
-              <div
-                key={bp.id}
-                className="flex flex-col justify-between rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-4 space-y-3"
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-white">
-                      {bp.name}
-                    </span>
-                    <span className="rounded border border-netbird-500/40 bg-netbird-950 px-2 py-0.5 font-mono text-[9px] text-netbird">
-                      {bp.category}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-xs text-nb-gray-400 leading-relaxed">
-                    {bp.description}
-                  </p>
-                </div>
-                <button
-                  onClick={() =>
-                    onRunPromptInCopilot(bp.prompt || bp.promptCommand || "")
-                  }
-                  className="w-full rounded-md bg-netbird/90 py-2 text-xs font-medium text-white hover:bg-netbird"
-                >
-                  Stack per KI bereitstellen →
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* SUB-TAB 4: SCHEDULED AI PLAYBOOKS (CRON) */}
-      {peersSubTab === "playbooks" && (
-        <div className="rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-5 space-y-4">
-          <div>
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Activity className="h-4 w-4 text-emerald-400" />
-              Scheduled AI Playbooks (Cron-Wartung)
-            </h2>
-            <p className="text-xs text-nb-gray-400 mt-0.5">
-              Wiederkehrende autonome Health-Checks, Log-Bereinigungen und
-              Sicherheits-Audits.
-            </p>
-          </div>
-          <div className="space-y-2.5">
-            {(activeProject?.scheduled_playbooks || []).map((pb) => {
-              const cronLabel = pb.cron || pb.cron_expression || "0 3 * * *";
-              return (
-                <div
-                  key={pb.playbook_id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-nb-gray-800 bg-nb-gray-930 p-3.5 text-xs"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-white truncate">
-                        {pb.name}
-                      </span>
-                      <span className="rounded border border-nb-gray-700 bg-nb-gray-950 px-2 py-0.5 font-mono text-[10px] text-netbird">
-                        🕒 {cronLabel}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-nb-gray-400 truncate mt-1">
-                      {pb.prompt}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => onRunPromptInCopilot(pb.prompt)}
-                      className="rounded border border-netbird-500/40 bg-netbird-950 px-2.5 py-1 font-mono text-[10px] text-netbird hover:bg-netbird hover:text-white"
-                    >
-                      Jetzt ausführen
-                    </button>
-                    <button
-                      onClick={() => onTogglePlaybook(pb)}
-                      className={`rounded border px-2.5 py-1 font-mono text-[10px] ${
-                        pb.enabled
-                          ? "border-emerald-500/40 bg-emerald-950 text-emerald-400"
-                          : "border-nb-gray-800 bg-nb-gray-920 text-nb-gray-400"
-                      }`}
-                    >
-                      {pb.enabled ? "AKTIV" : "PAUSIERT"}
-                    </button>
-                    <button
-                      onClick={() => onDeletePlaybook(pb.playbook_id)}
-                      className="text-nb-gray-500 hover:text-red-400 p-1"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <form
-            onSubmit={onAddPlaybook}
-            className="grid grid-cols-1 gap-2.5 sm:grid-cols-4 pt-2 text-xs"
-          >
-            <input
-              type="text"
-              value={playbookName}
-              onChange={(e) => setPlaybookName(e.target.value)}
-              placeholder="Playbook-Name..."
-              className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
-            />
-            <input
-              type="text"
-              value={playbookCron}
-              onChange={(e) => setPlaybookCron(e.target.value)}
-              placeholder="0 */6 * * *"
-              className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 font-mono text-xs text-netbird"
-            />
-            <input
-              type="text"
-              value={playbookPrompt}
-              onChange={(e) => setPlaybookPrompt(e.target.value)}
-              placeholder="KI-Anweisung..."
-              className="rounded border border-nb-gray-800 bg-nb-gray-920 px-3 py-2 text-xs text-white"
-            />
-            <button
-              type="submit"
-              className="rounded bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-500"
-            >
-              + Cron hinzufügen
-            </button>
-          </form>
-        </div>
-      )}
+      <PeersMeshAndAutomationSubTabs
+        peersSubTab={peersSubTab}
+        activeProject={activeProject}
+        gatewayNodes={gatewayNodes}
+        blueprints={blueprints}
+        meshSourceNode={meshSourceNode}
+        setMeshSourceNode={setMeshSourceNode}
+        meshTargetNode={meshTargetNode}
+        setMeshTargetNode={setMeshTargetNode}
+        meshTargetPort={meshTargetPort}
+        setMeshTargetPort={setMeshTargetPort}
+        meshAliasEnv={meshAliasEnv}
+        setMeshAliasEnv={setMeshAliasEnv}
+        onAddMeshLink={onAddMeshLink}
+        onRemoveMeshLink={onRemoveMeshLink}
+        onRunPromptInCopilot={onRunPromptInCopilot}
+        playbookName={playbookName}
+        setPlaybookName={setPlaybookName}
+        playbookCron={playbookCron}
+        setPlaybookCron={setPlaybookCron}
+        playbookPrompt={playbookPrompt}
+        setPlaybookPrompt={setPlaybookPrompt}
+        onAddPlaybook={onAddPlaybook}
+        onTogglePlaybook={onTogglePlaybook}
+        onDeletePlaybook={onDeletePlaybook}
+      />
     </div>
   );
 });

@@ -17,12 +17,18 @@ import {
   ensureProjectVault,
   getDecryptedSecrets,
 } from "@/lib/vault";
+import {
+  resolveActiveProjectId,
+  safeParseRequestJson,
+} from "@/lib/runtimeResolver";
 
 export type { OrchestratorStreamEvent };
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const projectId = String(body.project_id || "synapse-cloud-demo");
+  const body = await safeParseRequestJson(req);
+  const projectId = resolveActiveProjectId(
+    String(body.project_id || body.projectId || "")
+  );
   const state = ensureProjectVault(projectId);
   const vaultSecrets = getDecryptedSecrets(projectId);
 
@@ -56,7 +62,6 @@ export async function POST(req: NextRequest) {
       ""
   ).trim();
 
-  // 1-Click Pre-Write Snapshot Rollback Action
   if (action === "rollback_snapshot") {
     const snapshotId = String(body.snapshot_id || "");
     const out = await executeRollbackSnapshot(projectId, snapshotId);
@@ -79,7 +84,6 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Model Discovery Action: GET <base_url>/models
   if (action === "list_models") {
     const cleanBase = rawBaseUrl.replace(/\/$/, "");
     const modelsUrl = cleanBase.endsWith("/models")
@@ -155,7 +159,6 @@ export async function POST(req: NextRequest) {
   const lastUserMsg = lastUserMsgObj?.content || "";
   const lastAttachments = lastUserMsgObj?.attachments;
 
-  // Persist user message (with optional image/file attachments) to Chat.jsonl
   if (lastUserMsg || (lastAttachments && lastAttachments.length > 0)) {
     appendChatMessage(projectId, {
       role: "user",
@@ -224,7 +227,6 @@ export async function POST(req: NextRequest) {
     );
   };
 
-  // Real-time Server-Sent Events (SSE) Streaming Mode
   if (streamMode) {
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
@@ -287,7 +289,6 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Standard JSON Response Mode (Backward-Compatible)
   const finalOut = await executePipeline();
   appendChatMessage(projectId, {
     role: "assistant",

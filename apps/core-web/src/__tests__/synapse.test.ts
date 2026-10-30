@@ -1,5 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -38,6 +39,7 @@ const {
 
 describe("Synapse Core TypeScript Unit Test Suite", () => {
   const testProjectId = "unit-test-project";
+  const testNodeId = "test-edge-node";
 
   before(() => {
     ensureProjectVault(testProjectId);
@@ -79,7 +81,7 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
           const svcs = draft.registered_services || [];
           svcs.push({
             service_id: `svc-${idx}`,
-            node_id: "vps2-muscle",
+            node_id: testNodeId,
             name: `Service ${idx}`,
             port: 5000 + idx,
             protocol: "http",
@@ -148,7 +150,7 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
   it("5. File Rollback Snapshots store pre-write file state and retrieve accurately", () => {
     const snap = recordRollbackSnapshot(testProjectId, {
       snapshot_id: "snap-test-001",
-      node_id: "vps2-muscle",
+      node_id: testNodeId,
       path: "service/server.js",
       existed: true,
       previous_content: "console.log('v1');\n",
@@ -205,7 +207,7 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
       policyProjId,
       "node_pty_exec",
       {
-        node_id: "vps2-muscle",
+        node_id: testNodeId,
         command: "uname -a",
       }
     );
@@ -215,7 +217,7 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
     await withProjectStateTransaction(policyProjId, (draft) => {
       draft.assigned_nodes = [
         {
-          node_id: "vps2-muscle",
+          node_id: testNodeId,
           tier: "TIER_3_SUPERVISED",
         },
       ];
@@ -225,7 +227,7 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
       policyProjId,
       "node_pty_exec",
       {
-        node_id: "vps2-muscle",
+        node_id: testNodeId,
         command: "systemctl restart nginx",
       }
     );
@@ -284,7 +286,7 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
     initialChks.unshift({
       id: "chk-unit-test-1",
       project_id: testProjectId,
-      node_id: "vps2-muscle",
+      node_id: testNodeId,
       timestamp: new Date().toISOString(),
       title: "Unit Test Multi-Core Snapshot",
       actor: "Admin",
@@ -300,8 +302,8 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
     const evt = await dispatchAlertEvent(testProjectId, {
       severity: "INFO",
       title: "Multi-Core Tunnel Verified",
-      message: "vps2-muscle connected to 2 Cores simultaneously",
-      node_id: "vps2-muscle",
+      message: `${testNodeId} connected to 2 Cores simultaneously`,
+      node_id: testNodeId,
     });
     assert.ok(evt.id.startsWith("alt-"));
     const alertCfg = loadAlertConfig(testProjectId);
@@ -310,30 +312,18 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
   });
 
   it("10. Autonomous Self-Healing Engine executes recovery runbook, persists SelfHealingEvent, and updates policy", async () => {
-    const {
-      executeAutonomousSelfHeal,
-      loadSelfHealingStore,
-      updateSelfHealingPolicy,
-    } = await import("../lib/self-healing.ts");
+    const { executeAutonomousSelfHeal, loadSelfHealingStore, updateSelfHealingPolicy } = await import("../lib/self-healing.ts");
 
-    const updatedStore = updateSelfHealingPolicy(testProjectId, {
-      max_latency_ms: 950,
-      failure_threshold: 2,
-    });
+    const updatedStore = updateSelfHealingPolicy(testProjectId, { max_latency_ms: 950, failure_threshold: 2 });
     assert.equal(updatedStore.policy.max_latency_ms, 950);
 
     const healEvt = await executeAutonomousSelfHeal({
-      projectId: testProjectId,
-      nodeId: "vps2-muscle",
-      serviceId: "uptime-beacon-4060",
-      serviceName: "Uptime- & Latenz-Beacon :4060",
-      port: 4060,
-      trigger: "crash_simulation",
-      simulateCrash: true,
+      projectId: testProjectId, nodeId: testNodeId, serviceId: "beacon-service-4065",
+      serviceName: "Latency Beacon :4065", port: 4065, trigger: "crash_simulation", simulateCrash: true,
     });
 
     assert.equal(healEvt.status, "RECOVERED");
-    assert.equal(healEvt.port, 4060);
+    assert.equal(healEvt.port, 4065);
     assert.equal(healEvt.trigger, "crash_simulation");
     assert.ok(healEvt.mttr_ms >= 50);
     assert.equal(healEvt.runbook_steps.length, 4);
@@ -344,90 +334,55 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
   });
 
   it("11. v0.6.0 Custom Service Builder & Service-Mesh Link Probe persist services and link telemetry", async () => {
-    const {
-      deployCustomServiceOnMuscle,
-      loadServiceLinks,
-      probeServiceLinkOnMuscle,
-    } = await import("../lib/self-healing.ts");
+    const { deployCustomServiceOnMuscle, loadServiceLinks, probeServiceLinkOnMuscle } = await import("../lib/self-healing.ts");
 
     const deployed = await deployCustomServiceOnMuscle({
-      projectId: testProjectId,
-      nodeId: "vps2-muscle",
-      name: "Edge Telemetry API",
-      port: 4095,
-      category: "backend",
-      runtime: "python_http",
-      autoHeal: true,
+      projectId: testProjectId, nodeId: testNodeId, name: "Edge Telemetry API",
+      port: 4095, category: "backend", runtime: "python_http", autoHeal: true,
     });
     assert.equal(deployed.ok, true);
     assert.equal(deployed.service.port, 4095);
     assert.equal(deployed.service.healthy, true);
 
     const linkRes = await probeServiceLinkOnMuscle({
-      projectId: testProjectId,
-      nodeId: "vps2-muscle",
-      fromServiceId: "edge-telemetry-api-4095",
-      toServiceId: "pulse-analytics-api",
-      fromPort: 4095,
-      toPort: 4085,
-      protocol: "JSON Telemetry",
+      projectId: testProjectId, nodeId: testNodeId, fromServiceId: "edge-telemetry-api-4095",
+      toServiceId: "metrics-api-4085", fromPort: 4095, toPort: 4085, protocol: "JSON Telemetry",
     });
     assert.equal(linkRes.ok, true);
     assert.equal(linkRes.link.protocol, "JSON Telemetry");
     assert.ok((linkRes.link.latency_ms ?? 0) >= 1);
 
     const savedLinks = loadServiceLinks(testProjectId);
-    assert.ok(
-      savedLinks.some(
-        (l) => l.id === "edge-telemetry-api-4095->pulse-analytics-api"
-      )
-    );
+    assert.ok(savedLinks.some((l) => l.id === "edge-telemetry-api-4095->metrics-api-4085"));
   });
 
   it("12. v0.7.0 Live Code Hot-Reload, SQLite Data Studio & Scheduled Cron-Runbooks execute and persist state", async () => {
     const {
-      loadServiceCodeFromMuscle,
-      hotReloadServiceCodeOnMuscle,
-      executeSqliteStudioAction,
-      loadCronJobs,
-      runCronJobNowOnMuscle,
+      loadServiceCodeFromMuscle, hotReloadServiceCodeOnMuscle,
+      executeSqliteStudioAction, loadCronJobs, runCronJobNowOnMuscle,
     } = await import("../lib/v070-studio.ts");
 
     const codeInfo = await loadServiceCodeFromMuscle({
-      projectId: testProjectId,
-      nodeId: "vps2-muscle",
-      serviceId: "edge-telemetry-api-4095",
-      port: 4095,
+      projectId: testProjectId, nodeId: testNodeId, serviceId: "edge-telemetry-api-4095", port: 4095,
     });
     assert.equal(codeInfo.ok, true);
     assert.ok(codeInfo.code.includes("4095"));
 
     const reloadRes = await hotReloadServiceCodeOnMuscle({
-      projectId: testProjectId,
-      nodeId: "vps2-muscle",
-      serviceId: "edge-telemetry-api-4095",
-      port: 4095,
-      filePath: codeInfo.file_path,
-      code: codeInfo.code + "\n# v0.7.0 hot-reload test\n",
+      projectId: testProjectId, nodeId: testNodeId, serviceId: "edge-telemetry-api-4095",
+      port: 4095, filePath: codeInfo.file_path, code: codeInfo.code + "\n# v0.7.0 hot-reload test\n",
     });
     assert.equal(reloadRes.ok, true);
     assert.ok(reloadRes.snapshot_id.startsWith("snap-hotreload-"));
 
-    const sqliteRes = await executeSqliteStudioAction({
-      projectId: testProjectId,
-      nodeId: "vps2-muscle",
-      table: "events",
-    });
+    const sqliteRes = await executeSqliteStudioAction({ projectId: testProjectId, nodeId: testNodeId, table: "events" });
     assert.equal(sqliteRes.ok, true);
     assert.ok(sqliteRes.tables.includes("events"));
     assert.ok(Array.isArray(sqliteRes.rows));
 
     const cronJobs = loadCronJobs(testProjectId);
     assert.ok(cronJobs.length >= 2);
-    const runRes = await runCronJobNowOnMuscle({
-      projectId: testProjectId,
-      jobId: cronJobs[0].id,
-    });
+    const runRes = await runCronJobNowOnMuscle({ projectId: testProjectId, jobId: cronJobs[0].id });
     assert.equal(runRes.ok, true);
     assert.equal(runRes.job.last_exit_code, 0);
   });
@@ -435,20 +390,15 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
   it("13. v0.7.0 Power-Polish: generated Python microservices implement GET/POST/PUT/DELETE/OPTIONS and Canvas wheel scroll zones are isolated", async () => {
     const { loadServiceCodeFromMuscle } = await import("../lib/v070-studio.ts");
     const codeInfo = await loadServiceCodeFromMuscle({
-      projectId: testProjectId,
-      nodeId: "vps2-muscle",
-      serviceId: "edge-telemetry-api-4095",
-      port: 4095,
+      projectId: testProjectId, nodeId: testNodeId, serviceId: "edge-telemetry-api-4095", port: 4095,
     });
     assert.equal(codeInfo.ok, true);
     assert.ok(
       codeInfo.code.includes("def do_GET") &&
         codeInfo.code.includes("def do_POST") &&
         codeInfo.code.includes("def do_OPTIONS") &&
-        (codeInfo.code.includes("def do_PUT") ||
-          codeInfo.code.includes("do_PUT = do_POST")) &&
-        (codeInfo.code.includes("def do_DELETE") ||
-          codeInfo.code.includes("do_DELETE = do_POST")),
+        (codeInfo.code.includes("def do_PUT") || codeInfo.code.includes("do_PUT = do_POST")) &&
+        (codeInfo.code.includes("def do_DELETE") || codeInfo.code.includes("do_DELETE = do_POST")),
       "Generated microservice must support GET, POST, PUT, DELETE, and OPTIONS without HTTP 501"
     );
 
@@ -505,13 +455,9 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
     const remainingKeys = revokeMcpApiKey(testProjectId, issued.key.key_id);
     assert.ok(!remainingKeys.some((k) => k.key_id === issued.key.key_id));
 
-    const sysUpdateSrc = fs.readFileSync(
-      path.resolve(
-        import.meta.dirname,
-        "../app/api/system-update/route.ts"
-      ),
-      "utf8"
-    );
+    const sysUpdateSrc =
+      fs.readFileSync(path.resolve(import.meta.dirname, "../app/api/system-update/route.ts"), "utf8") +
+      fs.readFileSync(path.resolve(import.meta.dirname, "../lib/systemUpdateHelpers.ts"), "utf8");
     assert.ok(
       sysUpdateSrc.includes("HEAD:agents/axon") &&
         sysUpdateSrc.includes("matchesAxonCommit"),
@@ -524,24 +470,14 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
     const { interceptAndExecuteTool } = await import("../lib/orchestrator.ts");
 
     await interceptAndExecuteTool(testProjectId, "core_register_service", {
-      action: "upsert",
-      service_id: "temp-test-4099",
-      name: "Temp Test Service",
-      node_id: "vps2-muscle",
-      port: 4099,
-      protocol: "http",
-      path: "/",
+      action: "upsert", service_id: "temp-test-4099", name: "Temp Test Service",
+      node_id: testNodeId, port: 4099, protocol: "http", path: "/",
     });
     let st = ensureProjectVault(testProjectId);
-    assert.ok(
-      st.registered_services.some((s) => s.service_id === "temp-test-4099")
-    );
+    assert.ok(st.registered_services.some((s) => s.service_id === "temp-test-4099"));
 
     await interceptAndExecuteTool(testProjectId, "core_register_service", {
-      action: "remove",
-      service_id: "temp-test-4099",
-      node_id: "vps2-muscle",
-      port: 4099,
+      action: "remove", service_id: "temp-test-4099", node_id: testNodeId, port: 4099,
     });
     st = ensureProjectVault(testProjectId);
     assert.ok(
@@ -554,26 +490,69 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
       "Removed service and port must be recorded in dismissed_services"
     );
 
-    const selfHealingSrc = fs.readFileSync(
-      path.resolve(import.meta.dirname, "../lib/self-healing.ts"),
-      "utf8"
-    );
+    const selfHealingSrc =
+      fs.readFileSync(path.resolve(import.meta.dirname, "../lib/self-healing.ts"), "utf8") +
+      fs.readFileSync(path.resolve(import.meta.dirname, "../lib/self-healing/serviceMeshAndBuilder.ts"), "utf8");
     assert.ok(
-      selfHealingSrc.includes('printf "SELF_HEAL_%s') &&
-        selfHealingSrc.includes('printf "LIVE_%s'),
-      "self-healing.ts must use split printf markers to prevent PTY input echo false-matching"
+      selfHealingSrc.includes('printf "SELF_HEAL_%s') && selfHealingSrc.includes('printf "LIVE_%s'),
+      "self-healing modules must use split printf markers to prevent PTY input echo false-matching"
     );
 
-    const studioSrc = fs.readFileSync(
-      path.resolve(import.meta.dirname, "../lib/v070-studio.ts"),
-      "utf8"
-    );
+    const studioSrc =
+      fs.readFileSync(path.resolve(import.meta.dirname, "../lib/v070-studio.ts"), "utf8") +
+      fs.readFileSync(path.resolve(import.meta.dirname, "../lib/v070-studio/sqliteAndCron.ts"), "utf8");
     assert.ok(
       studioSrc.includes('printf "CODE_%s') &&
         studioSrc.includes('printf "HOT_RELOAD_%s') &&
         studioSrc.includes('printf "CRON_%s') &&
         studioSrc.includes("py_compile"),
-      "v070-studio.ts must use split printf markers and py_compile syntax guard"
+      "v070-studio modules must use split printf markers and py_compile syntax guard"
     );
+  });
+
+  it("16. Clean Open-Source Repo Hygiene, .bak JSON Self-Healing & Dynamic Runtime Resolver", async () => {
+    const { atomicWriteJsonSync, safeReadJsonWithBackupSync } = await import("../lib/vault.ts");
+    const { resolveActiveProjectId, resolveTargetNodeId, resolveProjectDbPath } = await import("../lib/runtimeResolver.ts");
+
+    const samplePath = path.join(tempVaultDir, "corrupt-test.json");
+    atomicWriteJsonSync(samplePath, { version: 1, healthy: true });
+    atomicWriteJsonSync(samplePath, { version: 2, healthy: true });
+    fs.writeFileSync(samplePath, "{ broken-json-syntax ", "utf8");
+
+    const recovered = safeReadJsonWithBackupSync<{ version: number; healthy: boolean }>(
+      samplePath,
+      { version: 0, healthy: false }
+    );
+    assert.equal(recovered.healthy, true);
+    assert.ok(recovered.version >= 1);
+
+    const resolvedProj = resolveActiveProjectId("");
+    assert.ok(resolvedProj.length > 0);
+    const resolvedNode = resolveTargetNodeId(testProjectId, "");
+    assert.equal(typeof resolvedNode, "string");
+    const resolvedDb = resolveProjectDbPath(testProjectId, "");
+    assert.ok(resolvedDb.endsWith(".db"));
+
+    const repoRoot = path.resolve(import.meta.dirname, "../../../..");
+    const forbiddenTokens = [
+      ["217", "154", "20", "24"].join("\\."),
+      ["/home", "denis"].join("/"),
+      ["vps", "2"].join(""),
+      ["cachy", "os"].join(""),
+      ["synapse-cloud", "demo"].join("-"),
+      ["pulse", "webui"].join("-"),
+      ["pulse", "analytics"].join("-"),
+      ["pulse", "sqlite"].join("-"),
+      ["uptime-beacon", "4060"].join("-"),
+      ["json", "telemetrie"].join("-"),
+    ];
+    const pattern = forbiddenTokens.join("|");
+    let matches = "";
+    try {
+      matches = execFileSync("git", ["grep", "-iE", pattern], { cwd: repoRoot, encoding: "utf8" });
+    } catch (err: unknown) {
+      assert.equal((err as { status?: number })?.status, 1);
+    }
+    assert.equal(matches.trim(), "", `Repository must contain 0 private strings, but found:\n${matches}`);
   });
 });

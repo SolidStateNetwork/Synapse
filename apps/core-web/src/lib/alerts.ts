@@ -1,6 +1,12 @@
 import fs from "fs";
 import path from "path";
-import { atomicWriteJsonSync, getProjectDir } from "@/lib/vault";
+import {
+  atomicWriteJsonSync,
+  ensureProjectVault,
+  getProjectDir,
+  safeReadJsonWithBackupSync,
+} from "@/lib/vault";
+import { resolveActiveProjectId, resolveTargetNodeId } from "@/lib/runtimeResolver";
 
 export interface AlertEvent {
   id: string;
@@ -34,39 +40,42 @@ export interface AlertConfig {
 }
 
 function getAlertsFilePath(projectId: string): string {
-  const projDir = getProjectDir(projectId);
+  const projDir = getProjectDir(resolveActiveProjectId(projectId));
   fs.mkdirSync(projDir, { recursive: true });
   return path.join(projDir, "Alerts.json");
 }
 
 export function loadAlertConfig(projectId: string): AlertConfig {
-  const filePath = getAlertsFilePath(projectId);
-  try {
-    if (fs.existsSync(filePath)) {
-      const raw = fs.readFileSync(filePath, "utf8");
-      const parsed = JSON.parse(raw) as Partial<AlertConfig>;
-      return {
-        enabled: parsed.enabled ?? true,
-        telegram_enabled: Boolean(parsed.telegram_enabled),
-        telegram_bot_token: parsed.telegram_bot_token || "",
-        telegram_chat_id: parsed.telegram_chat_id || "",
-        discord_enabled: Boolean(parsed.discord_enabled),
-        discord_webhook_url: parsed.discord_webhook_url || "",
-        webhook_enabled: Boolean(parsed.webhook_enabled),
-        webhook_url: parsed.webhook_url || "",
-        cpu_threshold: parsed.cpu_threshold ?? 85,
-        ram_threshold: parsed.ram_threshold ?? 85,
-        disk_threshold: parsed.disk_threshold ?? 85,
-        alert_on_service_down: parsed.alert_on_service_down ?? true,
-        alert_on_peer_offline: parsed.alert_on_peer_offline ?? true,
-        auto_heal_services: parsed.auto_heal_services ?? true,
-        events: Array.isArray(parsed.events) ? parsed.events : [],
-        updated_at: parsed.updated_at || new Date().toISOString(),
-      };
-    }
-  } catch {
-    // fallback
+  const resolvedProjectId = resolveActiveProjectId(projectId);
+  const filePath = getAlertsFilePath(resolvedProjectId);
+  const parsed = safeReadJsonWithBackupSync<Partial<AlertConfig> | null>(
+    filePath,
+    null
+  );
+  if (parsed && typeof parsed === "object") {
+    return {
+      enabled: parsed.enabled ?? true,
+      telegram_enabled: Boolean(parsed.telegram_enabled),
+      telegram_bot_token: parsed.telegram_bot_token || "",
+      telegram_chat_id: parsed.telegram_chat_id || "",
+      discord_enabled: Boolean(parsed.discord_enabled),
+      discord_webhook_url: parsed.discord_webhook_url || "",
+      webhook_enabled: Boolean(parsed.webhook_enabled),
+      webhook_url: parsed.webhook_url || "",
+      cpu_threshold: parsed.cpu_threshold ?? 85,
+      ram_threshold: parsed.ram_threshold ?? 85,
+      disk_threshold: parsed.disk_threshold ?? 85,
+      alert_on_service_down: parsed.alert_on_service_down ?? true,
+      alert_on_peer_offline: parsed.alert_on_peer_offline ?? true,
+      auto_heal_services: parsed.auto_heal_services ?? true,
+      events: Array.isArray(parsed.events) ? parsed.events : [],
+      updated_at: parsed.updated_at || new Date().toISOString(),
+    };
   }
+
+  const state = ensureProjectVault(resolvedProjectId);
+  const primaryNodeId = resolveTargetNodeId(state);
+  const svcCount = (state.registered_services || []).length;
 
   const initial: AlertConfig = {
     enabled: true,
@@ -89,15 +98,16 @@ export function loadAlertConfig(projectId: string): AlertConfig {
         timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
         severity: "INFO",
         title: "24/7 Watchdog & Alert Engine Armed",
-        message:
-          "Monitoring vps2-muscle (CPU < 85%, RAM < 85%, Disk < 85%) and 5 active services.",
-        node_id: "vps2-muscle",
+        message: primaryNodeId
+          ? `Monitoring ${primaryNodeId} (CPU < 85%, RAM < 85%, Disk < 85%) and ${svcCount} registered service(s).`
+          : "Watchdog armed and ready. Enroll a Muscle node to begin hardware and service telemetry monitoring.",
+        node_id: primaryNodeId || undefined,
         dispatched_to: ["Local Event Bus"],
       },
     ],
     updated_at: new Date().toISOString(),
   };
-  saveAlertConfig(projectId, initial);
+  saveAlertConfig(resolvedProjectId, initial);
   return initial;
 }
 
@@ -112,7 +122,8 @@ export async function dispatchAlertEvent(
   projectId: string,
   event: Omit<AlertEvent, "id" | "timestamp" | "dispatched_to">
 ): Promise<AlertEvent> {
-  const cfg = loadAlertConfig(projectId);
+  const resolvedProjectId = resolveActiveProjectId(projectId);
+  const cfg = loadAlertConfig(resolvedProjectId);
   const dispatched: string[] = ["Watchdog Log"];
 
   const textBody = `🚨 **[Synapse ${event.severity}] ${event.title}**\n${event.message}${
@@ -136,6 +147,7 @@ export async function dispatchAlertEvent(
             text: textBody.replace(/\*\*/g, "*"),
             parse_mode: "Markdown",
           }),
+          signal: AbortSignal.timeout(6000),
         }
       );
       dispatched.push(tgRes.ok ? "Telegram (OK)" : `Telegram (${tgRes.status})`);
@@ -150,6 +162,7 @@ export async function dispatchAlertEvent(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: textBody }),
+        signal: AbortSignal.timeout(6000),
       });
       dispatched.push(dcRes.ok ? "Discord (OK)" : `Discord (${dcRes.status})`);
     } catch {
@@ -164,10 +177,11 @@ export async function dispatchAlertEvent(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           source: "synapse-core-watchdog",
-          project_id: projectId,
+          project_id: resolvedProjectId,
           ...event,
           timestamp: new Date().toISOString(),
         }),
+        signal: AbortSignal.timeout(6000),
       });
       dispatched.push(whRes.ok ? "Webhook (OK)" : `Webhook (${whRes.status})`);
     } catch {
@@ -183,6 +197,6 @@ export async function dispatchAlertEvent(
   };
 
   cfg.events = [fullEvent, ...(cfg.events || []).slice(0, 59)];
-  saveAlertConfig(projectId, cfg);
+  saveAlertConfig(resolvedProjectId, cfg);
   return fullEvent;
 }

@@ -1,6 +1,16 @@
 import fs from "fs";
 import path from "path";
-import { atomicWriteJsonSync, getProjectDir } from "@/lib/vault";
+import {
+  atomicWriteJsonSync,
+  ensureProjectVault,
+  getProjectDir,
+  safeReadJsonWithBackupSync,
+} from "@/lib/vault";
+import {
+  resolveActiveProjectId,
+  resolveProjectDbPath,
+  resolveTargetNodeId,
+} from "@/lib/runtimeResolver";
 
 export interface ServerCheckpoint {
   id: string;
@@ -23,76 +33,50 @@ export interface ServerCheckpoint {
 }
 
 function getCheckpointsFilePath(projectId: string): string {
-  const projDir = getProjectDir(projectId);
+  const projDir = getProjectDir(resolveActiveProjectId(projectId));
   fs.mkdirSync(projDir, { recursive: true });
   return path.join(projDir, "Checkpoints.json");
 }
 
 export function loadCheckpoints(projectId: string): ServerCheckpoint[] {
-  const filePath = getCheckpointsFilePath(projectId);
-  try {
-    if (fs.existsSync(filePath)) {
-      const raw = fs.readFileSync(filePath, "utf8");
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-    }
-  } catch {
-    // fallback
+  const resolvedProjectId = resolveActiveProjectId(projectId);
+  const filePath = getCheckpointsFilePath(resolvedProjectId);
+  const parsed = safeReadJsonWithBackupSync<ServerCheckpoint[] | null>(
+    filePath,
+    null
+  );
+  if (Array.isArray(parsed)) {
+    return parsed;
   }
+
+  const state = ensureProjectVault(resolvedProjectId);
+  const nodeId = resolveTargetNodeId(state) || "local-node";
+  const dbPath = resolveProjectDbPath(state);
+  const servicesSnapshot = (state.registered_services || []).map((svc) => ({
+    service_id: svc.service_id,
+    name: svc.name,
+    port: svc.port,
+    healthy: svc.healthy !== false,
+  }));
 
   const seeded: ServerCheckpoint[] = [
     {
-      id: "chk-baseline-vps2",
-      project_id: projectId,
-      node_id: "vps2-muscle",
+      id: `chk-baseline-${resolvedProjectId}`,
+      project_id: resolvedProjectId,
+      node_id: nodeId,
       timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-      title: "Verified Multi-Core Production Baseline",
+      title: "Verified Infrastructure Baseline",
       actor: "Synapse AI",
       summary:
-        "Snapshot of all 5 active services (:4050, :4070, :4085, :4090, pulse.db) and reverse-tunnel mTLS state.",
-      files_backed_up: [
-        "/var/lib/synapse/pulse-stack/pulse.db",
-        "/etc/systemd/system/axon.service",
-      ],
-      services_snapshot: [
-        {
-          service_id: "auto-svc-4050",
-          name: "Autonomous Microservice :4050",
-          port: 4050,
-          healthy: true,
-        },
-        {
-          service_id: "vps2-status-api",
-          name: "VPS2 Status API",
-          port: 4070,
-          healthy: true,
-        },
-        {
-          service_id: "pulse-analytics-api",
-          name: "Pulse Analytics API",
-          port: 4085,
-          healthy: true,
-        },
-        {
-          service_id: "pulse-sqlite-db",
-          name: "Pulse SQLite Database",
-          port: 3001,
-          healthy: true,
-        },
-        {
-          service_id: "pulse-webui",
-          name: "Pulse Live WebUI",
-          port: 4090,
-          healthy: true,
-        },
-      ],
-      rollback_cmd:
-        "if [ -f /var/lib/synapse/pulse-stack/pulse.db.synapse.bak ]; then cp -f /var/lib/synapse/pulse-stack/pulse.db.synapse.bak /var/lib/synapse/pulse-stack/pulse.db; fi && docker start synapse-cloud-demo-status 2>/dev/null || true && echo 'CHECKPOINT_RESTORED_OK'",
+        servicesSnapshot.length > 0
+          ? `Baseline snapshot of ${servicesSnapshot.length} registered service(s) on ${nodeId} and mTLS reverse-tunnel state.`
+          : `Initial workspace baseline snapshot for ${resolvedProjectId}.`,
+      files_backed_up: [dbPath, "/etc/systemd/system/axon.service"],
+      services_snapshot: servicesSnapshot,
+      rollback_cmd: `if [ -f ${dbPath}.synapse.bak ]; then cp -f ${dbPath}.synapse.bak ${dbPath}; fi && echo 'CHECKPOINT_RESTORED_OK'`,
     },
   ];
-  saveCheckpoints(projectId, seeded);
+  saveCheckpoints(resolvedProjectId, seeded);
   return seeded;
 }
 
@@ -108,13 +92,14 @@ export function recordCheckpoint(
   projectId: string,
   entry: Omit<ServerCheckpoint, "id" | "project_id" | "timestamp">
 ): ServerCheckpoint {
-  const list = loadCheckpoints(projectId);
+  const resolvedProjectId = resolveActiveProjectId(projectId);
+  const list = loadCheckpoints(resolvedProjectId);
   const created: ServerCheckpoint = {
     ...entry,
     id: `chk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    project_id: projectId,
+    project_id: resolvedProjectId,
     timestamp: new Date().toISOString(),
   };
-  saveCheckpoints(projectId, [created, ...list]);
+  saveCheckpoints(resolvedProjectId, [created, ...list]);
   return created;
 }

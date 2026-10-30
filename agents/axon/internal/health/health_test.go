@@ -7,7 +7,7 @@ import (
 )
 
 func TestSetTargetsForSource_MultiCoreDeduplication(t *testing.T) {
-	c := NewCollector("vps2-muscle", tunnelv1.AutonomyTierUnspecified)
+	c := NewCollector("edge-node-01", tunnelv1.AutonomyTierUnspecified)
 
 	// Primary core registers explicit named service on port 4050 and a generic auto-svc-9999
 	c.SetTargetsForSource("primary", []tunnelv1.ServiceHealthTarget{
