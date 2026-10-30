@@ -112,12 +112,12 @@ export function useCanvasViewportAndLayout({
     const rawPeerIds =
       peerIdsKey !== "empty" ? peerIdsKey.split(",") : ["empty"];
     const peerStep = 118;
-    const svcStep = 114;
+    const svcStep = 152;
 
     const currentServices = allServicesRef.current;
     const CORE_BASE_H = 74;
     const PEER_BASE_H = peerIdsKey === "empty" ? 46 : 96;
-    const SVC_BASE_H = currentServices.length === 0 ? 50 : 90;
+    const SVC_BASE_H = currentServices.length === 0 ? 50 : 132;
 
 
     const servicesByPeer = new Map<string, RegisteredService[]>();
@@ -220,7 +220,15 @@ export function useCanvasViewportAndLayout({
 
   useEffect(() => {
     measureNodes();
-    const timer = setTimeout(measureNodes, 60);
+    const timer = setTimeout(() => {
+      measureNodes();
+      if (
+        Object.values(expandedNodes).some(Boolean) &&
+        !hasUserViewportAdjustedRef.current
+      ) {
+        setTimeout(() => fitViewLatestRef.current(), 35);
+      }
+    }, 70);
     window.addEventListener("resize", measureNodes);
     return () => {
       clearTimeout(timer);
@@ -294,8 +302,8 @@ export function useCanvasViewportAndLayout({
         }
       });
     };
-    shiftColumn("peer:", 66, 250, coreExtraW);
-    shiftColumn("svc:", 58, 235, coreExtraW + maxPeerExtraW);
+    shiftColumn("peer:", 96, 250, coreExtraW);
+    shiftColumn("svc:", 132, 320, coreExtraW + maxPeerExtraW);
     return out;
   }, [positions, expandedNodes, sizes, customDims]);
 
@@ -349,7 +357,7 @@ export function useCanvasViewportAndLayout({
         const w = sizes[key]?.w || DEFAULT_NODE_W;
         const h =
           sizes[key]?.h ||
-          (key === "core:hub" ? 108 : key.startsWith("peer:") ? 88 : 62);
+          (key === "core:hub" ? 108 : key.startsWith("peer:") ? 108 : 132);
         const extraRight =
           key.startsWith("svc:") && serviceLinks.length > 0 ? 155 : 0;
         if (pos.x < minX) minX = pos.x;
@@ -368,10 +376,10 @@ export function useCanvasViewportAndLayout({
       const contentW = Math.max(400, maxX - minX);
       const contentH = Math.max(240, maxY - minY);
       const availW = Math.max(320, rect.width - 48);
-      const availH = Math.max(220, rect.height - 88);
+      const availH = Math.max(220, rect.height - 96);
       const scaleX = availW / contentW;
       const scaleY = availH / contentH;
-      const minScale = 0.62;
+      const minScale = 0.48;
       const nextZoom = Math.min(
         Math.max(Math.min(scaleX, scaleY), minScale),
         1.05

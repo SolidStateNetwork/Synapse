@@ -94,7 +94,16 @@ export async function POST(req: NextRequest) {
       } else if (serviceId === "pulse-sqlite-db") {
         cmd = `DB_PATH=/opt/axon/workspaces/pulse-analytics/pulse.db; [ -f "$DB_PATH" ] || DB_PATH=/var/lib/synapse/pulse-stack/pulse.db; sqlite3 "$DB_PATH" "SELECT * FROM sqlite_master WHERE type='table';" 2>&1; ls -lh "$DB_PATH" 2>&1`;
       } else {
-        cmd = `PID=$(ss -tlnp | awk '/:${port} / {match($0, /pid=[0-9]+/); if (RSTART) print substr($0, RSTART+4, RLENGTH-4)}' | head -n1); echo "=== Service :${port} (PID: \${PID:-active}) ==="; if [ -n "$PID" ] && [ -f "/proc/$PID/cmdline" ]; then tr '\\0' ' ' < /proc/$PID/cmdline; echo ""; fi; tail -n 20 /var/lib/synapse/pulse-stack/*.log /var/lib/synapse/blueprints/*/*.log /tmp/*.log 2>/dev/null | tail -n 20 || curl -s -i --max-time 2 http://127.0.0.1:${port}/ | head -n 15`;
+        cmd = [
+          `PID=$(ss -tlnp 2>/dev/null | awk '/:${port} / {match($0, /pid=[0-9]+/); if (RSTART) print substr($0, RSTART+4, RLENGTH-4)}' | head -n1)`,
+          `echo "=== Service :${port} (PID: \${PID:-active}) ==="`,
+          `if [ -n "$PID" ] && [ -f "/proc/$PID/cmdline" ]; then tr '\\0' ' ' < /proc/$PID/cmdline; echo ""; fi`,
+          `LOG_FOUND=""`,
+          `for lf in /tmp/synapse-svc-${port}.log /tmp/svc${port}.log /tmp/pulse-${port}.log ${port === 4060 ? "/var/lib/synapse/blueprints/uptime-beacon-stack/beacon.log" : ""} ${port === 4085 || port === 4090 ? "/var/lib/synapse/pulse-stack/pulse.log" : ""}; do`,
+          `  if [ -n "$lf" ] && [ -s "$lf" ]; then LOG_FOUND="$lf"; tail -n 12 "$lf" 2>/dev/null; break; fi`,
+          `done`,
+          `curl -s -i --max-time 2 http://127.0.0.1:${port}/ 2>/dev/null | head -n 10 || true`,
+        ].join("\n");
       }
 
       const ptyRes = await fetch(`${GATEWAY_URL}/api/v1/rpc/pty`, {

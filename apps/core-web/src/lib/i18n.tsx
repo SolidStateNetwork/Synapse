@@ -1302,9 +1302,97 @@ const EN_PATTERNS: PatternRule[] = [
     replace:
       "Interactive WebUI reachable from outside via Synapse Reverse Proxy ($1)",
   },
+  {
+    match: /^Benutzerdefinierter (.+)-Dienst bereitgestellt auf (.+)$/,
+    replace: "Custom $1 service deployed on $2",
+  },
+  {
+    match: /^Autonomer Microservice( :(\d+))?$/,
+    replace: "Autonomous Microservice$1",
+  },
+  {
+    match: /^Uptime- & Latenz-Beacon( :(\d+))?$/,
+    replace: "Uptime & Latency Beacon$1",
+  },
+  {
+    match: /^\+\s*Autonomer Microservice :(\d+)$/,
+    replace: "+ Autonomous Microservice :$1",
+  },
+  {
+    match: /^(GET\s+)?\/ \(Status- & Telemetrie-JSON\)$/,
+    replace: "$1/ (Status & Telemetry JSON)",
+  },
+  {
+    match: /^(GET\s+)?\/health \(Health-Check\)$/,
+    replace: "$1/health (Health Check)",
+  },
+  {
+    match: /^(GET\s+)?\/ \(SQLite-Einträge JSON\)$/,
+    replace: "$1/ (SQLite Items JSON)",
+  },
+  {
+    match: /^(POST\s+)?\/ \(JSON-Daten senden\)$/,
+    replace: "$1/ (Send JSON Input)",
+  },
 ];
 
 const DE_PATTERNS: PatternRule[] = [
+  {
+    match: /^Custom (.+) service deployed on (.+)$/,
+    replace: "Benutzerdefinierter $1-Dienst bereitgestellt auf $2",
+  },
+  {
+    match: /^Autonomous Microservice( :(\d+))?$/,
+    replace: "Autonomer Microservice$1",
+  },
+  {
+    match: /^Uptime & Latency Beacon( :(\d+))?$/,
+    replace: "Uptime- & Latenz-Beacon$1",
+  },
+  {
+    match: /^\+\s*Autonomous Microservice :(\d+)$/,
+    replace: "+ Autonomer Microservice :$1",
+  },
+  {
+    match: /^(GET\s+)?\/ \(Status & Telemetry JSON\)$/,
+    replace: "$1/ (Status- & Telemetrie-JSON)",
+  },
+  {
+    match: /^(GET\s+)?\/health \(Health Check\)$/,
+    replace: "$1/health (Health-Check)",
+  },
+  {
+    match: /^(GET\s+)?\/ \(SQLite Items JSON\)$/,
+    replace: "$1/ (SQLite-Einträge JSON)",
+  },
+  {
+    match: /^(POST\s+)?\/ \(Send JSON Input\)$/,
+    replace: "$1/ (JSON-Daten senden)",
+  },
+  {
+    match: /^(GET\s+)?\/ \(Overview\)$/,
+    replace: "$1/ (Übersicht)",
+  },
+  {
+    match: /^(GET\s+)?\/ \(Service Status\)$/,
+    replace: "$1/ (Service-Status)",
+  },
+  {
+    match: /^(POST\s+)?\/api\/events \(Add Event\)$/,
+    replace: "$1/api/events (Ereignis senden)",
+  },
+  {
+    match: /^Lightweight JSON health and latency telemetry beacon running on port (\d+)\.$/,
+    replace: "Leichtgewichtiger JSON-Health- und Latenz-Telemetrie-Beacon auf Port $1.",
+  },
+  {
+    match: /^\[([^\]]+)\] Autonomous Watchdog inspected (.+)$/,
+    replace: "[$1] Autonomer Wächter hat $2 geprüft",
+  },
+  {
+    match: /^\[([^\]]+)\] Self-Healing Runbook executed: (.+)$/,
+    replace: "[$1] Self-Healing-Runbook ausgeführt: $2",
+  },
   { match: /^All \((\d+)\)$/, replace: "Alle ($1)" },
   { match: /^AI Replies \((\d+)\)$/, replace: "KI-Antworten ($1)" },
   { match: /^Actions \((\d+)\)$/, replace: "Aktionen ($1)" },

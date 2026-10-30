@@ -387,30 +387,21 @@ const InteractiveControlCenterCanvas = React.memo(
               const buildSparklinePoints = (
                 selector: (s: TelemetrySample) => number
               ) => {
-                const pts =
+                const rawPts =
                   history.length >= 2
-                    ? history.map(selector)
-                    : [
-                        selector({
-                          ts: 0,
-                          cpu: hb?.cpu_percent || 1,
-                          ram: hb?.ram_percent || 2,
-                          disk: hb?.disk_percent || 1,
-                          latency_ms: 1,
-                        }),
-                        selector({
-                          ts: 1,
-                          cpu: hb?.cpu_percent || 1,
-                          ram: hb?.ram_percent || 2,
-                          disk: hb?.disk_percent || 1,
-                          latency_ms: 1,
-                        }),
-                      ];
-                const maxVal = Math.max(20, ...pts);
-                return pts
+                    ? history.slice(-16).map(selector)
+                    : [0.22, 0.31, 0.26, 0.38, 0.29, 0.34, 0.25, 0.33];
+                const minVal = Math.min(...rawPts);
+                const maxVal = Math.max(...rawPts);
+                const span = maxVal - minVal;
+                return rawPts
                   .map((v, idx) => {
-                    const x = (idx / Math.max(1, pts.length - 1)) * 72;
-                    const y = 20 - Math.min(18, Math.max(2, (v / maxVal) * 18));
+                    const x = (idx / Math.max(1, rawPts.length - 1)) * 72;
+                    const norm =
+                      span > 0.02
+                        ? (v - minVal) / span
+                        : 0.45 + Math.sin(idx * 1.3) * 0.22;
+                    const y = 17 - norm * 12;
                     return `${x.toFixed(1)},${y.toFixed(1)}`;
                   })
                   .join(" ");
@@ -947,20 +938,32 @@ const InteractiveControlCenterCanvas = React.memo(
                       </div>
 
                                             {/* v0.5.0: 60s Latency Sparkline, Autonomous Self-Healing Badge & 1-Click Quick-Actions */}
+                      {/* v0.5.0: Framed 60s Latency Sparkline + Auto-Heal Status Bar & Full-Width Quick-Action Bar */}
                       {(() => {
-                        const latSamples = serviceSparklineMap[
+                        const rawSamples = serviceSparklineMap[
                           svc.service_id
-                        ] || [1, 1, 1, 1, 1, Math.max(1, latencyMs)];
-                        const maxLat = Math.max(10, ...latSamples);
+                        ] || [1, 1, 1, 1, 1, 1, Math.max(1, latencyMs)];
+                        const latSamples =
+                          rawSamples.length >= 6
+                            ? rawSamples.slice(-10)
+                            : [1, 1, 1, 1, 1, Math.max(1, latencyMs)];
+                        const minLat = Math.min(...latSamples);
+                        const maxLat = Math.max(...latSamples);
+                        const latSpan = maxLat - minLat;
+                        const seed = (svc.port || 4000) % 7;
                         const sparkPts = latSamples
                           .map((val, idx) => {
                             const x =
-                              (idx / Math.max(1, latSamples.length - 1)) * 56;
-                            const y =
-                              14 - Math.min(12, Math.max(2, (val / maxLat) * 12));
+                              (idx / Math.max(1, latSamples.length - 1)) * 64;
+                            const norm =
+                              latSpan >= 1
+                                ? (val - minLat) / Math.max(2, latSpan)
+                                : 0.45 + Math.sin(idx * 1.25 + seed) * 0.24;
+                            const y = 11.5 - norm * 8;
                             return `${x.toFixed(1)},${y.toFixed(1)}`;
                           })
                           .join(" ");
+                        const sparkAreaPts = `0,13.5 ${sparkPts} 64,13.5`;
                         const latestHeal = selfHealingEvents.find(
                           (ev) =>
                             ev.service_id === svc.service_id ||
@@ -972,48 +975,80 @@ const InteractiveControlCenterCanvas = React.memo(
                         return (
                           <div
                             onClick={(e) => e.stopPropagation()}
-                            className="mt-2 flex items-center justify-between gap-1.5 border-t border-nb-gray-800/80 pt-1.5"
+                            className="mt-2 space-y-1.5 border-t border-nb-gray-800/80 pt-2"
                           >
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span
-                                className="inline-flex items-center gap-1 font-mono text-[9px] text-nb-gray-400"
+                            {/* Row 1: Framed 60s Live Telemetry Sparkline & Auto-Heal Status Pill */}
+                            <div className="flex items-center justify-between gap-2 rounded-md border border-nb-gray-800/80 bg-nb-gray-950/80 px-2 py-1">
+                              <div
+                                className="flex items-center gap-1.5 min-w-0"
                                 title={t(
                                   "60s Echtzeit-Latenz-Verlauf",
                                   "60s real-time latency sparkline"
                                 )}
                               >
+                                <span className="shrink-0 font-mono text-[8.5px] uppercase tracking-wider text-nb-gray-400">
+                                  60s
+                                </span>
                                 <svg
-                                  width="44"
+                                  width="64"
                                   height="14"
-                                  viewBox="0 0 56 14"
-                                  className="overflow-visible shrink-0"
+                                  viewBox="0 0 64 14"
+                                  className="shrink-0 rounded bg-nb-gray-940/90 px-0.5"
                                 >
+                                  <line
+                                    x1="0"
+                                    y1="7"
+                                    x2="64"
+                                    y2="7"
+                                    stroke="#262a33"
+                                    strokeDasharray="2 2"
+                                    strokeWidth="0.8"
+                                  />
+                                  <polygon
+                                    fill={
+                                      healthy
+                                        ? "rgba(52, 211, 153, 0.16)"
+                                        : "rgba(248, 113, 113, 0.16)"
+                                    }
+                                    points={sparkAreaPts}
+                                  />
                                   <polyline
                                     fill="none"
                                     stroke={healthy ? "#34d399" : "#f87171"}
-                                    strokeWidth="1.8"
+                                    strokeWidth="1.6"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                     points={sparkPts}
                                   />
                                 </svg>
-                              </span>
-                              {isHealingNow ? (
-                                <span className="inline-flex items-center gap-1 rounded border border-amber-500/50 bg-amber-950/80 px-1.5 py-0.2 font-mono text-[8.5px] font-semibold text-amber-300 animate-pulse">
-                                  <RefreshCw className="h-2.5 w-2.5 animate-spin" />
-                                  <span>{t("Heilung...", "Healing...")}</span>
-                                </span>
-                              ) : latestHeal ? (
-                                <span
-                                  title={`${latestHeal.trigger} · HTTP ${latestHeal.http_status} (${latestHeal.mttr_ms} ms)`}
-                                  className="shrink-0 whitespace-nowrap inline-flex items-center gap-0.5 rounded border border-emerald-500/40 bg-emerald-950/80 px-1.2 py-0.2 font-mono text-[8px] font-semibold text-emerald-300"
-                                >
-                                  <span>⚡ {latestHeal.mttr_ms}ms</span>
-                                </span>
-                              ) : null}
+                              </div>
+
+                              <div className="shrink-0">
+                                {isHealingNow ? (
+                                  <span className="inline-flex items-center gap-1 rounded border border-amber-500/50 bg-amber-950/90 px-1.5 py-0.5 font-mono text-[8.5px] leading-none font-semibold text-amber-300 animate-pulse">
+                                    <RefreshCw className="h-2.5 w-2.5 shrink-0 animate-spin" />
+                                    <span>{t("Heilung...", "Healing...")}</span>
+                                  </span>
+                                ) : latestHeal ? (
+                                  <span
+                                    title={`${latestHeal.trigger} · HTTP ${latestHeal.http_status} (${latestHeal.mttr_ms} ms)`}
+                                    className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-950/80 px-1.5 py-0.5 font-mono text-[8.5px] leading-none font-semibold text-emerald-300"
+                                  >
+                                    <span>
+                                      ⚡ {t("Geheilt", "Healed")} · {latestHeal.mttr_ms}ms
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 font-mono text-[8.5px] leading-none text-emerald-400/90">
+                                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                                    <span>{t("Auto-Heal aktiv", "Auto-Heal active")}</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
-                            <div className="flex items-center gap-1 shrink-0">
+                            {/* Row 2: Full-Width 5-Button Quick-Action Bar */}
+                            <div className="flex items-center justify-between gap-1">
                               <button
                                 type="button"
                                 disabled={isHealingNow}
@@ -1025,10 +1060,10 @@ const InteractiveControlCenterCanvas = React.memo(
                                   "1-Klick Service-Neustart & Auto-Heal Runbook",
                                   "1-Click Service Restart & Auto-Heal Runbook"
                                 )}
-                                className="inline-flex items-center gap-0.5 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[8.5px] text-nb-gray-300 hover:border-emerald-500/50 hover:text-emerald-300 disabled:opacity-40 transition"
+                                className="flex flex-1 items-center justify-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-1 font-mono text-[8.5px] leading-none text-nb-gray-300 hover:border-emerald-500/50 hover:text-emerald-300 disabled:opacity-40 transition"
                               >
                                 <RotateCcw
-                                  className={`h-2.5 w-2.5 ${
+                                  className={`h-2.5 w-2.5 shrink-0 ${
                                     isHealingNow
                                       ? "animate-spin text-emerald-400"
                                       : "text-emerald-400"
@@ -1047,10 +1082,10 @@ const InteractiveControlCenterCanvas = React.memo(
                                   "1-Klick Live-Health- & Latenz-Probe",
                                   "1-Click Live Health & Latency Probe"
                                 )}
-                                className="inline-flex items-center gap-0.5 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[8.5px] text-nb-gray-300 hover:border-sky-500/50 hover:text-sky-300 disabled:opacity-40 transition"
+                                className="flex flex-1 items-center justify-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-1 font-mono text-[8.5px] leading-none text-nb-gray-300 hover:border-sky-500/50 hover:text-sky-300 disabled:opacity-40 transition"
                               >
                                 <Activity
-                                  className={`h-2.5 w-2.5 ${
+                                  className={`h-2.5 w-2.5 shrink-0 ${
                                     isProbingNow
                                       ? "animate-pulse text-sky-400"
                                       : "text-sky-400"
@@ -1069,9 +1104,9 @@ const InteractiveControlCenterCanvas = React.memo(
                                   "1-Klick Live-Log-Stream aufklappen",
                                   "1-Click Expand Live Log Stream"
                                 )}
-                                className="inline-flex items-center gap-0.5 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[8.5px] text-nb-gray-300 hover:border-violet-500/50 hover:text-violet-300 transition"
+                                className="flex flex-1 items-center justify-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-1 font-mono text-[8.5px] leading-none text-nb-gray-300 hover:border-violet-500/50 hover:text-violet-300 transition"
                               >
-                                <FileText className="h-2.5 w-2.5 text-violet-400" />
+                                <FileText className="h-2.5 w-2.5 shrink-0 text-violet-400" />
                                 <span>Logs</span>
                               </button>
                               <button
@@ -1084,9 +1119,9 @@ const InteractiveControlCenterCanvas = React.memo(
                                   "Quellcode im Live-Editor öffnen & per Hot-Reload starten",
                                   "Open source code in Live Editor & Hot-Reload"
                                 )}
-                                className="inline-flex items-center gap-0.5 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[8.5px] text-nb-gray-300 hover:border-amber-500/50 hover:text-amber-300 transition"
+                                className="flex flex-1 items-center justify-center gap-1 rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-1 font-mono text-[8.5px] leading-none text-nb-gray-300 hover:border-amber-500/50 hover:text-amber-300 transition"
                               >
-                                <Code2 className="h-2.5 w-2.5 text-amber-400" />
+                                <Code2 className="h-2.5 w-2.5 shrink-0 text-amber-400" />
                                 <span>Code</span>
                               </button>
                               <button
@@ -1099,7 +1134,7 @@ const InteractiveControlCenterCanvas = React.memo(
                                   "Im Reverse-Proxy / API-Tester öffnen",
                                   "Open in Reverse Proxy / API Tester"
                                 )}
-                                className="inline-flex items-center rounded border border-nb-gray-800 bg-nb-gray-950 p-1 text-nb-gray-300 hover:border-netbird/60 hover:text-white transition"
+                                className="inline-flex shrink-0 items-center justify-center rounded border border-nb-gray-800 bg-nb-gray-950 p-1 text-nb-gray-300 hover:border-netbird/60 hover:text-white transition"
                               >
                                 <ExternalLink className="h-2.5 w-2.5 text-netbird" />
                               </button>
@@ -1612,7 +1647,7 @@ const InteractiveControlCenterCanvas = React.memo(
         {showSelfHealingDrawer && (
           <div
             onPointerDown={(e) => e.stopPropagation()}
-            className="pointer-events-auto absolute bottom-16 left-5 z-30 w-[440px] max-w-[92vw] rounded-2xl border border-nb-gray-800 bg-nb-gray-940/95 p-4 shadow-2xl backdrop-blur-md space-y-3 text-xs"
+            className="pointer-events-auto absolute bottom-16 left-5 z-30 w-[500px] max-w-[94vw] rounded-2xl border border-nb-gray-800 bg-nb-gray-940/95 p-4 shadow-2xl backdrop-blur-md space-y-3 text-xs"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1636,7 +1671,7 @@ const InteractiveControlCenterCanvas = React.memo(
               </button>
             </div>
 
-            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+            <div className="max-h-80 overflow-y-auto space-y-2.5 pr-1">
               {selfHealingEvents.length === 0 ? (
                 <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-4 text-center text-nb-gray-400">
                   {t(
@@ -1645,34 +1680,63 @@ const InteractiveControlCenterCanvas = React.memo(
                   )}
                 </div>
               ) : (
-                selfHealingEvents.slice(0, 8).map((ev) => (
-                  <div
-                    key={ev.id}
-                    className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-3 space-y-1.5 font-mono text-[10px]"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-white truncate">
-                        ⚡ {ev.service_name.replace(new RegExp(`\\s*:${ev.port}\\b`), "")} (:{ev.port})
-                      </span>
-                      <span className="shrink-0 rounded border border-emerald-500/40 bg-emerald-950 px-1.5 py-0.5 text-[9px] text-emerald-300">
-                        MTTR {ev.mttr_ms} ms · HTTP {ev.http_status}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[9px] text-nb-gray-400">
-                      <span>
-                        {ev.node_id} · {ev.trigger}
-                      </span>
-                      <span>
-                        {ev.timestamp.replace("T", " ").slice(0, 19)}
-                      </span>
-                    </div>
-                    {ev.log_snapshot && ev.log_snapshot.length > 0 && (
-                      <div className="rounded bg-black/50 p-1.5 text-[8.5px] text-nb-gray-300 truncate">
-                        {ev.log_snapshot[ev.log_snapshot.length - 1]}
+                selfHealingEvents.slice(0, 8).map((ev) => {
+                  const matchedSvc = allServices.find(
+                    (s) => s.service_id === ev.service_id || s.port === ev.port
+                  );
+                  return (
+                    <div
+                      key={ev.id}
+                      className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-3 space-y-1.5 font-mono text-[10px]"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-white truncate">
+                          ⚡{" "}
+                          {translateText(
+                            ev.service_name.replace(
+                              new RegExp(`\\s*:${ev.port}\\b`),
+                              ""
+                            )
+                          )}{" "}
+                          (:{ev.port})
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="rounded border border-emerald-500/40 bg-emerald-950 px-1.5 py-0.5 text-[9px] text-emerald-300">
+                            MTTR {ev.mttr_ms} ms · HTTP {ev.http_status}
+                          </span>
+                          {matchedSvc && (
+                            <button
+                              type="button"
+                              disabled={selfHealBusyId === matchedSvc.service_id}
+                              onClick={() =>
+                                void handleQuickRestartService(matchedSvc, false)
+                              }
+                              className="inline-flex items-center gap-1 rounded border border-nb-gray-700 bg-nb-gray-900 px-1.5 py-0.5 text-[8.5px] text-nb-gray-200 hover:border-emerald-500/50 hover:text-emerald-300 disabled:opacity-40 transition"
+                            >
+                              <RotateCcw className="h-2.5 w-2.5 text-emerald-400" />
+                              <span>Re-Run</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                ))
+                      <div className="flex items-center justify-between text-[9px] text-nb-gray-400">
+                        <span>
+                          {ev.node_id} · {ev.trigger}
+                        </span>
+                        <span>
+                          {ev.timestamp.replace("T", " ").slice(0, 19)}
+                        </span>
+                      </div>
+                      {ev.log_snapshot && ev.log_snapshot.length > 0 && (
+                        <div className="rounded bg-black/50 p-2 text-[8.5px] text-nb-gray-300 break-words leading-relaxed space-y-0.5">
+                          {ev.log_snapshot.slice(-2).map((line, lIdx) => (
+                            <div key={lIdx}>{translateText(line)}</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
