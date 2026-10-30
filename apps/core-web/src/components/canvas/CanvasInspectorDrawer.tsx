@@ -319,10 +319,16 @@ export const CanvasEdgesLayer = React.memo(function CanvasEdgesLayer({
             customDims[fromKey]?.w || sizes[fromKey]?.w || defaultNodeW;
           const w2 =
             customDims[toKey]?.w || sizes[toKey]?.w || defaultNodeW;
+          const h1 =
+            sizes[fromKey]?.h && sizes[fromKey].h <= 80
+              ? sizes[fromKey].h
+              : 58;
+          const h2 =
+            sizes[toKey]?.h && sizes[toKey].h <= 80 ? sizes[toKey].h : 58;
           const x1 = p1.x + w1;
-          const y1 = p1.y + 31;
+          const y1 = p1.y + h1 / 2;
           const x2 = p2.x + w2;
-          const y2 = p2.y + 31;
+          const y2 = p2.y + h2 / 2;
 
           const baseRightX = Math.max(x1, x2);
           const arcOffset = 78 + lIdx * 28;

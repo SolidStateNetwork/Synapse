@@ -9,7 +9,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -69,6 +71,9 @@ func main() {
 		}
 	}()
 
+	// Self-Healing Reverse Tunnel Supervisor for NAT/Local Core Gateways
+	go startSelfHealingMuscleTunnel(nodeHub, tunnelPort)
+
 	mux := http.NewServeMux()
 	startedAt := time.Now()
 
@@ -77,7 +82,7 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status":          "ok",
 			"service":         "synapse-core-gateway",
-			"version":         "v0.3.0",
+			"version":         "v0.4.0",
 			"uptime_sec":      int64(time.Since(startedAt).Seconds()),
 			"tunnel_port":     tunnelPort,
 			"debug_enabled":   nodeHub.IsDebugEnabled(),
@@ -624,4 +629,115 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// startSelfHealingMuscleTunnel ensures that if this Core Gateway runs behind NAT (e.g. local Windows Core on 8443
+// or local Linux Core on 9443), its dedicated SSH reverse tunnel to the Muscle host is automatically established
+// and healed whenever the Muscle node is disconnected, without interfering with other simultaneous Cores.
+func startSelfHealingMuscleTunnel(nodeHub *hub.Hub, localTunnelPort int) {
+	if os.Getenv("SYNAPSE_AUTO_SSH_TUNNEL") == "0" {
+		return
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil || homeDir == "" {
+		return
+	}
+	keyCandidates := []string{
+		os.Getenv("SYNAPSE_SSH_KEY_PATH"),
+		filepath.Join(homeDir, ".ssh", "synapse_vps_ed25519"),
+		filepath.Join(homeDir, ".ssh", "id_ed25519"),
+	}
+	var sshKeyPath string
+	for _, cand := range keyCandidates {
+		if cand == "" {
+			continue
+		}
+		if st, err := os.Stat(cand); err == nil && !st.IsDir() {
+			sshKeyPath = cand
+			break
+		}
+	}
+	if sshKeyPath == "" {
+		return
+	}
+
+	remoteHost := getEnv("SYNAPSE_SSH_REVERSE_HOST", "root@217.154.20.24")
+	defaultRemoteTunnel := "8443"
+	defaultRemoteHTTP := "8081"
+	if runtime.GOOS != "windows" {
+		defaultRemoteTunnel = "9443"
+		defaultRemoteHTTP = "9081"
+	}
+	remoteTunnelPort := getEnv("SYNAPSE_REMOTE_TUNNEL_PORT", defaultRemoteTunnel)
+	remoteHTTPPort := getEnv("SYNAPSE_REMOTE_HTTP_PORT", defaultRemoteHTTP)
+
+	var activeCmd *exec.Cmd
+	var lastSpawn time.Time
+
+	time.Sleep(2 * time.Second)
+	for {
+		nodes := nodeHub.ListNodes()
+		hasOnline := false
+		for _, n := range nodes {
+			if n.Online {
+				hasOnline = true
+				break
+			}
+		}
+
+		if hasOnline {
+			time.Sleep(6 * time.Second)
+			continue
+		}
+
+		// Wait up to 12s after spawning a tunnel before restarting it to let Axon complete its 2s backoff + mTLS handshake
+		if activeCmd != nil && activeCmd.Process != nil && time.Since(lastSpawn) < 12*time.Second {
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		if activeCmd != nil && activeCmd.Process != nil {
+			_ = activeCmd.Process.Kill()
+			_, _ = activeCmd.Process.Wait()
+			activeCmd = nil
+		}
+
+		// Clear only THIS Core's dedicated remote tunnel ports on the Muscle host
+		cleanScript := fmt.Sprintf("fuser -k %s/tcp %s/tcp 2>/dev/null || true", remoteTunnelPort, remoteHTTPPort)
+		cleanCmd := exec.Command(
+			"ssh",
+			"-i", sshKeyPath,
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "BatchMode=yes",
+			"-o", "ConnectTimeout=5",
+			remoteHost,
+			cleanScript,
+		)
+		_ = cleanCmd.Run()
+
+		tunnelCmd := exec.Command(
+			"ssh",
+			"-i", sshKeyPath,
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "BatchMode=yes",
+			"-o", "ConnectTimeout=6",
+			"-o", "ServerAliveInterval=10",
+			"-o", "ServerAliveCountMax=2",
+			"-o", "ExitOnForwardFailure=yes",
+			"-N",
+			"-R", fmt.Sprintf("%s:127.0.0.1:%d", remoteTunnelPort, localTunnelPort),
+			"-R", fmt.Sprintf("%s:127.0.0.1:8081", remoteHTTPPort),
+			remoteHost,
+		)
+		if err := tunnelCmd.Start(); err == nil {
+			activeCmd = tunnelCmd
+			lastSpawn = time.Now()
+			nodeHub.RecordEvent("mtls", "vps2-muscle", fmt.Sprintf("Self-healing reverse tunnel spawned (%s -> 127.0.0.1:%d)", remoteTunnelPort, localTunnelPort), 0, nil)
+			go func(c *exec.Cmd) {
+				_ = c.Wait()
+			}(tunnelCmd)
+		}
+
+		time.Sleep(4 * time.Second)
+	}
 }

@@ -114,11 +114,11 @@ export function useCanvasViewportAndLayout({
     const peerStep = 118;
     const svcStep = 94;
 
-    const CORE_BASE_H = 74;
-    const PEER_BASE_H = 74;
-    const SVC_BASE_H = 62;
-
     const currentServices = allServicesRef.current;
+    const CORE_BASE_H = 74;
+    const PEER_BASE_H = peerIdsKey === "empty" ? 46 : 66;
+    const SVC_BASE_H = currentServices.length === 0 ? 50 : 58;
+
     const servicesByPeer = new Map<string, RegisteredService[]>();
     for (const pid of rawPeerIds) {
       servicesByPeer.set(pid, []);
@@ -293,8 +293,8 @@ export function useCanvasViewportAndLayout({
         }
       });
     };
-    shiftColumn("peer:", 74, 250, coreExtraW);
-    shiftColumn("svc:", 62, 235, coreExtraW + maxPeerExtraW);
+    shiftColumn("peer:", 66, 250, coreExtraW);
+    shiftColumn("svc:", 58, 235, coreExtraW + maxPeerExtraW);
     return out;
   }, [positions, expandedNodes, sizes, customDims]);
 
@@ -717,14 +717,26 @@ export function useCanvasViewportAndLayout({
     };
   }, [applyZoomAtPoint]);
 
+  const getNodeAnchorHeight = useCallback(
+    (nodeId: string): number => {
+      if (!expandedNodes[nodeId] && sizes[nodeId]?.h) {
+        return sizes[nodeId].h;
+      }
+      if (nodeId === "core:hub") return 74;
+      if (nodeId === "peer:empty") return 46;
+      if (nodeId.startsWith("peer:")) return 66;
+      if (nodeId === "svc:empty") return 50;
+      return 58;
+    },
+    [expandedNodes, sizes]
+  );
+
   const getEdgeCoords = useCallback(
     (fromId: string, toId: string) => {
       const p1 = effectivePositions[fromId] || { x: 50, y: 120 };
       const p2 = effectivePositions[toId] || { x: 470, y: 120 };
-      const headerH1 =
-        fromId === "core:hub" ? 74 : fromId.startsWith("peer:") ? 74 : 62;
-      const headerH2 =
-        toId === "core:hub" ? 74 : toId.startsWith("peer:") ? 74 : 62;
+      const headerH1 = getNodeAnchorHeight(fromId);
+      const headerH2 = getNodeAnchorHeight(toId);
 
       const w1 = customDims[fromId]?.w || sizes[fromId]?.w || DEFAULT_NODE_W;
       const w2 = customDims[toId]?.w || sizes[toId]?.w || DEFAULT_NODE_W;
@@ -745,7 +757,7 @@ export function useCanvasViewportAndLayout({
 
       return { x1, y1, x2, y2, d };
     },
-    [effectivePositions, customDims, sizes]
+    [effectivePositions, customDims, sizes, getNodeAnchorHeight]
   );
 
   const startCanvasPan = useCallback(

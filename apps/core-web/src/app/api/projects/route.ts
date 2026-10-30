@@ -46,6 +46,23 @@ export async function GET(req: NextRequest) {
   }> = [];
 
   const state = await withProjectStateTransaction(projectId, (draft) => {
+    // Auto-enroll any live connected Muscle node into assigned_nodes so it always displays automatically
+    for (const live of liveNodes) {
+      if (!live.node_id) continue;
+      const existsInProject = draft.assigned_nodes.some(
+        (a) => a.node_id === live.node_id
+      );
+      if (!existsInProject) {
+        draft.assigned_nodes.push({
+          node_id: live.node_id,
+          tier: live.tier || "TIER_2_WORKSPACE_JAIL",
+          online: Boolean(live.online),
+          status: live.online ? "ONLINE" : "OFFLINE",
+        });
+        draft.planning_only = false;
+      }
+    }
+
     for (const assigned of draft.assigned_nodes) {
       const match = liveNodes.find((n) => n.node_id === assigned.node_id);
       assigned.online = Boolean(match?.online);

@@ -525,7 +525,7 @@ func AddSecondaryCore(baseConfigDir, profileName, coreHTTPURL, joinToken, nodeID
 	return existingCfg, &target, nil
 }
 
-// LoadIdentity reads config.json from the given directory.
+// LoadIdentity reads config.json from the given directory and reconciles Multi-Core profile certificates.
 func LoadIdentity(configDir string) (*IdentityConfig, error) {
 	raw, err := os.ReadFile(filepath.Join(configDir, "config.json"))
 	if err != nil {
@@ -538,7 +538,88 @@ func LoadIdentity(configDir string) (*IdentityConfig, error) {
 	if cfg.Debug {
 		DebugEnabled = true
 	}
+
+	// Ensure each secondary Core target uses its isolated profile certificates if present
+	for i := range cfg.Cores {
+		profDir := filepath.Join(configDir, "profiles", cfg.Cores[i].Name)
+		pCert := filepath.Join(profDir, "node.crt")
+		pKey := filepath.Join(profDir, "node.key")
+		pCA := filepath.Join(profDir, "ca.crt")
+		if fileExists(pCert) && fileExists(pKey) && fileExists(pCA) {
+			cfg.Cores[i].CertFile = pCert
+			cfg.Cores[i].KeyFile = pKey
+			cfg.Cores[i].CACertFile = pCA
+		}
+	}
+
+	// When MultiCore is active, auto-reconcile any saved local tunnel profiles in <configDir>/profiles/*
+	// so switching or re-joining one Core never drops the other simultaneous Core connection.
+	if cfg.MultiCore {
+		profilesRoot := filepath.Join(configDir, "profiles")
+		if entries, err := os.ReadDir(profilesRoot); err == nil {
+			for _, entry := range entries {
+				if !entry.IsDir() {
+					continue
+				}
+				profName := entry.Name()
+				profDir := filepath.Join(profilesRoot, profName)
+				pCfgPath := filepath.Join(profDir, "config.json")
+				pCert := filepath.Join(profDir, "node.crt")
+				pKey := filepath.Join(profDir, "node.key")
+				pCA := filepath.Join(profDir, "ca.crt")
+				if !fileExists(pCfgPath) || !fileExists(pCert) || !fileExists(pKey) || !fileExists(pCA) {
+					continue
+				}
+				pRaw, err := os.ReadFile(pCfgPath)
+				if err != nil {
+					continue
+				}
+				var pCfg IdentityConfig
+				if err := json.Unmarshal(pRaw, &pCfg); err != nil || strings.TrimSpace(pCfg.CoreGateway) == "" {
+					continue
+				}
+				// Auto-include loopback reverse-tunnel Cores (127.0.0.1:* / localhost:*)
+				if !strings.HasPrefix(pCfg.CoreGateway, "127.0.0.1:") && !strings.HasPrefix(pCfg.CoreGateway, "localhost:") {
+					continue
+				}
+				alreadyListed := false
+				for _, existing := range cfg.Cores {
+					if existing.CoreGateway == pCfg.CoreGateway || existing.Name == profName {
+						alreadyListed = true
+						break
+					}
+				}
+				if !alreadyListed {
+					nodeID := pCfg.NodeID
+					if nodeID == "" {
+						nodeID = cfg.NodeID
+					}
+					tier := pCfg.Tier
+					if tier == "" {
+						tier = cfg.Tier
+					}
+					cfg.Cores = append(cfg.Cores, CoreTarget{
+						Name:        profName,
+						NodeID:      nodeID,
+						CoreGateway: pCfg.CoreGateway,
+						CoreHTTP:    pCfg.CoreHTTP,
+						Tier:        tier,
+						CertFile:    pCert,
+						KeyFile:     pKey,
+						CACertFile:  pCA,
+						Enabled:     true,
+					})
+				}
+			}
+		}
+	}
+
 	return &cfg, nil
+}
+
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
 }
 
 // Agent orchestrates the outbound mTLS + Yamux reverse tunnel(s) and all 4 logical stream types.

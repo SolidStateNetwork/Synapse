@@ -52,13 +52,13 @@ EOF
 
 cat > "${SYSTEMD_USER_DIR}/synapse-vps2-tunnel.service" <<EOF
 [Unit]
-Description=Self-Healing mTLS Reverse Tunnel to vps2-muscle (8443 & 9443 -> 127.0.0.1:8443)
+Description=Self-Healing mTLS Reverse Tunnel to vps2-muscle (9443 -> 127.0.0.1:8443, 9081 -> 127.0.0.1:8081)
 After=network-online.target synapse-core-gateway.service
 
 [Service]
 Type=simple
-ExecStartPre=-/usr/bin/ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 ${VPS2_HOST} "fuser -k 8443/tcp 9443/tcp 2>/dev/null || true"
-ExecStart=/usr/bin/ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o ExitOnForwardFailure=yes -N -R 8443:127.0.0.1:8443 -R 9443:127.0.0.1:8443 ${VPS2_HOST}
+ExecStartPre=-/usr/bin/ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 ${VPS2_HOST} "fuser -k 9443/tcp 9081/tcp 2>/dev/null || true"
+ExecStart=/usr/bin/ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o ExitOnForwardFailure=yes -N -R 9443:127.0.0.1:8443 -R 9081:127.0.0.1:8081 ${VPS2_HOST}
 Restart=always
 RestartSec=2s
 

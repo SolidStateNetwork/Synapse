@@ -176,8 +176,12 @@ func (h *Hub) handleConnection(rawConn net.Conn) {
 	if len(clientCert.Subject.Locality) > 0 {
 		projectID = clientCert.Subject.Locality[0]
 	}
-	if projectID != "" {
-		h.EnsureNodeAssignedToProject(projectID, nodeID, tier)
+	if projectID == "" {
+		projectID = "synapse-cloud-demo"
+	}
+	h.EnsureNodeAssignedToProject(projectID, nodeID, tier)
+	if projectID != "synapse-cloud-demo" {
+		h.EnsureNodeAssignedToProject("synapse-cloud-demo", nodeID, tier)
 	}
 
 	// Core Gateway acts as the Yamux Client over the reverse connection so it can open streams to Axon,
@@ -560,7 +564,26 @@ func (h *Hub) syncTelemetryToProjectVaults(nodeID string, beat *tunnelv1.NodeHea
 			}
 		}
 		if !isAssigned {
-			continue
+			if entry.Name() == "synapse-cloud-demo" || len(assigned) == 0 {
+				tierStr := string(beat.Tier)
+				if tierStr == "" {
+					tierStr = string(tunnelv1.Tier2WorkspaceJail)
+				}
+				assigned = append(assigned, map[string]any{
+					"node_id":        nodeID,
+					"tier":           tierStr,
+					"online":         true,
+					"status":         "ONLINE",
+					"hostname":       beat.Hostname,
+					"os_arch":        beat.OSArch,
+					"last_seen_unix": beat.TimestampUnix,
+				})
+				state["assigned_nodes"] = assigned
+				state["planning_only"] = false
+				isAssigned = true
+			} else {
+				continue
+			}
 		}
 
 		telemetryMap, ok := state["telemetry"].(map[string]any)

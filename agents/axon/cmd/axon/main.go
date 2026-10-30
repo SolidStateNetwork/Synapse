@@ -24,7 +24,7 @@ import (
 const defaultConfigDir = "/etc/axon"
 
 var (
-	version = "v0.3.0"
+	version = "v0.4.0"
 	commit  = "HEAD"
 )
 
@@ -150,10 +150,35 @@ func activateSavedProfile(baseConfigDir string, profileName string) (*tunnel.Ide
 		return nil, err
 	}
 
-	// Preserve existing secondary Cores if multi_core was active
+	// Preserve existing primary and secondary Cores if multi_core was active
 	if existing, err := tunnel.LoadIdentity(baseConfigDir); err == nil && existing != nil {
-		cfg.MultiCore = existing.MultiCore
+		cfg.MultiCore = existing.MultiCore || len(existing.Cores) > 0
 		cfg.Cores = existing.Cores
+		if cfg.MultiCore && existing.CoreGateway != "" && existing.CoreGateway != cfg.CoreGateway {
+			prevSlug := sanitizeProfileSlug(existing.CoreHTTP)
+			saveNamedProfile(baseConfigDir, prevSlug, existing)
+			prevProfDir := filepath.Join(baseConfigDir, "profiles", prevSlug)
+			alreadyInCores := false
+			for _, c := range cfg.Cores {
+				if c.CoreGateway == existing.CoreGateway {
+					alreadyInCores = true
+					break
+				}
+			}
+			if !alreadyInCores {
+				cfg.Cores = append(cfg.Cores, tunnel.CoreTarget{
+					Name:        prevSlug,
+					NodeID:      existing.NodeID,
+					CoreGateway: existing.CoreGateway,
+					CoreHTTP:    existing.CoreHTTP,
+					Tier:        existing.Tier,
+					CertFile:    filepath.Join(prevProfDir, "node.crt"),
+					KeyFile:     filepath.Join(prevProfDir, "node.key"),
+					CACertFile:  filepath.Join(prevProfDir, "ca.crt"),
+					Enabled:     true,
+				})
+			}
+		}
 	}
 
 	_ = os.MkdirAll(baseConfigDir, 0o700)
@@ -223,12 +248,37 @@ func runJoin(args []string) {
 		return
 	}
 
-	// Preserve existing secondary Cores if already configured
+	// Preserve existing primary and secondary Cores if already configured
 	var existingCores []tunnel.CoreTarget
 	var existingMulti bool
 	if oldCfg, err := tunnel.LoadIdentity(*configDir); err == nil && oldCfg != nil {
 		existingCores = oldCfg.Cores
-		existingMulti = oldCfg.MultiCore
+		existingMulti = oldCfg.MultiCore || len(oldCfg.Cores) > 0
+		if oldCfg.CoreGateway != "" {
+			prevSlug := sanitizeProfileSlug(oldCfg.CoreHTTP)
+			saveNamedProfile(*configDir, prevSlug, oldCfg)
+			prevProfDir := filepath.Join(*configDir, "profiles", prevSlug)
+			alreadyInCores := false
+			for _, c := range existingCores {
+				if c.CoreGateway == oldCfg.CoreGateway {
+					alreadyInCores = true
+					break
+				}
+			}
+			if !alreadyInCores {
+				existingCores = append(existingCores, tunnel.CoreTarget{
+					Name:        prevSlug,
+					NodeID:      oldCfg.NodeID,
+					CoreGateway: oldCfg.CoreGateway,
+					CoreHTTP:    oldCfg.CoreHTTP,
+					Tier:        oldCfg.Tier,
+					CertFile:    filepath.Join(prevProfDir, "node.crt"),
+					KeyFile:     filepath.Join(prevProfDir, "node.key"),
+					CACertFile:  filepath.Join(prevProfDir, "ca.crt"),
+					Enabled:     true,
+				})
+			}
+		}
 	}
 
 	cfg, err := tunnel.BootstrapCSRWithOptions(*configDir, *coreURL, token, *nodeID, tunnelv1.AutonomyTier(*tierStr), *workspaceRoot, *gatewayOverride, true)
