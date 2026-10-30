@@ -20,12 +20,9 @@ import (
 	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
 )
 
-func main() {
-	debugFlag := flag.Bool("debug", false, "Enable verbose debug trace logging and HTTP request inspection")
-	flag.Parse()
-
+func initGatewayRuntime(debugFlag bool) (*pki.Authority, *hub.Hub, string, string, string, int, error) {
 	debugEnv := os.Getenv("SYNAPSE_DEBUG") == "1" || strings.EqualFold(os.Getenv("SYNAPSE_DEBUG"), "true")
-	debugMode := *debugFlag || debugEnv
+	debugMode := debugFlag || debugEnv
 	if debugMode {
 		log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
 		log.Printf("[core-gateway:DEBUG] Verbose Debug Mode ENABLED")
@@ -48,12 +45,23 @@ func main() {
 
 	authority, err := pki.NewAuthority(dataDir)
 	if err != nil {
-		log.Fatalf("[core-gateway] failed to initialize mTLS PKI authority: %v", err)
+		return nil, nil, "", "", "", 0, err
 	}
 
 	nodeHub := hub.NewHub(vaultRoot)
 	if debugMode {
 		nodeHub.SetDebugEnabled(true)
+	}
+	return authority, nodeHub, dataDir, vaultRoot, httpAddr, tunnelPort, nil
+}
+
+func main() {
+	debugFlag := flag.Bool("debug", false, "Enable verbose debug trace logging and HTTP request inspection")
+	flag.Parse()
+
+	authority, nodeHub, dataDir, vaultRoot, httpAddr, tunnelPort, err := initGatewayRuntime(*debugFlag)
+	if err != nil {
+		log.Fatalf("[core-gateway] failed to initialize mTLS PKI authority: %v", err)
 	}
 
 	// Start mTLS + Yamux Listener for Axon Muscle Nodes

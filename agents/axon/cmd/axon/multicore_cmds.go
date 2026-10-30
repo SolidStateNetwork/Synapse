@@ -26,6 +26,7 @@ func runAddCore(args []string) {
 	configDir := fsFlags.String("config-dir", defaultConfigDir, "Directory containing config.json and mTLS certificates")
 	workspaceRoot := fsFlags.String("workspace-root", "/opt/axon/workspaces", "Workspace root directory")
 	restartDaemon := fsFlags.Bool("restart", true, "Automatically restart systemd axon.service to activate simultaneous tunnel")
+	_ = fsFlags.Bool("multi", true, "Alias flag when delegated from 'axon switch --multi'")
 	debugFlag := fsFlags.Bool("debug", false, "Enable verbose debug logging")
 	_ = fsFlags.Parse(args)
 	enableDebugLogging(*debugFlag)

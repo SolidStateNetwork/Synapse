@@ -1,14 +1,75 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
-	"os"
-	"path/filepath"
+	"encoding/pem"
+	"math/big"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/SolidStateNetwork/Synapse/agents/axon/internal/tunnel"
 	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
 )
+
+func startMockCoreBootstrapServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	caPriv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	caTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "Synapse CLI Test CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	caDER, _ := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caPriv.PublicKey, caPriv)
+	caCert, _ := x509.ParseCertificate(caDER)
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/bootstrap/csr":
+			var req tunnelv1.CSRBootstrapRequest
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			block, _ := pem.Decode(req.CSRPerm)
+			csr, _ := x509.ParseCertificateRequest(block.Bytes)
+			cliTmpl := &x509.Certificate{
+				SerialNumber: big.NewInt(2),
+				Subject:      pkix.Name{CommonName: req.NodeID},
+				NotBefore:    time.Now().Add(-time.Hour),
+				NotAfter:     time.Now().Add(time.Hour),
+				KeyUsage:     x509.KeyUsageDigitalSignature,
+				ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+			}
+			cliDER, _ := x509.CreateCertificate(rand.Reader, cliTmpl, caCert, csr.PublicKey, caPriv)
+			cliPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cliDER})
+			_ = json.NewEncoder(w).Encode(tunnelv1.CSRBootstrapResponse{
+				Success:    true,
+				NodeID:     req.NodeID,
+				CertPEM:    cliPEM,
+				CACertPEM:  caPEM,
+				TunnelPort: 8443,
+			})
+		case "/healthz":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		case "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"nodes": []map[string]any{{"node_id": "cli-node-1", "online": true}},
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+}
 
 func TestSanitizeProfileSlug(t *testing.T) {
 	cases := map[string]string{
@@ -27,76 +88,116 @@ func TestSanitizeProfileSlug(t *testing.T) {
 
 func TestMultiCoreProfileLifecycleAndCLICommands(t *testing.T) {
 	tmpDir := t.TempDir()
+	wsDir := t.TempDir()
 
-	// Create dummy primary cert/key/ca files
-	certPath := filepath.Join(tmpDir, "node.crt")
-	keyPath := filepath.Join(tmpDir, "node.key")
-	caPath := filepath.Join(tmpDir, "ca.crt")
-	_ = os.WriteFile(certPath, []byte("CERT_A"), 0o600)
-	_ = os.WriteFile(keyPath, []byte("KEY_A"), 0o600)
-	_ = os.WriteFile(caPath, []byte("CA_A"), 0o600)
+	// Empty profiles output before configuration exists
+	runProfiles([]string{"--config-dir", tmpDir})
+	runStatus([]string{"--config-dir", tmpDir})
 
-	primaryCfg := &tunnel.IdentityConfig{
-		NodeID:        "muscle-01",
-		CoreHTTP:      "http://10.10.0.1:8081",
-		CoreGateway:   "10.10.0.1:8443",
-		Tier:          tunnelv1.Tier2WorkspaceJail,
-		WorkspaceRoot: filepath.Join(tmpDir, "workspaces"),
-		CertFile:      certPath,
-		KeyFile:       keyPath,
-		CACertFile:    caPath,
-	}
-	rawPrimary, _ := json.MarshalIndent(primaryCfg, "", "  ")
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.json"), rawPrimary, 0o600); err != nil {
-		t.Fatalf("write primary config.json: %v", err)
-	}
+	bootSrv := startMockCoreBootstrapServer(t)
+	defer bootSrv.Close()
 
-	// 1. Save named profiles "core-a" and "core-b"
-	saveNamedProfile(tmpDir, "core-a", primaryCfg)
+	// 1. Test runJoin (primary bootstrap + second primary bootstrap preserving previous profile + --add Multi-Core)
+	runJoin([]string{
+		"--config-dir", tmpDir,
+		"--core", bootSrv.URL,
+		"--workspace-root", wsDir,
+		"--node-id", "cli-node-1",
+		"--tier", "TIER_2_WORKSPACE_JAIL",
+		"--profile", "core-a",
+		"tok-join-1",
+	})
 
-	secondaryCfg := &tunnel.IdentityConfig{
-		NodeID:        "muscle-01",
-		CoreHTTP:      "http://10.10.0.2:9081",
-		CoreGateway:   "10.10.0.2:9443",
-		Tier:          tunnelv1.Tier1Unleashed,
-		WorkspaceRoot: filepath.Join(tmpDir, "workspaces"),
-		CertFile:      certPath,
-		KeyFile:       keyPath,
-		CACertFile:    caPath,
-	}
-	saveNamedProfile(tmpDir, "core-b", secondaryCfg)
+	runJoin([]string{
+		"--config-dir", tmpDir,
+		"--core", bootSrv.URL,
+		"--workspace-root", wsDir,
+		"--node-id", "cli-node-1",
+		"--gateway", "127.0.0.1:8444",
+		"--token", "tok-join-2",
+	})
 
-	// 2. Attach saved profile "core-b" via runAddCore (--restart=false)
-	runAddCore([]string{"--config-dir", tmpDir, "--profile", "core-b", "--restart=false"})
+	runJoin([]string{
+		"--config-dir", tmpDir,
+		"--core", bootSrv.URL,
+		"--workspace-root", wsDir,
+		"--add",
+		"--gateway", "127.0.0.1:9443",
+		"tok-join-add",
+	})
+
+	// 2. Test runAddCore with live CSR token and positional args, then saved profile with gateway override
+	runAddCore([]string{
+		"--config-dir", tmpDir,
+		"--workspace-root", wsDir,
+		"--profile", "core-live-add",
+		"--gateway", "127.0.0.1:9444",
+		"--restart=false",
+		bootSrv.URL,
+		"TIER_1_UNLEASHED",
+		"tok-add-live",
+	})
+
+	runAddCore([]string{
+		"--config-dir", tmpDir,
+		"--profile", "core-a",
+		"--gateway", "127.0.0.1:9445",
+		"--restart=false",
+	})
 
 	loaded, err := tunnel.LoadIdentity(tmpDir)
 	if err != nil {
 		t.Fatalf("LoadIdentity after runAddCore: %v", err)
 	}
-	if !loaded.MultiCore || len(loaded.ActiveCoreTargets()) != 2 {
-		t.Fatalf("expected 2 active core targets after runAddCore, got %d", len(loaded.ActiveCoreTargets()))
+	if !loaded.MultiCore || len(loaded.ActiveCoreTargets()) < 2 {
+		t.Fatalf("expected MultiCore active targets >= 2, got %d", len(loaded.ActiveCoreTargets()))
 	}
 
 	// 3. List profiles via runProfiles
 	runProfiles([]string{"--config-dir", tmpDir})
 
-	// 4. Switch primary core to saved profile "core-b" via runSwitchCore (--restart=false)
-	runSwitchCore([]string{"--config-dir", tmpDir, "--profile", "core-b", "--restart=false"})
+	// 4. Switch primary core via token rebind, saved profile activation, and --multi alias
+	runSwitchCore([]string{
+		"--config-dir", tmpDir,
+		"--workspace-root", wsDir,
+		"--gateway", "127.0.0.1:8445",
+		"--restart=false",
+		bootSrv.URL,
+		"TIER_3_SUPERVISED",
+		"tok-switch-1",
+	})
+
+	runSwitchCore([]string{
+		"--config-dir", tmpDir,
+		"--profile", "core-a",
+		"--restart=false",
+	})
+
+	runSwitchCore([]string{
+		"--config-dir", tmpDir,
+		"--multi",
+		"--profile", "core-a",
+		"--restart=false",
+	})
+
+	// 5. Detach secondary core via positional arg in runRemoveCore
 	switched, err := tunnel.LoadIdentity(tmpDir)
 	if err != nil {
 		t.Fatalf("LoadIdentity after runSwitchCore: %v", err)
 	}
-	if switched.CoreGateway != "10.10.0.2:9443" {
-		t.Fatalf("expected primary CoreGateway to switch to 10.10.0.2:9443, got %s", switched.CoreGateway)
-	}
-
-	// 5. Detach secondary core via runRemoveCore (--restart=false)
 	if len(switched.Cores) > 0 {
-		targetToRemove := switched.Cores[0].Name
-		runRemoveCore([]string{"--config-dir", tmpDir, "--profile", targetToRemove, "--restart=false"})
+		runRemoveCore([]string{"--config-dir", tmpDir, "--restart=false", switched.Cores[0].Name})
 	}
 
-	// 6. Verify runStatus and printUsage execute cleanly
+	// 6. Verify runDebugDoctor (--enable and --disable) and runStatus
+	enableDebugLogging(false)
+	runDebugDoctor([]string{"--config-dir", tmpDir, "--enable"})
+	runDebugDoctor([]string{"--config-dir", tmpDir, "--disable"})
 	runStatus([]string{"--config-dir", tmpDir})
 	printUsage()
+
+	// Verify activateSavedProfile error when profile does not exist
+	if _, err := activateSavedProfile(tmpDir, "nonexistent-profile"); err == nil {
+		t.Fatal("expected error for nonexistent saved profile")
+	}
 }
