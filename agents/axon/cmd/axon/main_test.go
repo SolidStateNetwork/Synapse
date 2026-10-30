@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -199,5 +200,44 @@ func TestMultiCoreProfileLifecycleAndCLICommands(t *testing.T) {
 	// Verify activateSavedProfile error when profile does not exist
 	if _, err := activateSavedProfile(tmpDir, "nonexistent-profile"); err == nil {
 		t.Fatal("expected error for nonexistent saved profile")
+	}
+
+	// 7. Test runDaemon (both inline --token bootstrap and saved identity reload) & dispatchCLI
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	agentLoopTestCtx = ctx
+	defer func() { agentLoopTestCtx = nil }()
+
+	runDaemon([]string{
+		"--config-dir", tmpDir,
+		"--core", bootSrv.URL,
+		"--token", "tok-daemon-inline",
+		"--node-id", "cli-node-daemon",
+		"--workspace-root", wsDir,
+	})
+
+	runDebugDoctor([]string{"--config-dir", tmpDir, "--enable"})
+	runDaemon([]string{"--config-dir", tmpDir})
+
+	for _, argv := range [][]string{
+		{"axon", "version"},
+		{"axon", "--debug", "status", "--config-dir", tmpDir},
+		{"axon", "profiles", "--config-dir", tmpDir},
+		{"axon", "doctor", "--config-dir", tmpDir},
+		{"axon", "run", "--config-dir", tmpDir},
+	} {
+		if code := dispatchCLI(argv); code != 0 {
+			t.Fatalf("expected dispatchCLI(%v) == 0, got %d", argv, code)
+		}
+	}
+
+	for _, badArgv := range [][]string{
+		{"axon"},
+		{"axon", "--debug"},
+		{"axon", "unknown-subcmd"},
+	} {
+		if code := dispatchCLI(badArgv); code == 0 {
+			t.Fatalf("expected non-zero exit code for %v", badArgv)
+		}
 	}
 }

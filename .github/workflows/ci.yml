@@ -45,7 +45,10 @@ jobs:
             echo "$OVERSIZE"
             exit 1
           fi
-          echo "Clean Repo Hygiene & < 500 Go / < 600 TS Line Modularization Gate passed."
+          bash -n scripts/deploy-core.sh scripts/ensure-core-ha.sh
+          sh -n scripts/install-axon.sh
+          shellcheck -S warning scripts/deploy-core.sh scripts/install-axon.sh scripts/ensure-core-ha.sh
+          echo "Clean Repo Hygiene, ShellCheck & < 500 Go / < 600 TS Line Modularization Gate passed."
 
       - name: Set up Go 1.23
         uses: actions/setup-go@v7
@@ -55,17 +58,17 @@ jobs:
             agents/axon/go.sum
             apps/core-gateway/go.sum
 
-      - name: Run Unit Tests with Race Detector & >= 70% Coverage Gate
+      - name: Run Unit Tests with Race Detector & >= 80% Coverage Gate
         run: |
           set -o pipefail
           go test -v -race -cover ./proto/... ./agents/axon/... ./apps/core-gateway/... | tee /tmp/go-cov.out
-          LOW_COV=$(awk '/^ok[[:space:]]/ {for(i=1;i<=NF;i++) if($i=="coverage:") {val=$(i+1); gsub(/%/,"",val); if(val+0 < 70.0) print $2, val"%"}}' /tmp/go-cov.out)
+          LOW_COV=$(awk '/^ok[[:space:]]/ {for(i=1;i<=NF;i++) if($i=="coverage:") {val=$(i+1); gsub(/%/,"",val); if(val+0 < 80.0) print $2, val"%"}}' /tmp/go-cov.out)
           if [ -n "$LOW_COV" ]; then
-            echo "ERROR: Go packages below 70% minimum statement coverage gate:"
+            echo "ERROR: Go packages below 80% minimum statement coverage gate:"
             echo "$LOW_COV"
             exit 1
           fi
-          echo "All 11 Go packages passed the >= 70% statement coverage gate."
+          echo "All 11 Go packages passed the >= 80% statement coverage gate."
 
       - name: Build Static Single-Binary Axon Agent (linux/amd64 & linux/arm64)
         env:

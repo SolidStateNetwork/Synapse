@@ -293,6 +293,10 @@ func getEnv(key, fallback string) string {
 // startSelfHealingMuscleTunnel optionally maintains an SSH reverse tunnel when SYNAPSE_SSH_REVERSE_HOST
 // is explicitly configured in the environment. Disabled by default so no hardcoded hosts or connections exist.
 func startSelfHealingMuscleTunnel(nodeHub *hub.Hub, localTunnelPort int) {
+	runSelfHealingMuscleTunnelLoop(nodeHub, localTunnelPort, 0, time.Second)
+}
+
+func runSelfHealingMuscleTunnelLoop(nodeHub *hub.Hub, localTunnelPort int, maxCycles int, tickUnit time.Duration) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Printf("[core-gateway] recovered panic in reverse tunnel supervisor: %v\n", r)
@@ -340,8 +344,8 @@ func startSelfHealingMuscleTunnel(nodeHub *hub.Hub, localTunnelPort int) {
 	var activeCmd *exec.Cmd
 	var lastSpawn time.Time
 
-	time.Sleep(2 * time.Second)
-	for {
+	time.Sleep(2 * tickUnit)
+	for cycle := 0; maxCycles <= 0 || cycle < maxCycles; cycle++ {
 		nodes := nodeHub.ListNodes()
 		hasOnline := false
 		for _, n := range nodes {
@@ -352,12 +356,12 @@ func startSelfHealingMuscleTunnel(nodeHub *hub.Hub, localTunnelPort int) {
 		}
 
 		if hasOnline {
-			time.Sleep(6 * time.Second)
+			time.Sleep(6 * tickUnit)
 			continue
 		}
 
-		if activeCmd != nil && activeCmd.Process != nil && time.Since(lastSpawn) < 12*time.Second {
-			time.Sleep(2 * time.Second)
+		if activeCmd != nil && activeCmd.Process != nil && time.Since(lastSpawn) < 12*tickUnit {
+			time.Sleep(2 * tickUnit)
 			continue
 		}
 
@@ -402,6 +406,6 @@ func startSelfHealingMuscleTunnel(nodeHub *hub.Hub, localTunnelPort int) {
 			}(tunnelCmd)
 		}
 
-		time.Sleep(4 * time.Second)
+		time.Sleep(4 * tickUnit)
 	}
 }

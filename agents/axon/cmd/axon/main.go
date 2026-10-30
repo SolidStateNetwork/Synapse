@@ -27,6 +27,8 @@ var (
 	commit  = "HEAD"
 )
 
+var agentLoopTestCtx context.Context
+
 func enableDebugLogging(enable bool) {
 	if !enable && !tunnel.DebugEnabled {
 		return
@@ -43,13 +45,19 @@ func enableDebugLogging(enable bool) {
 }
 
 func main() {
-	if len(os.Args) < 2 {
+	if code := dispatchCLI(os.Args); code != 0 {
+		os.Exit(code)
+	}
+}
+
+func dispatchCLI(osArgs []string) int {
+	if len(osArgs) < 2 {
 		printUsage()
-		os.Exit(1)
+		return 1
 	}
 
-	filteredArgs := make([]string, 0, len(os.Args))
-	for i, arg := range os.Args {
+	filteredArgs := make([]string, 0, len(osArgs))
+	for i, arg := range osArgs {
 		if i > 0 && (arg == "--debug" || arg == "-d") {
 			enableDebugLogging(true)
 			continue
@@ -58,7 +66,7 @@ func main() {
 	}
 	if len(filteredArgs) < 2 {
 		printUsage()
-		os.Exit(1)
+		return 1
 	}
 
 	subcmd := filteredArgs[1]
@@ -83,8 +91,9 @@ func main() {
 		fmt.Printf("axon %s (%s) [%s/%s] — Synapse Muscle Single-Binary Agent\n", version, commit, runtime.GOOS, runtime.GOARCH)
 	default:
 		printUsage()
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }
 
 func sanitizeProfileSlug(raw string) string {
@@ -336,7 +345,11 @@ func runDaemon(args []string) {
 }
 
 func startAgentLoop(cfg *tunnel.IdentityConfig) {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx := agentLoopTestCtx
+	var stop context.CancelFunc = func() {}
+	if ctx == nil {
+		ctx, stop = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	}
 	defer stop()
 
 	agent := tunnel.NewAgent(cfg)
