@@ -417,5 +417,23 @@ func TestHubServeMTLSLiveSessionReplacementAndVaultTargetSync(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for syncHealthTargetsFromVaultsToNode")
 	}
+
+	// Wait until all 62 heartbeats are processed (last CPU == 61.0)
+	for i := 0; i < 100; i++ {
+		nodes := h.ListNodes()
+		if len(nodes) == 1 && nodes[0].LastHeartbeat != nil && nodes[0].LastHeartbeat.CPUPercent == 61.0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
 	_ = telStream.Close()
+	_ = sess2.Close()
+	_ = conn2.Close()
+	_ = sess1.Close()
+	_ = conn1.Close()
+	for i := 0; i < 50 && len(h.ListNodes()) > 0; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(25 * time.Millisecond)
 }
