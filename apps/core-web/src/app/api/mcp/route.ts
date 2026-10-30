@@ -124,9 +124,15 @@ async function executeMcpTool(
   const isReadOnlyTool =
     toolName === "synapse_list_peers" ||
     toolName === "synapse_get_project_state" ||
+    toolName === "core_vault_search" ||
+    toolName === "node_deep_search" ||
     (toolName === "node_fs_operation" &&
       ["read_file", "list_dir", "stat"].includes(String(args.operation || ""))) ||
-    (toolName === "core_manage_secret" && args.action === "list_keys");
+    (toolName === "core_manage_secret" &&
+      (args.action === "list_keys" || args.action === "list")) ||
+    ((toolName === "node_firewall_control" ||
+      toolName === "core_manage_firewall") &&
+      (!args.action || args.action === "inspect"));
 
   if (!isReadOnlyTool && !canExecute) {
     return {
@@ -145,6 +151,7 @@ async function executeMcpTool(
       result: {
         project_id: projectId,
         gateway_nodes: liveNodes,
+        live_gateway_nodes: liveNodes,
         assigned_nodes: state.assigned_nodes,
         telemetry: state.telemetry,
       },
@@ -225,7 +232,11 @@ async function executeMcpTool(
     );
     return {
       isError: execRes.status === "error",
-      result: execRes,
+      result: {
+        ...execRes,
+        success: execRes.status === "executed",
+        snapshot: snap,
+      },
     };
   }
 

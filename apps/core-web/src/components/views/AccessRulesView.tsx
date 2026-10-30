@@ -330,14 +330,14 @@ const AccessRulesView = React.memo(function AccessRulesView({
               <Clock className="h-4 w-4 text-emerald-400" />
               <span>
                 {t(
-                  "Scheduled Cron & Automation Runbook Manager (v0.7.0)",
+                  "Geplante Cron-Jobs & Runbook-Manager (v0.7.0)",
                   "Scheduled Cron & Automation Runbook Manager (v0.7.0)"
                 )}
               </span>
             </h2>
             <p className="text-xs text-nb-gray-400 mt-0.5">
               {t(
-                "Zeitgesteuerte Shell-Runbooks auf vps2-muscle mit 1-Klick Sofort-Test (Run Now), Exit-Code & Laufzeit-Überwachung.",
+                "Zeitgesteuerte Shell-Runbooks auf vps2-muscle mit 1-Klick Sofort-Test (Jetzt ausführen), Exit-Code & Laufzeit-Überwachung.",
                 "Scheduled shell runbooks on vps2-muscle with 1-Click Run Now, exit code & duration monitoring."
               )}
             </p>
@@ -402,8 +402,9 @@ const AccessRulesView = React.memo(function AccessRulesView({
                           }),
                         });
                         const d = await r.json();
-                        if (d.ok && Array.isArray(d.jobs)) {
-                          setCronJobs(d.jobs);
+                        const nextJobs = d.jobs || d.cron_jobs;
+                        if (d.ok && Array.isArray(nextJobs)) {
+                          setCronJobs(nextJobs);
                         }
                       } finally {
                         setCronBusyId(null);
@@ -415,7 +416,7 @@ const AccessRulesView = React.memo(function AccessRulesView({
                     <span>
                       {cronBusyId === job.id
                         ? t("Läuft...", "Running...")
-                        : t("Run Now", "Run Now")}
+                        : t("Jetzt ausführen", "Run Now")}
                     </span>
                   </button>
                   <button

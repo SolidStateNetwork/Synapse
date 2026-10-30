@@ -829,7 +829,9 @@ export function useControlCenterController() {
       const data = await res.json();
       if (Array.isArray(data.models) && data.models.length > 0) {
         setDiscoveredModels(data.models);
-        setModelName(data.models[0]);
+        if (!modelName || !data.models.includes(modelName)) {
+          setModelName(data.models[0]);
+        }
         setModelSyncStatus(
           isDe
             ? `${data.models.length} Modelle geladen`

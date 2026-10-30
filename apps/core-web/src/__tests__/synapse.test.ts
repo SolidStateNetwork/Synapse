@@ -463,4 +463,58 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
       "useCanvasViewportAndLayout must isolate [data-canvas-scroll-zone='true'] from background Canvas wheel zoom"
     );
   });
+
+  it("14. v0.7.0 Full-System AI, MCP & OTA Audit: verifies MCP API key scopes, core_manage_secret keys array, and git tree-hash OTA check", async () => {
+    const { createMcpApiKey, verifyMcpApiKey, revokeMcpApiKey } = await import(
+      "../lib/vault.ts"
+    );
+    const { interceptAndExecuteTool } = await import("../lib/orchestrator.ts");
+
+    const issued = createMcpApiKey(testProjectId, "UnitTest-MCP-Key", [
+      "read",
+      "execute",
+    ]);
+    assert.ok(issued.plaintext_token.startsWith("syn_mcp_"));
+    const verified = verifyMcpApiKey(testProjectId, issued.plaintext_token);
+    assert.ok(verified);
+    assert.deepEqual(verified.scopes, ["read", "execute"]);
+
+    const secSet = await interceptAndExecuteTool(
+      testProjectId,
+      "core_manage_secret",
+      {
+        action: "set",
+        key: "UNIT_TEST_MCP_SECRET",
+        value: "v070-verified",
+      }
+    );
+    assert.equal(secSet.status, "executed");
+    const secOut = secSet.output as {
+      keys: string[];
+      secret_keys_available: string[];
+    };
+    assert.ok(secOut.keys.includes("UNIT_TEST_MCP_SECRET"));
+    assert.ok(secOut.secret_keys_available.includes("UNIT_TEST_MCP_SECRET"));
+
+    await interceptAndExecuteTool(testProjectId, "core_manage_secret", {
+      action: "delete",
+      key: "UNIT_TEST_MCP_SECRET",
+    });
+
+    const remainingKeys = revokeMcpApiKey(testProjectId, issued.key.key_id);
+    assert.ok(!remainingKeys.some((k) => k.key_id === issued.key.key_id));
+
+    const sysUpdateSrc = fs.readFileSync(
+      path.resolve(
+        import.meta.dirname,
+        "../app/api/system-update/route.ts"
+      ),
+      "utf8"
+    );
+    assert.ok(
+      sysUpdateSrc.includes("HEAD:agents/axon") &&
+        sysUpdateSrc.includes("matchesAxonCommit"),
+      "system-update route must compare git tree hash HEAD:agents/axon to prevent false OTA warnings on shallow clones"
+    );
+  });
 });

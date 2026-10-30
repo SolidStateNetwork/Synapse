@@ -304,6 +304,7 @@ export async function dispatchCoreBrainTool(
       output: {
         action,
         key,
+        keys,
         secret_keys_available: keys,
         note:
           action === "generate_random"

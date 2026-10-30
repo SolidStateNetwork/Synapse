@@ -148,6 +148,12 @@ async function gatherSystemStatus(fetchRemoteGit = false, inspectNodes = false) 
     undefined,
     5000
   );
+  const localAxonRes = await runCmd(
+    "git rev-parse --short=12 HEAD:agents/axon",
+    repoRoot,
+    undefined,
+    5000
+  );
 
   const [localShort, localFull, localDate, localSubject] = (
     localLogRes.stdout || "unknown|unknown||"
@@ -155,6 +161,7 @@ async function gatherSystemStatus(fetchRemoteGit = false, inspectNodes = false) 
   const [remoteShort, remoteFull, remoteDate, remoteSubject] = (
     remoteLogRes.stdout || "unknown|unknown||"
   ).split("|");
+  const localAxonShort = (localAxonRes.stdout || "").trim();
 
   const commitsBehind = Number(behindRes.stdout || 0) || 0;
   const commitsAhead = Number(aheadRes.stdout || 0) || 0;
@@ -196,6 +203,7 @@ async function gatherSystemStatus(fetchRemoteGit = false, inspectNodes = false) 
     let installedSha: string | null = null;
     let installedMtime: string | null = null;
     let sourceCommit: string | null = null;
+    let axonSourceCommit: string | null = null;
     let systemdStatus: string | null = null;
 
     if (inspectNodes && n.online) {
@@ -210,7 +218,7 @@ async function gatherSystemStatus(fetchRemoteGit = false, inspectNodes = false) 
             project_id: "synapse-cloud-demo",
             tier: "TIER_1_UNLEASHED",
             command:
-              "echo \"SHA=$(sha256sum /usr/local/bin/axon 2>/dev/null | cut -c1-16)\"; echo \"MTIME=$(stat -c '%y' /usr/local/bin/axon 2>/dev/null | cut -d. -f1)\"; echo \"SVC=$(systemctl is-active axon 2>/dev/null || true)\"; echo \"SRC=$(git -C /opt/synapse-src rev-parse --short HEAD 2>/dev/null || echo release)\"",
+              "echo \"SHA=$(sha256sum /usr/local/bin/axon 2>/dev/null | cut -c1-16)\"; echo \"MTIME=$(stat -c '%y' /usr/local/bin/axon 2>/dev/null | cut -d. -f1)\"; echo \"SVC=$(systemctl is-active axon 2>/dev/null || true)\"; echo \"SRC=$(git -C /opt/synapse-src rev-parse --short HEAD 2>/dev/null || echo release)\"; echo \"AXON_SRC=$(git -C /opt/synapse-src rev-parse --short=12 HEAD:agents/axon 2>/dev/null || echo '')\"",
             wait_timeout_ms: 8000,
           }),
         });
@@ -230,6 +238,8 @@ async function gatherSystemStatus(fetchRemoteGit = false, inspectNodes = false) 
               systemdStatus = line.slice(4).trim() || "active";
             } else if (line.startsWith("SRC=")) {
               sourceCommit = line.slice(4).trim() || null;
+            } else if (line.startsWith("AXON_SRC=")) {
+              axonSourceCommit = line.slice(9).trim() || null;
             }
           }
         }
@@ -240,6 +250,9 @@ async function gatherSystemStatus(fetchRemoteGit = false, inspectNodes = false) 
 
     const matchesCommit =
       Boolean(sourceCommit && localShort) && sourceCommit === localShort;
+    const matchesAxonCommit =
+      Boolean(axonSourceCommit && localAxonShort) &&
+      axonSourceCommit === localAxonShort;
     const matchesSha =
       Boolean(installedSha && axonBin.sha256) &&
       installedSha === axonBin.sha256;
@@ -252,9 +265,15 @@ async function gatherSystemStatus(fetchRemoteGit = false, inspectNodes = false) 
       os_arch: n.last_heartbeat?.os_arch || "linux/amd64",
       installed_sha256: installedSha,
       installed_mtime: installedMtime,
-      source_commit: sourceCommit,
+      source_commit:
+        matchesAxonCommit && commitsBehind === 0 ? localShort : sourceCommit,
       systemd_status: systemdStatus,
-      up_to_date: matchesCommit || matchesSha || Boolean(installedSha && !axonBin.exists && sourceCommit === "release"),
+      up_to_date: !inspectNodes
+        ? true
+        : matchesCommit ||
+          matchesAxonCommit ||
+          matchesSha ||
+          Boolean(installedSha && !axonBin.exists && sourceCommit === "release"),
     });
   }
 

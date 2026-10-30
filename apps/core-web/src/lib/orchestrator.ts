@@ -169,7 +169,10 @@ function isWriteOrExecTool(
   if (toolName === "node_pty_exec") {
     return true;
   }
-  if (toolName === "node_firewall_control") {
+  if (
+    toolName === "node_firewall_control" ||
+    toolName === "core_manage_firewall"
+  ) {
     return String(args.action || "inspect") !== "inspect";
   }
   if (toolName === "node_fs_operation") {
@@ -429,7 +432,10 @@ export async function interceptAndExecuteTool(
     );
   }
 
-  if (toolName === "node_firewall_control") {
+  if (
+    toolName === "node_firewall_control" ||
+    toolName === "core_manage_firewall"
+  ) {
     try {
       const fwInput: FirewallActionInput = {
         action: (args.action as FirewallActionInput["action"]) || "inspect",

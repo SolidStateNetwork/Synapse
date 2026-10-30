@@ -475,7 +475,7 @@ curl -X POST ${originUrl}/api/mcp \\
                 onClick={() => handleTestMcpEndpoint("tools/list")}
                 className="rounded-lg border border-netbird-500/40 bg-netbird-950 px-3 py-1 font-mono text-[11px] text-netbird hover:bg-netbird hover:text-white transition"
               >
-                Teste tools/list (10 Tools)
+                Teste tools/list (13 Tools)
               </button>
               <button
                 type="button"

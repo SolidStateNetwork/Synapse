@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const directTool = body.direct_tool as
+  const directTool = (body.direct_tool || body.tool_call) as
     | { name: string; arguments: Record<string, unknown> }
     | undefined;
   const rawMessages = Array.isArray(body.messages)
@@ -145,6 +145,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       reply: `Executed tool \`${directTool.name}\` -> status: **${res.status}**`,
       tool_results: [res],
+      execution: res,
+      result: res,
     });
   }
 
