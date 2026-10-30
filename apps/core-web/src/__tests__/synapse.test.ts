@@ -341,4 +341,45 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
     assert.ok(storeAfter.events.length >= 1);
     assert.equal(storeAfter.events[0].id, healEvt.id);
   });
+
+  it("11. v0.6.0 Custom Service Builder & Service-Mesh Link Probe persist services and link telemetry", async () => {
+    const {
+      deployCustomServiceOnMuscle,
+      loadServiceLinks,
+      probeServiceLinkOnMuscle,
+    } = await import("../lib/self-healing.ts");
+
+    const deployed = await deployCustomServiceOnMuscle({
+      projectId: testProjectId,
+      nodeId: "vps2-muscle",
+      name: "Edge Telemetry API",
+      port: 4095,
+      category: "backend",
+      runtime: "python_http",
+      autoHeal: true,
+    });
+    assert.equal(deployed.ok, true);
+    assert.equal(deployed.service.port, 4095);
+    assert.equal(deployed.service.healthy, true);
+
+    const linkRes = await probeServiceLinkOnMuscle({
+      projectId: testProjectId,
+      nodeId: "vps2-muscle",
+      fromServiceId: "edge-telemetry-api-4095",
+      toServiceId: "pulse-analytics-api",
+      fromPort: 4095,
+      toPort: 4085,
+      protocol: "JSON Telemetry",
+    });
+    assert.equal(linkRes.ok, true);
+    assert.equal(linkRes.link.protocol, "JSON Telemetry");
+    assert.ok((linkRes.link.latency_ms ?? 0) >= 1);
+
+    const savedLinks = loadServiceLinks(testProjectId);
+    assert.ok(
+      savedLinks.some(
+        (l) => l.id === "edge-telemetry-api-4095->pulse-analytics-api"
+      )
+    );
+  });
 });

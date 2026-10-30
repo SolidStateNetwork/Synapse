@@ -149,6 +149,9 @@ export interface ServiceMeshLink {
   fromServiceId: string;
   toServiceId: string;
   protocol: string;
+  latency_ms?: number;
+  healthy?: boolean;
+  last_probed_at?: string;
 }
 
 export interface BlueprintItem {

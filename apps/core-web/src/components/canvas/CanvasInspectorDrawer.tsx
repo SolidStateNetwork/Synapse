@@ -365,9 +365,10 @@ export const CanvasEdgesLayer = React.memo(function CanvasEdgesLayer({
           }
           usedYs.push(pt.by);
 
+          const labelText = `${link.protocol} · ${link.latency_ms ?? 1}ms`;
           const badgeW = Math.max(
             68,
-            Math.round(link.protocol.length * 5.8 + 16)
+            Math.round(labelText.length * 5.6 + 16)
           );
           const safeMidX = Math.max(
             pt.bx,
@@ -382,7 +383,7 @@ export const CanvasEdgesLayer = React.memo(function CanvasEdgesLayer({
             midX: safeMidX,
             midY: pt.by,
             badgeW,
-            protocol: link.protocol,
+            protocol: labelText,
             isHovered,
           });
 

@@ -121,6 +121,20 @@ export function useCanvasOpsController({
   >([]);
   const [selfHealBusyId, setSelfHealBusyId] = useState<string | null>(null);
   const [probeBusyId, setProbeBusyId] = useState<string | null>(null);
+  const [linkProbeBusyId, setLinkProbeBusyId] = useState<string | null>(null);
+  const [showCustomServiceModal, setShowCustomServiceModal] = useState(false);
+  const [customSvcName, setCustomSvcName] = useState("");
+  const [customSvcPort, setCustomSvcPort] = useState("4095");
+  const [customSvcCategory, setCustomSvcCategory] = useState<
+    "backend" | "webui" | "database"
+  >("backend");
+  const [customSvcRuntime, setCustomSvcRuntime] = useState<
+    "python_http" | "static_webui" | "sqlite_rest"
+  >("python_http");
+  const [customSvcAutoHeal, setCustomSvcAutoHeal] = useState(true);
+  const [customSvcBusy, setCustomSvcBusy] = useState(false);
+  const [customSvcNotice, setCustomSvcNotice] = useState<string | null>(null);
+  const [showSelfHealingDrawer, setShowSelfHealingDrawer] = useState(false);
 
   useEffect(() => {
     if (!allServices || allServices.length === 0) return;
@@ -190,6 +204,9 @@ export function useCanvasOpsController({
           setDomainBindings(d.domains);
           if (d.self_healing && Array.isArray(d.self_healing.events)) {
             setSelfHealingEvents(d.self_healing.events);
+          }
+          if (Array.isArray(d.service_links)) {
+            setServiceLinks(d.service_links);
           }
         }
       })
@@ -799,6 +816,116 @@ export function useCanvasOpsController({
         }
       } finally {
         setProbeBusyId(null);
+      }
+    },
+    linkProbeBusyId,
+    handleUpdateServiceLinkProtocol: async (
+      fromId: string,
+      toId: string,
+      protocol: string
+    ) => {
+      const linkId = `${fromId}->${toId}`;
+      const updated = serviceLinks.map((l) =>
+        l.id === linkId ? { ...l, protocol } : l
+      );
+      setServiceLinks(updated);
+      try {
+        await fetch("/api/service-ops", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "save_service_links",
+            service_links: updated,
+          }),
+        });
+      } catch {
+        // ignore
+      }
+    },
+    handleProbeServiceLink: async (
+      fromSvc: RegisteredService,
+      toSvc: RegisteredService
+    ) => {
+      const linkId = `${fromSvc.service_id}->${toSvc.service_id}`;
+      setLinkProbeBusyId(linkId);
+      try {
+        const currentLink = serviceLinks.find((l) => l.id === linkId);
+        const res = await fetch("/api/service-ops", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "probe_service_link",
+            node_id: fromSvc.node_id || primaryNode || "vps2-muscle",
+            from_service_id: fromSvc.service_id,
+            to_service_id: toSvc.service_id,
+            from_port: fromSvc.port,
+            to_port: toSvc.port,
+            protocol: currentLink?.protocol || "HTTP REST",
+          }),
+        });
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.links)) {
+          setServiceLinks(data.links);
+        }
+      } finally {
+        setLinkProbeBusyId(null);
+      }
+    },
+    showCustomServiceModal,
+    setShowCustomServiceModal,
+    customSvcName,
+    setCustomSvcName,
+    customSvcPort,
+    setCustomSvcPort,
+    customSvcCategory,
+    setCustomSvcCategory,
+    customSvcRuntime,
+    setCustomSvcRuntime,
+    customSvcAutoHeal,
+    setCustomSvcAutoHeal,
+    customSvcBusy,
+    customSvcNotice,
+    showSelfHealingDrawer,
+    setShowSelfHealingDrawer,
+    handleDeployCustomService: async (e?: React.FormEvent) => {
+      if (e) e.preventDefault();
+      const portNum = Number(customSvcPort || 4095);
+      if (!customSvcName.trim() || !Number.isInteger(portNum)) return;
+      setCustomSvcBusy(true);
+      setCustomSvcNotice(null);
+      try {
+        const res = await fetch("/api/service-ops", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "deploy_custom_service",
+            node_id: primaryNode || "vps2-muscle",
+            name: customSvcName.trim(),
+            port: portNum,
+            category: customSvcCategory,
+            runtime: customSvcRuntime,
+            auto_heal: customSvcAutoHeal,
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setCustomSvcNotice(
+            t(
+              `🚀 ${data.service.name} auf :${data.service.port} live gestartet (${data.service.latency_ms} ms)!`,
+              `🚀 ${data.service.name} deployed live on :${data.service.port} (${data.service.latency_ms} ms)!`
+            )
+          );
+          setCustomSvcName("");
+          setCustomSvcPort(String(portNum + 1));
+          setTimeout(() => {
+            setShowCustomServiceModal(false);
+            setCustomSvcNotice(null);
+          }, 1200);
+        } else {
+          setCustomSvcNotice(data.error || "Deploy error");
+        }
+      } finally {
+        setCustomSvcBusy(false);
       }
     },
   };

@@ -3,9 +3,13 @@ import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { dispatchAlertEvent } from "@/lib/alerts";
 import {
+  deployCustomServiceOnMuscle,
   executeAutonomousSelfHeal,
   executeLiveServiceProbe,
   loadSelfHealingStore,
+  loadServiceLinks,
+  probeServiceLinkOnMuscle,
+  saveServiceLinks,
   updateSelfHealingPolicy,
 } from "@/lib/self-healing";
 import {
@@ -57,6 +61,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     domains: loadDomains(projectId),
     self_healing: loadSelfHealingStore(projectId),
+    service_links: loadServiceLinks(projectId),
   });
 }
 
@@ -413,6 +418,67 @@ export async function POST(req: NextRequest) {
         ok: true,
         self_healing: updated,
       });
+    }
+
+    // FEATURE 8 (v0.6.0): 1-CLICK CUSTOM SERVICE BUILDER & INTERACTIVE SERVICE-MESH LINKS
+    if (action === "deploy_custom_service") {
+      const name = String(body.name || "Custom Microservice").trim();
+      const port = Number(body.port || 4095);
+      if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+        return NextResponse.json(
+          { ok: false, error: "Invalid port (must be 1024..65535)" },
+          { status: 400 }
+        );
+      }
+      const category =
+        body.category === "webui" ||
+        body.category === "database" ||
+        body.category === "backend"
+          ? body.category
+          : "backend";
+      const runtime =
+        body.runtime === "static_webui" ||
+        body.runtime === "sqlite_rest" ||
+        body.runtime === "python_http"
+          ? body.runtime
+          : undefined;
+      const deployed = await deployCustomServiceOnMuscle({
+        projectId,
+        nodeId,
+        name,
+        port,
+        category,
+        runtime,
+        description: body.description ? String(body.description) : undefined,
+        autoHeal: body.auto_heal !== false,
+      });
+      return NextResponse.json(deployed);
+    }
+
+    if (action === "save_service_links") {
+      const links = Array.isArray(body.service_links)
+        ? body.service_links
+        : loadServiceLinks(projectId);
+      const saved = saveServiceLinks(projectId, links);
+      return NextResponse.json({ ok: true, service_links: saved });
+    }
+
+    if (action === "probe_service_link") {
+      const fromServiceId = String(body.from_service_id || "");
+      const toServiceId = String(body.to_service_id || "");
+      const fromPort = Number(body.from_port || 4090);
+      const toPort = Number(body.to_port || 4085);
+      const protocol = String(body.protocol || "HTTP REST");
+      const result = await probeServiceLinkOnMuscle({
+        projectId,
+        nodeId,
+        fromServiceId,
+        toServiceId,
+        fromPort,
+        toPort,
+        protocol,
+      });
+      return NextResponse.json(result);
     }
 
     return NextResponse.json(

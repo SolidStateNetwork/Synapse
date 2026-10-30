@@ -16,6 +16,8 @@ import {
   Globe,
   Lock,
   Maximize2,
+  Plus,
+  X,
   RotateCcw,
   Server,
   Unlock,
@@ -187,6 +189,26 @@ const InteractiveControlCenterCanvas = React.memo(
       serviceSparklineMap,
       handleQuickRestartService,
       handleQuickProbeService,
+      linkProbeBusyId,
+      handleUpdateServiceLinkProtocol,
+      handleProbeServiceLink,
+      showCustomServiceModal,
+      setShowCustomServiceModal,
+      customSvcName,
+      setCustomSvcName,
+      customSvcPort,
+      setCustomSvcPort,
+      customSvcCategory,
+      setCustomSvcCategory,
+      customSvcRuntime,
+      setCustomSvcRuntime,
+      customSvcAutoHeal,
+      setCustomSvcAutoHeal,
+      customSvcBusy,
+      customSvcNotice,
+      showSelfHealingDrawer,
+      setShowSelfHealingDrawer,
+      handleDeployCustomService,
     } = useCanvasOpsController({
       primaryNode,
       allServices,
@@ -1091,6 +1113,11 @@ const InteractiveControlCenterCanvas = React.memo(
                           }
                           onSaveServiceDomain={handleSaveServiceDomain}
                           onRunChaosTest={handleRunChaosTest}
+                          linkProbeBusyId={linkProbeBusyId}
+                          onUpdateServiceLinkProtocol={
+                            handleUpdateServiceLinkProtocol
+                          }
+                          onProbeServiceLink={handleProbeServiceLink}
                         />
                       )}
                     </div>
@@ -1234,7 +1261,290 @@ const InteractiveControlCenterCanvas = React.memo(
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </button>
+          <div className="h-3.5 w-[1px] bg-nb-gray-800 mx-0.5" />
+          <button
+            type="button"
+            onClick={() => setShowCustomServiceModal(true)}
+            className="flex items-center gap-1 rounded-lg bg-netbird px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-netbird-500 transition shadow-sm"
+            title={t(
+              "Eigenen Dienst in 10 Sekunden live auf vps2-muscle bereitstellen",
+              "Deploy custom service live on vps2-muscle in 10 seconds"
+            )}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>{t("+ Neuer Service", "+ New Service")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowSelfHealingDrawer((v) => !v)}
+            className="flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-950/70 px-2 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-900/60 transition"
+            title={t(
+              "Self-Healing & Incident Center öffnen",
+              "Open Self-Healing & Incident Center"
+            )}
+          >
+            <Zap className="h-3.5 w-3.5 text-emerald-400" />
+            <span>
+              {t(
+                `Self-Healing (${selfHealingEvents.length})`,
+                `Self-Healing (${selfHealingEvents.length})`
+              )}
+            </span>
+          </button>
         </div>
+
+        {/* v0.6.0: 1-CLICK CUSTOM SERVICE BUILDER MODAL ON CANVAS */}
+        {showCustomServiceModal && (
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-nb-gray-950/85 backdrop-blur-sm p-4"
+          >
+            <form
+              onSubmit={handleDeployCustomService}
+              className="w-full max-w-md rounded-2xl border border-nb-gray-800 bg-nb-gray-940 p-5 shadow-2xl space-y-4 text-xs"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-netbird/40 bg-netbird-950 text-netbird">
+                    <Plus className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">
+                      {t(
+                        "1-Click Custom Service Builder (v0.6.0)",
+                        "1-Click Custom Service Builder (v0.6.0)"
+                      )}
+                    </h3>
+                    <p className="text-[11px] text-nb-gray-400">
+                      {t(
+                        `Rollt deinen Dienst direkt live auf ${primaryNode || "vps2-muscle"} aus`,
+                        `Rolls out your service live on ${primaryNode || "vps2-muscle"}`
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomServiceModal(false)}
+                  className="rounded-lg p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {customSvcNotice && (
+                <div className="rounded-lg border border-emerald-500/40 bg-emerald-950/70 px-3 py-2 font-mono text-[11px] text-emerald-300">
+                  {customSvcNotice}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-medium text-nb-gray-300 mb-1">
+                    {t("Service-Name", "Service Name")}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={customSvcName}
+                    onChange={(e) => setCustomSvcName(e.target.value)}
+                    placeholder={t(
+                      "z.B. Edge Metrics API",
+                      "e.g. Edge Metrics API"
+                    )}
+                    className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 text-xs text-white focus:border-netbird focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-nb-gray-300 mb-1">
+                    {t("Port", "Port")}
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={1024}
+                    max={65535}
+                    value={customSvcPort}
+                    onChange={(e) => setCustomSvcPort(e.target.value)}
+                    className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 font-mono text-xs text-netbird focus:border-netbird focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[11px] font-medium text-nb-gray-300 mb-1">
+                    {t("Kategorie", "Category")}
+                  </label>
+                  <select
+                    value={customSvcCategory}
+                    onChange={(e) => {
+                      const cat = e.target.value as
+                        | "backend"
+                        | "webui"
+                        | "database";
+                      setCustomSvcCategory(cat);
+                      setCustomSvcRuntime(
+                        cat === "webui"
+                          ? "static_webui"
+                          : cat === "database"
+                          ? "sqlite_rest"
+                          : "python_http"
+                      );
+                    }}
+                    className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 text-xs text-white"
+                  >
+                    <option value="backend">
+                      {t("Backend / REST API", "Backend / REST API")}
+                    </option>
+                    <option value="webui">
+                      {t("Interaktive WebUI", "Interactive WebUI")}
+                    </option>
+                    <option value="database">
+                      {t("SQLite Datenbank-API", "SQLite Database API")}
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-nb-gray-300 mb-1">
+                    {t("Runtime-Template", "Runtime Template")}
+                  </label>
+                  <select
+                    value={customSvcRuntime}
+                    onChange={(e) =>
+                      setCustomSvcRuntime(
+                        e.target.value as
+                          | "python_http"
+                          | "static_webui"
+                          | "sqlite_rest"
+                      )
+                    }
+                    className="w-full rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 font-mono text-xs text-sky-300"
+                  >
+                    <option value="python_http">Python JSON Microservice</option>
+                    <option value="static_webui">Dark HTML5 Live WebUI</option>
+                    <option value="sqlite_rest">SQLite3 WAL Storage Engine</option>
+                  </select>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2.5 rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={customSvcAutoHeal}
+                  onChange={(e) => setCustomSvcAutoHeal(e.target.checked)}
+                  className="rounded border-nb-gray-700 accent-netbird"
+                />
+                <div>
+                  <div className="font-semibold text-white">
+                    {t(
+                      "⚡ Autonomous Self-Healing aktivieren",
+                      "⚡ Enable Autonomous Self-Healing"
+                    )}
+                  </div>
+                  <div className="text-[10.5px] text-nb-gray-400">
+                    {t(
+                      "Überwacht den Port 24/7 und startet den Dienst bei Absturz automatisch neu",
+                      "Monitors the port 24/7 and automatically restarts the service on crash"
+                    )}
+                  </div>
+                </div>
+              </label>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomServiceModal(false)}
+                  className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-4 py-2 text-xs text-nb-gray-300 hover:text-white"
+                >
+                  {t("Abbrechen", "Cancel")}
+                </button>
+                <button
+                  type="submit"
+                  disabled={customSvcBusy}
+                  className="flex items-center gap-1.5 rounded-lg bg-netbird px-5 py-2 text-xs font-semibold text-white hover:bg-netbird-500 disabled:opacity-50 transition"
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                  <span>
+                    {customSvcBusy
+                      ? t("Wird ausgerollt...", "Deploying...")
+                      : t("Jetzt live bereitstellen", "Deploy Live Now")}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* v0.6.0: SELF-HEALING & INCIDENT TIMELINE OVERLAY ON CANVAS */}
+        {showSelfHealingDrawer && (
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            className="pointer-events-auto absolute bottom-16 left-5 z-30 w-[440px] max-w-[92vw] rounded-2xl border border-nb-gray-800 bg-nb-gray-940/95 p-4 shadow-2xl backdrop-blur-md space-y-3 text-xs"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-emerald-400" />
+                <span className="font-semibold text-white">
+                  {t(
+                    "Self-Healing & Incident Center",
+                    "Self-Healing & Incident Center"
+                  )}
+                </span>
+                <span className="rounded border border-emerald-500/40 bg-emerald-950/70 px-1.5 py-0.5 font-mono text-[9.5px] text-emerald-300">
+                  {selfHealingEvents.length} {t("Ereignisse", "Events")}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSelfHealingDrawer(false)}
+                className="rounded p-1 text-nb-gray-400 hover:bg-nb-gray-900 hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+              {selfHealingEvents.length === 0 ? (
+                <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-4 text-center text-nb-gray-400">
+                  {t(
+                    "Noch keine Self-Healing-Ereignisse aufgezeichnet.",
+                    "No self-healing events recorded yet."
+                  )}
+                </div>
+              ) : (
+                selfHealingEvents.slice(0, 8).map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="rounded-xl border border-nb-gray-800 bg-nb-gray-950 p-3 space-y-1.5 font-mono text-[10px]"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-white truncate">
+                        ⚡ {ev.service_name} (:{ev.port})
+                      </span>
+                      <span className="shrink-0 rounded border border-emerald-500/40 bg-emerald-950 px-1.5 py-0.5 text-[9px] text-emerald-300">
+                        MTTR {ev.mttr_ms} ms · HTTP {ev.http_status}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[9px] text-nb-gray-400">
+                      <span>
+                        {ev.node_id} · {ev.trigger}
+                      </span>
+                      <span>
+                        {ev.timestamp.replace("T", " ").slice(0, 19)}
+                      </span>
+                    </div>
+                    {ev.log_snapshot && ev.log_snapshot.length > 0 && (
+                      <div className="rounded bg-black/50 p-1.5 text-[8.5px] text-nb-gray-300 truncate">
+                        {ev.log_snapshot[ev.log_snapshot.length - 1]}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

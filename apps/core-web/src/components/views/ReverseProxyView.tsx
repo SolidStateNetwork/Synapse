@@ -1,6 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import { Plus } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 import {
   Code2,
   Database,
@@ -81,6 +83,15 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
   serviceActionResult,
   handleInvokeServiceAction,
 }: ReverseProxyViewProps) {
+  const { t } = useI18n();
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [newSvcName, setNewSvcName] = useState("");
+  const [newSvcPort, setNewSvcPort] = useState("4095");
+  const [newSvcCat, setNewSvcCat] = useState<"backend" | "webui" | "database">(
+    "backend"
+  );
+  const [newSvcBusy, setNewSvcBusy] = useState(false);
+  const [newSvcNotice, setNewSvcNotice] = useState<string | null>(null);
   const allSvcs = activeProject?.registered_services || [];
   const activeSvc =
     allSvcs.find((s) => s.service_id === selectedServiceId) ||
@@ -126,6 +137,110 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
         title="Services & Reverse-Proxy Workbench"
         description="Teste Web-Oberflächen, HTTP-Endpunkte und SQLite-Datenbanken deiner Server direkt im Browser über den verschlüsselten Synapse-Tunnel – auch wenn deren Ports in der Firewall nach außen gesperrt sind."
       />
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-nb-gray-900 bg-nb-gray-940 p-3.5 text-xs">
+        <div className="flex items-center gap-2 text-nb-gray-300">
+          <Zap className="h-4 w-4 text-netbird" />
+          <span>
+            {t(
+              "1-Click Custom Service Builder: Eigenen Microservice, WebUI oder SQLite-API live auf dem Muscle starten",
+              "1-Click Custom Service Builder: Launch your own microservice, WebUI, or SQLite API live on the Muscle"
+            )}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowBuilder((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-netbird px-3 py-1.5 text-xs font-semibold text-white hover:bg-netbird-500 transition"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span>{t("+ Neuer Service", "+ New Service")}</span>
+        </button>
+      </div>
+
+      {showBuilder && (
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const pNum = Number(newSvcPort || 4095);
+            if (!newSvcName.trim() || !Number.isInteger(pNum)) return;
+            setNewSvcBusy(true);
+            setNewSvcNotice(null);
+            try {
+              const res = await fetch("/api/service-ops", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "deploy_custom_service",
+                  project_id: activeProject?.project_id || "synapse-cloud-demo",
+                  node_id: primaryNode || "vps2-muscle",
+                  name: newSvcName.trim(),
+                  port: pNum,
+                  category: newSvcCat,
+                  auto_heal: true,
+                }),
+              });
+              const data = await res.json();
+              if (data.ok) {
+                setNewSvcNotice(
+                  t(
+                    `🚀 ${data.service.name} auf :${data.service.port} gestartet!`,
+                    `🚀 ${data.service.name} deployed on :${data.service.port}!`
+                  )
+                );
+                setNewSvcName("");
+                setNewSvcPort(String(pNum + 1));
+              }
+            } finally {
+              setNewSvcBusy(false);
+            }
+          }}
+          className="grid grid-cols-1 gap-3 rounded-xl border border-netbird/40 bg-nb-gray-940 p-4 sm:grid-cols-4 text-xs"
+        >
+          <input
+            type="text"
+            required
+            value={newSvcName}
+            onChange={(e) => setNewSvcName(e.target.value)}
+            placeholder={t("Service-Name (z.B. Metrics API)", "Service Name")}
+            className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 text-white"
+          />
+          <input
+            type="number"
+            required
+            min={1024}
+            max={65535}
+            value={newSvcPort}
+            onChange={(e) => setNewSvcPort(e.target.value)}
+            className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 font-mono text-netbird"
+          />
+          <select
+            value={newSvcCat}
+            onChange={(e) =>
+              setNewSvcCat(e.target.value as "backend" | "webui" | "database")
+            }
+            className="rounded-lg border border-nb-gray-800 bg-nb-gray-950 px-3 py-2 text-white"
+          >
+            <option value="backend">Python JSON API</option>
+            <option value="webui">Dark HTML5 WebUI</option>
+            <option value="database">SQLite REST DB</option>
+          </select>
+          <button
+            type="submit"
+            disabled={newSvcBusy}
+            className="rounded-lg bg-netbird px-4 py-2 font-semibold text-white hover:bg-netbird-500 disabled:opacity-50"
+          >
+            {newSvcBusy
+              ? t("Startet...", "Deploying...")
+              : t("Jetzt ausrollen", "Deploy Now")}
+          </button>
+          {newSvcNotice && (
+            <div className="sm:col-span-4 font-mono text-[11px] text-emerald-400">
+              {newSvcNotice}
+            </div>
+          )}
+        </form>
+      )}
 
       {allSvcs.length === 0 ? (
         <div className="rounded-xl border border-nb-gray-800 bg-nb-gray-940 p-6 text-center text-xs text-nb-gray-400">

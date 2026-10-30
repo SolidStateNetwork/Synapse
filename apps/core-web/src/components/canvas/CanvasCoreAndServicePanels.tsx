@@ -290,6 +290,16 @@ export interface ServiceNodeInspectorPanelProps {
   onChangeDomainInput: (serviceId: string, value: string) => void;
   onSaveServiceDomain: (svc: RegisteredService) => void;
   onRunChaosTest: (svc: RegisteredService) => void;
+  linkProbeBusyId?: string | null;
+  onUpdateServiceLinkProtocol?: (
+    fromId: string,
+    toId: string,
+    protocol: string
+  ) => void;
+  onProbeServiceLink?: (
+    fromSvc: RegisteredService,
+    toSvc: RegisteredService
+  ) => void;
 }
 
 export const ServiceNodeInspectorPanel = React.memo(
@@ -314,6 +324,9 @@ export const ServiceNodeInspectorPanel = React.memo(
     onChangeDomainInput,
     onSaveServiceDomain,
     onRunChaosTest,
+    linkProbeBusyId,
+    onUpdateServiceLinkProtocol,
+    onProbeServiceLink,
   }: ServiceNodeInspectorPanelProps) {
     const { t, translateText } = useI18n();
 
@@ -435,6 +448,64 @@ export const ServiceNodeInspectorPanel = React.memo(
                   );
                 })}
             </div>
+          </div>
+        )}
+
+        {/* v0.6.0: ACTIVE SERVICE-MESH LINK PROTOCOL & LIVE PROBE CONTROLS */}
+        {serviceLinks.some((l) => l.fromServiceId === svc.service_id) && (
+          <div className="space-y-1.5 rounded-lg border border-sky-500/30 bg-sky-950/20 p-2">
+            {serviceLinks
+              .filter((l) => l.fromServiceId === svc.service_id)
+              .map((link) => {
+                const targetSvc = allServices.find(
+                  (s) => s.service_id === link.toServiceId
+                );
+                if (!targetSvc) return null;
+                const isProbingLink = linkProbeBusyId === link.id;
+                return (
+                  <div
+                    key={link.id}
+                    className="flex items-center justify-between gap-1.5 font-mono text-[9px]"
+                  >
+                    <span className="truncate text-sky-200">
+                      → :{targetSvc.port}
+                    </span>
+                    <select
+                      value={link.protocol}
+                      onChange={(e) =>
+                        onUpdateServiceLinkProtocol?.(
+                          svc.service_id,
+                          targetSvc.service_id,
+                          e.target.value
+                        )
+                      }
+                      className="rounded border border-nb-gray-800 bg-nb-gray-940 px-1.5 py-0.5 text-[8.5px] text-nb-gray-200 focus:border-sky-400 focus:outline-none"
+                    >
+                      {[
+                        "HTTP REST",
+                        "gRPC",
+                        "SQLite WAL",
+                        "Redis / TCP",
+                        "JSON Telemetry",
+                      ].map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={isProbingLink}
+                      onClick={() => onProbeServiceLink?.(svc, targetSvc)}
+                      className="shrink-0 rounded border border-emerald-500/40 bg-emerald-950/70 px-1.5 py-0.5 text-[8.5px] text-emerald-300 hover:bg-emerald-900/60 transition"
+                    >
+                      {isProbingLink
+                        ? "..."
+                        : `⚡ ${link.latency_ms ?? 1}ms`}
+                    </button>
+                  </div>
+                );
+              })}
           </div>
         )}
 
