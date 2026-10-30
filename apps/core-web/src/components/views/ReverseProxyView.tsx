@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Database, Globe, Plus, Trash2, Zap } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { safeFetchJson } from "@/lib/safeFetch";
 import { SynapseViewHeader } from "@/components/ui/SynapseDesignSystem";
 import type { ProjectState } from "@/types/synapse";
 import { ReverseProxyCodeAndSqliteStudios } from "./reverse-proxy/ReverseProxyCodeAndSqliteStudios";
@@ -113,7 +114,7 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
     let cancelled = false;
     setCodeLoading(true);
     setCodeNotice(null);
-    fetch("/api/service-ops", {
+    safeFetchJson("/api/service-ops", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -181,7 +182,7 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
     setWbLogsOpen(true);
     setWbLogsBusy(true);
     try {
-      const r = await fetch("/api/service-ops", {
+      const r = await safeFetchJson("/api/service-ops", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -270,7 +271,7 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
             setNewSvcBusy(true);
             setNewSvcNotice(null);
             try {
-              const res = await fetch("/api/service-ops", {
+              const res = await safeFetchJson("/api/service-ops", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

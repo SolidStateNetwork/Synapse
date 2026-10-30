@@ -1,8 +1,11 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -14,12 +17,26 @@ import (
 	"github.com/SolidStateNetwork/Synapse/apps/core-gateway/internal/hub"
 )
 
+func computeFileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
 func serveAxonBinary(arch string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		candidates := []string{
 			os.Getenv("SYNAPSE_AXON_BINARY_PATH"),
 			fmt.Sprintf("/usr/local/bin/axon-linux-%s", arch),
 			fmt.Sprintf("./bin/axon-linux-%s", arch),
+			fmt.Sprintf("../../bin/axon-linux-%s", arch),
 			"./bin/axon",
 			"../../bin/axon",
 		}
@@ -27,12 +44,29 @@ func serveAxonBinary(arch string) http.HandlerFunc {
 			if candidate == "" {
 				continue
 			}
-			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			if info, err := os.Stat(candidate); err == nil && !info.IsDir() && info.Size() > 0 {
+				sum, sumErr := computeFileSHA256(candidate)
+				if sumErr == nil && sum != "" {
+					w.Header().Set("X-Synapse-SHA256", sum)
+				}
+				if r.URL.Query().Get("sha256") == "1" {
+					if sum == "" {
+						http.Error(w, "sha256 unavailable", http.StatusNotFound)
+						return
+					}
+					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+					_, _ = fmt.Fprintf(w, "%s  axon\n", sum)
+					return
+				}
 				w.Header().Set("Content-Type", "application/octet-stream")
 				w.Header().Set("Content-Disposition", "attachment; filename=\"axon\"")
 				http.ServeFile(w, r, candidate)
 				return
 			}
+		}
+		if r.URL.Query().Get("sha256") == "1" {
+			http.Error(w, "local binary checksum unavailable", http.StatusNotFound)
+			return
 		}
 		ghReleaseURL := fmt.Sprintf("https://github.com/SolidStateNetwork/Synapse/releases/latest/download/axon-linux-%s", arch)
 		http.Redirect(w, r, ghReleaseURL, http.StatusFound)
@@ -74,7 +108,7 @@ while [ "$#" -gt 0 ]; do
       TIER="$2"
       shift 2
       ;;
-    --node-id)
+    --node-id|--node)
       NODE_ID="$2"
       shift 2
       ;;
@@ -100,6 +134,19 @@ if [ -z "$TOKEN" ]; then
   exit 1
 fi
 
+download_url() {
+  src_url="$1"
+  dest_file="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$src_url" -o "$dest_file" 2>/dev/null
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO "$dest_file" "$src_url" 2>/dev/null
+  else
+    echo "[synapse] Error: neither curl nor wget is installed." >&2
+    return 1
+  fi
+}
+
 ARCH_RAW="$(uname -m)"
 case "$ARCH_RAW" in
   x86_64|amd64) ARCH="amd64" ;;
@@ -118,13 +165,37 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$WORKSPACE_DIR"
+TMP_BIN="${INSTALL_DIR}/.axon.tmp.$$"
 
 echo "[synapse] Downloading static Axon Muscle binary (linux/${ARCH})..."
-if ! curl -fsSL "$CORE_URL/dl/axon-linux-${ARCH}" -o "$INSTALL_DIR/axon" 2>/dev/null; then
+if download_url "$CORE_URL/dl/axon-linux-${ARCH}" "$TMP_BIN"; then
+  EXPECTED_SHA=""
+  if command -v curl >/dev/null 2>&1; then
+    EXPECTED_SHA="$(curl -fsSL "$CORE_URL/dl/axon-linux-${ARCH}?sha256=1" 2>/dev/null | awk '{print $1}' || true)"
+  elif command -v wget >/dev/null 2>&1; then
+    EXPECTED_SHA="$(wget -qO- "$CORE_URL/dl/axon-linux-${ARCH}?sha256=1" 2>/dev/null | awk '{print $1}' || true)"
+  fi
+  if [ -n "$EXPECTED_SHA" ]; then
+    ACTUAL_SHA=""
+    if command -v sha256sum >/dev/null 2>&1; then
+      ACTUAL_SHA="$(sha256sum "$TMP_BIN" | awk '{print $1}')"
+    elif command -v shasum >/dev/null 2>&1; then
+      ACTUAL_SHA="$(shasum -a 256 "$TMP_BIN" | awk '{print $1}')"
+    fi
+    if [ -n "$ACTUAL_SHA" ] && [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+      echo "[synapse] Error: SHA-256 checksum mismatch for downloaded Axon binary ($ACTUAL_SHA != $EXPECTED_SHA)" >&2
+      rm -f "$TMP_BIN"
+      exit 1
+    fi
+    echo "[synapse] ✔ SHA-256 binary integrity verified (${EXPECTED_SHA})."
+  fi
+else
   echo "[synapse] Falling back to GitHub Releases (axon-linux-${ARCH})..."
-  curl -fsSL "https://github.com/SolidStateNetwork/Synapse/releases/latest/download/axon-linux-${ARCH}" -o "$INSTALL_DIR/axon"
+  download_url "https://github.com/SolidStateNetwork/Synapse/releases/latest/download/axon-linux-${ARCH}" "$TMP_BIN"
 fi
-chmod +x "$INSTALL_DIR/axon"
+
+chmod +x "$TMP_BIN"
+mv -f "$TMP_BIN" "$INSTALL_DIR/axon"
 
 echo "[synapse] Authenticating one-time token & bootstrapping mTLS 1.3 CSR with Core ($CORE_URL)..."
 if [ -n "$NODE_ID" ]; then
@@ -155,6 +226,22 @@ EOF
   systemctl daemon-reload
   systemctl enable --now axon.service
   echo "[synapse] ✔ axon.service enabled and started via systemd (mTLS + Yamux Reverse Tunnel active)."
+elif [ "$(id -u)" -eq 0 ] && command -v rc-service >/dev/null 2>&1 && [ -d /etc/init.d ]; then
+  cat >/etc/init.d/axon <<EOF
+#!/sbin/openrc-run
+name="Synapse Axon Muscle Node Agent"
+command="$INSTALL_DIR/axon"
+command_args="run $DEBUG_FLAG --config-dir $CONFIG_DIR"
+command_background="yes"
+pidfile="/run/axon.pid"
+depend() {
+  need net
+}
+EOF
+  chmod +x /etc/init.d/axon
+  rc-update add axon default 2>/dev/null || true
+  rc-service axon restart
+  echo "[synapse] ✔ axon service enabled and started via OpenRC."
 else
   pkill -f "$INSTALL_DIR/axon run" 2>/dev/null || true
   nohup "$INSTALL_DIR/axon" run $DEBUG_FLAG --config-dir "$CONFIG_DIR" >/tmp/axon-agent.log 2>&1 &
@@ -166,6 +253,14 @@ fi
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{
+					"ok":    false,
+					"error": fmt.Sprintf("internal gateway panic recovered: %v", rec),
+				})
+			}
+		}()
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")

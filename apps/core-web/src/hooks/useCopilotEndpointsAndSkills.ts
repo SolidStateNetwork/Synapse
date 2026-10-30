@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { safeFetchJson } from "@/lib/safeFetch";
 import type { ChatAttachment, ChatItem, ProjectState } from "@/types/synapse";
 import {
   buildInterviewStepResponsePrompt,
@@ -89,7 +90,7 @@ export function useCopilotEndpointsAndSkills({
   async function handleSaveAiEndpoint(e: React.FormEvent) {
     e.preventDefault();
     if (!activeProject) return;
-    await fetch("/api/projects", {
+    await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -119,7 +120,7 @@ export function useCopilotEndpointsAndSkills({
     setSyncingModels(true);
     setModelSyncStatus(isDe ? "Frage /models ab..." : "Querying /models...");
     try {
-      const res = await fetch("/api/orchestrator", {
+      const res = await safeFetchJson("/api/orchestrator", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -157,7 +158,7 @@ export function useCopilotEndpointsAndSkills({
   async function handleRollbackSnapshot(snapshotId: string, filePath?: string) {
     if (!activeProject || !snapshotId) return;
     try {
-      const res = await fetch("/api/orchestrator", {
+      const res = await safeFetchJson("/api/orchestrator", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -246,7 +247,7 @@ export function useCopilotEndpointsAndSkills({
           : "Running Core & Muscle OTA sync...",
         0
       );
-      const upRes = await fetch("/api/system-update", {
+      const upRes = await safeFetchJson("/api/system-update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -292,7 +293,7 @@ export function useCopilotEndpointsAndSkills({
 
   async function handleClearChat() {
     if (!activeProject) return;
-    const res = await fetch("/api/projects", {
+    const res = await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

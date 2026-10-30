@@ -1,14 +1,8 @@
 "use client";
 
 import React from "react";
-import {
-  Activity,
-  AlertTriangle,
-  KeyRound,
-  Lock,
-  Server,
-  Trash2,
-} from "lucide-react";
+import { Activity, AlertTriangle, KeyRound, Lock, Server, Trash2 } from "lucide-react";
+import { safeFetchJson } from "@/lib/safeFetch";
 import { AutonomyTier } from "@/types/synapse";
 import type { SettingsAlertConfigState } from "../SettingsView";
 
@@ -335,7 +329,7 @@ export function WatchdogRbacTab({
             type="button"
             onClick={async () => {
               setSettingsAlertNotice(null);
-              const r = await fetch("/api/alerts", {
+              const r = await safeFetchJson("/api/alerts", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -418,7 +412,7 @@ export function WatchdogRbacTab({
             <button
               type="button"
               onClick={async () => {
-                const r = await fetch("/api/alerts", {
+                const r = await safeFetchJson("/api/alerts", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
@@ -540,7 +534,7 @@ export function WatchdogRbacTab({
             <button
               type="button"
               onClick={async () => {
-                const r = await fetch("/api/auth", {
+                const r = await safeFetchJson("/api/auth", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
@@ -566,7 +560,7 @@ export function WatchdogRbacTab({
               <button
                 type="button"
                 onClick={async () => {
-                  const r = await fetch("/api/auth", {
+                  const r = await safeFetchJson("/api/auth", {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",

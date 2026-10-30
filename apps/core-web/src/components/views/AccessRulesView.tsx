@@ -1,16 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Clock, Play, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, Play, Plus, Shield, ShieldAlert, Trash2, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import {
-  ChevronDown,
-  ChevronUp,
-  Plus,
-  Shield,
-  ShieldAlert,
-  X,
-} from "lucide-react";
+import { safeFetchJson } from "@/lib/safeFetch";
 import RichMarkdownDocument from "@/components/RichMarkdownDocument";
 import {
   CartridgeMeta,
@@ -390,7 +383,7 @@ const AccessRulesView = React.memo(function AccessRulesView({
                     onClick={async () => {
                       setCronBusyId(job.id);
                       try {
-                        const r = await fetch("/api/service-ops", {
+                        const r = await safeFetchJson("/api/service-ops", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
@@ -425,7 +418,7 @@ const AccessRulesView = React.memo(function AccessRulesView({
                   <button
                     type="button"
                     onClick={async () => {
-                      const r = await fetch("/api/service-ops", {
+                      const r = await safeFetchJson("/api/service-ops", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -471,7 +464,7 @@ const AccessRulesView = React.memo(function AccessRulesView({
           onSubmit={async (e) => {
             e.preventDefault();
             if (!newCronName.trim() || !newCronCmd.trim()) return;
-            const r = await fetch("/api/service-ops", {
+            const r = await safeFetchJson("/api/service-ops", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({

@@ -3,6 +3,7 @@
 import React from "react";
 import { Code2, Database, ExternalLink, Globe, Zap } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { safeFetchJson } from "@/lib/safeFetch";
 import type { ProjectState, RegisteredServiceItem } from "@/types/synapse";
 
 export interface ReverseProxyCodeAndSqliteStudiosProps {
@@ -179,7 +180,7 @@ export function ReverseProxyCodeAndSqliteStudios({
               setCodeLoading(true);
               setCodeNotice(null);
               try {
-                const r = await fetch("/api/service-ops", {
+                const r = await safeFetchJson("/api/service-ops", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
@@ -215,7 +216,7 @@ export function ReverseProxyCodeAndSqliteStudios({
               try {
                 const targetDb = activeSvc.db_path || dbPathInput;
                 setDbPathInput(targetDb);
-                const r = await fetch("/api/service-ops", {
+                const r = await safeFetchJson("/api/service-ops", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
@@ -273,7 +274,7 @@ export function ReverseProxyCodeAndSqliteStudios({
                 setCodeSaving(true);
                 setCodeNotice(null);
                 try {
-                  const r = await fetch("/api/service-ops", {
+                  const r = await safeFetchJson("/api/service-ops", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -364,7 +365,7 @@ export function ReverseProxyCodeAndSqliteStudios({
                     setActiveDbTable(tbl);
                     setDbBusy(true);
                     try {
-                      const r = await fetch("/api/service-ops", {
+                      const r = await safeFetchJson("/api/service-ops", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -445,7 +446,7 @@ export function ReverseProxyCodeAndSqliteStudios({
               onClick={async () => {
                 setDbBusy(true);
                 try {
-                  const r = await fetch("/api/service-ops", {
+                  const r = await safeFetchJson("/api/service-ops", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

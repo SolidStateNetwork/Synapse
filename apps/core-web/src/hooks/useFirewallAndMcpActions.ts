@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { safeFetchJson } from "@/lib/safeFetch";
 import { GatewayNode, NavSection, ProjectState } from "@/types/synapse";
 
 export interface LiveFirewallPortItem {
@@ -59,7 +60,7 @@ export function useFirewallAndMcpActions({
     if (!activeProject) return;
     const scopes =
       mcpKeyScopeMode === "read-only" ? ["read"] : ["read", "execute", "admin"];
-    const res = await fetch("/api/mcp", {
+    const res = await safeFetchJson("/api/mcp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -83,7 +84,7 @@ export function useFirewallAndMcpActions({
 
   async function handleRevokeMcpKey(keyId: string) {
     if (!activeProject) return;
-    await fetch("/api/mcp", {
+    await safeFetchJson("/api/mcp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -120,7 +121,7 @@ export function useFirewallAndMcpActions({
             method,
           };
 
-    const res = await fetch("/api/mcp", {
+    const res = await safeFetchJson("/api/mcp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -141,7 +142,7 @@ export function useFirewallAndMcpActions({
       setFirewallBusy(true);
       setFirewallError("");
       try {
-        const res = await fetch(
+        const res = await safeFetchJson(
           `/api/firewall?project_id=${encodeURIComponent(
             pid
           )}&node_id=${encodeURIComponent(nid)}`,
@@ -201,7 +202,7 @@ export function useFirewallAndMcpActions({
     setFirewallBusy(true);
     setFirewallError("");
     try {
-      const res = await fetch("/api/firewall", {
+      const res = await safeFetchJson("/api/firewall", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

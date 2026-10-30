@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { safeFetchJson } from "@/lib/safeFetch";
 import type {
   AlertConfigState,
   BlueprintItem,
@@ -129,7 +130,7 @@ export function useCanvasOpsController({
   }, [allServices]);
 
   useEffect(() => {
-    fetch("/api/auth")
+    safeFetchJson("/api/auth")
       .then((r) => r.json())
       .then((d) => {
         if (d && typeof d.enabled === "boolean") {
@@ -137,7 +138,7 @@ export function useCanvasOpsController({
         }
       })
       .catch(() => {});
-    fetch("/api/checkpoints")
+    safeFetchJson("/api/checkpoints")
       .then((r) => r.json())
       .then((d) => {
         if (d && Array.isArray(d.checkpoints)) {
@@ -145,7 +146,7 @@ export function useCanvasOpsController({
         }
       })
       .catch(() => {});
-    fetch("/api/alerts")
+    safeFetchJson("/api/alerts")
       .then((r) => r.json())
       .then((d) => {
         if (d && d.config) {
@@ -153,7 +154,7 @@ export function useCanvasOpsController({
         }
       })
       .catch(() => {});
-    fetch("/api/blueprints")
+    safeFetchJson("/api/blueprints")
       .then((r) => r.json())
       .then((d) => {
         if (d && Array.isArray(d.blueprints)) {
@@ -161,7 +162,7 @@ export function useCanvasOpsController({
         }
       })
       .catch(() => {});
-    fetch("/api/backups")
+    safeFetchJson("/api/backups")
       .then((r) => r.json())
       .then((d) => {
         if (d && Array.isArray(d.backups)) {
@@ -169,7 +170,7 @@ export function useCanvasOpsController({
         }
       })
       .catch(() => {});
-    fetch("/api/service-ops")
+    safeFetchJson("/api/service-ops")
       .then((r) => r.json())
       .then((d) => {
         if (d && d.domains) {
@@ -192,7 +193,7 @@ export function useCanvasOpsController({
     setBlueprintBusyId(bp.id);
     setBlueprintNotice(null);
     try {
-      const res = await fetch("/api/blueprints", {
+      const res = await safeFetchJson("/api/blueprints", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -223,7 +224,7 @@ export function useCanvasOpsController({
     setBackupBusyId("create");
     setBackupNotice(null);
     try {
-      const res = await fetch("/api/backups", {
+      const res = await safeFetchJson("/api/backups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -254,7 +255,7 @@ export function useCanvasOpsController({
     setBackupBusyId(bkp.id);
     setBackupNotice(null);
     try {
-      const res = await fetch("/api/backups", {
+      const res = await safeFetchJson("/api/backups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -284,7 +285,7 @@ export function useCanvasOpsController({
     setIntrusionBusyNode(nodeId);
     setIntrusionNotice(null);
     try {
-      const res = await fetch("/api/service-ops", {
+      const res = await safeFetchJson("/api/service-ops", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -315,7 +316,7 @@ export function useCanvasOpsController({
     setIntrusionBusyNode(`${nodeId}:${ip}`);
     setIntrusionNotice(null);
     try {
-      const res = await fetch("/api/service-ops", {
+      const res = await safeFetchJson("/api/service-ops", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -355,7 +356,7 @@ export function useCanvasOpsController({
     setCheckpointBusyId("create");
     setCheckpointNotice(null);
     try {
-      const res = await fetch("/api/checkpoints", {
+      const res = await safeFetchJson("/api/checkpoints", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -385,7 +386,7 @@ export function useCanvasOpsController({
     setCheckpointBusyId(chk.id);
     setCheckpointNotice(null);
     try {
-      const res = await fetch("/api/checkpoints", {
+      const res = await safeFetchJson("/api/checkpoints", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -415,7 +416,7 @@ export function useCanvasOpsController({
     setAlertBusy(true);
     setAlertNotice(null);
     try {
-      const res = await fetch("/api/alerts", {
+      const res = await safeFetchJson("/api/alerts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -442,7 +443,7 @@ export function useCanvasOpsController({
     setAlertConfig(next);
     setAlertBusy(true);
     try {
-      const res = await fetch("/api/alerts", {
+      const res = await safeFetchJson("/api/alerts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -462,7 +463,7 @@ export function useCanvasOpsController({
   const handleConfigureAuth = async (enableProtection: boolean) => {
     setAuthNotice(null);
     try {
-      const res = await fetch("/api/auth", {
+      const res = await safeFetchJson("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -500,7 +501,7 @@ export function useCanvasOpsController({
     e.preventDefault();
     setAuthNotice(null);
     try {
-      const res = await fetch("/api/auth", {
+      const res = await safeFetchJson("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { safeFetchJson } from "@/lib/safeFetch";
 import {
   AutonomyTier,
   ChatItem,
@@ -154,7 +155,7 @@ export function useSystemAndInfraActions({
 
   async function handleGenerateJoinToken() {
     if (!activeProject) return;
-    const res = await fetch("/api/tokens", {
+    const res = await safeFetchJson("/api/tokens", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -169,7 +170,7 @@ export function useSystemAndInfraActions({
 
   async function handleAssignNode(nodeId: string, tier: AutonomyTier) {
     if (!activeProject || !nodeId.trim()) return;
-    await fetch("/api/projects", {
+    await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -185,7 +186,7 @@ export function useSystemAndInfraActions({
 
   async function handleUnassignNode(nodeId: string) {
     if (!activeProject) return;
-    await fetch("/api/projects", {
+    await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -199,7 +200,7 @@ export function useSystemAndInfraActions({
 
   async function handleToggleCartridge(cartridgeId: string) {
     if (!activeProject) return;
-    await fetch("/api/projects", {
+    await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -215,7 +216,7 @@ export function useSystemAndInfraActions({
     e.preventDefault();
     if (!activeProject || !newSecretKey.trim()) return;
     const keyUpper = newSecretKey.trim().toUpperCase();
-    await fetch("/api/projects", {
+    await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -237,7 +238,7 @@ export function useSystemAndInfraActions({
 
   async function handleDeleteSecret(keyName: string) {
     if (!activeProject) return;
-    await fetch("/api/projects", {
+    await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -254,7 +255,7 @@ export function useSystemAndInfraActions({
     decision: "approve" | "reject"
   ) {
     if (!activeProject) return;
-    const res = await fetch("/api/projects", {
+    const res = await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -283,7 +284,7 @@ export function useSystemAndInfraActions({
   async function handleCreateCustomCartridge(e: React.FormEvent) {
     e.preventDefault();
     if (!activeProject || !customCartName.trim()) return;
-    const res = await fetch("/api/projects", {
+    const res = await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -315,7 +316,7 @@ export function useSystemAndInfraActions({
     e.preventDefault();
     if (!activeProject || !playbookName.trim() || !playbookPrompt.trim())
       return;
-    await fetch("/api/projects", {
+    await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -347,7 +348,7 @@ export function useSystemAndInfraActions({
   }) {
     if (!activeProject) return;
     const cronVal = pb.cron || pb.cron_expression || "0 3 * * *";
-    await fetch("/api/projects", {
+    await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -366,7 +367,7 @@ export function useSystemAndInfraActions({
 
   async function handleDeletePlaybook(playbookId: string) {
     if (!activeProject) return;
-    await fetch("/api/projects", {
+    await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -382,7 +383,7 @@ export function useSystemAndInfraActions({
     e.preventDefault();
     if (!activeProject || !meshSourceNode.trim() || !meshTargetNode.trim())
       return;
-    await fetch("/api/projects", {
+    await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -405,7 +406,7 @@ export function useSystemAndInfraActions({
 
   async function handleRemoveMeshLink(linkId: string) {
     if (!activeProject) return;
-    await fetch("/api/projects", {
+    await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -420,7 +421,7 @@ export function useSystemAndInfraActions({
   const fetchDebugSnapshot = useCallback(async () => {
     const pid = activeProject?.project_id || "default-project";
     try {
-      const res = await fetch(
+      const res = await safeFetchJson(
         `/api/debug?project_id=${encodeURIComponent(pid)}`,
         { cache: "no-store" }
       );
@@ -439,7 +440,7 @@ export function useSystemAndInfraActions({
     const pid = activeProject?.project_id || "default-project";
     const next = !debugModeEnabled;
     setDebugModeEnabled(next);
-    await fetch("/api/debug", {
+    await safeFetchJson("/api/debug", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -464,7 +465,7 @@ export function useSystemAndInfraActions({
     const pid = activeProject?.project_id || "default-project";
     setRunningSelfTest(true);
     try {
-      const res = await fetch("/api/debug", {
+      const res = await safeFetchJson("/api/debug", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -488,7 +489,7 @@ export function useSystemAndInfraActions({
         const qs = new URLSearchParams();
         if (checkRemote) qs.set("check_remote", "1");
         if (inspectNodes) qs.set("inspect_nodes", "1");
-        const res = await fetch(`/api/system-update?${qs.toString()}`, {
+        const res = await safeFetchJson(`/api/system-update?${qs.toString()}`, {
           cache: "no-store",
         });
         if (res.ok) {
@@ -535,7 +536,7 @@ export function useSystemAndInfraActions({
         : isDe ? "Komplett-Update (Core + Muscle OTA)..." : "Full update (Core + Muscle OTA)..."
     );
     try {
-      const res = await fetch("/api/system-update", {
+      const res = await safeFetchJson("/api/system-update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, project_id: pid, node_id: targetNodeId }),

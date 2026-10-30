@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { atomicWriteJsonSync, safeReadJsonWithBackupSync } from "@/lib/vault";
 
 export type UserRole = "admin" | "operator";
 
@@ -38,21 +39,19 @@ export function hashPassword(password: string): string {
 
 export function loadAuthConfig(): AuthConfig {
   const filePath = getAuthFilePath();
-  try {
-    if (fs.existsSync(filePath)) {
-      const raw = fs.readFileSync(filePath, "utf8");
-      const parsed = JSON.parse(raw) as AuthConfig;
-      return {
-        enabled: Boolean(parsed.enabled),
-        admin_password_hash: parsed.admin_password_hash || "",
-        operator_password_hash: parsed.operator_password_hash || "",
-        totp_pin: parsed.totp_pin || "",
-        updated_at: parsed.updated_at || new Date().toISOString(),
-        sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
-      };
-    }
-  } catch {
-    // fallback to default
+  const parsed = safeReadJsonWithBackupSync<Partial<AuthConfig> | null>(
+    filePath,
+    null
+  );
+  if (parsed && typeof parsed === "object") {
+    return {
+      enabled: Boolean(parsed.enabled),
+      admin_password_hash: parsed.admin_password_hash || "",
+      operator_password_hash: parsed.operator_password_hash || "",
+      totp_pin: parsed.totp_pin || "",
+      updated_at: parsed.updated_at || new Date().toISOString(),
+      sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
+    };
   }
   return {
     enabled: false,
@@ -67,9 +66,12 @@ export function loadAuthConfig(): AuthConfig {
 export function saveAuthConfig(cfg: AuthConfig): void {
   const filePath = getAuthFilePath();
   cfg.updated_at = new Date().toISOString();
-  const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  fs.writeFileSync(tmpPath, JSON.stringify(cfg, null, 2), { mode: 0o600 });
-  fs.renameSync(tmpPath, filePath);
+  atomicWriteJsonSync(filePath, cfg);
+  try {
+    fs.chmodSync(filePath, 0o600);
+  } catch {
+    // ignore chmod on platforms without POSIX permissions
+  }
 }
 
 export function verifyLogin(
@@ -123,4 +125,24 @@ export function verifyLogin(
   cfg.sessions = [session, ...(cfg.sessions || []).slice(0, 19)];
   saveAuthConfig(cfg);
   return { ok: true, role: matchedRole, session };
+}
+
+export function verifySessionToken(token?: string | null): {
+  valid: boolean;
+  role?: UserRole;
+  session?: AuthSession;
+} {
+  const cfg = loadAuthConfig();
+  if (!cfg.enabled) {
+    return { valid: true, role: "admin" };
+  }
+  const clean = (token || "").trim();
+  if (!clean) {
+    return { valid: false };
+  }
+  const found = (cfg.sessions || []).find((s) => s.token === clean);
+  if (!found) {
+    return { valid: false };
+  }
+  return { valid: true, role: found.role, session: found };
 }

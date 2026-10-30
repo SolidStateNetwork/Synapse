@@ -113,7 +113,14 @@ func (c *Collector) CollectForNode(nodeID string, tier tunnelv1.AutonomyTier, ac
 }
 
 // Collect builds a NodeHeartbeat snapshot including CPU, RAM, Disk, OS info, IPv4, PTY sessions, and local service statuses.
-func (c *Collector) Collect(activePtySessions []string, sessionDetails ...[]tunnelv1.PtySessionMeta) tunnelv1.NodeHeartbeat {
+func (c *Collector) Collect(activePtySessions []string, sessionDetails ...[]tunnelv1.PtySessionMeta) (beat tunnelv1.NodeHeartbeat) {
+	defer func() {
+		if r := recover(); r != nil {
+			beat.NodeID = c.NodeID
+			beat.Tier = c.Tier
+			beat.TimestampUnix = time.Now().Unix()
+		}
+	}()
 	hostname, err := os.Hostname()
 	if err != nil || hostname == "" {
 		hostname = "axon-node"

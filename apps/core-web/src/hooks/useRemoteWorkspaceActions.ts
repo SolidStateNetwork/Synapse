@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { safeFetchJson } from "@/lib/safeFetch";
 import { FsEntry, ProjectState } from "@/types/synapse";
 
 export function useRemoteWorkspaceActions({
@@ -28,7 +29,7 @@ export function useRemoteWorkspaceActions({
     async (filePath: string) => {
       if (!activeProject || !primaryNode || !filePath) return;
       try {
-        const res = await fetch("/api/orchestrator", {
+        const res = await safeFetchJson("/api/orchestrator", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -60,7 +61,7 @@ export function useRemoteWorkspaceActions({
     async (dirPath: string, autoSelectFirstFile = false) => {
       if (!activeProject || !primaryNode || activeProject.planning_only) return;
       try {
-        const res = await fetch("/api/orchestrator", {
+        const res = await safeFetchJson("/api/orchestrator", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -112,7 +113,7 @@ export function useRemoteWorkspaceActions({
 
   async function handleSaveRemoteFile() {
     if (!activeProject || !primaryNode || !activeFilePath) return;
-    const res = await fetch("/api/orchestrator", {
+    const res = await safeFetchJson("/api/orchestrator", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -142,7 +143,7 @@ export function useRemoteWorkspaceActions({
   async function handleApplyUnifiedDiff() {
     if (!activeProject || !primaryNode || !activeFilePath || !diffPatchText)
       return;
-    const res = await fetch("/api/orchestrator", {
+    const res = await safeFetchJson("/api/orchestrator", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -180,7 +181,7 @@ export function useRemoteWorkspaceActions({
       remoteDir === "."
         ? newFileName.trim()
         : `${remoteDir}/${newFileName.trim()}`;
-    await fetch("/api/orchestrator", {
+    await safeFetchJson("/api/orchestrator", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -203,7 +204,7 @@ export function useRemoteWorkspaceActions({
 
   async function handleDeleteRemoteFile(targetPath: string) {
     if (!activeProject || !primaryNode) return;
-    await fetch("/api/orchestrator", {
+    await safeFetchJson("/api/orchestrator", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

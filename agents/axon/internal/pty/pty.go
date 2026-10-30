@@ -217,6 +217,13 @@ func (s *Session) broadcastLive(chunk []byte) {
 }
 
 func (s *Session) readLoop() {
+	defer func() {
+		if r := recover(); r != nil {
+			s.subMu.Lock()
+			s.closed = true
+			s.subMu.Unlock()
+		}
+	}()
 	buf := make([]byte, 4096)
 	for {
 		n, err := s.Ptmx.Read(buf)

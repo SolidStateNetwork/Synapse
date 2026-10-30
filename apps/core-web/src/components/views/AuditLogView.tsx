@@ -10,6 +10,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { safeFetchJson } from "@/lib/safeFetch";
 import type { SelfHealingEventItem } from "@/components/canvas/canvasTypes";
 
 import { AuditEntry } from "@/types/synapse";
@@ -45,7 +46,7 @@ const AuditLogView = React.memo(function AuditLogView({
   const [rerunBusyId, setRerunBusyId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/service-ops")
+    safeFetchJson("/api/service-ops")
       .then((r) => r.json())
       .then((d) => {
         if (d?.self_healing?.events) {
@@ -66,7 +67,7 @@ const AuditLogView = React.memo(function AuditLogView({
   const handleRerunHeal = async (ev: SelfHealingEventItem) => {
     setRerunBusyId(ev.id);
     try {
-      const res = await fetch("/api/service-ops", {
+      const res = await safeFetchJson("/api/service-ops", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

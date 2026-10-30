@@ -320,6 +320,13 @@ export async function dispatchCoreBrainTool(
     const key = String(args.key || args.key_name || "").trim().toUpperCase();
     const value = String(args.value || args.secret_value || "");
     const length = Number(args.length || 32);
+    if (action !== "list" && !key) {
+      return {
+        tool_name: toolName,
+        status: "error",
+        output: { error: `Secret key is required for action '${action}'` },
+      };
+    }
     let keys: string[] = [];
 
     if (action === "generate_random" && key) {

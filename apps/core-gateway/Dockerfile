@@ -14,7 +14,9 @@ WORKDIR /app
 COPY --from=builder /out/core-gateway /usr/local/bin/core-gateway
 COPY --from=builder /out/axon-linux-amd64 /usr/local/bin/axon-linux-amd64
 COPY --from=builder /out/axon-linux-arm64 /usr/local/bin/axon-linux-arm64
-RUN mkdir -p /var/lib/synapse
+RUN mkdir -p /var/lib/synapse /app/bin && \
+    cp /usr/local/bin/axon-linux-amd64 /app/bin/axon-linux-amd64 && \
+    cp /usr/local/bin/axon-linux-arm64 /app/bin/axon-linux-arm64
 VOLUME ["/var/lib/synapse"]
 EXPOSE 8081 8443
 HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \

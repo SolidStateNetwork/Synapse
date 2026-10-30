@@ -24,6 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { safeFetchJson } from "@/lib/safeFetch";
 import type { GatewayNode, NavSection, ProjectState } from "@/types/synapse";
 
 export interface CommandPaletteItem {
@@ -148,7 +149,7 @@ export default function CommandPaletteModal({
         onSelect: async () => {
           setBusyItemId(`svc-heal:${svc.service_id}`);
           try {
-            const res = await fetch("/api/service-ops", {
+            const res = await safeFetchJson("/api/service-ops", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -190,7 +191,7 @@ export default function CommandPaletteModal({
         onSelect: async () => {
           setBusyItemId(`svc-crash:${svc.service_id}`);
           try {
-            const res = await fetch("/api/service-ops", {
+            const res = await safeFetchJson("/api/service-ops", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({

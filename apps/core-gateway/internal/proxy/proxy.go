@@ -21,6 +21,11 @@ import (
 // It tunnels every request directly over a Yamux STREAM_TYPE_PORT_FORWARD stream to 127.0.0.1:<port> on the remote Axon node.
 func NewLivePreviewHandler(h *hub.Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				http.Error(w, fmt.Sprintf("Live-Preview proxy recovered from panic: %v", rec), http.StatusInternalServerError)
+			}
+		}()
 		trimmed := strings.TrimPrefix(r.URL.Path, "/preview/")
 		parts := strings.SplitN(trimmed, "/", 4)
 		if len(parts) < 3 {
@@ -62,6 +67,11 @@ func NewLivePreviewHandler(h *hub.Hub) http.HandlerFunc {
 				ResponseHeaderTimeout: 30 * time.Second,
 				IdleConnTimeout:       10 * time.Second,
 				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+					defer cancel()
+					if err := dialCtx.Err(); err != nil {
+						return nil, err
+					}
 					stream, _, err := h.OpenStream(nodeID, tunnelv1.StreamHeader{
 						StreamType: tunnelv1.StreamTypePortForward,
 						ProjectID:  projectID,

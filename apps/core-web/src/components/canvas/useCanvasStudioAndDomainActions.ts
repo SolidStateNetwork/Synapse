@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { safeFetchJson } from "@/lib/safeFetch";
 import type {
   ChaosResultState,
   DomainBindingItem,
@@ -102,7 +103,7 @@ export function useCanvasStudioAndDomainActions({
     }
     setLogBusyId(svc.service_id);
     try {
-      const res = await fetch("/api/service-ops", {
+      const res = await safeFetchJson("/api/service-ops", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -136,7 +137,7 @@ export function useCanvasStudioAndDomainActions({
       `${svc.service_id}.synapse.local`
     ).trim();
     try {
-      const res = await fetch("/api/service-ops", {
+      const res = await safeFetchJson("/api/service-ops", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -174,7 +175,7 @@ export function useCanvasStudioAndDomainActions({
   const handleRunChaosTest = async (svc: RegisteredService) => {
     setChaosBusyId(svc.service_id);
     try {
-      const res = await fetch("/api/service-ops", {
+      const res = await safeFetchJson("/api/service-ops", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -223,7 +224,7 @@ export function useCanvasStudioAndDomainActions({
           },
         ];
       }
-      void fetch("/api/service-ops", {
+      void safeFetchJson("/api/service-ops", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -283,7 +284,7 @@ export function useCanvasStudioAndDomainActions({
     ) => {
       setSelfHealBusyId(svc.service_id);
       try {
-        const res = await fetch("/api/service-ops", {
+        const res = await safeFetchJson("/api/service-ops", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -322,7 +323,7 @@ export function useCanvasStudioAndDomainActions({
     handleQuickProbeService: async (svc: RegisteredService) => {
       setProbeBusyId(svc.service_id);
       try {
-        const res = await fetch("/api/service-ops", {
+        const res = await safeFetchJson("/api/service-ops", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -357,7 +358,7 @@ export function useCanvasStudioAndDomainActions({
       );
       setServiceLinks(updated);
       try {
-        await fetch("/api/service-ops", {
+        await safeFetchJson("/api/service-ops", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -377,7 +378,7 @@ export function useCanvasStudioAndDomainActions({
       setLinkProbeBusyId(linkId);
       try {
         const currentLink = serviceLinks.find((l) => l.id === linkId);
-        const res = await fetch("/api/service-ops", {
+        const res = await safeFetchJson("/api/service-ops", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -403,7 +404,7 @@ export function useCanvasStudioAndDomainActions({
       setHotReloadLoading(true);
       setHotReloadNotice(null);
       try {
-        const res = await fetch("/api/service-ops", {
+        const res = await safeFetchJson("/api/service-ops", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -428,7 +429,7 @@ export function useCanvasStudioAndDomainActions({
       setHotReloadSaving(true);
       setHotReloadNotice(null);
       try {
-        const res = await fetch("/api/service-ops", {
+        const res = await safeFetchJson("/api/service-ops", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -471,7 +472,7 @@ export function useCanvasStudioAndDomainActions({
       setCustomSvcBusy(true);
       setCustomSvcNotice(null);
       try {
-        const res = await fetch("/api/service-ops", {
+        const res = await safeFetchJson("/api/service-ops", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

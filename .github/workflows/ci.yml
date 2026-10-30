@@ -10,6 +10,9 @@ permissions:
   contents: read
   packages: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build-and-test-go:
     name: Build & Test Go Modules (Axon Muscle + Core Gateway)
@@ -17,6 +20,29 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Verify Clean Repo Hygiene & < 600 Line Modularization Gate
+        run: |
+          P1="217\\.154\\.20""\\.24"
+          P2="/home/""denis"
+          P3="vps""2"
+          P4="cachy""os"
+          P5="synapse-cloud-""demo"
+          P6="pulse-""webui|pulse-""analytics|pulse-""sqlite"
+          P7="uptime-beacon-""4060|json-""telemetrie"
+          HITS=$(git grep -n -iE "${P1}|${P2}|${P3}|${P4}|${P5}|${P6}|${P7}" || true)
+          if [ -n "$HITS" ]; then
+            echo "ERROR: Private data strings detected in repository:"
+            echo "$HITS"
+            exit 1
+          fi
+          OVERSIZE=$(find apps/core-web/src apps/core-gateway agents/axon -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.go" \) -exec awk 'END { if (NR >= 600) print FILENAME ":" NR }' {} +)
+          if [ -n "$OVERSIZE" ]; then
+            echo "ERROR: Code files exceeding 600 lines detected:"
+            echo "$OVERSIZE"
+            exit 1
+          fi
+          echo "Clean Repo Hygiene & < 600 Line Modularization Gate passed."
 
       - name: Set up Go 1.23
         uses: actions/setup-go@v5

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
+import { safeFetchJson } from "@/lib/safeFetch";
 import {
   AIProviderSettings,
   AuditEntry,
@@ -61,8 +62,8 @@ export function useControlCenterController() {
   const [settingsAuthNotice, setSettingsAuthNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/alerts").then((r) => r.json()).then((d) => { if (d?.config) setSettingsAlertConfig(d.config); }).catch(() => {});
-    fetch("/api/auth").then((r) => r.json()).then((d) => { if (typeof d?.enabled === "boolean") setSettingsAuthEnabled(d.enabled); }).catch(() => {});
+    safeFetchJson<{ config?: any }>("/api/alerts").then(({ data }) => { if (data?.config) setSettingsAlertConfig(data.config); });
+    safeFetchJson<{ enabled?: boolean }>("/api/auth").then(({ data }) => { if (typeof data?.enabled === "boolean") setSettingsAuthEnabled(data.enabled); });
   }, []);
 
   const [peerSearch, setPeerSearch] = useState("");
@@ -153,7 +154,7 @@ export function useControlCenterController() {
         const qs = new URLSearchParams();
         if (pid) qs.set("project_id", pid);
         if (!syncAiSettings) qs.set("light", "1");
-        const res = await fetch(`/api/projects?${qs.toString()}`, {
+        const res = await safeFetchJson(`/api/projects?${qs.toString()}`, {
           cache: "no-store",
         });
         if (!res.ok) return;
@@ -316,7 +317,7 @@ export function useControlCenterController() {
 
     setServiceActionBusy(true);
     try {
-      const res = await fetch("/api/projects", {
+      const res = await safeFetchJson("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -355,7 +356,7 @@ export function useControlCenterController() {
     port?: number
   ) {
     if (!activeProject) return;
-    await fetch("/api/orchestrator", {
+    await safeFetchJson("/api/orchestrator", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -394,7 +395,7 @@ export function useControlCenterController() {
         : `Starting Auto-Heal for ${unhealthyServices.length} service(s)…`
     );
     for (const svc of unhealthyServices) {
-      await fetch("/api/projects", {
+      await safeFetchJson("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -459,7 +460,7 @@ export function useControlCenterController() {
   async function handleSaveBrainDoc(doc: "Architecture.md" | "Memory.md") {
     if (!activeProject) return;
     const content = doc === "Architecture.md" ? architectureMd : memoryMd;
-    await fetch("/api/projects", {
+    await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

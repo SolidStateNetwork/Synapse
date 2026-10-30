@@ -1,19 +1,9 @@
 "use client";
 
 import React from "react";
-import {
-  AlertTriangle,
-  Copy,
-  MonitorSmartphone,
-  RefreshCw,
-  Search,
-  X,
-} from "lucide-react";
-import {
-  PROVIDER_PRESETS,
-  type AutonomyTier,
-  type NavSection,
-} from "@/types/synapse";
+import { AlertTriangle, Copy, MonitorSmartphone, RefreshCw, Search, X } from "lucide-react";
+import { safeFetchJson } from "@/lib/safeFetch";
+import { PROVIDER_PRESETS, type AutonomyTier, type NavSection } from "@/types/synapse";
 
 export interface ControlCenterModalsProps {
   addPeerModalOpen: boolean;
@@ -467,7 +457,7 @@ export default function ControlCenterModals({
             onSubmit={async (e) => {
               e.preventDefault();
               if (!newProjName.trim()) return;
-              const res = await fetch("/api/projects", {
+              const res = await safeFetchJson("/api/projects", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
