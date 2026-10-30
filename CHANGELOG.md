@@ -2,7 +2,7 @@
 
 All notable changes to **Synapse** are documented in this file.
 
-## [v0.7.0] — 2026-10-30 (Live Code Hot-Reload, SQLite Data Studio, Cron Runbooks, Multi-Core Mesh & Production Hardening)
+## [v0.5.0] — 2026-10-30 (Live Code Hot-Reload, SQLite Data Studio, Cron Runbooks, Multi-Core Mesh & Production Hardening)
 
 ### Added & Improved
 - **Live Code Hot-Reload Studio, SQLite Data Studio & Scheduled Cron-Runbooks (`apps/core-web/src/lib/v070-studio.ts`)**:
@@ -23,6 +23,16 @@ All notable changes to **Synapse** are documented in this file.
   - Atomic JSON persistence with automatic `.bak` self-healing (`atomicWriteJsonSync` / `safeReadJsonWithBackupSync`) across all project stores (`State.json`, `Alerts.json`, `Auth.json`, `Checkpoints.json`, `SelfHealing.json`, `ServiceLinks.json`, `CronJobs.json`).
   - Timeout- and abort-guarded `safeFetchJson` across all frontend hooks, views, Next.js API routes, and backend libraries.
   - Hardened `/install.sh` and `scripts/install-axon.sh` with automatic `curl`/`wget` fallback, SHA-256 binary integrity verification, `systemd`, `OpenRC` (Alpine Linux), and rootless daemon support.
+
+---
+
+## [v0.4.0] — 2026-10-29 (Firewall Port-Shield, RBAC Security & Time-Machine Snapshots)
+
+### Added & Improved
+- **Interactive Firewall & Port-Shield (`apps/core-web/src/lib/firewall.ts`)**:
+  - Live Port-Radar (`ss -tlnp`), one-click Port-Shielding (`ufw` / `iptables` / `nftables` with `127.0.0.1` Synapse Reverse-Tunnel whitelist), Anti-Lockout SSH protection, and 15-second Dead-Man's Switch Rollback.
+- **Zero-Trust RBAC & Watchdog Alert Engine (`auth.ts`, `alerts.ts`)**:
+  - Multi-role login (`Admin` / `Operator`), optional 6-digit TOTP PIN, and 24/7 Watchdog threshold alerts.
 
 ---
 

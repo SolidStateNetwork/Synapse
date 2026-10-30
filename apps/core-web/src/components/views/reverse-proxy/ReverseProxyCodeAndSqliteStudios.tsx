@@ -157,8 +157,8 @@ export function ReverseProxyCodeAndSqliteStudios({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-800/80 bg-nb-gray-950/60 px-5 py-2 text-xs">
         <span className="font-mono text-[10.5px] text-nb-gray-400">
           {t(
-            "v0.7.0 Developer Workbench · API-Tester, Live Code Hot-Reload & Interactive SQLite Data Studio",
-            "v0.7.0 Developer Workbench · API Tester, Live Code Hot-Reload & Interactive SQLite Data Studio"
+            "v0.5.0 Developer Workbench · API-Tester, Live Code Hot-Reload & Interactive SQLite Data Studio",
+            "v0.5.0 Developer Workbench · API Tester, Live Code Hot-Reload & Interactive SQLite Data Studio"
           )}
         </span>
         <div className="flex items-center gap-1.5">

@@ -4,12 +4,12 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.7.x   | :white_check_mark: |
-| < 0.7.0 | :x:                |
+| 0.5.x   | :white_check_mark: |
+| < 0.5.0 | :x:                |
 
 ## Security Architecture Overview
 
-Synapse (`v0.7.0`) enforces a defense-in-depth security model that **never relies solely on LLM system prompts**:
+Synapse (`v0.5.0`) enforces a defense-in-depth security model that **never relies solely on LLM system prompts**:
 
 1. **Mutual TLS 1.3 (mTLS) + One-Time CSR Enrollment**:
    - Every `axon` Muscle Node generates an ECDSA P-256 keypair locally and exchanges a short-lived (15-minute) single-use token for a client certificate signed by the Core Gateway Root CA.

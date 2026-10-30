@@ -48,7 +48,7 @@ function makePostReq(
   });
 }
 
-describe("Synapse Next.js API-Route Integration & v0.7.0 Release Readiness Suite", () => {
+describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite", () => {
   const projId = "api-test-project";
 
   before(() => {
@@ -286,7 +286,7 @@ describe("Synapse Next.js API-Route Integration & v0.7.0 Release Readiness Suite
     const mcpGetRes = await getMcp(makeGetReq(`/api/mcp?project_id=${projId}`));
     assert.equal(mcpGetRes.status, 200);
     const mcpGetJson = await mcpGetRes.json();
-    assert.equal(mcpGetJson.serverInfo.version, "0.7.0");
+    assert.equal(mcpGetJson.serverInfo.version, "0.5.0");
 
     const mcpKeyRes = await postMcp(
       makePostReq("/api/mcp", {
@@ -321,7 +321,7 @@ describe("Synapse Next.js API-Route Integration & v0.7.0 Release Readiness Suite
     assert.equal(mcpCallJson.result.isError, false);
   });
 
-  it("23. v0.7.0 Version Synchronization & Hardened Installer Script Parity across Core & Muscle", () => {
+  it("23. v0.5.0 Version Synchronization & Hardened Installer Script Parity across Core & Muscle", () => {
     const repoRoot = path.resolve(process.cwd(), "../..");
     const gwMain = fs.readFileSync(path.join(repoRoot, "apps/core-gateway/main.go"), "utf8");
     const axonMain = fs.readFileSync(path.join(repoRoot, "agents/axon/cmd/axon/main.go"), "utf8");
@@ -333,11 +333,11 @@ describe("Synapse Next.js API-Route Integration & v0.7.0 Release Readiness Suite
     const installAxonSh = fs.readFileSync(path.join(repoRoot, "scripts/install-axon.sh"), "utf8");
     const deployCoreSh = fs.readFileSync(path.join(repoRoot, "scripts/deploy-core.sh"), "utf8");
 
-    assert.ok(gwMain.includes('"version":         "v0.7.0"'), "core-gateway /healthz must report v0.7.0");
-    assert.ok(axonMain.includes('version = "v0.7.0"'), "axon main.go must default to v0.7.0");
-    assert.equal(pkgJson.version, "0.7.0", "core-web package.json must report 0.7.0");
-    assert.ok(securityMd.includes("0.7.x"), "SECURITY.md must list 0.7.x");
-    assert.ok(changelogMd.includes("## [v0.7.0]"), "CHANGELOG.md must document v0.7.0");
+    assert.ok(gwMain.includes('"version":         "v0.5.0"'), "core-gateway /healthz must report v0.5.0");
+    assert.ok(axonMain.includes('version = "v0.5.0"'), "axon main.go must default to v0.5.0");
+    assert.equal(pkgJson.version, "0.5.0", "core-web package.json must report 0.5.0");
+    assert.ok(securityMd.includes("0.5.x"), "SECURITY.md must list 0.5.x");
+    assert.ok(changelogMd.includes("## [v0.5.0]"), "CHANGELOG.md must document v0.5.0");
 
     assert.ok(installAxonSh.includes("download_url()"), "install-axon.sh must include curl/wget fallback");
     assert.ok(installAxonSh.includes("verify_sha256()"), "install-axon.sh must include SHA-256 verification");
