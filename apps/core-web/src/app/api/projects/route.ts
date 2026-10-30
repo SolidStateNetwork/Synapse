@@ -64,6 +64,13 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Clean up stale telemetry entries for nodes not in assigned_nodes
+    for (const tNodeId of Object.keys(draft.telemetry || {})) {
+      if (!draft.assigned_nodes.some((a) => a.node_id === tNodeId)) {
+        delete draft.telemetry[tNodeId];
+      }
+    }
+
     for (const assigned of draft.assigned_nodes) {
       const match = liveNodes.find((n) => n.node_id === assigned.node_id);
       assigned.online = Boolean(match?.online);
@@ -95,7 +102,16 @@ export async function GET(req: NextRequest) {
 
         if (Array.isArray(hb.services)) {
           draft.registered_services = draft.registered_services.filter((s, i, arr) => {
-            if (!s.service_id.startsWith("auto-svc-")) return true;
+            if (!s.service_id.startsWith("auto-svc-")) {
+              return (
+                arr.findIndex(
+                  (o) =>
+                    o.node_id === s.node_id &&
+                    o.port === s.port &&
+                    (o.category || "backend") === (s.category || "backend")
+                ) === i
+              );
+            }
             return !arr.some(
               (other, oi) =>
                 oi !== i &&

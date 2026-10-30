@@ -13,6 +13,14 @@ import {
   updateSelfHealingPolicy,
 } from "@/lib/self-healing";
 import {
+  executeSqliteStudioAction,
+  hotReloadServiceCodeOnMuscle,
+  loadCronJobs,
+  loadServiceCodeFromMuscle,
+  runCronJobNowOnMuscle,
+  saveCronJobs,
+} from "@/lib/v070-studio";
+import {
   appendAuditLog,
   atomicWriteJsonSync,
   ensureProjectVault,
@@ -62,6 +70,7 @@ export async function GET(req: NextRequest) {
     domains: loadDomains(projectId),
     self_healing: loadSelfHealingStore(projectId),
     service_links: loadServiceLinks(projectId),
+    cron_jobs: loadCronJobs(projectId),
   });
 }
 
@@ -479,6 +488,97 @@ export async function POST(req: NextRequest) {
         protocol,
       });
       return NextResponse.json(result);
+    }
+
+    // FEATURE 9 (v0.7.0): LIVE SERVICE CODE-EDITOR & HOT-RELOAD, SQLITE DATA STUDIO & SCHEDULED CRON RUNBOOKS
+    if (action === "get_service_code") {
+      const serviceId = String(body.service_id || `svc-${body.port || 4050}`);
+      const port = Number(body.port || 4050);
+      const snap = await loadServiceCodeFromMuscle({
+        projectId,
+        nodeId,
+        serviceId,
+        port,
+      });
+      return NextResponse.json(snap);
+    }
+
+    if (action === "hot_reload_service_code") {
+      const serviceId = String(body.service_id || `svc-${body.port || 4050}`);
+      const port = Number(body.port || 4050);
+      const code = String(body.code || "");
+      if (!code.trim()) {
+        return NextResponse.json(
+          { ok: false, error: "Code cannot be empty" },
+          { status: 400 }
+        );
+      }
+      const res = await hotReloadServiceCodeOnMuscle({
+        projectId,
+        nodeId,
+        serviceId,
+        port,
+        filePath: body.file_path ? String(body.file_path) : undefined,
+        code,
+      });
+      return NextResponse.json(res);
+    }
+
+    if (action === "sqlite_studio") {
+      const studioRes = await executeSqliteStudioAction({
+        projectId,
+        nodeId,
+        dbPath: body.db_path ? String(body.db_path) : undefined,
+        table: body.table ? String(body.table) : undefined,
+        customSql: body.custom_sql ? String(body.custom_sql) : undefined,
+        insertRow:
+          body.insert_row && typeof body.insert_row === "object"
+            ? (body.insert_row as Record<string, string>)
+            : undefined,
+      });
+      return NextResponse.json(studioRes);
+    }
+
+    if (action === "save_cron_job") {
+      const jobs = loadCronJobs(projectId);
+      const jobId = String(body.id || `cron-${Date.now().toString(36)}`);
+      const existingIdx = jobs.findIndex((j) => j.id === jobId);
+      const job = {
+        id: jobId,
+        name: String(body.name || "Scheduled Cron Runbook").trim(),
+        cron_expression: String(body.cron_expression || "*/15 * * * *").trim(),
+        node_id: String(body.node_id || nodeId || "vps2-muscle"),
+        command: String(body.command || "uptime").trim(),
+        enabled: body.enabled !== false,
+        last_run_at: existingIdx >= 0 ? jobs[existingIdx].last_run_at : undefined,
+        last_exit_code: existingIdx >= 0 ? jobs[existingIdx].last_exit_code : undefined,
+        last_duration_ms: existingIdx >= 0 ? jobs[existingIdx].last_duration_ms : undefined,
+        last_output: existingIdx >= 0 ? jobs[existingIdx].last_output : undefined,
+      };
+      if (existingIdx >= 0) {
+        jobs[existingIdx] = job;
+      } else {
+        jobs.unshift(job);
+      }
+      saveCronJobs(projectId, jobs);
+      return NextResponse.json({ ok: true, job, cron_jobs: jobs });
+    }
+
+    if (action === "delete_cron_job") {
+      const jobId = String(body.id || "");
+      const jobs = loadCronJobs(projectId).filter((j) => j.id !== jobId);
+      saveCronJobs(projectId, jobs);
+      return NextResponse.json({ ok: true, cron_jobs: jobs });
+    }
+
+    if (action === "run_cron_job") {
+      const jobId = String(body.id || "cron-health-audit");
+      const out = await runCronJobNowOnMuscle({
+        projectId,
+        jobId,
+        nodeId,
+      });
+      return NextResponse.json(out);
     }
 
     return NextResponse.json(

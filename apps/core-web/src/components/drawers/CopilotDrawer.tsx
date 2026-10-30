@@ -781,6 +781,10 @@ const CopilotDrawer = React.memo(function CopilotDrawer(
             ? locale === "de"
               ? "Konversations-Kontext bereinigt. Bereit für neue Anweisungen (Prompt-Cache & Vision aktiv)."
               : "Conversation context compacted and cleared. Ready for new instructions (Prompt Cache & Vision active)."
+            : rawContent.includes("Active Execution Mode")
+            ? locale === "de"
+              ? "- **Aktiver Ausführungs-Modus** für Projekt `synapse-cloud-demo` (1 Axon Muscle-Server verbunden).\n- Tippe `deploy microservice 4050`, um eine **4-stufige autonome Ausführungsschleife** mit Pre-Write Rollback-Snapshots zu starten.\n- Ziehe **Screenshots/Diagramme** in den Chat oder tippe `@`, um Server, Dienste und Brain-Vault-Dokumente zu referenzieren.\n- Stelle jedem Befehl `$ <command>` voran (z.B. `$ uname -a && pwd`), um direkt `node_pty_exec` auszuführen."
+              : "- **Active Execution Mode** on project `synapse-cloud-demo` (1 Axon Muscle Node assigned).\n- Type `deploy microservice 4050` to trigger a **4-step autonomous execution loop** with Pre-Write Rollback Snapshots.\n- Drop **screenshots/diagrams** into the chat or type `@` to mention nodes, services, and Brain Vault docs.\n- Prefix any command with `$ <command>` (e.g. `$ uname -a && pwd`) to invoke `node_pty_exec`."
             : rawContent.replace(
                 /^Executed `?([a-z0-9_]+)`? through the Synapse Core Interceptor \(`?([^)`]+)`?\)\.$/i,
                 locale === "de"

@@ -610,7 +610,7 @@ func (h *Hub) syncTelemetryToProjectVaults(nodeID string, beat *tunnelv1.NodeHea
 					if !ok {
 						continue
 					}
-					if m["node_id"] == nodeID && m["service_id"] == liveSvc.ServiceID {
+					if m["node_id"] == nodeID && (m["service_id"] == liveSvc.ServiceID || (strings.HasPrefix(liveSvc.ServiceID, "auto-svc-") && fmt.Sprintf("%v", m["port"]) == fmt.Sprintf("%d", liveSvc.Port))) {
 						foundSvc = true
 						m["healthy"] = liveSvc.Healthy
 						m["latency_ms"] = liveSvc.LatencyMs
@@ -678,7 +678,28 @@ func (h *Hub) syncTelemetryToProjectVaults(nodeID string, beat *tunnelv1.NodeHea
 					})
 				}
 			}
-			state["registered_services"] = regServices
+			// v0.7.0 State Hygiene: Remove auto-svc-<port> duplicates when an explicit service already owns that port on the same node
+			customPortOwners := make(map[string]bool)
+			for _, item := range regServices {
+				if m, ok := item.(map[string]any); ok {
+					svcID := fmt.Sprintf("%v", m["service_id"])
+					if !strings.HasPrefix(svcID, "auto-svc-") {
+						customPortOwners[fmt.Sprintf("%v:%v", m["node_id"], m["port"])] = true
+					}
+				}
+			}
+			dedupServices := make([]any, 0, len(regServices))
+			for _, item := range regServices {
+				if m, ok := item.(map[string]any); ok {
+					svcID := fmt.Sprintf("%v", m["service_id"])
+					portKey := fmt.Sprintf("%v:%v", m["node_id"], m["port"])
+					if strings.HasPrefix(svcID, "auto-svc-") && customPortOwners[portKey] {
+						continue
+					}
+					dedupServices = append(dedupServices, item)
+				}
+			}
+			state["registered_services"] = dedupServices
 		}
 
 		state["updated_at"] = time.Now().UTC().Format(time.RFC3339)

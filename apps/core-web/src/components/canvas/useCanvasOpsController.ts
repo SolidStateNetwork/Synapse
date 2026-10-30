@@ -136,6 +136,15 @@ export function useCanvasOpsController({
   const [customSvcNotice, setCustomSvcNotice] = useState<string | null>(null);
   const [showSelfHealingDrawer, setShowSelfHealingDrawer] = useState(false);
 
+  // v0.7.0: Live Code Editor & Hot-Reload Modal State on Canvas
+  const [hotReloadModalSvc, setHotReloadModalSvc] =
+    useState<RegisteredService | null>(null);
+  const [hotReloadFilePath, setHotReloadFilePath] = useState("");
+  const [hotReloadCode, setHotReloadCode] = useState("");
+  const [hotReloadLoading, setHotReloadLoading] = useState(false);
+  const [hotReloadSaving, setHotReloadSaving] = useState(false);
+  const [hotReloadNotice, setHotReloadNotice] = useState<string | null>(null);
+
   useEffect(() => {
     if (!allServices || allServices.length === 0) return;
     setServiceSparklineMap((prev) => {
@@ -887,6 +896,72 @@ export function useCanvasOpsController({
     customSvcNotice,
     showSelfHealingDrawer,
     setShowSelfHealingDrawer,
+    hotReloadModalSvc,
+    setHotReloadModalSvc,
+    hotReloadFilePath,
+    setHotReloadFilePath,
+    hotReloadCode,
+    setHotReloadCode,
+    hotReloadLoading,
+    hotReloadSaving,
+    hotReloadNotice,
+    handleOpenHotReloadModal: async (svc: RegisteredService) => {
+      setHotReloadModalSvc(svc);
+      setHotReloadLoading(true);
+      setHotReloadNotice(null);
+      try {
+        const res = await fetch("/api/service-ops", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "get_service_code",
+            node_id: svc.node_id || primaryNode || "vps2-muscle",
+            service_id: svc.service_id,
+            port: svc.port,
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setHotReloadFilePath(data.file_path || "");
+          setHotReloadCode(data.code || "");
+        }
+      } finally {
+        setHotReloadLoading(false);
+      }
+    },
+    handleSaveAndHotReloadCode: async (e?: React.FormEvent) => {
+      if (e) e.preventDefault();
+      if (!hotReloadModalSvc || !hotReloadCode.trim()) return;
+      setHotReloadSaving(true);
+      setHotReloadNotice(null);
+      try {
+        const res = await fetch("/api/service-ops", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "hot_reload_service_code",
+            node_id: hotReloadModalSvc.node_id || primaryNode || "vps2-muscle",
+            service_id: hotReloadModalSvc.service_id,
+            port: hotReloadModalSvc.port,
+            file_path: hotReloadFilePath,
+            code: hotReloadCode,
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setHotReloadNotice(
+            t(
+              `🔥 Live Hot-Reload auf :${data.port} in ${data.elapsed_ms} ms aktiv (Snapshot ${data.snapshot_id}, HTTP ${data.http_status})!`,
+              `🔥 Live Hot-Reload active on :${data.port} in ${data.elapsed_ms} ms (Snapshot ${data.snapshot_id}, HTTP ${data.http_status})!`
+            )
+          );
+        } else {
+          setHotReloadNotice(data.error || "Hot-Reload error");
+        }
+      } finally {
+        setHotReloadSaving(false);
+      }
+    },
     handleDeployCustomService: async (e?: React.FormEvent) => {
       if (e) e.preventDefault();
       const portNum = Number(customSvcPort || 4095);

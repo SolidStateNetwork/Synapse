@@ -382,4 +382,52 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
       )
     );
   });
+
+  it("12. v0.7.0 Live Code Hot-Reload, SQLite Data Studio & Scheduled Cron-Runbooks execute and persist state", async () => {
+    const {
+      loadServiceCodeFromMuscle,
+      hotReloadServiceCodeOnMuscle,
+      executeSqliteStudioAction,
+      loadCronJobs,
+      runCronJobNowOnMuscle,
+    } = await import("../lib/v070-studio.ts");
+
+    const codeInfo = await loadServiceCodeFromMuscle({
+      projectId: testProjectId,
+      nodeId: "vps2-muscle",
+      serviceId: "edge-telemetry-api-4095",
+      port: 4095,
+    });
+    assert.equal(codeInfo.ok, true);
+    assert.ok(codeInfo.code.includes("4095"));
+
+    const reloadRes = await hotReloadServiceCodeOnMuscle({
+      projectId: testProjectId,
+      nodeId: "vps2-muscle",
+      serviceId: "edge-telemetry-api-4095",
+      port: 4095,
+      filePath: codeInfo.file_path,
+      code: codeInfo.code + "\n# v0.7.0 hot-reload test\n",
+    });
+    assert.equal(reloadRes.ok, true);
+    assert.ok(reloadRes.snapshot_id.startsWith("snap-hotreload-"));
+
+    const sqliteRes = await executeSqliteStudioAction({
+      projectId: testProjectId,
+      nodeId: "vps2-muscle",
+      table: "events",
+    });
+    assert.equal(sqliteRes.ok, true);
+    assert.ok(sqliteRes.tables.includes("events"));
+    assert.ok(Array.isArray(sqliteRes.rows));
+
+    const cronJobs = loadCronJobs(testProjectId);
+    assert.ok(cronJobs.length >= 2);
+    const runRes = await runCronJobNowOnMuscle({
+      projectId: testProjectId,
+      jobId: cronJobs[0].id,
+    });
+    assert.equal(runRes.ok, true);
+    assert.equal(runRes.job.last_exit_code, 0);
+  });
 });
