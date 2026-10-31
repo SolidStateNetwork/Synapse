@@ -50,9 +50,9 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           mkdir -p release-dist
-          VERSION="${GITHUB_REF_NAME:-v0.5.0}"
+          VERSION="${GITHUB_REF_NAME:-v0.6.0}"
           if [[ "$VERSION" != v* ]]; then
-            VERSION="v0.5.0"
+            VERSION="v0.6.0"
           fi
           COMMIT="$(git rev-parse --short HEAD)"
           LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}"

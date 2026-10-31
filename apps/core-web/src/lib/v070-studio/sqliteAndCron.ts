@@ -1,4 +1,5 @@
 import path from "path";
+import { dispatchAlertEvent } from "../alerts";
 import {
   appendAuditLog,
   atomicWriteJsonSync,
@@ -272,7 +273,8 @@ export async function runCronJobNowOnMuscle(params: {
   let output = "Cron runbook executed successfully (exit=0).";
 
   try {
-    const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
+    const gwUrl = process.env.CORE_GATEWAY_URL || GATEWAY_URL;
+    const ptyRes = await safeFetchJson(`${gwUrl}/api/v1/rpc/pty`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -347,5 +349,80 @@ export async function runCronJobNowOnMuscle(params: {
     summary: `Executed scheduled cron runbook '${job.name}' (${job.cron_expression}) on ${targetNode} -> exit=${exitCode} (${durationMs} ms)`,
   });
 
+  if (exitCode !== 0) {
+    await dispatchAlertEvent(projectId, {
+      severity: "CRITICAL",
+      title: `Cron Runbook Failed: ${job.name} (Exit ${exitCode})`,
+      message: `Scheduled runbook '${job.command}' (${job.cron_expression}) failed on ${targetNode}. Forensic Output: ${output}`,
+      node_id: targetNode,
+    });
+  }
+
   return { ok: true, job, jobs };
+}
+
+export function parseCronIntervalMinutes(cronExpr: string): number {
+  const parts = String(cronExpr || "").trim().split(/\s+/);
+  if (parts.length < 5) return 15;
+  const [minField, hourField] = parts;
+  if (minField.startsWith("*/")) {
+    const step = Number(minField.slice(2));
+    if (Number.isFinite(step) && step > 0) return step;
+  }
+  if (hourField.startsWith("*/")) {
+    const hStep = Number(hourField.slice(2));
+    if (Number.isFinite(hStep) && hStep > 0) return hStep * 60;
+  }
+  if (hourField === "*" && /^\d+$/.test(minField)) return 60;
+  if (/^\d+$/.test(hourField) && /^\d+$/.test(minField)) return 1440;
+  return 15;
+}
+
+export async function runDueCronJobsOnMuscle(
+  params: { projectId: string; nodeId?: string; forceAll?: boolean } | string
+): Promise<{
+  ok: boolean;
+  evaluated_count: number;
+  executed_count: number;
+  failed_count: number;
+  results: CronRunbookJob[];
+  jobs: CronRunbookJob[];
+}> {
+  const normalized = typeof params === "string" ? { projectId: params } : params;
+  const projectId = resolveActiveProjectId(normalized.projectId);
+  const currentJobs = loadCronJobs(projectId);
+  const enabledJobs = currentJobs.filter((j) => j.enabled);
+  const results: CronRunbookJob[] = [];
+  let failedCount = 0;
+
+  for (const j of enabledJobs) {
+    const intervalMs = parseCronIntervalMinutes(j.cron_expression) * 60 * 1000;
+    const lastMs = j.last_run_at ? new Date(j.last_run_at).getTime() : 0;
+    const isDue =
+      Boolean(normalized.forceAll) ||
+      !lastMs ||
+      !Number.isFinite(lastMs) ||
+      Date.now() - lastMs >= intervalMs;
+
+    if (isDue) {
+      const res = await runCronJobNowOnMuscle({
+        projectId,
+        jobId: j.id,
+        nodeId: normalized.nodeId || j.node_id,
+      });
+      results.push(res.job);
+      if ((res.job.last_exit_code ?? 0) !== 0) {
+        failedCount += 1;
+      }
+    }
+  }
+
+  return {
+    ok: failedCount === 0,
+    evaluated_count: enabledJobs.length,
+    executed_count: results.length,
+    failed_count: failedCount,
+    results,
+    jobs: loadCronJobs(projectId),
+  };
 }

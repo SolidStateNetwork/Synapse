@@ -5,10 +5,12 @@ import {
   deployCustomServiceOnMuscle,
   executeAutonomousSelfHeal,
   executeLiveServiceProbe,
+  fetchNodeTelemetryHistory,
   loadSelfHealingStore,
   loadServiceLinks,
   probeServiceLinkOnMuscle,
   saveServiceLinks,
+  tailServiceLogs,
   updateSelfHealingPolicy,
   type PersistedServiceLink,
 } from "@/lib/self-healing";
@@ -18,8 +20,14 @@ import {
   loadCronJobs,
   loadServiceCodeFromMuscle,
   runCronJobNowOnMuscle,
+  runDueCronJobsOnMuscle,
   saveCronJobs,
 } from "@/lib/v070-studio";
+import {
+  deployGitStackOnMuscle,
+  loadGitStacks,
+  triggerGitOpsWebhookRedeploy,
+} from "@/lib/projects/gitopsDeployer";
 import {
   appendAuditLog,
   atomicWriteJsonSync,
@@ -31,7 +39,6 @@ import {
 import {
   resolveActiveProjectId,
   resolveKnownNodeIps,
-  resolveProjectDbPath,
   resolveTargetNodeId,
   safeParseRequestJson,
 } from "@/lib/runtimeResolver";
@@ -68,6 +75,7 @@ export async function GET(req: NextRequest) {
     self_healing: loadSelfHealingStore(projectId),
     service_links: loadServiceLinks(projectId),
     cron_jobs: loadCronJobs(projectId),
+    git_stacks: loadGitStacks(projectId),
   });
 }
 
@@ -79,85 +87,21 @@ export async function POST(req: NextRequest) {
     const nodeId = resolveTargetNodeId(state, String(body.node_id || body.nodeId || "")) || "local-node";
     const action = String(body.action || "");
 
-    if (action === "tail_logs") {
-      const port = Number(body.port || 0);
-      const containerName = String(body.container_name || "").trim();
-      const serviceId = String(body.service_id || "");
-      const matchedSvc = state.registered_services.find(
-        (s) => s.service_id === serviceId || (port > 0 && s.port === port)
+    if (action === "tail_logs" || action === "tail_service_logs") {
+      return NextResponse.json(
+        await tailServiceLogs({
+          projectId,
+          nodeId,
+          serviceId: String(body.service_id || ""),
+          port: Number(body.port || 0),
+          containerName: body.container_name ? String(body.container_name) : undefined,
+          unitName: body.unit_name ? String(body.unit_name) : undefined,
+        })
       );
-      const isSqliteSvc = matchedSvc?.category === "database" || /sqlite|db/i.test(serviceId);
+    }
 
-      let cmd = "";
-      if (containerName) {
-        const safeC = containerName.replace(/[^a-zA-Z0-9_.-]/g, "");
-        cmd = `docker logs --tail 20 ${safeC} 2>&1; docker inspect -f "Container=${safeC} Status={{.State.Status}} StartedAt={{.State.StartedAt}}" ${safeC} 2>/dev/null || true`;
-      } else if (isSqliteSvc && port === 3001) {
-        const dbPath = resolveProjectDbPath(state, matchedSvc?.db_path);
-        cmd = [
-          `DB_PATH=${JSON.stringify(dbPath)}`,
-          `if [ ! -f "$DB_PATH" ]; then DB_PATH=$(find /opt/axon/workspaces /var/lib/synapse -maxdepth 3 -name "*.db" 2>/dev/null | head -n1); fi`,
-          `python3 - "$DB_PATH" << 'PYEOF'`,
-          `import sqlite3, sys`,
-          `c = sqlite3.connect(sys.argv[1])`,
-          `print("=== SQLite WAL DB:", sys.argv[1], "===")`,
-          `tables = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]`,
-          `print("Tables:", tables)`,
-          `rows = c.execute("SELECT id, event, source, created_at FROM events ORDER BY id DESC LIMIT 4").fetchall() if 'events' in tables else []`,
-          `for row in rows: print("Event:", row)`,
-          `PYEOF`,
-          `ls -lh "$DB_PATH" 2>&1`,
-        ].join("\n");
-      } else {
-        cmd = [
-          `PID=$(ss -tlnp 2>/dev/null | awk '/:${port} / {match($0, /pid=[0-9]+/); if (RSTART) print substr($0, RSTART+4, RLENGTH-4)}' | head -n1)`,
-          `echo "=== Service :${port} (PID: \${PID:-active}) ==="`,
-          `if [ -n "$PID" ] && [ -f "/proc/$PID/cmdline" ]; then tr '\\0' ' ' < /proc/$PID/cmdline; echo ""; fi`,
-          `for lf in /tmp/synapse-svc-${port}.log /tmp/svc${port}.log /var/lib/synapse/blueprints/*/*.log /var/lib/synapse/*/*.log; do`,
-          `  if [ -n "$lf" ] && [ -s "$lf" ]; then tail -n 12 "$lf" 2>/dev/null; break; fi`,
-          `done`,
-          `curl -s -i --max-time 2 http://127.0.0.1:${port}/ 2>/dev/null | head -n 10 || true`,
-        ].join("\n");
-      }
-
-      const wrappedCmd = `printf "LOG_%s\\n" "START"\n${cmd}\nprintf "\\nLOG_%s\\n" "END"`;
-      const ptyRes = await safeFetchJson(`${GATEWAY_URL}/api/v1/rpc/pty`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          node_id: nodeId,
-          cmd_id: `tail-logs-${Date.now()}`,
-          project_id: projectId,
-          session_id: `service-logs-${port || serviceId || "node"}`,
-          command: wrappedCmd,
-          wait_timeout_ms: 5000,
-        }),
-        timeoutMs: 6500,
-      });
-      const ptyJson = await ptyRes.json();
-      const rawOut = String(ptyJson.output || "").trim();
-      const rawLines = rawOut.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-      const sIdx = rawLines.findIndex((l) => l.includes("LOG_START"));
-      const eIdx = rawLines.findIndex((l, idx) => idx > sIdx && l.includes("LOG_END"));
-      const lines =
-        sIdx >= 0 && eIdx > sIdx
-          ? rawLines.slice(sIdx + 1, eIdx)
-          : rawLines.filter((l) => !l.includes("LOG_START") && !l.includes("LOG_END"));
-      const logs = lines.length > 0 ? lines.join("\n") : "No log output available.";
-      const errorCount = lines.filter((l) =>
-        /error|exception|traceback|failed|critical|panic/i.test(l)
-      ).length;
-
-      return NextResponse.json({
-        ok: true,
-        service_id: serviceId,
-        port,
-        logs,
-        lines,
-        error_count: errorCount,
-        has_error: errorCount > 0,
-        timestamp: new Date().toISOString(),
-      });
+    if (action === "node_telemetry_history") {
+      return NextResponse.json(await fetchNodeTelemetryHistory(nodeId));
     }
 
     if (action === "intrusion_scan") {
@@ -532,6 +476,38 @@ export async function POST(req: NextRequest) {
           nodeId,
         })
       );
+    }
+
+    if (action === "run_due_cron_jobs") {
+      return NextResponse.json(await runDueCronJobsOnMuscle(projectId));
+    }
+
+    if (action === "list_git_stacks") {
+      return NextResponse.json({ ok: true, git_stacks: loadGitStacks(projectId) });
+    }
+
+    if (action === "deploy_git_stack") {
+      const res = await deployGitStackOnMuscle({
+        projectId,
+        nodeId,
+        name: String(body.name || "gitops-stack"),
+        repoUrl: String(body.repo_url || body.repoUrl || ""),
+        branch: body.branch ? String(body.branch) : undefined,
+        composeFile: body.compose_file ? String(body.compose_file) : undefined,
+        startCommand: body.start_command ? String(body.start_command) : undefined,
+        port: Number(body.port || 3000),
+        injectSecrets: body.inject_secrets !== false,
+      });
+      return NextResponse.json(res, { status: res.ok ? 200 : 400 });
+    }
+
+    if (action === "gitops_webhook") {
+      const res = await triggerGitOpsWebhookRedeploy({
+        projectId,
+        stackId: String(body.stack_id || body.stackId || ""),
+        webhookToken: String(body.webhook_token || body.webhookToken || ""),
+      });
+      return NextResponse.json(res, { status: res.ok ? 200 : 403 });
     }
 
     return NextResponse.json({ ok: false, error: `Unknown service-ops action: ${action}` }, { status: 400 });

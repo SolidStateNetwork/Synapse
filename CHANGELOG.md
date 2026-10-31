@@ -2,6 +2,21 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v0.6.0] — 2026-10-31 (Service-Mesh & Live-Log Observability, GitOps Stack-Deployer & Autonomous Cron-Due-Runner)
+
+### Added & Improved
+- **Live Service-Log-Tailer, Cross-Node Mesh-Relay & 60-Sample Telemetry History (`apps/core-web/src/lib/self-healing/serviceMeshAndBuilder.ts`)**:
+  - `tailServiceLogs` (`POST /api/service-ops` -> `tail_logs` / `tail_service_logs`) retrieves live `docker logs`, `journalctl -u`, SQLite WAL state, and workspace process logs over the mTLS PTY tunnel with automated error-line detection.
+  - `fetchNodeTelemetryHistory` (`POST /api/service-ops` -> `node_telemetry_history`) exposes 60-sample CPU/RAM/Disk telemetry time-series per connected Muscle node alongside cross-node mesh forwarding probes.
+- **GitOps & Docker-Compose Stack-Deployer with `Secrets.enc` Injection & Webhook (`apps/core-web/src/lib/projects/gitopsDeployer.ts`)**:
+  - `deployGitStackOnMuscle` (`POST /api/service-ops` -> `deploy_git_stack`) clones/updates Git repositories onto Muscle nodes, injects decrypted secrets from `Secrets.enc` into `0600` `.env` files, runs `docker compose up -d --build` or custom start commands, and auto-registers services in `State.json`.
+  - `triggerGitOpsWebhookRedeploy` (`POST /api/service-ops` -> `gitops_webhook`) verifies SHA-256 hashed `syn_git_...` webhook tokens for zero-downtime GitOps redeployments.
+- **Autonomous Cron-Runbook Due-Scheduler & Forensic Alerts (`apps/core-web/src/lib/v070-studio/sqliteAndCron.ts`)**:
+  - `parseCronIntervalMinutes` and `runDueCronJobsOnMuscle` (`POST /api/service-ops` -> `run_due_cron_jobs`) evaluate due Cron-Runbooks and execute them over the mTLS tunnel.
+  - Non-zero exit codes (`exitCode !== 0`) automatically trigger enriched `CRITICAL` forensic alerts via `dispatchAlertEvent`.
+
+---
+
 ## [v0.5.0] — 2026-10-30 (Live Code Hot-Reload, SQLite Data Studio, Cron Runbooks, Multi-Core Mesh & Production Hardening)
 
 ### Added & Improved

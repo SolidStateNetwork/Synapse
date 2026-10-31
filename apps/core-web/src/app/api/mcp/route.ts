@@ -277,7 +277,7 @@ export async function GET(req: NextRequest) {
     protocolVersion: "2024-11-05",
     serverInfo: {
       name: "synapse-core-mcp",
-      version: "0.5.0",
+      version: "0.6.0",
     },
     endpoint: "/api/mcp",
     project_id: projectId,
@@ -363,7 +363,7 @@ export async function POST(req: NextRequest) {
           },
           serverInfo: {
             name: "synapse-core-mcp",
-            version: "0.5.0",
+            version: "0.6.0",
           },
         },
       });

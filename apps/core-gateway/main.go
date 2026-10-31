@@ -103,7 +103,7 @@ func buildGatewayMux(authority *pki.Authority, nodeHub *hub.Hub, dataDir, vaultR
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status":          "ok",
 			"service":         "synapse-core-gateway",
-			"version":         "v0.5.0",
+			"version":         "v0.6.0",
 			"uptime_sec":      int64(time.Since(startedAt).Seconds()),
 			"tunnel_port":     tunnelPort,
 			"debug_enabled":   nodeHub.IsDebugEnabled(),

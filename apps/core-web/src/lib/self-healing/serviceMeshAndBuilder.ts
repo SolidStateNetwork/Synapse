@@ -8,7 +8,11 @@ import {
   withProjectStateTransaction,
   writeBrainDoc,
 } from "@/lib/vault";
-import { resolveActiveProjectId, resolveTargetNodeId } from "@/lib/runtimeResolver";
+import {
+  resolveActiveProjectId,
+  resolveProjectDbPath,
+  resolveTargetNodeId,
+} from "@/lib/runtimeResolver";
 import { safeFetchJson } from "../safeFetch";
 
 const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
@@ -23,49 +27,24 @@ export interface PersistedServiceLink {
   last_probed_at?: string;
 }
 
-function buildDynamicDefaultServiceLinks(
-  projectId: string
-): PersistedServiceLink[] {
+function buildDynamicDefaultServiceLinks(projectId: string): PersistedServiceLink[] {
   const state = ensureProjectVault(projectId);
   const services = state.registered_services || [];
   if (services.length < 2) return [];
-
   const webuis = services.filter((s) => s.category === "webui");
   const backends = services.filter((s) => s.category === "backend");
   const dbs = services.filter((s) => s.category === "database");
-
   const links: PersistedServiceLink[] = [];
   const primaryBackend = backends[0];
   if (primaryBackend) {
     for (const ui of webuis) {
-      links.push({
-        id: `${ui.service_id}->${primaryBackend.service_id}`,
-        fromServiceId: ui.service_id,
-        toServiceId: primaryBackend.service_id,
-        protocol: "HTTP REST",
-        latency_ms: 1,
-        healthy: true,
-      });
+      links.push({ id: `${ui.service_id}->${primaryBackend.service_id}`, fromServiceId: ui.service_id, toServiceId: primaryBackend.service_id, protocol: "HTTP REST", latency_ms: 1, healthy: true });
     }
     for (const db of dbs) {
-      links.push({
-        id: `${primaryBackend.service_id}->${db.service_id}`,
-        fromServiceId: primaryBackend.service_id,
-        toServiceId: db.service_id,
-        protocol: "SQLite WAL",
-        latency_ms: 1,
-        healthy: true,
-      });
+      links.push({ id: `${primaryBackend.service_id}->${db.service_id}`, fromServiceId: primaryBackend.service_id, toServiceId: db.service_id, protocol: "SQLite WAL", latency_ms: 1, healthy: true });
     }
     for (const b of backends.slice(1, 3)) {
-      links.push({
-        id: `${b.service_id}->${primaryBackend.service_id}`,
-        fromServiceId: b.service_id,
-        toServiceId: primaryBackend.service_id,
-        protocol: "JSON Telemetry",
-        latency_ms: 1,
-        healthy: true,
-      });
+      links.push({ id: `${b.service_id}->${primaryBackend.service_id}`, fromServiceId: b.service_id, toServiceId: primaryBackend.service_id, protocol: "JSON Telemetry", latency_ms: 1, healthy: true });
     }
   }
   return links;
@@ -471,4 +450,124 @@ export async function deployCustomServiceOnMuscle(params: {
       latency_ms: latencyMs,
     },
   };
+}
+
+export async function tailServiceLogs(params: {
+  projectId: string;
+  nodeId?: string;
+  serviceId?: string;
+  port?: number;
+  containerName?: string;
+  unitName?: string;
+}): Promise<{
+  ok: boolean;
+  service_id: string;
+  node_id: string;
+  port: number;
+  logs: string;
+  lines: string[];
+  error_count: number;
+  has_error: boolean;
+  timestamp: string;
+}> {
+  const projectId = resolveActiveProjectId(params.projectId);
+  const state = ensureProjectVault(projectId);
+  const nodeId = resolveTargetNodeId(state, params.nodeId) || "local-node";
+  const port = Number(params.port || 0);
+  const containerName = String(params.containerName || "").trim();
+  const unitName = String(params.unitName || "").trim();
+  const serviceId = String(params.serviceId || "");
+  const matchedSvc = state.registered_services.find(
+    (s) => s.service_id === serviceId || (port > 0 && s.port === port)
+  );
+  const isSqliteSvc = matchedSvc?.category === "database" || /sqlite|db/i.test(serviceId);
+
+  let cmd = "";
+  if (containerName) {
+    const safeC = containerName.replace(/[^a-zA-Z0-9_.-]/g, "");
+    cmd = `docker logs --tail 25 ${safeC} 2>&1; docker inspect -f "Container=${safeC} Status={{.State.Status}} StartedAt={{.State.StartedAt}}" ${safeC} 2>/dev/null || true`;
+  } else if (unitName) {
+    const safeU = unitName.replace(/[^a-zA-Z0-9_.@-]/g, "");
+    cmd = `journalctl -u ${safeU} --no-pager -n 25 2>&1 || systemctl status ${safeU} --no-pager 2>&1 || true`;
+  } else if (isSqliteSvc && port === 3001) {
+    const dbPath = resolveProjectDbPath(state, matchedSvc?.db_path);
+    cmd = `DB_PATH=${JSON.stringify(dbPath)}; if [ ! -f "$DB_PATH" ]; then DB_PATH=$(find /opt/axon/workspaces /var/lib/synapse -maxdepth 3 -name "*.db" 2>/dev/null | head -n1); fi; sqlite3 "$DB_PATH" ".tables" 2>&1 || ls -lh "$DB_PATH" 2>&1`;
+  } else {
+    cmd = [
+      `PID=$(ss -tlnp 2>/dev/null | awk '/:${port} / {match($0, /pid=[0-9]+/); if (RSTART) print substr($0, RSTART+4, RLENGTH-4)}' | head -n1)`,
+      `echo "=== Service :${port} (PID: \${PID:-active}) ==="`,
+      `for lf in /tmp/synapse-svc-${port}.log /tmp/svc${port}.log /var/lib/synapse/blueprints/*/*.log /var/lib/synapse/*/*.log; do if [ -n "$lf" ] && [ -s "$lf" ]; then tail -n 15 "$lf" 2>/dev/null; break; fi; done`,
+      `curl -s -i --max-time 2 http://127.0.0.1:${port}/ 2>/dev/null | head -n 10 || true`,
+    ].join("\n");
+  }
+
+  const gwUrl = process.env.CORE_GATEWAY_URL || GATEWAY_URL;
+  const wrappedCmd = `printf "LOG_%s\\n" "START"\n${cmd}\nprintf "\\nLOG_%s\\n" "END"`;
+  const ptyRes = await safeFetchJson(`${gwUrl}/api/v1/rpc/pty`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      node_id: nodeId,
+      cmd_id: `tail-logs-${Date.now()}`,
+      project_id: projectId,
+      session_id: `service-logs-${port || serviceId || "node"}`,
+      command: wrappedCmd,
+      wait_timeout_ms: 5000,
+    }),
+    timeoutMs: 6500,
+  });
+  const ptyJson = await ptyRes.json();
+  const rawLines = String(ptyJson.output || "").trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const sIdx = rawLines.findIndex((l) => l.includes("LOG_START"));
+  const eIdx = rawLines.findIndex((l, idx) => idx > sIdx && l.includes("LOG_END"));
+  const lines =
+    sIdx >= 0 && eIdx > sIdx
+      ? rawLines.slice(sIdx + 1, eIdx)
+      : rawLines.filter((l) => !l.includes("LOG_START") && !l.includes("LOG_END"));
+  const logs = lines.length > 0 ? lines.join("\n") : "No log output available.";
+  const errorCount = lines.filter((l) => /error|exception|traceback|failed|critical|panic/i.test(l)).length;
+
+  return {
+    ok: true,
+    service_id: serviceId,
+    node_id: nodeId,
+    port,
+    logs,
+    lines,
+    error_count: errorCount,
+    has_error: errorCount > 0,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+export async function fetchNodeTelemetryHistory(
+  params: { projectId?: string; nodeId?: string } | string
+): Promise<{
+  ok: boolean;
+  node_id: string;
+  sample_count: number;
+  samples: Array<{ timestamp_unix: number; cpu_percent: number; ram_percent: number; disk_percent: number }>;
+}> {
+  const normalized = typeof params === "string" ? { nodeId: params } : params;
+  const projectId = resolveActiveProjectId(normalized.projectId || "");
+  const state = ensureProjectVault(projectId);
+  const nodeId = resolveTargetNodeId(state, normalized.nodeId) || "local-node";
+  const gwUrl = process.env.CORE_GATEWAY_URL || GATEWAY_URL;
+  const res = await safeFetchJson(`${gwUrl}/api/v1/nodes`, { timeoutMs: 4000 });
+  const samples: Array<{ timestamp_unix: number; cpu_percent: number; ram_percent: number; disk_percent: number }> = [];
+  if (res.ok) {
+    const data = await res.json();
+    const nodes = Array.isArray(data?.nodes) ? data.nodes : [];
+    const matched = nodes.find((n: { node_id?: string }) => n.node_id === nodeId) || nodes[0];
+    const hist = Array.isArray(matched?.history) ? matched.history : matched?.last_heartbeat ? [matched.last_heartbeat] : [];
+    for (const h of hist.slice(-60)) {
+      samples.push({
+        timestamp_unix: Number(h.timestamp_unix || Math.floor(Date.now() / 1000)),
+        cpu_percent: Number(h.cpu_percent || 0),
+        ram_percent: Number(h.ram_percent || 0),
+        disk_percent: Number(h.disk_percent || 0),
+      });
+    }
+  }
+  return { ok: true, node_id: nodeId, sample_count: samples.length, samples };
 }

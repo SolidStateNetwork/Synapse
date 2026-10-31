@@ -32,9 +32,25 @@ import {
   executeNodeDeepSearch,
 } from "../lib/orchestrator/searchEngine";
 import { executeServiceAction } from "../lib/projects/serviceActionRunner";
+import {
+  deployGitStackOnMuscle,
+  loadGitStacks,
+  triggerGitOpsWebhookRedeploy,
+} from "../lib/projects/gitopsDeployer";
+import {
+  fetchNodeTelemetryHistory,
+  tailServiceLogs,
+} from "../lib/self-healing";
+import {
+  parseCronIntervalMinutes,
+  runDueCronJobsOnMuscle,
+  saveCronJobs,
+} from "../lib/v070-studio";
+import { loadAlertConfig } from "../lib/alerts";
 import { runDeterministicAutonomousWorkflow } from "../lib/orchestrator/autonomousFallback";
 import * as projectsRoute from "../app/api/projects/route";
 import * as mcpRoute from "../app/api/mcp/route";
+import * as serviceOpsRoute from "../app/api/service-ops/route";
 
 function makeReq(
   urlPath: string,
@@ -64,21 +80,46 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
     );
 
     mockServer = http.createServer((req, res) => {
+      if (req.url === "/api/v1/nodes") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            nodes: [
+              {
+                node_id: "local-node",
+                history: [
+                  { timestamp_unix: 1730000000, cpu_percent: 12.5, ram_percent: 44.2, disk_percent: 31.0 },
+                  { timestamp_unix: 1730000005, cpu_percent: 14.1, ram_percent: 44.5, disk_percent: 31.0 },
+                ],
+              },
+            ],
+          })
+        );
+        return;
+      }
       if (req.url === "/api/v1/rpc/fs") {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: true }));
         return;
       }
       if (req.url === "/api/v1/rpc/pty") {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            cmd_id: "mock-cmd",
-            exit_code: 0,
-            output: '{"db_path":"/tmp/test.db","rows_count":1,"rows":[{"id":1}]}',
-            cwd: "/workspace",
-          })
-        );
+        const chunks: Buffer[] = [];
+        req.on("data", (c: Buffer) => chunks.push(c));
+        req.on("end", () => {
+          const raw = Buffer.concat(chunks).toString("utf8");
+          let output = '{"db_path":"/tmp/test.db","rows_count":1,"rows":[{"id":1}]}';
+          if (raw.includes("GITOPS_RESULT")) {
+            output = "Cloned stack\nGITOPS_RESULT|a1b2c3d|0\n";
+          } else if (raw.includes("fail-cron-cmd")) {
+            output = "CRON_START\nDisk check failed: /var full\nCRON_EXIT|2\n";
+          } else if (raw.includes("CRON_")) {
+            output = "CRON_START\nCron OK\nCRON_EXIT|0\n";
+          } else if (raw.includes("LOG_")) {
+            output = "LOG_START\n2026-10-31 INFO Ready\n2026-10-31 ERROR Connection timeout\nLOG_END\n";
+          }
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ cmd_id: "mock-cmd", exit_code: 0, output, cwd: "/workspace" }));
+        });
         return;
       }
       if (req.url?.startsWith("/preview/")) {
@@ -357,5 +398,133 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
       promptParts
     );
     assert.ok(visionWf.reply.includes("Multimodal Vision Analysis"));
+  });
+
+  it("29. v0.6.0 Option A/B/C: tailServiceLogs, fetchNodeTelemetryHistory, gitopsDeployer & runDueCronJobsOnMuscle", async () => {
+    const projectId = "proj-v060-milestone";
+    ensureProjectVault(projectId, "v0.6.0 Milestone Project");
+    setSecret(projectId, "API_TOKEN", "sec-v060-value");
+    const prevGw = process.env.CORE_GATEWAY_URL;
+    process.env.CORE_GATEWAY_URL = mockBaseUrl;
+
+    try {
+      // Option A: tailServiceLogs & fetchNodeTelemetryHistory
+      const logDocker = await tailServiceLogs({ projectId, containerName: "synapse-api", port: 4010 });
+      assert.equal(logDocker.ok, true);
+      assert.equal(logDocker.has_error, true);
+
+      const logUnit = await tailServiceLogs({ projectId, unitName: "axon.service", port: 4011 });
+      assert.equal(logUnit.ok, true);
+
+      const logSqlite = await tailServiceLogs({ projectId, serviceId: "sqlite-db", port: 3001 });
+      assert.equal(logSqlite.ok, true);
+
+      const logDefault = await tailServiceLogs({ projectId, serviceId: "web-app", port: 4012 });
+      assert.equal(logDefault.ok, true);
+
+      const histRes = await fetchNodeTelemetryHistory({ projectId, nodeId: "local-node" });
+      assert.equal(histRes.ok, true);
+      assert.equal(histRes.sample_count, 2);
+
+      // Option B: GitOps & Docker-Compose Stack-Deployer
+      const badUrl = await deployGitStackOnMuscle({
+        projectId,
+        name: "bad",
+        repoUrl: "https://example.com/repo.git; rm -rf /",
+        port: 4080,
+      });
+      assert.equal(badUrl.ok, false);
+
+      const badPort = await deployGitStackOnMuscle({
+        projectId,
+        name: "bad-port",
+        repoUrl: "https://github.com/example/stack.git",
+        port: 80,
+      });
+      assert.equal(badPort.ok, false);
+
+      const deployed = await deployGitStackOnMuscle({
+        projectId,
+        name: "Analytics Stack",
+        repoUrl: "https://github.com/example/analytics.git",
+        branch: "main",
+        port: 4085,
+        category: "backend",
+      });
+      assert.equal(deployed.ok, true);
+      assert.ok(deployed.webhook_token?.startsWith("syn_git_"));
+      assert.equal(deployed.stack?.last_commit, "a1b2c3d");
+      assert.ok(deployed.stack?.injected_secret_keys.includes("API_TOKEN"));
+      assert.equal(loadGitStacks(projectId).length, 1);
+
+      const badHook = await triggerGitOpsWebhookRedeploy({
+        projectId,
+        stackId: deployed.stack!.stack_id,
+        webhookToken: "wrong-token",
+      });
+      assert.equal(badHook.ok, false);
+
+      const missingHook = await triggerGitOpsWebhookRedeploy({
+        projectId,
+        stackId: "missing-stack",
+      });
+      assert.equal(missingHook.ok, false);
+
+      const goodHook = await triggerGitOpsWebhookRedeploy({
+        projectId,
+        stackId: deployed.stack!.stack_id,
+        webhookToken: deployed.webhook_token,
+      });
+      assert.equal(goodHook.ok, true);
+      assert.equal(goodHook.redeployed, true);
+
+      // Option C: Cron Due-Scheduler & Forensic Alerts
+      assert.equal(parseCronIntervalMinutes("*/10 * * * *"), 10);
+      assert.equal(parseCronIntervalMinutes("0 */2 * * *"), 120);
+      assert.equal(parseCronIntervalMinutes("30 * * * *"), 60);
+      assert.equal(parseCronIntervalMinutes("0 4 * * *"), 1440);
+      assert.equal(parseCronIntervalMinutes("invalid"), 15);
+
+      saveCronJobs(projectId, [
+        {
+          id: "cron-ok-1",
+          name: "Health Check",
+          cron_expression: "*/5 * * * *",
+          node_id: "local-node",
+          command: "uptime",
+          enabled: true,
+        },
+        {
+          id: "cron-fail-1",
+          name: "Disk Forensic Audit",
+          cron_expression: "*/5 * * * *",
+          node_id: "local-node",
+          command: "fail-cron-cmd",
+          enabled: true,
+        },
+      ]);
+
+      const dueRes = await runDueCronJobsOnMuscle({ projectId, forceAll: true });
+      assert.equal(dueRes.evaluated_count, 2);
+      assert.equal(dueRes.executed_count, 2);
+      assert.equal(dueRes.failed_count, 1);
+      const alerts = loadAlertConfig(projectId).events;
+      assert.ok(alerts.some((a) => a.severity === "CRITICAL" && a.title.includes("Disk Forensic Audit")));
+
+      // Verify /api/service-ops route actions for v0.6.0
+      for (const payload of [
+        { action: "tail_service_logs", service_id: "web-app", port: 4012 },
+        { action: "node_telemetry_history", node_id: "local-node" },
+        { action: "list_git_stacks" },
+        { action: "deploy_git_stack", name: "Route Stack", repo_url: "https://github.com/example/route.git", port: 4086 },
+        { action: "gitops_webhook", stack_id: deployed.stack!.stack_id, webhook_token: deployed.webhook_token },
+        { action: "run_due_cron_jobs" },
+      ]) {
+        const res = await serviceOpsRoute.POST(makeReq("/api/service-ops", "POST", { project_id: projectId, ...payload }));
+        assert.equal(res.status, 200);
+      }
+    } finally {
+      process.env.CORE_GATEWAY_URL = prevGw;
+    }
   });
 });

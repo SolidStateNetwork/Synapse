@@ -14,6 +14,8 @@ import {
   loadCronJobs,
   saveCronJobs,
   runCronJobNowOnMuscle,
+  parseCronIntervalMinutes,
+  runDueCronJobsOnMuscle,
   type SqliteStudioResult,
   type CronRunbookJob,
 } from "./v070-studio/sqliteAndCron";
@@ -23,6 +25,8 @@ export {
   loadCronJobs,
   saveCronJobs,
   runCronJobNowOnMuscle,
+  parseCronIntervalMinutes,
+  runDueCronJobsOnMuscle,
   type SqliteStudioResult,
   type CronRunbookJob,
 };

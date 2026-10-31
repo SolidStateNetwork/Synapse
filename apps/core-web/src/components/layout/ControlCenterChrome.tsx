@@ -254,8 +254,8 @@ export function ControlCenterSidebar({
             onClick={onOpenSystemUpdateTab}
             title={
               hasAnyUpdate
-                ? `Synapse v0.5.0 (${localShort}) — Update verfügbar (${remoteShort})`
-                : `Synapse v0.5.0 (${localShort}) — Aktuell`
+                ? `Synapse v0.6.0 (${localShort}) — Update verfügbar (${remoteShort})`
+                : `Synapse v0.6.0 (${localShort}) — Aktuell`
             }
             className={`relative mx-auto flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
               hasAnyUpdate
