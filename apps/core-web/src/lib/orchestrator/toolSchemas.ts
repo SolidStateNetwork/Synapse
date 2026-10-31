@@ -164,11 +164,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         type: "object",
         properties: {
           node_id: { type: "string", description: "Target Connector ID from State.json." },
-          search_mode: {
-            type: "string",
-            enum: ["content_grep", "file_find", "log_scan", "process_and_port_map", "sqlite_inspect", "security_forensics"],
-            description: "Specialized DevOps search and inspection mode.",
-          },
+          search_mode: { type: "string", enum: ["content_grep", "file_find", "log_scan", "process_and_port_map", "sqlite_inspect", "security_forensics"], description: "Specialized DevOps search and inspection mode." },
           query: { type: "string", description: "Optional regex, keyword, filename pattern, or filter string (e.g. 'ERROR|Exception', 'sqlite', '4085', 'def do_POST')." },
           target_dir: { type: "string", description: "Optional base directory to search (defaults to /opt/axon/workspaces)." },
           file_glob: { type: "string", description: "Optional file glob filter (e.g. '*.py', '*.log', '*.db', '*.json')." },
@@ -182,17 +178,12 @@ export const SYNAPSE_TOOL_SCHEMAS = [
     type: "function",
     function: {
       name: "core_vault_search",
-      description:
-        "Searches the entire Synapse Core Brain Vault (State.json, Architecture.md, Memory.md, Audit.jsonl history, Registered Services & Endpoints, Rule Cartridges, and Secret Key names) for any keyword, port, service, or configuration, and compares documented state against registered infrastructure.",
+      description: "Searches the entire Synapse Core Brain Vault (State.json, Architecture.md, Memory.md, Audit.jsonl history, Registered Services & Endpoints, Rule Cartridges, and Secret Key names) for any keyword, port, service, or configuration, and compares documented state against registered infrastructure.",
       parameters: {
         type: "object",
         properties: {
           query: { type: "string", description: "Keyword, regex, port number, service name, or topic to search across all Brain Vault documents, State.json, and Audit logs. Leave empty for a full Brain & State consistency dump." },
-          scope: {
-            type: "string",
-            enum: ["all", "architecture", "memory", "services", "audit", "cartridges"],
-            default: "all",
-          },
+          scope: { type: "string", enum: ["all", "architecture", "memory", "services", "audit", "cartridges"], default: "all" },
         },
       },
     },
@@ -201,22 +192,13 @@ export const SYNAPSE_TOOL_SCHEMAS = [
     type: "function",
     function: {
       name: "node_firewall_control",
-      description:
-        "Inspects or configures the Synapse Firewall & Port-Shield on a Linux Muscle server with built-in Anti-Lockout (protects SSH & Synapse Tunnel) and 15-second Dead-Man's Switch Rollback. Supports 'inspect' (Live Port-Radar), 'set_profile' ('web_standard', 'synapse_stealth', 'custom'), 'shield_port' (blocks public internet access to a port while keeping 127.0.0.1 Synapse Tunnel open), 'unshield_port', 'add_ip_rule' (allow/block IP or CIDR), and 'remove_ip_rule'.",
+      description: "Inspects or configures the Synapse Firewall & Port-Shield on a Linux Muscle server with built-in Anti-Lockout (protects SSH & Synapse Tunnel) and 15-second Dead-Man's Switch Rollback. Supports 'inspect' (Live Port-Radar), 'set_profile' ('web_standard', 'synapse_stealth', 'custom'), 'shield_port' (blocks public internet access to a port while keeping 127.0.0.1 Synapse Tunnel open), 'unshield_port', 'add_ip_rule' (allow/block IP or CIDR), and 'remove_ip_rule'.",
       parameters: {
         type: "object",
         properties: {
           node_id: { type: "string", description: "Target Muscle Peer ID." },
-          action: {
-            type: "string",
-            enum: ["inspect", "set_profile", "shield_port", "unshield_port", "add_ip_rule", "remove_ip_rule"],
-            default: "inspect",
-          },
-          profile: {
-            type: "string",
-            enum: ["web_standard", "synapse_stealth", "custom"],
-            description: "Firewall security profile when action is set_profile.",
-          },
+          action: { type: "string", enum: ["inspect", "set_profile", "shield_port", "unshield_port", "add_ip_rule", "remove_ip_rule"], default: "inspect" },
+          profile: { type: "string", enum: ["web_standard", "synapse_stealth", "custom"], description: "Firewall security profile when action is set_profile." },
           port: { type: "integer", description: "Port number to shield/unshield or target in an IP rule." },
           ip_or_cidr: { type: "string", description: "IPv4/IPv6 address or CIDR (e.g. 203.0.113.50 or 10.0.0.0/24) for add_ip_rule." },
           rule_action: { type: "string", enum: ["allow", "block"], description: "Whether to allow (whitelist) or block the IP." },
@@ -542,13 +524,66 @@ export const SYNAPSE_TOOL_SCHEMAS = [
     type: "function",
     function: {
       name: "core_system_ota_status",
-      description:
-        "Returns the OTA System Update status including SYNAPSE_VERSION, Git commit sync, and Core/Muscle binary SHA-256 verification.",
+      description: "Returns the OTA System Update status including SYNAPSE_VERSION, Git commit sync, and Core/Muscle binary SHA-256 verification.",
       parameters: {
         type: "object",
         properties: {
           inspect_nodes: { type: "boolean", description: "If true, probes connected Muscle nodes for installed binary SHA-256." },
         },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_manage_firewall",
+      description: "Manages Synapse Shield firewall policy on a Muscle node (inspect, toggle_port_shield, apply_profile, add_ip_rule, remove_ip_rule) with automatic Pre-Flight Time-Machine Checkpoint.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["inspect", "toggle_port_shield", "apply_profile", "add_ip_rule", "remove_ip_rule"], description: "Firewall management action." },
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          port: { type: "integer", description: "Port number for toggle_port_shield or add_ip_rule." },
+          shielded: { type: "boolean", description: "Optional explicit shield state for toggle_port_shield." },
+          profile: { type: "string", enum: ["web_standard", "synapse_stealth", "zero_trust_tunnel", "paranoid_lockdown", "custom"], description: "Security profile for apply_profile." },
+          ip_or_cidr: { type: "string", description: "IPv4/IPv6 or CIDR for add_ip_rule." },
+          rule_action: { type: "string", enum: ["allow", "block"], description: "IP rule action." },
+          rule_id: { type: "string", description: "IP rule ID for remove_ip_rule." },
+          note: { type: "string", description: "Optional IP rule note." },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_manage_cartridges",
+      description: "Lists, toggles, activates, or deactivates modular AI Rule Cartridges (e.g. docker-first, zero-trust-networking, native-systemd) on the active project.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list", "toggle", "activate", "deactivate"], description: "Cartridge action." },
+          cartridge_id: { type: "string", description: "Cartridge ID for toggle, activate, or deactivate." },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_manage_cluster_nodes",
+      description: "Lists live Muscle nodes, generates one-time CSR join tokens, or assigns/unassigns Muscle nodes to the active project.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list", "create_join_token", "assign_node", "unassign_node"], description: "Cluster node action." },
+          node_id: { type: "string", description: "Muscle Node ID for assign_node or unassign_node." },
+          tier: { type: "string", enum: ["TIER_1_UNLEASHED", "TIER_2_WORKSPACE_JAIL", "TIER_3_SUPERVISED"], description: "Autonomy Tier for create_join_token." },
+          ttl_minutes: { type: "integer", description: "Token validity in minutes (default 30)." },
+        },
+        required: ["action"],
       },
     },
   },

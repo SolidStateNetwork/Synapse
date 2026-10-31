@@ -445,7 +445,19 @@ export async function runDeterministicAutonomousWorkflow(
   } else if (lower.startsWith("ota-status:") || lower.includes("ota status")) {
     const step = await runStep("core_system_ota_status", { inspect_nodes: false });
     const out = step.output as { version?: string } | undefined;
-    finalReply = `### 🚀 OTA System Update Status\n\n- **Core-Version:** \`${out?.version || "v1.5.0"}\``;
+    finalReply = `### 🚀 OTA System Update Status\n\n- **Core-Version:** \`${out?.version || "v1.6.0"}\``;
+  } else if (lower.startsWith("firewall:") || lower.includes("inspect firewall")) {
+    const step = await runStep("core_manage_firewall", { action: "inspect", node_id: primaryNode || "local-node" });
+    const out = step.output as { policy?: { profile?: string }; summary?: { shielded_count?: number } } | undefined;
+    finalReply = `### 🛡️ Synapse Shield Firewall\n\n- **Profil:** \`${out?.policy?.profile || "web_standard"}\` (Abgeschirmte Ports: \`${out?.summary?.shielded_count ?? 0}\`)`;
+  } else if (lower.startsWith("cartridges:") || lower.includes("list cartridges")) {
+    const step = await runStep("core_manage_cartridges", { action: "list" });
+    const out = step.output as { cartridges?: unknown[]; active_cartridges?: string[] } | undefined;
+    finalReply = `### 🧬 AI Rule Cartridges\n\n- **Verfügbar:** \`${out?.cartridges?.length ?? 0}\` (Aktiv: \`${out?.active_cartridges?.length ?? 0}\`)`;
+  } else if (lower.startsWith("cluster-nodes:") || lower.includes("list cluster nodes")) {
+    const step = await runStep("core_manage_cluster_nodes", { action: "list" });
+    const out = step.output as { nodes?: unknown[]; assigned_nodes?: string[] } | undefined;
+    finalReply = `### 🖧 Cluster Nodes\n\n- **Online Nodes:** \`${out?.nodes?.length ?? 0}\` (Zugewiesen: \`${out?.assigned_nodes?.length ?? 0}\`)`;
   }
 
   if (!finalReply) {

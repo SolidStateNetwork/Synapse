@@ -10,16 +10,14 @@ import {
   type RegisteredService,
   type ServiceEndpointAction,
 } from "../vault";
-import {
-  buildDefaultServiceEndpoints,
-  pushNodeHealthTargets,
-} from "./servicePresets";
+import { buildDefaultServiceEndpoints, pushNodeHealthTargets } from "./servicePresets";
 import { deleteGitStackOnMuscle, deployGitStackOnMuscle } from "../projects/gitopsDeployer";
 import { fetchNodeTelemetryHistory, tailServiceLogs } from "../self-healing";
 import { runDueCronJobsOnMuscle } from "../v070-studio";
 import { safeFetchJson } from "../safeFetch";
 import { dispatchBlueprintDomainAndOtaTool } from "./blueprintDomainAndOtaTools";
 import { dispatchDisasterRecoveryTool } from "./disasterRecoveryTools";
+import { dispatchFirewallCartridgeAndClusterTool } from "./firewallCartridgeAndClusterTools";
 import { dispatchResilienceAndMeshTool } from "./resilienceAndMeshTools";
 import { dispatchSecopsAndWatchdogTool } from "./secopsAndWatchdogTools";
 import { dispatchStudioDevOpsTool } from "./studioDevOpsTools";
@@ -585,6 +583,7 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
     (await dispatchSecopsAndWatchdogTool(coreGatewayUrl, projectId, state, toolName, args)) ??
     (await dispatchStudioDevOpsTool(projectId, state, toolName, args)) ??
     (await dispatchResilienceAndMeshTool(projectId, state, toolName, args)) ??
-    (await dispatchBlueprintDomainAndOtaTool(projectId, state, toolName, args))
+    (await dispatchBlueprintDomainAndOtaTool(projectId, state, toolName, args)) ??
+    (await dispatchFirewallCartridgeAndClusterTool(coreGatewayUrl, projectId, state, toolName, args))
   );
 }

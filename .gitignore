@@ -31,9 +31,15 @@ next-env.d.ts
 /tmp/
 *.log
 *.bak
+*.pid
 .synapse-data/
 **/.synapse-data/
 /var/lib/synapse/
+containers/core/data/
+containers/core/runtime/
+containers/muscle/config/
+containers/muscle/workspaces/
+containers/muscle/runtime/
 
 # OS & IDE
 .DS_Store

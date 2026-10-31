@@ -166,6 +166,10 @@ async function executeMcpTool(
       (!args.action || args.action === "list")) ||
     (toolName === "core_manage_domain_tls" &&
       (!args.action || args.action === "list")) ||
+    (toolName === "core_manage_cartridges" &&
+      (!args.action || args.action === "list")) ||
+    (toolName === "core_manage_cluster_nodes" &&
+      (!args.action || args.action === "list")) ||
     toolName === "core_system_ota_status";
 
   if (!isReadOnlyTool && !canExecute) {

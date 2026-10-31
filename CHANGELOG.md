@@ -2,6 +2,18 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v1.6.0] — 2026-10-31 (Firewall, Cartridges & Cluster-Nodes AI/MCP Parity, Pre-Flight Firewall Checkpoints & Ephemeral FW-PTY Reaping)
+
+### Added & Improved
+- **AI-Orchestrator & MCP Firewall, Cartridge & Cluster-Node Tools (`firewallCartridgeAndClusterTools.ts`, `toolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp`)**:
+  - Added `core_manage_firewall` (`inspect`, `toggle_port_shield`, `apply_profile`, `add_ip_rule`, `remove_ip_rule`), `core_manage_cartridges` (`list`, `toggle`, `activate`, `deactivate`), and `core_manage_cluster_nodes` (`list`, `create_join_token`, `assign_node`, `unassign_node`) so the AI Copilot and external MCP Clients have 100% full-stack control over Synapse Shield firewall policies, modular AI Rule Cartridges, and Muscle node enrollment.
+- **Automatic Pre-Flight Time-Machine Checkpoints on Firewall Policy Mutations (`/api/firewall` & `firewallCartridgeAndClusterTools.ts`)**:
+  - Every mutating firewall action (`toggle_port_shield`, `shield_port`, `unshield_port`, `apply_profile`, `set_profile`, `add_ip_rule`, `remove_ip_rule`) now automatically records a Pre-Flight Time-Machine Checkpoint (`actor: "Auto-Watchdog"`) and returns `checkpoint_id`.
+- **Ephemeral `fw-*` PTY Garbage Collection in Axon (`pty_discovery.go`, `pty_test.go`)**:
+  - Added `fw-` to `IsEphemeralSessionID` in `agents/axon/internal/pty/pty_discovery.go` so one-shot Firewall inspection and rule-sync PTY sessions (`fw-v1-*`) are automatically reaped upon completion.
+
+---
+
 ## [v1.5.0] — 2026-10-31 (Blueprint, Domain/TLS & OTA AI/MCP Parity, Pre-Flight Blueprint Checkpoints & Full-Platform Self-Test)
 
 ### Added & Improved

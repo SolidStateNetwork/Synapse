@@ -523,6 +523,24 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         { name: "core_manage_domain_tls", arguments: { action: "bind", service_id: "web-app", port: 4050, domain: "app.example.com", auto_tls: true } },
         { name: "core_manage_domain_tls", arguments: { action: "unbind", service_id: "web-app" } },
         { name: "core_system_ota_status", arguments: { inspect_nodes: false } },
+        { name: "core_manage_firewall", arguments: { action: "inspect" } },
+        { name: "core_manage_firewall", arguments: { action: "toggle_port_shield", port: 4050 } },
+        { name: "core_manage_firewall", arguments: { action: "toggle_port_shield", port: 4050, shielded: false } },
+        { name: "core_manage_firewall", arguments: { action: "apply_profile", profile: "zero_trust_tunnel" } },
+        { name: "core_manage_firewall", arguments: { action: "apply_profile", profile: "web_standard" } },
+        { name: "core_manage_firewall", arguments: { action: "add_ip_rule", ip_or_cidr: "198.51.100.77", rule_action: "block" } },
+        { name: "core_manage_firewall", arguments: { action: "remove_ip_rule", rule_id: "fw-ip-none" } },
+        { name: "core_manage_firewall", arguments: { action: "shield_port", port: 22 } },
+        { name: "core_manage_cartridges", arguments: { action: "list" } },
+        { name: "core_manage_cartridges", arguments: { action: "activate", cartridge_id: "docker-first" } },
+        { name: "core_manage_cartridges", arguments: { action: "toggle", cartridge_id: "docker-first" } },
+        { name: "core_manage_cartridges", arguments: { action: "deactivate", cartridge_id: "docker-first" } },
+        { name: "core_manage_cartridges", arguments: { action: "toggle", cartridge_id: "" } },
+        { name: "core_manage_cluster_nodes", arguments: { action: "list" } },
+        { name: "core_manage_cluster_nodes", arguments: { action: "create_join_token", tier: "TIER_1_UNLEASHED", ttl_minutes: 15 } },
+        { name: "core_manage_cluster_nodes", arguments: { action: "assign_node", node_id: "edge-node-2" } },
+        { name: "core_manage_cluster_nodes", arguments: { action: "unassign_node", node_id: "edge-node-2" } },
+        { name: "core_manage_cluster_nodes", arguments: { action: "assign_node", node_id: "" } },
       ]) {
         const r = await mcpRoute.POST(
           makeReq("/api/mcp", "POST", { project_id: projectId, internal_ui_test: true, jsonrpc: "2.0", id: 99, method: "tools/call", params: toolCall })
@@ -553,6 +571,9 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         "blueprint: list",
         "domain-tls: list",
         "ota-status: check",
+        "firewall: inspect",
+        "cartridges: list",
+        "cluster-nodes: list",
       ]) {
         const wf = await runDeterministicAutonomousWorkflow(projectId, chatCmd, undefined, promptParts);
         assert.ok(wf.reply.length > 0);
