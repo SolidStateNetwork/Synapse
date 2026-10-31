@@ -180,6 +180,10 @@ async function executeMcpTool(
       (!args.action || args.action === "list")) ||
     (toolName === "core_manage_approvals" &&
       (!args.action || args.action === "list")) ||
+    (toolName === "core_invoke_service_action" &&
+      (!args.method || String(args.method).toUpperCase() === "GET")) ||
+    (toolName === "core_manage_auth_and_ai" &&
+      (!args.action || args.action === "inspect_auth")) ||
     toolName === "core_system_ota_status";
 
   if (!isReadOnlyTool && !canExecute) {

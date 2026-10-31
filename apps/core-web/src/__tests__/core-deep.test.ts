@@ -539,6 +539,12 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         { name: "core_manage_approvals", arguments: { action: "approve", approval_id: "appr-mcp-1" } },
         { name: "core_manage_approvals", arguments: { action: "reject", approval_id: "appr-mcp-2" } },
         { name: "core_manage_approvals", arguments: { action: "approve", approval_id: "appr-missing" } },
+        { name: "core_invoke_service_action", arguments: { port: 4050, method: "GET", path: "/health" } },
+        { name: "core_invoke_service_action", arguments: { port: 4050, method: "POST", path: "/api/items", payload: '{"k":"v"}' } },
+        { name: "core_invoke_service_action", arguments: { port: 3001, method: "SQL", path: "/tmp/app.db", payload: "SELECT 1;" } },
+        { name: "core_manage_auth_and_ai", arguments: { action: "inspect_auth" } },
+        { name: "core_manage_auth_and_ai", arguments: { action: "revoke_sessions" } },
+        { name: "core_manage_auth_and_ai", arguments: { action: "configure_ai_endpoint", provider: "openai-compatible", base_url: "https://api.openai.com/v1", model: "gpt-4o", enable_prompt_caching: true, enable_auto_watchdog: true } },
       ]) {
         const r = await mcpRoute.POST(
           makeReq("/api/mcp", "POST", { project_id: projectId, internal_ui_test: true, jsonrpc: "2.0", id: 99, method: "tools/call", params: toolCall })
@@ -556,7 +562,7 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         "cron-due", "backup: pre-flight", "checkpoint: pre-flight", "alerts: evaluate", "intrusion: scan ssh", "hot-reload: 4050",
         "sqlite: studio", "cron-jobs: list", "self-heal: 4050", "probe-mesh: 4050", "blueprint: list", "domain-tls: list",
         "ota-status: check", "firewall: inspect", "cartridges: list", "cluster-nodes: list", "projects: list", "self-test: run",
-        "playbooks: list", "approvals: list",
+        "playbooks: list", "approvals: list", "workbench: 4050", "auth-status: check",
       ]) {
         const wf = await runDeterministicAutonomousWorkflow(projectId, chatCmd, undefined, promptParts);
         assert.ok(wf.reply.length > 0);

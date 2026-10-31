@@ -269,7 +269,7 @@ export async function triggerGitOpsWebhookRedeploy(params: {
   projectId: string;
   stackId: string;
   webhookToken?: string;
-}): Promise<{ ok: boolean; error?: string; redeployed?: boolean; stack?: GitOpsStackRecord }> {
+}): Promise<{ ok: boolean; error?: string; redeployed?: boolean; checkpoint_id?: string; stack?: GitOpsStackRecord }> {
   const projectId = resolveActiveProjectId(params.projectId);
   const target = loadGitStacks(projectId).find((s) => s.stack_id === params.stackId);
   if (!target) return { ok: false, error: `GitOps stack not found: ${params.stackId}` };
@@ -295,7 +295,7 @@ export async function triggerGitOpsWebhookRedeploy(params: {
     injectSecretKeys: target.injected_secret_keys,
   });
 
-  return { ok: res.ok, error: res.error, redeployed: res.ok, stack: res.stack };
+  return { ok: res.ok, error: res.error, redeployed: res.ok, checkpoint_id: res.checkpoint_id, stack: res.stack };
 }
 
 export async function deleteGitStackOnMuscle(params: {

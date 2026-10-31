@@ -171,9 +171,10 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
           stack_id: stackId,
         }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string; stack?: GitOpsStackViewItem };
+      const data = (await res.json()) as { ok?: boolean; error?: string; checkpoint_id?: string; stack?: GitOpsStackViewItem };
       if (data.ok) {
-        setNotice(`Redeployed '${data.stack?.name || stackId}' (@ ${data.stack?.last_commit || "HEAD"})`);
+        const cpBadge = data.checkpoint_id ? ` · Checkpoint: ${data.checkpoint_id}` : "";
+        setNotice(`Redeployed '${data.stack?.name || stackId}' (@ ${data.stack?.last_commit || "HEAD"})${cpBadge}`);
         await loadStacks();
         onReloadWorkspace?.();
       } else {

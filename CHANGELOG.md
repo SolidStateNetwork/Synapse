@@ -2,6 +2,18 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v1.9.0] — 2026-11-01 (Service-Workbench, RBAC & AI-Endpoint AI/MCP Parity, Pre-Flight GitOps/Custom-Service Checkpoints & Studio Checkpoint Badges)
+
+### Added & Improved
+- **AI-Orchestrator & MCP Service-Workbench, RBAC & AI-Endpoint Tools (`workbenchAndAuthTools.ts`, `extendedToolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp`)**:
+  - Added `core_invoke_service_action` (`GET`, `POST`, `PUT`, `DELETE`, `SQL`) and `core_manage_auth_and_ai` (`inspect_auth`, `revoke_sessions`, `configure_ai_endpoint`) so the AI Copilot and external MCP Clients have 100% full-stack control over interactive Service Action Workbench requests, WebUI RBAC/2FA status, session revocation, and LLM provider configuration.
+- **Automatic Pre-Flight Time-Machine Checkpoints on GitOps Redeploy/Teardown & Custom-Service Deploy (`gitopsDeployer.ts`, `serviceMeshAndBuilder.ts`)**:
+  - `deployCustomServiceOnMuscle`, `triggerGitOpsWebhookRedeploy`, and `deleteGitStackOnMuscle` now automatically record and return a Pre-Flight Time-Machine Checkpoint (`checkpoint_id`).
+- **Pre-Flight Checkpoint-ID Badges in GitOps Studio & Custom-Service Builder UI (`GitOpsStudioPanel.tsx`, `useCanvasStudioAndDomainActions.ts`)**:
+  - GitOps deploy/redeploy/teardown notices and the Custom-Service Builder notice now display the Pre-Flight Time-Machine `checkpoint_id` created prior to execution.
+
+---
+
 ## [v1.8.0] — 2026-11-01 (Playbooks, Custom Cartridges & Approvals AI/MCP Parity, Complete Ephemeral PTY GC & Blueprint/OTA Checkpoint Badges)
 
 ### Added & Improved

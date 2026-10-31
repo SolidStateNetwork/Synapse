@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: containers/core/Dockerfile
-    image: synapse-local/core:v1.8.0
+    image: synapse-local/core:v1.9.0
     container_name: synapse-core
     hostname: synapse-core
     restart: unless-stopped
@@ -36,7 +36,7 @@ services:
     build:
       context: ..
       dockerfile: containers/muscle/Dockerfile
-    image: synapse-local/muscle:v1.8.0
+    image: synapse-local/muscle:v1.9.0
     container_name: synapse-muscle
     hostname: synapse-muscle
     restart: unless-stopped

@@ -23,6 +23,7 @@ import { dispatchProjectAndDiagnosticTool } from "./projectAndDiagnosticTools";
 import { dispatchResilienceAndMeshTool } from "./resilienceAndMeshTools";
 import { dispatchSecopsAndWatchdogTool } from "./secopsAndWatchdogTools";
 import { dispatchStudioDevOpsTool } from "./studioDevOpsTools";
+import { dispatchWorkbenchAndAuthTool } from "./workbenchAndAuthTools";
 import type { ToolDispatchResult } from "../orchestrator";
 
 export async function dispatchCoreBrainTool(
@@ -574,6 +575,7 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
     (await dispatchBlueprintDomainAndOtaTool(projectId, state, toolName, args)) ??
     (await dispatchFirewallCartridgeAndClusterTool(coreGatewayUrl, projectId, state, toolName, args)) ??
     (await dispatchProjectAndDiagnosticTool(coreGatewayUrl, projectId, state, toolName, args)) ??
-    (await dispatchPlaybookAndApprovalTool(projectId, state, toolName, args))
+    (await dispatchPlaybookAndApprovalTool(projectId, state, toolName, args)) ??
+    (await dispatchWorkbenchAndAuthTool(projectId, state, toolName, args))
   );
 }

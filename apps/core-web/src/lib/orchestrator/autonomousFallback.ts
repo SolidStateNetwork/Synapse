@@ -474,6 +474,20 @@ export async function runDeterministicAutonomousWorkflow(
     const step = await runStep("core_manage_approvals", { action: "list" });
     const out = step.output as { pending_approvals?: unknown[] } | undefined;
     finalReply = `### ✅ Supervised Tool Approvals\n\n- **Ausstehende Freigaben:** \`${out?.pending_approvals?.length ?? 0}\``;
+  } else if (lower.startsWith("workbench:") || lower.includes("invoke service")) {
+    const portMatch = userPrompt.match(/\b(\d{4,5})\b/);
+    const step = await runStep("core_invoke_service_action", {
+      port: portMatch ? Number(portMatch[1]) : 4050,
+      method: "GET",
+      path: "/",
+      node_id: primaryNode || "local-node",
+    });
+    const out = step.output as { status?: number; latency_ms?: number } | undefined;
+    finalReply = `### 🛠️ Service Action Workbench\n\n- **HTTP Status:** \`${out?.status ?? 200}\` (Latenz: \`${out?.latency_ms ?? 0} ms\`)`;
+  } else if (lower.startsWith("auth-status:") || lower.includes("inspect auth")) {
+    const step = await runStep("core_manage_auth_and_ai", { action: "inspect_auth" });
+    const out = step.output as { auth?: { password_protected?: boolean; totp_enabled?: boolean } } | undefined;
+    finalReply = `### 🔐 RBAC & AI Endpoint Status\n\n- **Passwort-Schutz:** \`${out?.auth?.password_protected ? "AKTIV" : "OFFEN"}\` (2FA TOTP: \`${out?.auth?.totp_enabled ? "AKTIV" : "AUS"}\`)`;
   }
 
   if (!finalReply) {

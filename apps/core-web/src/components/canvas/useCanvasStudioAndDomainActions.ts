@@ -487,10 +487,11 @@ export function useCanvasStudioAndDomainActions({
         });
         const data = await res.json();
         if (data.ok) {
+          const cpSuffix = data.checkpoint_id ? ` · Checkpoint: ${data.checkpoint_id}` : "";
           setCustomSvcNotice(
             t(
-              `🚀 ${data.service.name} auf :${data.service.port} live gestartet (${data.service.latency_ms} ms)!`,
-              `🚀 ${data.service.name} deployed live on :${data.service.port} (${data.service.latency_ms} ms)!`
+              `🚀 ${data.service.name} auf :${data.service.port} live gestartet (${data.service.latency_ms} ms)${cpSuffix}!`,
+              `🚀 ${data.service.name} deployed live on :${data.service.port} (${data.service.latency_ms} ms)${cpSuffix}!`
             )
           );
           setCustomSvcName("");

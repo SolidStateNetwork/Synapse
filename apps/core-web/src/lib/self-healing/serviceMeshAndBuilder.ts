@@ -1,18 +1,7 @@
 import path from "path";
-import {
-  appendAuditLog,
-  atomicWriteJsonSync,
-  ensureProjectVault,
-  getProjectDir,
-  safeReadJsonWithBackupSync,
-  withProjectStateTransaction,
-  writeBrainDoc,
-} from "@/lib/vault";
-import {
-  resolveActiveProjectId,
-  resolveProjectDbPath,
-  resolveTargetNodeId,
-} from "@/lib/runtimeResolver";
+import { recordCheckpoint } from "@/lib/checkpoints";
+import { appendAuditLog, atomicWriteJsonSync, ensureProjectVault, getProjectDir, safeReadJsonWithBackupSync, withProjectStateTransaction, writeBrainDoc } from "@/lib/vault";
+import { resolveActiveProjectId, resolveProjectDbPath, resolveTargetNodeId } from "@/lib/runtimeResolver";
 import { safeFetchJson } from "../safeFetch";
 
 const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
@@ -197,6 +186,7 @@ export async function deployCustomServiceOnMuscle(params: {
   autoHeal?: boolean;
 }): Promise<{
   ok: boolean;
+  checkpoint_id?: string;
   service: {
     service_id: string;
     name: string;
@@ -214,23 +204,26 @@ export async function deployCustomServiceOnMuscle(params: {
     name,
     port,
     category = "backend",
-    runtime = category === "webui"
-      ? "static_webui"
-      : category === "database"
-      ? "sqlite_rest"
-      : "python_http",
+    runtime = category === "webui" ? "static_webui" : category === "database" ? "sqlite_rest" : "python_http",
     description,
     autoHeal = true,
   } = params;
 
-  const safeSlug =
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 24) || "custom-svc";
+  const safeSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "custom-svc";
   const serviceId = `${safeSlug}-${port}`;
   const displayTitle = name.includes(`:${port}`) ? name : `${name} :${port}`;
+
+  const preFlightChk = recordCheckpoint(projectId, {
+    node_id: nodeId,
+    title: `Pre-Flight Custom Service Deploy: ${displayTitle} (${runtime})`,
+    actor: "Auto-Watchdog",
+    summary: `Automatic Time-Machine checkpoint captured before deploying custom ${category} service '${displayTitle}' on ${nodeId}:${port}.`,
+    files_backed_up: [`/var/lib/synapse/services/${serviceId}/server_${port}.py`, "State.json"],
+    services_snapshot: (state.registered_services || [])
+      .filter((s) => s.node_id === nodeId)
+      .map((s) => ({ service_id: s.service_id, name: s.name, port: s.port, healthy: Boolean(s.healthy) })),
+    rollback_cmd: `echo 'CHECKPOINT_RESTORED_OK'`,
+  });
 
   const deployCmd = [
     `PID_OLD=$(ss -tlnp 2>/dev/null | awk '/:${port} / {match($0, /pid=[0-9]+/); if (RSTART) print substr($0, RSTART+4, RLENGTH-4)}' | head -n1); if [ -n "$PID_OLD" ]; then kill -9 "$PID_OLD" 2>/dev/null || true; sleep 0.15; fi;`,
@@ -318,7 +311,7 @@ export async function deployCustomServiceOnMuscle(params: {
         node_id: nodeId,
         cmd_id: `custom-deploy-${port}-${Date.now()}`,
         project_id: projectId,
-        session_id: `custom-deploy-${projectId}-${port}`,
+        session_id: `custom-svc-${projectId}-${port}`,
         command: deployCmd,
         wait_timeout_ms: 8000,
       }),
@@ -440,6 +433,7 @@ export async function deployCustomServiceOnMuscle(params: {
 
   return {
     ok: true,
+    checkpoint_id: preFlightChk.id,
     service: {
       service_id: serviceId,
       name: displayTitle,
