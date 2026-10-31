@@ -307,10 +307,28 @@ func TestBootstrapCSRWithOptions_And_AddSecondaryCore(t *testing.T) {
 		t.Fatalf("expected in-place update of prod-core-2 (len=2), got %d", len(cfg3.Cores))
 	}
 
-	// 3. Verify rejection path
+	// 3. Verify rejection path & error paths
 	rejectNext = true
 	if _, err := BootstrapCSR(t.TempDir(), bootSrv.URL, "bad-tok", "n1", tunnelv1.Tier2WorkspaceJail, t.TempDir()); err == nil {
 		t.Fatalf("expected BootstrapCSR to fail when server rejects token")
+	}
+	if _, _, err := AddSecondaryCore(baseDir, "fail-prof", bootSrv.URL, "bad-tok", "n1", tunnelv1.Tier2WorkspaceJail, t.TempDir(), ""); err == nil {
+		t.Fatalf("expected AddSecondaryCore to fail when server rejects token")
+	}
+	if _, err := BootstrapCSR(t.TempDir(), "http://127.0.0.1:1", "tok", "n1", tunnelv1.Tier2WorkspaceJail, t.TempDir()); err == nil {
+		t.Fatalf("expected BootstrapCSR to fail on unreachable endpoint")
+	}
+	fileTarget := filepath.Join(t.TempDir(), "not-a-dir")
+	_ = os.WriteFile(fileTarget, []byte("x"), 0o600)
+	if _, err := BootstrapCSR(filepath.Join(fileTarget, "sub"), bootSrv.URL, "tok", "n1", tunnelv1.Tier2WorkspaceJail, t.TempDir()); err == nil {
+		t.Fatalf("expected BootstrapCSR to fail when targetDir cannot be created")
+	}
+	badJSONSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("not-json"))
+	}))
+	defer badJSONSrv.Close()
+	if _, err := BootstrapCSR(t.TempDir(), badJSONSrv.URL, "tok", "n1", tunnelv1.Tier2WorkspaceJail, t.TempDir()); err == nil {
+		t.Fatalf("expected BootstrapCSR to fail on invalid JSON response")
 	}
 }
 

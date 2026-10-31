@@ -416,4 +416,7 @@ func TestRunForever_EmptyTargetsAndMultiCoreCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
 	_ = mcAg.RunForever(ctx)
+
+	// Exercise telemetryLoopForTarget with nil session and cancelled context
+	mcAg.telemetryLoopForTarget(ctx, nil, CoreTarget{Name: "c2"}, nil)
 }
