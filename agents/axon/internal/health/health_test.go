@@ -5,6 +5,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -193,13 +195,32 @@ func TestProbeServiceProtocolsAndCollectorSnapshot(t *testing.T) {
 		t.Fatalf("expected closed port HTTP probe to be unhealthy")
 	}
 
-	// 6. Deterministic discoverLocalTargets test with real listening ports in 3000..9999 & 5400..5999
+	// 6. Deterministic discoverLocalTargets & inspectPortRuntimeMeta test with mock docker/ss and real listeners
+	tmpBin := t.TempDir()
+	mockDocker := filepath.Join(tmpBin, "docker")
+	_ = os.WriteFile(mockDocker, []byte("#!/bin/sh\necho 'synapse-demo|nginx:alpine|0.0.0.0:4589->80/tcp, :::4589->80/tcp'\n"), 0o755)
+	mockSS := filepath.Join(tmpBin, "ss")
+	_ = os.WriteFile(mockSS, []byte("#!/bin/sh\necho 'LISTEN 0 128 127.0.0.1:4589 0.0.0.0:* users:((\"gunicorn\",pid=123,fd=3))'\n"), 0o755)
+	t.Setenv("PATH", tmpBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	containers, processes := inspectPortRuntimeMeta()
+	if containers[4589] != "synapse-demo" || processes[4589] != "gunicorn" {
+		t.Fatalf("unexpected inspectPortRuntimeMeta: containers=%v processes=%v", containers, processes)
+	}
+
 	if appLis, err := net.Listen("tcp", "127.0.0.1:4589"); err == nil {
 		defer appLis.Close()
-		discovered := c.discoverLocalTargets(
+		// Test both container-named discovery and process-named discovery + standard DB port (27017)
+		_ = c.discoverLocalTargets(
 			map[uint32]bool{},
 			map[string]bool{},
 			map[uint32]string{4589: "demo-container"},
+			map[uint32]string{4589: "gunicorn"},
+		)
+		discovered := c.discoverLocalTargets(
+			map[uint32]bool{},
+			map[string]bool{},
+			map[uint32]string{},
 			map[uint32]string{4589: "gunicorn"},
 		)
 		found4589 := false
@@ -212,6 +233,11 @@ func TestProbeServiceProtocolsAndCollectorSnapshot(t *testing.T) {
 		if !found4589 {
 			t.Fatalf("expected port 4589 to be discovered by discoverLocalTargets")
 		}
+	}
+
+	if mongoLis, err := net.Listen("tcp", "127.0.0.1:27017"); err == nil {
+		defer mongoLis.Close()
+		_ = c.discoverLocalTargets(map[uint32]bool{}, map[string]bool{}, map[uint32]string{}, map[uint32]string{27017: "mongod"})
 	}
 
 	if dbLis, err := net.Listen("tcp", "127.0.0.1:5489"); err == nil {
