@@ -383,6 +383,17 @@ export async function runDeterministicAutonomousWorkflow(
     });
     const out = step.output as { checkpoint?: { id?: string; title?: string } } | undefined;
     finalReply = `### ⏳ Time-Machine Server Checkpoint\n\n- **Checkpoint-ID:** \`${out?.checkpoint?.id || "created"}\` (${out?.checkpoint?.title || ""})`;
+  } else if (lower.startsWith("alerts:") || lower.includes("watchdog evaluate")) {
+    const step = await runStep("core_manage_alerts", { action: "evaluate" });
+    const out = step.output as { triggered_count?: number } | undefined;
+    finalReply = `### 🔔 Watchdog Alert Evaluation\n\n- **Erkannte Schwellenwert-Verletzungen:** \`${out?.triggered_count ?? 0}\``;
+  } else if (lower.startsWith("intrusion:") || lower.includes("scan ssh")) {
+    const step = await runStep("core_intrusion_scan", {
+      action: "scan",
+      node_id: primaryNode || "local-node",
+    });
+    const out = step.output as { top_attackers?: unknown[] } | undefined;
+    finalReply = `### 🛡️ Autonomous SSH Intrusion Radar\n\n- **Verdächtige Angreifer-IPs:** \`${out?.top_attackers?.length ?? 0}\``;
   }
 
   if (!finalReply) {

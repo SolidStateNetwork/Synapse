@@ -541,9 +541,12 @@ exit 0
     assert.ok(evalData.triggered_count >= 3);
 
     const { withProjectStateTransaction } = await import("../lib/vault");
+    const { evaluateNodeWatchdogAlerts } = await import("../lib/orchestrator/secopsAndWatchdogTools");
     await withProjectStateTransaction(projectId, (st) => {
       st.registered_services.push({ service_id: "svc-db-1", name: "SQLite DB", node_id: "ota-node-1", protocol: "http", port: 5432, healthy: true, registered_at: new Date().toISOString() });
     });
+    const wdEval = await evaluateNodeWatchdogAlerts(projectId, liveNodes);
+    assert.ok(wdEval.triggered_count >= 2);
     const synced = await syncProjectTelemetryAndWatchdog(projectId);
     assert.ok(synced.state.assigned_nodes.some((n) => n.node_id === "ota-node-1" && n.online));
 

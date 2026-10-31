@@ -2,6 +2,19 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v1.2.0] — 2026-10-31 (Autonomous SecOps/Watchdog AI & MCP Tools, Background Threshold Evaluator & Ephemeral GitOps/Blueprint PTY Reaping)
+
+### Added & Improved
+- **AI-Orchestrator & MCP SecOps/Watchdog Tools (`secopsAndWatchdogTools.ts`, `toolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp`)**:
+  - Added `core_manage_alerts` (`inspect`, `configure`, `test_alert`, `evaluate`) and `core_intrusion_scan` (`scan`, `block_ip`) so the AI Copilot and external MCP Clients can inspect/configure Watchdog Alert Rules, evaluate threshold breaches, scan Linux SSH auth logs for brute-force IPs, and block attackers via UFW/IPTables.
+- **Throttled Background Watchdog Threshold Evaluator (`projectTelemetrySync.ts`, `secopsAndWatchdogTools.ts`)**:
+  - `syncProjectTelemetryAndWatchdog` now automatically runs `evaluateNodeWatchdogAlerts` on a 60-second cooldown across connected Muscle nodes, dispatching `WARNING`/`CRITICAL` events when `cpu_threshold`, `ram_threshold`, `disk_threshold`, or `alert_on_service_down` are breached.
+- **GitOps & Blueprint Ephemeral PTY Reaping & Pre-Flight Checkpoint UI Badge (`pty_discovery.go`, `GitOpsStudioPanel.tsx`)**:
+  - Added `gitops-*` and `blueprint-*` to `IsEphemeralSessionID` in `agents/axon/internal/pty/pty_discovery.go` so one-shot GitOps and Blueprint sessions are automatically reaped upon completion.
+  - `GitOpsStudioPanel.tsx` now displays the Pre-Flight Time-Machine `checkpoint_id` directly in the status notice after Deploy and Teardown.
+
+---
+
 ## [v1.1.0] — 2026-10-31 (AI/MCP Disaster-Recovery & Time-Machine Tools, Pre-Flight GitOps Checkpoints & 1-Click Studio Backup)
 
 ### Added & Improved

@@ -393,20 +393,10 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       parameters: {
         type: "object",
         properties: {
-          node_id: {
-            type: "string",
-            description: "Target Muscle Peer ID.",
-          },
+          node_id: { type: "string", description: "Target Muscle Peer ID." },
           action: {
             type: "string",
-            enum: [
-              "inspect",
-              "set_profile",
-              "shield_port",
-              "unshield_port",
-              "add_ip_rule",
-              "remove_ip_rule",
-            ],
+            enum: ["inspect", "set_profile", "shield_port", "unshield_port", "add_ip_rule", "remove_ip_rule"],
             default: "inspect",
           },
           profile: {
@@ -414,30 +404,11 @@ export const SYNAPSE_TOOL_SCHEMAS = [
             enum: ["web_standard", "synapse_stealth", "custom"],
             description: "Firewall security profile when action is set_profile.",
           },
-          port: {
-            type: "integer",
-            description:
-              "Port number to shield/unshield or target in an IP rule.",
-          },
-          ip_or_cidr: {
-            type: "string",
-            description:
-              "IPv4/IPv6 address or CIDR (e.g. 203.0.113.50 or 10.0.0.0/24) for add_ip_rule.",
-          },
-          rule_action: {
-            type: "string",
-            enum: ["allow", "block"],
-            description: "Whether to allow (whitelist) or block the IP.",
-          },
-          note: {
-            type: "string",
-            description: "Optional description for the IP rule.",
-          },
-          rule_id: {
-            type: "string",
-            description:
-              "Rule ID to remove when action is remove_ip_rule.",
-          },
+          port: { type: "integer", description: "Port number to shield/unshield or target in an IP rule." },
+          ip_or_cidr: { type: "string", description: "IPv4/IPv6 address or CIDR (e.g. 203.0.113.50 or 10.0.0.0/24) for add_ip_rule." },
+          rule_action: { type: "string", enum: ["allow", "block"], description: "Whether to allow (whitelist) or block the IP." },
+          note: { type: "string", description: "Optional description for the IP rule." },
+          rule_id: { type: "string", description: "Rule ID to remove when action is remove_ip_rule." },
         },
         required: ["action"],
       },
@@ -559,6 +530,49 @@ export const SYNAPSE_TOOL_SCHEMAS = [
           checkpoint_id: { type: "string", description: "Checkpoint ID for rollback." },
           title: { type: "string", description: "Optional title when creating a checkpoint." },
           summary: { type: "string", description: "Optional summary when creating a checkpoint." },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_manage_alerts",
+      description:
+        "Manages Watchdog Alert Rules & Multi-Channel Webhooks (inspect, configure, test_alert, evaluate) for CPU, RAM, Disk, and Service-Down thresholds.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["inspect", "configure", "test_alert", "evaluate"], description: "Alert watchdog action." },
+          enabled: { type: "boolean", description: "Enable or disable alerts." },
+          webhook_url: { type: "string", description: "Discord/Slack/Generic Webhook URL." },
+          telegram_bot_token: { type: "string", description: "Optional Telegram Bot Token." },
+          telegram_chat_id: { type: "string", description: "Optional Telegram Chat ID." },
+          cpu_threshold: { type: "integer", description: "CPU alert threshold percentage (default: 85)." },
+          ram_threshold: { type: "integer", description: "RAM alert threshold percentage (default: 85)." },
+          disk_threshold: { type: "integer", description: "Disk alert threshold percentage (default: 90)." },
+          alert_on_service_down: { type: "boolean", description: "Dispatch critical alert when a registered service becomes unhealthy." },
+          title: { type: "string", description: "Optional test alert title." },
+          message: { type: "string", description: "Optional test alert message." },
+          severity: { type: "string", enum: ["INFO", "WARNING", "CRITICAL"], description: "Alert severity." },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_intrusion_scan",
+      description:
+        "Scans Linux Muscle SSH/Auth logs for brute-force attacker IPs and optionally blocks an offending IP via UFW/IPTables.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["scan", "block_ip"], description: "Intrusion action (scan or block_ip)." },
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          ip: { type: "string", description: "Attacker IPv4/IPv6 address to block when action is block_ip." },
         },
         required: ["action"],
       },

@@ -4,6 +4,7 @@ import {
   pushNodeHealthTargets,
 } from "@/lib/orchestrator";
 import { executeAutonomousSelfHeal } from "@/lib/self-healing";
+import { evaluateNodeWatchdogAlerts } from "@/lib/orchestrator/secopsAndWatchdogTools";
 import { runDueCronJobsOnMuscle } from "@/lib/v070-studio";
 import { withProjectStateTransaction, type ProjectState } from "@/lib/vault";
 
@@ -289,6 +290,7 @@ export async function syncProjectTelemetryAndWatchdog(
   if (hasOnlineNode && Date.now() - lastCronMs >= 60_000) {
     lastBackgroundCronEvalMs.set(projectId, Date.now());
     void runDueCronJobsOnMuscle(projectId).catch(() => {});
+    void evaluateNodeWatchdogAlerts(projectId, liveNodes).catch(() => {});
   }
 
   return { state, liveNodes };

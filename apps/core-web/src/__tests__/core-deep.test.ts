@@ -543,16 +543,15 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         { name: "core_manage_checkpoint", arguments: { action: "create", title: "MCP Checkpoint" } },
         { name: "core_manage_checkpoint", arguments: { action: "rollback", checkpoint_id: deployed.checkpoint_id } },
         { name: "core_manage_checkpoint", arguments: { action: "rollback", checkpoint_id: "missing-chk" } },
+        { name: "core_manage_alerts", arguments: { action: "inspect" } },
+        { name: "core_manage_alerts", arguments: { action: "configure", enabled: true, cpu_threshold: 80, ram_threshold: 80, disk_threshold: 85, alert_on_service_down: true } },
+        { name: "core_manage_alerts", arguments: { action: "test_alert", title: "MCP Test Alert", severity: "INFO" } },
+        { name: "core_manage_alerts", arguments: { action: "evaluate" } },
+        { name: "core_intrusion_scan", arguments: { action: "scan", node_id: "local-node" } },
+        { name: "core_intrusion_scan", arguments: { action: "block_ip", node_id: "local-node", ip: "198.51.100.44" } },
       ]) {
         const r = await mcpRoute.POST(
-          makeReq("/api/mcp", "POST", {
-            project_id: projectId,
-            internal_ui_test: true,
-            jsonrpc: "2.0",
-            id: 99,
-            method: "tools/call",
-            params: toolCall,
-          })
+          makeReq("/api/mcp", "POST", { project_id: projectId, internal_ui_test: true, jsonrpc: "2.0", id: 99, method: "tools/call", params: toolCall })
         );
         assert.equal(r.status, 200);
       }
@@ -570,6 +569,8 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         "cron-due",
         "backup: pre-flight",
         "checkpoint: pre-flight",
+        "alerts: evaluate",
+        "intrusion: scan ssh",
       ]) {
         const wf = await runDeterministicAutonomousWorkflow(projectId, chatCmd, undefined, promptParts);
         assert.ok(wf.reply.length > 0);

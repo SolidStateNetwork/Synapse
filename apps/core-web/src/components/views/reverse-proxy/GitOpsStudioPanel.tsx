@@ -135,11 +135,19 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
           inject_secrets: true,
         }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string; webhook_token?: string; stacks?: GitOpsStackViewItem[]; stack?: GitOpsStackViewItem };
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        webhook_token?: string;
+        checkpoint_id?: string;
+        stacks?: GitOpsStackViewItem[];
+        stack?: GitOpsStackViewItem;
+      };
       if (data.ok) {
         if (Array.isArray(data.stacks)) setStacks(data.stacks);
         if (data.webhook_token) setLatestToken(data.webhook_token);
-        setNotice(`GitOps Stack '${data.stack?.name || stackName}' deployed on :${data.stack?.port || port} (@ ${data.stack?.last_commit || "HEAD"})`);
+        const cpBadge = data.checkpoint_id ? ` · Checkpoint: ${data.checkpoint_id}` : "";
+        setNotice(`GitOps Stack '${data.stack?.name || stackName}' deployed on :${data.stack?.port || port} (@ ${data.stack?.last_commit || "HEAD"})${cpBadge}`);
         onReloadWorkspace?.();
       } else {
         setNotice(`Error: ${data.error || "Deployment failed"}`);
@@ -184,10 +192,11 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "delete_git_stack", project_id: projectId, stack_id: stackId }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string; stacks?: GitOpsStackViewItem[] };
+      const data = (await res.json()) as { ok?: boolean; error?: string; checkpoint_id?: string; stacks?: GitOpsStackViewItem[] };
       if (data.ok) {
         if (Array.isArray(data.stacks)) setStacks(data.stacks);
-        setNotice(`Removed GitOps stack '${stackId}'`);
+        const cpBadge = data.checkpoint_id ? ` · Checkpoint: ${data.checkpoint_id}` : "";
+        setNotice(`Removed GitOps stack '${stackId}'${cpBadge}`);
         onReloadWorkspace?.();
       } else {
         setNotice(`Delete error: ${data.error || "Failed"}`);

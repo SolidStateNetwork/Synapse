@@ -144,7 +144,11 @@ async function executeMcpTool(
       (!args.action || args.action === "inspect")) ||
     ((toolName === "core_manage_backup" ||
       toolName === "core_manage_checkpoint") &&
-      (!args.action || args.action === "list"));
+      (!args.action || args.action === "list")) ||
+    (toolName === "core_manage_alerts" &&
+      (!args.action || args.action === "inspect")) ||
+    (toolName === "core_intrusion_scan" &&
+      (!args.action || args.action === "scan"));
 
   if (!isReadOnlyTool && !canExecute) {
     return {

@@ -19,6 +19,7 @@ import { fetchNodeTelemetryHistory, tailServiceLogs } from "../self-healing";
 import { runDueCronJobsOnMuscle } from "../v070-studio";
 import { safeFetchJson } from "../safeFetch";
 import { dispatchDisasterRecoveryTool } from "./disasterRecoveryTools";
+import { dispatchSecopsAndWatchdogTool } from "./secopsAndWatchdogTools";
 import type { ToolDispatchResult } from "../orchestrator";
 
 export async function dispatchCoreBrainTool(
@@ -576,5 +577,8 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
     return { tool_name: toolName, status: "executed", output: res };
   }
 
-  return dispatchDisasterRecoveryTool(coreGatewayUrl, projectId, state, toolName, args);
+  return (
+    (await dispatchDisasterRecoveryTool(coreGatewayUrl, projectId, state, toolName, args)) ??
+    (await dispatchSecopsAndWatchdogTool(coreGatewayUrl, projectId, state, toolName, args))
+  );
 }
