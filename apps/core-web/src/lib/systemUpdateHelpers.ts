@@ -6,6 +6,7 @@ import crypto from "crypto";
 import { CORE_GATEWAY_URL, fetchGatewayNodes } from "@/lib/orchestrator";
 import { resolveActiveProjectId } from "@/lib/runtimeResolver";
 import { safeFetchJson } from "./safeFetch";
+import { SYNAPSE_VERSION } from "./version";
 
 const execAsync = promisify(exec);
 
@@ -215,7 +216,7 @@ export async function gatherSystemStatus(fetchRemoteGit = false, inspectNodes = 
           body: JSON.stringify({
             node_id: n.node_id,
             cmd_id: `ver-${Date.now()}`,
-            session_id: "sys-update-check",
+            session_id: "ota-check",
             project_id: activeProjId,
             tier: "TIER_1_UNLEASHED",
             command:
@@ -280,6 +281,7 @@ export async function gatherSystemStatus(fetchRemoteGit = false, inspectNodes = 
   }
 
   return {
+    version: SYNAPSE_VERSION,
     repo_root: repoRoot,
     checked_at: new Date().toISOString(),
     git: {

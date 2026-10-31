@@ -15,6 +15,7 @@ import {
   runCmd,
   gatherSystemStatus,
 } from "@/lib/systemUpdateHelpers";
+import { SYNAPSE_VERSION } from "@/lib/version";
 
 export type { UpdateStepLog };
 
@@ -94,9 +95,15 @@ async function performCoreUpdate(repoRoot: string): Promise<UpdateStepLog[]> {
     steps.push({
       step: "2. Core WebUI & Orchestrator Verification",
       status: "ok",
-      detail: "Next.js 15 Core WebUI ist aktiv und synchronisiert.",
+      detail: `Next.js 15 Core WebUI (${SYNAPSE_VERSION}) ist aktiv und synchronisiert.`,
       duration_ms: Date.now() - t1,
     });
+  }
+
+  const standaloneNextDir = path.join(repoRoot, "apps", "core-web", ".next", "standalone", ".next");
+  const builtStaticDir = path.join(repoRoot, "apps", "core-web", ".next", "static");
+  if (fs.existsSync(standaloneNextDir) && fs.existsSync(builtStaticDir)) {
+    fs.cpSync(builtStaticDir, path.join(standaloneNextDir, "static"), { recursive: true });
   }
 
   // Step 3: Core Gateway Binary Check / Build

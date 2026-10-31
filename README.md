@@ -49,6 +49,7 @@ On the main **Overview** screen, all connected servers, the AI hub, and your run
 </div>
 
 - **Test Services Without Opening Firewall Ports:** When the AI deploys a web app, an API, or a SQLite database on your server, you can open and test it directly inside your browser under **Services** — without exposing public ports on your server's firewall.
+- **GitOps Stack Deployer, Live-Log Inspector & Cron-Due Runner:** Clone and deploy Git repositories (`docker compose up -d --build`) with automatic `Secrets.enc` -> `0600 .env` injection, webhook redeploy & 1-click teardown, inspect live `docker`/`systemd`/`workspace` service logs over mTLS, and run scheduled Cron-Runbooks with automatic `CRITICAL` forensic alerts.
 - **Built-In Live Terminal & File Explorer:** Whenever you want to inspect something yourself, expand the live Linux terminal at the bottom of the screen or edit files directly in the browser under **Files**.
 
 ### 3. Effortless 1-Click Updates (Bottom-Left Sidebar)

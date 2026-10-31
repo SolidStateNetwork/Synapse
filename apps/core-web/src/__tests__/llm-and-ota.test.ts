@@ -207,7 +207,7 @@ exit 0
           res.end(JSON.stringify({ exit_code: 0, output: "SYNAPSE_FW_APPLIED_OK\n" }));
           return;
         }
-        if (String(parsed.session_id || "") === "sys-update-check") {
+        if (String(parsed.session_id || "") === "sys-update-check" || String(parsed.session_id || "") === "ota-check") {
           res.end(JSON.stringify({
             exit_code: 0,
             output: "SHA=0123456789abcdef\nMTIME=2026-10-31 01:00:00\nSVC=active\nSRC=release\nAXON_SRC=0123456789ab\n",

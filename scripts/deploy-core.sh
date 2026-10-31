@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo "=================================================================="
-echo "  Synapse Core v0.9.0 ('The Brain') — One-Command Docker Deployment"
+echo "  Synapse Core v1.0.0 ('The Brain') — One-Command Docker Deployment"
 echo "=================================================================="
 
 http_get() {

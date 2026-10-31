@@ -49,6 +49,7 @@ Auf der Startseite (**Übersicht**) siehst du alle verbundenen Server, die KI-Ze
 </div>
 
 - **Sofort testen ohne Firewall-Stress:** Wenn die KI auf deinem Server eine Web-App, eine API oder eine Datenbank startet, kannst du sie unter **Services** direkt im Browser öffnen und testen – ganz ohne Ports in deiner Server-Firewall nach außen öffnen zu müssen.
+- **GitOps Stack-Deployer, Live-Log Inspector & Cron-Due Runner:** Git-Repositories per 1-Klick klonen und starten (`docker compose up -d --build`) inklusive automatischer `Secrets.enc` -> `0600 .env`-Injektion, Webhook-Redeploy & Teardown, Live-Logs (`docker`/`systemd`/`workspace`) direkt über den mTLS-Tunnel inspizieren sowie zeitgesteuerte Cron-Runbooks mit automatischen Forensik-Alerts ausführen.
 - **Eingebautes Live-Terminal & Datei-Explorer:** Wenn du doch einmal selbst nachsehen möchtest, kannst du am unteren Bildschirmrand jederzeit das Live-Terminal aufklappen oder unter **Dateien** direkt im Browser Dateien bearbeiten.
 
 ### 3. Versionsanzeige & 1-Klick Updates unten links (wie bei NetBird)

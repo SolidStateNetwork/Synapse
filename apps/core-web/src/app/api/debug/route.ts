@@ -9,11 +9,14 @@ import {
   withProjectStateTransaction,
 } from "@/lib/vault";
 import { listCartridges, OFFICIAL_STACK_BLUEPRINTS } from "@/lib/cartridges";
+import { loadGitStacks } from "@/lib/projects/gitopsDeployer";
+import { loadCronJobs } from "@/lib/v070-studio";
 import {
   resolveActiveProjectId,
   safeParseRequestJson,
 } from "@/lib/runtimeResolver";
 import { safeFetchJson } from "@/lib/safeFetch";
+import { SYNAPSE_VERSION } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +60,9 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     timestamp: new Date().toISOString(),
+    version: SYNAPSE_VERSION,
     core_web: {
+      version: SYNAPSE_VERSION,
       debug_enabled:
         Boolean((state as unknown as Record<string, unknown>).debug_mode) ||
         process.env.SYNAPSE_DEBUG === "1",
@@ -185,12 +190,14 @@ export async function POST(req: NextRequest) {
     const t3 = Date.now();
     try {
       const carts = listCartridges();
+      const stacks = loadGitStacks(projectId);
+      const cronJobs = loadCronJobs(projectId);
       checks.push({
         id: "cartridges",
-        name: "Rule Cartridges & Stack Blueprints Engine",
+        name: "Rule Cartridges, GitOps & Cron Engines",
         status: carts.length > 0 ? "PASS" : "WARN",
         latency_ms: Date.now() - t3,
-        detail: `${carts.length} Markdown cartridges & ${OFFICIAL_STACK_BLUEPRINTS.length} stack blueprints loaded`,
+        detail: `${SYNAPSE_VERSION}: ${carts.length} cartridges, ${OFFICIAL_STACK_BLUEPRINTS.length} blueprints, ${stacks.length} GitOps stack(s), ${cronJobs.length} cron runbook(s)`,
       });
     } catch (err) {
       checks.push({
@@ -259,6 +266,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      version: SYNAPSE_VERSION,
       timestamp: new Date().toISOString(),
       checks,
     });

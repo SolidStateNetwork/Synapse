@@ -180,6 +180,7 @@ var ephemeralPrefixes = []string{
 	"security-radar-",
 	"db-explorer-",
 	"checkpoint-",
+	"ota-",
 }
 
 // IsEphemeralSessionID returns true if the session ID belongs to a one-shot diagnostic, cron, or backup job.

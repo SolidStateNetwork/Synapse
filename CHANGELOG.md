@@ -2,6 +2,20 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v1.0.0] — 2026-10-31 (General Availability GA — Production OTA Sync, Ephemeral OTA-PTY GC, Cluster Self-Test & Bilingual Docs Seal)
+
+### Added & Improved
+- **Production-Standalone OTA Updater & `ota-*` Ephemeral PTY GC (`systemUpdateHelpers.ts`, `system-update/route.ts`, `pty_discovery.go`)**:
+  - `gatherSystemStatus` (`/api/system-update`) now exposes `version: SYNAPSE_VERSION` (`v1.0.0`) and uses `ota-check` ephemeral PTY sessions.
+  - `performCoreUpdate` automatically synchronizes `.next/static` into `.next/standalone/.next/static` on standalone deployments.
+  - `IsEphemeralSessionID` in `agents/axon/internal/pty/pty_discovery.go` now automatically reaps `ota-*` sessions upon completion.
+- **`v1.0.0` Cluster-Readiness Self-Test (`/api/debug`)**:
+  - `GET /api/debug` and `POST /api/debug` (`action: "self_test"`) now report `version: SYNAPSE_VERSION` (`v1.0.0`) and validate Rule Cartridges, Stack Blueprints, GitOps Stacks (`GitStacks.json`), and Cron Runbooks (`CronJobs.json`) store integrity.
+- **Bilingual `v1.0.0` Documentation Seal (`README.md`, `README.de.md`, `SECURITY.md`, `CHANGELOG.md`)**:
+  - Synchronized English (`README.md`) and German (`README.de.md`) documentation covering the full `v1.0.0` feature suite (GitOps Stack Deployer & Teardown, Interactive Live-Service-Log Inspector, Autonomous Cron-Due Scheduler, 60-Sample Telemetry Sparklines, Ephemeral-PTY GC, and Full MCP/AI Tool Parity).
+
+---
+
 ## [v0.9.0] — 2026-10-31 (Single-Source Versioning, Interactive Live-Log Studio & AI/MCP Teardown + Telemetry Parity)
 
 ### Added & Improved
