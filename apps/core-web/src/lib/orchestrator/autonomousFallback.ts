@@ -330,6 +330,31 @@ export async function runDeterministicAutonomousWorkflow(
         .map((s) => `\`${s.name}\` (:${s.port})`)
         .join(", ") || "keine"
     }`;
+  } else if (lower.startsWith("gitops:") || lower.includes("deploy git stack")) {
+    const urlMatch = userPrompt.match(/(https?:\/\/\S+|git@\S+)/);
+    const portMatch = userPrompt.match(/\b(\d{4,5})\b/);
+    const step = await runStep("core_deploy_git_stack", {
+      name: "GitOps Autonomous Stack",
+      repo_url: urlMatch ? urlMatch[1] : "https://github.com/example/service.git",
+      port: portMatch ? Number(portMatch[1]) : 4085,
+      node_id: primaryNode || "local-node",
+    });
+    finalReply = `### 📦 GitOps Stack Deployment\n\n- **Status:** \`${step.status}\`\n- **Details:** \`${JSON.stringify(step.output).slice(0, 300)}\``;
+  } else if (lower.startsWith("logs:") || lower.includes("tail logs")) {
+    const portMatch = userPrompt.match(/\b(\d{4,5})\b/);
+    const step = await runStep("core_tail_service_logs", {
+      port: portMatch ? Number(portMatch[1]) : 3000,
+      node_id: primaryNode || "local-node",
+    });
+    const out = step.output as { logs?: string; error_count?: number } | undefined;
+    finalReply = `### 📜 Live Service Logs\n\n- **Erkannte Fehlerzeilen:** \`${out?.error_count ?? 0}\`\n\`\`\`text\n${String(out?.logs || "Keine Logs").slice(0, 1500)}\n\`\`\``;
+  } else if (lower.includes("cron-due") || lower.includes("run due cron")) {
+    const step = await runStep("core_run_due_cron_jobs", {
+      node_id: primaryNode || "local-node",
+      force_all: true,
+    });
+    const out = step.output as { executed_count?: number; failed_count?: number } | undefined;
+    finalReply = `### ⏱️ Autonomous Cron Due-Scheduler\n\n- **Ausgeführte Runbooks:** \`${out?.executed_count ?? 0}\` (Fehler: \`${out?.failed_count ?? 0}\`)`;
   }
 
   if (!finalReply) {

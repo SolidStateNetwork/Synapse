@@ -129,6 +129,7 @@ async function executeMcpTool(
     toolName === "synapse_list_peers" ||
     toolName === "synapse_get_project_state" ||
     toolName === "core_vault_search" ||
+    toolName === "core_tail_service_logs" ||
     toolName === "node_deep_search" ||
     (toolName === "node_fs_operation" &&
       ["read_file", "list_dir", "stat"].includes(
@@ -277,7 +278,7 @@ export async function GET(req: NextRequest) {
     protocolVersion: "2024-11-05",
     serverInfo: {
       name: "synapse-core-mcp",
-      version: "0.6.0",
+      version: "0.7.0",
     },
     endpoint: "/api/mcp",
     project_id: projectId,
@@ -363,7 +364,7 @@ export async function POST(req: NextRequest) {
           },
           serverInfo: {
             name: "synapse-core-mcp",
-            version: "0.6.0",
+            version: "0.7.0",
           },
         },
       });

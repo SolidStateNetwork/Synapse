@@ -7,6 +7,7 @@ import { safeFetchJson } from "@/lib/safeFetch";
 import { SynapseViewHeader } from "@/components/ui/SynapseDesignSystem";
 import type { ProjectState } from "@/types/synapse";
 import { ReverseProxyCodeAndSqliteStudios } from "./reverse-proxy/ReverseProxyCodeAndSqliteStudios";
+import { GitOpsStudioPanel } from "./reverse-proxy/GitOpsStudioPanel";
 import {
   ReverseProxyRequestHistoryItem,
   ReverseProxyWorkbenchPanel,
@@ -478,6 +479,12 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
           })}
         </div>
       )}
+
+      <GitOpsStudioPanel
+        projectId={projectId}
+        nodeId={resolvedNodeId}
+        onReloadWorkspace={onReloadWorkspace}
+      />
 
       {activeSvc && (
         <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-800/90 bg-nb-gray-940 shadow-lg">

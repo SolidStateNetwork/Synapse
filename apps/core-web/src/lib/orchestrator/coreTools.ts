@@ -14,6 +14,9 @@ import {
   buildDefaultServiceEndpoints,
   pushNodeHealthTargets,
 } from "./servicePresets";
+import { deployGitStackOnMuscle } from "../projects/gitopsDeployer";
+import { tailServiceLogs } from "../self-healing";
+import { runDueCronJobsOnMuscle } from "../v070-studio";
 import { safeFetchJson } from "../safeFetch";
 import type { ToolDispatchResult } from "../orchestrator";
 
@@ -517,6 +520,53 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
         mesh_link: link,
         note: `Peer ${sourceNodeId} can now reach ${targetNodeId}:${remotePort} directly via 127.0.0.1:${localPort}.`,
       },
+    };
+  }
+
+  if (toolName === "core_deploy_git_stack") {
+    const res = await deployGitStackOnMuscle({
+      projectId,
+      nodeId: args.node_id ? String(args.node_id) : undefined,
+      name: String(args.name || "gitops-stack"),
+      repoUrl: String(args.repo_url || ""),
+      branch: args.branch ? String(args.branch) : undefined,
+      port: Number(args.port || 4080),
+      composePath: args.compose_path ? String(args.compose_path) : undefined,
+      startCommand: args.start_command ? String(args.start_command) : undefined,
+    });
+    return {
+      tool_name: toolName,
+      status: res.ok ? "executed" : "error",
+      output: res,
+    };
+  }
+
+  if (toolName === "core_tail_service_logs") {
+    const res = await tailServiceLogs({
+      projectId,
+      nodeId: args.node_id ? String(args.node_id) : undefined,
+      serviceId: args.service_id ? String(args.service_id) : undefined,
+      port: args.port ? Number(args.port) : undefined,
+      containerName: args.container_name ? String(args.container_name) : undefined,
+      unitName: args.unit_name ? String(args.unit_name) : undefined,
+    });
+    return {
+      tool_name: toolName,
+      status: "executed",
+      output: res,
+    };
+  }
+
+  if (toolName === "core_run_due_cron_jobs") {
+    const res = await runDueCronJobsOnMuscle({
+      projectId,
+      nodeId: args.node_id ? String(args.node_id) : undefined,
+      forceAll: Boolean(args.force_all),
+    });
+    return {
+      tool_name: toolName,
+      status: "executed",
+      output: res,
     };
   }
 

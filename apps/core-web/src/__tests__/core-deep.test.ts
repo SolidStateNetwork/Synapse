@@ -32,6 +32,7 @@ import {
   executeNodeDeepSearch,
 } from "../lib/orchestrator/searchEngine";
 import { executeServiceAction } from "../lib/projects/serviceActionRunner";
+import { resetBackgroundCronCooldown } from "../lib/projects/projectTelemetrySync";
 import {
   deployGitStackOnMuscle,
   loadGitStacks,
@@ -511,7 +512,7 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
       const alerts = loadAlertConfig(projectId).events;
       assert.ok(alerts.some((a) => a.severity === "CRITICAL" && a.title.includes("Disk Forensic Audit")));
 
-      // Verify /api/service-ops route actions for v0.6.0
+      // Verify /api/service-ops route actions for v0.6.0 & v0.7.0 MCP/Orchestrator tools
       for (const payload of [
         { action: "tail_service_logs", service_id: "web-app", port: 4012 },
         { action: "node_telemetry_history", node_id: "local-node" },
@@ -523,6 +524,36 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         const res = await serviceOpsRoute.POST(makeReq("/api/service-ops", "POST", { project_id: projectId, ...payload }));
         assert.equal(res.status, 200);
       }
+
+      for (const toolCall of [
+        { name: "core_deploy_git_stack", arguments: { name: "MCP Stack", repo_url: "https://github.com/example/mcp.git", port: 4087 } },
+        { name: "core_tail_service_logs", arguments: { service_id: "web-app", port: 4012 } },
+        { name: "core_run_due_cron_jobs", arguments: { force_all: true } },
+      ]) {
+        const r = await mcpRoute.POST(
+          makeReq("/api/mcp", "POST", {
+            project_id: projectId,
+            internal_ui_test: true,
+            jsonrpc: "2.0",
+            id: 99,
+            method: "tools/call",
+            params: toolCall,
+          })
+        );
+        assert.equal(r.status, 200);
+      }
+
+      const promptParts = { staticPrefix: "System", dynamicSuffix: "Suffix", fullPrompt: "System\nSuffix" };
+      for (const chatCmd of [
+        "gitops: https://github.com/example/auto.git 4088",
+        "logs: 4088",
+        "cron-due",
+      ]) {
+        const wf = await runDeterministicAutonomousWorkflow(projectId, chatCmd, undefined, promptParts);
+        assert.ok(wf.reply.length > 0);
+      }
+      resetBackgroundCronCooldown(projectId);
+      resetBackgroundCronCooldown();
     } finally {
       process.env.CORE_GATEWAY_URL = prevGw;
     }

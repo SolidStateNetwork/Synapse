@@ -443,4 +443,58 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "core_deploy_git_stack",
+      description:
+        "Clones or pulls a Git repository onto a Linux Muscle server, injects decrypted secrets from Secrets.enc into a 0600 .env file, executes docker compose up -d --build (or a custom start_command), and registers the stack service in State.json.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Stack display name." },
+          repo_url: { type: "string", description: "Git repository URL (https:// or git@)." },
+          branch: { type: "string", description: "Git branch (default: main)." },
+          port: { type: "integer", description: "Exposed service port (1024..65535)." },
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          compose_path: { type: "string", description: "Compose file path (default: docker-compose.yml)." },
+          start_command: { type: "string", description: "Optional custom start command." },
+        },
+        required: ["name", "repo_url", "port"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_tail_service_logs",
+      description:
+        "Retrieves live logs for a Docker container, systemd unit, SQLite service, or exposed port on a Muscle node over the mTLS PTY tunnel and highlights detected errors.",
+      parameters: {
+        type: "object",
+        properties: {
+          service_id: { type: "string", description: "Registered service ID." },
+          port: { type: "integer", description: "Service port number." },
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          container_name: { type: "string", description: "Optional Docker container name." },
+          unit_name: { type: "string", description: "Optional systemd unit name." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_run_due_cron_jobs",
+      description:
+        "Evaluates all enabled Cron-Runbooks in the project and executes due jobs over the mTLS PTY tunnel, automatically dispatching CRITICAL forensic alerts on non-zero exit codes.",
+      parameters: {
+        type: "object",
+        properties: {
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          force_all: { type: "boolean", description: "If true, runs all enabled Cron-Runbooks regardless of schedule interval." },
+        },
+      },
+    },
+  },
 ];

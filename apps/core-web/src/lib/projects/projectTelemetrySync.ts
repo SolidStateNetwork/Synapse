@@ -4,10 +4,17 @@ import {
   pushNodeHealthTargets,
 } from "@/lib/orchestrator";
 import { executeAutonomousSelfHeal } from "@/lib/self-healing";
+import { runDueCronJobsOnMuscle } from "@/lib/v070-studio";
 import { withProjectStateTransaction, type ProjectState } from "@/lib/vault";
 
 const activeWatchdogHeals = new Set<string>();
 const lastSyncedTargetsSig = new Map<string, string>();
+const lastBackgroundCronEvalMs = new Map<string, number>();
+
+export function resetBackgroundCronCooldown(projectId?: string): void {
+  if (projectId) lastBackgroundCronEvalMs.delete(projectId);
+  else lastBackgroundCronEvalMs.clear();
+}
 
 const CATEGORY_ORDER: Record<string, number> = {
   webui: 1,
@@ -275,6 +282,13 @@ export async function syncProjectTelemetryAndWatchdog(
         }
       }
     })();
+  }
+
+  const hasOnlineNode = state.assigned_nodes.some((n) => n.online);
+  const lastCronMs = lastBackgroundCronEvalMs.get(projectId) || 0;
+  if (hasOnlineNode && Date.now() - lastCronMs >= 60_000) {
+    lastBackgroundCronEvalMs.set(projectId, Date.now());
+    void runDueCronJobsOnMuscle(projectId).catch(() => {});
   }
 
   return { state, liveNodes };

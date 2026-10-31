@@ -2,6 +2,19 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v0.7.0] — 2026-10-31 (AI-Orchestrator & MCP GitOps/Log/Cron Tools, Interactive GitOps Studio UI & Background Cron Scheduler)
+
+### Added & Improved
+- **AI-Orchestrator & MCP-Server Integration (`toolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp`)**:
+  - Exposed `core_deploy_git_stack`, `core_tail_service_logs` (read-scope compatible), and `core_run_due_cron_jobs` across both the built-in Copilot and the Streamable HTTP JSON-RPC 2.0 MCP Server (`/api/mcp`).
+  - Added deterministic chat workflows (`gitops:`, `logs:`, `cron-due`) in `autonomousFallback.ts`.
+- **Interactive GitOps & Cron-Due Studio Panel (`GitOpsStudioPanel.tsx` & `ReverseProxyView.tsx`)**:
+  - Dedicated 1-click GitOps Stack Deployer in the Service Workbench with automatic `Secrets.enc` -> `0600 .env` injection, one-time webhook token preview/copy, active stack list, and 1-click webhook redeploy.
+- **Automatic Background Cron-Tick in Telemetry Sync (`projectTelemetrySync.ts`)**:
+  - Integrated a throttled (60s cooldown per project) background invocation of `runDueCronJobsOnMuscle` during active Muscle node telemetry synchronization.
+
+---
+
 ## [v0.6.0] — 2026-10-31 (Service-Mesh & Live-Log Observability, GitOps Stack-Deployer & Autonomous Cron-Due-Runner)
 
 ### Added & Improved
