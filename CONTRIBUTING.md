@@ -23,7 +23,7 @@ Synapse/
 
 ### Running Tests & Building
 ```bash
-# 1. Run all Go unit & concurrency tests (-race) with >= 80% per-package coverage gate
+# 1. Run all Go unit & concurrency tests (-race) with >= 85% per-package coverage gate
 go test -v -race -cover ./proto/... ./agents/axon/... ./apps/core-gateway/...
 
 # 2. Build static binaries
@@ -40,7 +40,7 @@ npm --prefix apps/core-web run build
 ## Code Quality & Modularization Gates
 - **File Size Limits**: Every Go file (`*.go`) must stay under `< 500` lines; every TypeScript/React file (`*.ts`, `*.tsx`) must stay under `< 600` lines.
 - **Strict Typing**: `0` occurrences of explicit `any` in `apps/core-web/src` and clean `tsc --noEmit`.
-- **Coverage Gate**: Every Go package in `./proto/...`, `./agents/axon/...`, and `./apps/core-gateway/...` must maintain `>= 80%` statement coverage with `-race` enabled.
+- **Coverage Gate**: Every Go package in `./proto/...`, `./agents/axon/...`, and `./apps/core-gateway/...` must maintain `>= 85%` statement coverage with `-race` enabled.
 - **Shell Script Verification**: Installer and HA scripts (`scripts/*.sh`) must pass `bash -n`, `sh -n`, and `shellcheck -S warning`.
 
 ## Commit Message Convention
