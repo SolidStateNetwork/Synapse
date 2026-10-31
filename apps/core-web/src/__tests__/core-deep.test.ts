@@ -16,39 +16,15 @@ process.env.SYNAPSE_VAULT_DIR = vaultRoot;
 process.env.SYNAPSE_CARTRIDGES_DIR = cartridgesRoot;
 process.env.SYNAPSE_MASTER_KEY = "synapse-deep-test-master-key-32bytes!";
 
-import {
-  ensureProjectVault,
-  recordRollbackSnapshot,
-  setSecret,
-  withProjectStateTransaction,
-} from "../lib/vault";
-import {
-  deleteCustomCartridge,
-  listCartridges,
-  saveCustomCartridge,
-} from "../lib/cartridges";
+import { ensureProjectVault, recordRollbackSnapshot, setSecret, withProjectStateTransaction } from "../lib/vault";
+import { deleteCustomCartridge, listCartridges, saveCustomCartridge } from "../lib/cartridges";
 import { loadOffsiteBackups } from "../lib/orchestrator/disasterRecoveryTools";
-import {
-  executeCoreVaultSearch,
-  executeNodeDeepSearch,
-} from "../lib/orchestrator/searchEngine";
+import { executeCoreVaultSearch, executeNodeDeepSearch } from "../lib/orchestrator/searchEngine";
 import { executeServiceAction } from "../lib/projects/serviceActionRunner";
 import { resetBackgroundCronCooldown } from "../lib/projects/projectTelemetrySync";
-import {
-  deleteGitStackOnMuscle,
-  deployGitStackOnMuscle,
-  loadGitStacks,
-  triggerGitOpsWebhookRedeploy,
-} from "../lib/projects/gitopsDeployer";
-import {
-  fetchNodeTelemetryHistory,
-  tailServiceLogs,
-} from "../lib/self-healing";
-import {
-  parseCronIntervalMinutes,
-  runDueCronJobsOnMuscle,
-  saveCronJobs,
-} from "../lib/v070-studio";
+import { deleteGitStackOnMuscle, deployGitStackOnMuscle, loadGitStacks, triggerGitOpsWebhookRedeploy } from "../lib/projects/gitopsDeployer";
+import { fetchNodeTelemetryHistory, tailServiceLogs } from "../lib/self-healing";
+import { parseCronIntervalMinutes, runDueCronJobsOnMuscle, saveCronJobs } from "../lib/v070-studio";
 import { loadAlertConfig } from "../lib/alerts";
 import { runDeterministicAutonomousWorkflow } from "../lib/orchestrator/autonomousFallback";
 import * as projectsRoute from "../app/api/projects/route";
@@ -541,6 +517,12 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         { name: "core_manage_cluster_nodes", arguments: { action: "assign_node", node_id: "edge-node-2" } },
         { name: "core_manage_cluster_nodes", arguments: { action: "unassign_node", node_id: "edge-node-2" } },
         { name: "core_manage_cluster_nodes", arguments: { action: "assign_node", node_id: "" } },
+        { name: "core_manage_projects", arguments: { action: "list" } },
+        { name: "core_manage_projects", arguments: { action: "create", new_project_id: "mcp-sub-proj", name: "MCP Sub Project", planning_only: true } },
+        { name: "core_manage_projects", arguments: { action: "set_planning_only", planning_only: false } },
+        { name: "core_manage_projects", arguments: { action: "audit_trail", limit: 10 } },
+        { name: "core_run_platform_self_test", arguments: { action: "self_test" } },
+        { name: "core_run_platform_self_test", arguments: { action: "toggle_debug", enabled: true } },
       ]) {
         const r = await mcpRoute.POST(
           makeReq("/api/mcp", "POST", { project_id: projectId, internal_ui_test: true, jsonrpc: "2.0", id: 99, method: "tools/call", params: toolCall })
@@ -574,6 +556,8 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         "firewall: inspect",
         "cartridges: list",
         "cluster-nodes: list",
+        "projects: list",
+        "self-test: run",
       ]) {
         const wf = await runDeterministicAutonomousWorkflow(projectId, chatCmd, undefined, promptParts);
         assert.ok(wf.reply.length > 0);

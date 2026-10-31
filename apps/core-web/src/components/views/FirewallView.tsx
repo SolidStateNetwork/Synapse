@@ -14,6 +14,7 @@ export interface FirewallViewProps {
   firewallBusy: boolean;
   firewallError: string;
   setFirewallError: (err: string) => void;
+  lastFirewallCheckpointId?: string;
   fetchFirewallStatus: (nodeId?: string) => void;
   handleFirewallAction: (payload: {
     action: "inspect" | "set_profile" | "shield_port" | "unshield_port" | "add_ip_rule" | "remove_ip_rule";
@@ -40,26 +41,17 @@ export interface FirewallViewProps {
 const FirewallView = React.memo(function FirewallView({
   activeProject, gatewayNodes, selectedNodeId, setSelectedNodeId,
   liveFirewallPorts, firewallBusy, firewallError, setFirewallError,
-  fetchFirewallStatus, handleFirewallAction, fwRuleAction, setFwRuleAction,
+  lastFirewallCheckpointId, fetchFirewallStatus, handleFirewallAction, fwRuleAction, setFwRuleAction,
   fwIpInput, setFwIpInput, fwRulePort, setFwRulePort, fwRuleNote, setFwRuleNote,
   handleAddFirewallIpRule, onAskCopilot,
 }: FirewallViewProps) {
   const targetNode =
-    selectedNodeId ||
-    activeProject?.assigned_nodes?.[0]?.node_id ||
-    gatewayNodes[0]?.node_id ||
-    "local-node";
+    selectedNodeId || activeProject?.assigned_nodes?.[0]?.node_id || gatewayNodes[0]?.node_id || "local-node";
 
   const nodePolicy = activeProject?.firewall_policies?.[targetNode] || {
-    node_id: targetNode,
-    profile: "web_standard" as const,
-    backend: "iptables + SYNAPSE_FW Shield",
-    anti_lockout_active: true,
-    rollback_guard_seconds: 15,
-    ssh_port: 22,
-    shielded_ports: [] as number[],
-    ip_rules: [],
-    detected_ports: [],
+    node_id: targetNode, profile: "web_standard" as const, backend: "iptables + SYNAPSE_FW Shield",
+    anti_lockout_active: true, rollback_guard_seconds: 15, ssh_port: 22,
+    shielded_ports: [] as number[], ip_rules: [], detected_ports: [],
     last_synced_at: new Date().toISOString(),
   };
 
@@ -70,28 +62,16 @@ const FirewallView = React.memo(function FirewallView({
         ? nodePolicy.detected_ports
         : [
             {
-              port: nodePolicy.ssh_port || 22,
-              protocol: "tcp",
-              bind_address: "0.0.0.0",
-              exposure: "public",
-              process: "sshd",
-              pid: undefined,
-              service_name: "SSH Server-Zugang (Anti-Lockout)",
-              shielded: false,
-              system_protected: true,
+              port: nodePolicy.ssh_port || 22, protocol: "tcp", bind_address: "0.0.0.0", exposure: "public",
+              process: "sshd", pid: undefined, service_name: "SSH Server-Zugang (Anti-Lockout)",
+              shielded: false, system_protected: true,
             },
             ...(activeProject?.registered_services || [])
               .filter((s) => s.node_id === targetNode)
               .map((s) => ({
-                port: s.port,
-                protocol: "tcp" as const,
-                bind_address: "0.0.0.0",
-                exposure: "public" as const,
-                process: "python3",
-                pid: undefined,
-                service_name: s.name,
-                shielded: nodePolicy.shielded_ports.includes(s.port),
-                system_protected: false,
+                port: s.port, protocol: "tcp" as const, bind_address: "0.0.0.0", exposure: "public" as const,
+                process: "python3", pid: undefined, service_name: s.name,
+                shielded: nodePolicy.shielded_ports.includes(s.port), system_protected: false,
               })),
           ];
 
@@ -194,6 +174,14 @@ const FirewallView = React.memo(function FirewallView({
             </span>{" "}
             · SSH-Schutz:{" "}
             <span className="text-emerald-400">Port :{nodePolicy.ssh_port || 22}</span>
+            {lastFirewallCheckpointId && (
+              <>
+                {" "}· Pre-Flight Checkpoint:{" "}
+                <span className="rounded border border-emerald-500/40 bg-emerald-950/60 px-1.5 py-0.5 text-emerald-300">
+                  {lastFirewallCheckpointId}
+                </span>
+              </>
+            )}
           </span>
         </div>
 

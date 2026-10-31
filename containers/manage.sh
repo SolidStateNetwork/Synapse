@@ -47,14 +47,14 @@ start_local_containers() {
   echo "[1/3] Building Core & Muscle binaries into ${CONTAINERS_DIR}/{core,muscle}/runtime..."
   (
     cd "$REPO_ROOT"
-    CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=v1.6.0" -o "${CORE_DIR}/runtime/bin/core-gateway" ./apps/core-gateway
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=v1.6.0" -o "${MUSCLE_DIR}/runtime/bin/axon" ./agents/axon/cmd/axon
+    CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=v1.7.0" -o "${CORE_DIR}/runtime/bin/core-gateway" ./apps/core-gateway
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=v1.7.0" -o "${MUSCLE_DIR}/runtime/bin/axon" ./agents/axon/cmd/axon
     cp -f "${MUSCLE_DIR}/runtime/bin/axon" "${CORE_DIR}/runtime/bin/axon"
     cp -f "${MUSCLE_DIR}/runtime/bin/axon" "${CORE_DIR}/runtime/bin/axon-linux-amd64"
     cp -f "${MUSCLE_DIR}/runtime/bin/axon" "${MUSCLE_DIR}/runtime/usr-local-bin/axon"
   )
 
-  if [ ! -f "${CORE_DIR}/runtime/web/server.js" ]; then
+  if [ ! -f "${CORE_DIR}/runtime/web/server.js" ] || [ "${REPO_ROOT}/apps/core-web/src/lib/version.ts" -nt "${CORE_DIR}/runtime/web/server.js" ]; then
     echo "[2/3] Building Next.js 15 standalone bundle for synapse-core container..."
     (
       cd "${REPO_ROOT}/apps/core-web"

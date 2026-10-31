@@ -458,6 +458,14 @@ export async function runDeterministicAutonomousWorkflow(
     const step = await runStep("core_manage_cluster_nodes", { action: "list" });
     const out = step.output as { nodes?: unknown[]; assigned_nodes?: string[] } | undefined;
     finalReply = `### 🖧 Cluster Nodes\n\n- **Online Nodes:** \`${out?.nodes?.length ?? 0}\` (Zugewiesen: \`${out?.assigned_nodes?.length ?? 0}\`)`;
+  } else if (lower.startsWith("projects:") || lower.includes("list projects")) {
+    const step = await runStep("core_manage_projects", { action: "list" });
+    const out = step.output as { projects?: unknown[]; active_project_id?: string } | undefined;
+    finalReply = `### 📁 Project Brain Vaults\n\n- **Projekte:** \`${out?.projects?.length ?? 0}\` (Aktiv: \`${out?.active_project_id || projectId}\`)`;
+  } else if (lower.startsWith("self-test:") || lower.includes("run self test")) {
+    const step = await runStep("core_run_platform_self_test", { action: "self_test" });
+    const out = step.output as { passed_count?: number; total_checks?: number } | undefined;
+    finalReply = `### 🧪 Full-Platform Self-Test\n\n- **Checks bestanden:** \`${out?.passed_count ?? 0} / ${out?.total_checks ?? 0}\``;
   }
 
   if (!finalReply) {

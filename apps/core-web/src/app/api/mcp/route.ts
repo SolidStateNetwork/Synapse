@@ -170,6 +170,12 @@ async function executeMcpTool(
       (!args.action || args.action === "list")) ||
     (toolName === "core_manage_cluster_nodes" &&
       (!args.action || args.action === "list")) ||
+    (toolName === "core_manage_projects" &&
+      (!args.action ||
+        args.action === "list" ||
+        args.action === "audit_trail")) ||
+    (toolName === "core_run_platform_self_test" &&
+      (!args.action || args.action === "self_test")) ||
     toolName === "core_system_ota_status";
 
   if (!isReadOnlyTool && !canExecute) {

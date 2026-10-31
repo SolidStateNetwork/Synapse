@@ -47,6 +47,7 @@ export function useFirewallAndMcpActions({
 
   const [firewallBusy, setFirewallBusy] = useState(false);
   const [firewallError, setFirewallError] = useState("");
+  const [lastFirewallCheckpointId, setLastFirewallCheckpointId] = useState("");
   const [fwIpInput, setFwIpInput] = useState("");
   const [fwRuleAction, setFwRuleAction] = useState<"block" | "allow">("block");
   const [fwRulePort, setFwRulePort] = useState("");
@@ -221,6 +222,9 @@ export function useFirewallAndMcpActions({
         if (Array.isArray(data.ports)) {
           setLiveFirewallPorts(data.ports);
         }
+        if (data.checkpoint_id) {
+          setLastFirewallCheckpointId(String(data.checkpoint_id));
+        }
         if (data.message) {
           showToast(data.message, 3500);
         }
@@ -267,6 +271,7 @@ export function useFirewallAndMcpActions({
     firewallBusy,
     firewallError,
     setFirewallError,
+    lastFirewallCheckpointId,
     fwIpInput,
     setFwIpInput,
     fwRuleAction,

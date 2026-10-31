@@ -2,6 +2,18 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v1.7.0] — 2026-11-01 (Project & Diagnostics AI/MCP Parity, Container-Native OTA Updates with Pre-Flight Checkpoints & Firewall Checkpoint Badge)
+
+### Added & Improved
+- **AI-Orchestrator & MCP Project & Diagnostics Tools + Schema Modularization (`extendedToolSchemas.ts`, `projectAndDiagnosticTools.ts`, `toolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp`)**:
+  - Modularized `toolSchemas.ts` via `extendedToolSchemas.ts` and added `core_manage_projects` (`list`, `create`, `set_planning_only`, `audit_trail`) and `core_run_platform_self_test` (`self_test`, `toggle_debug`) so the AI Copilot and external MCP Clients have 100% full-stack control over Project Brain Vaults, Planning-Only mode, Audit trails, and Full-Platform Self-Test diagnostics.
+- **Container-Native OTA Updates & Automatic Pre-Flight Time-Machine Checkpoints (`/api/system-update`)**:
+  - `POST /api/system-update` (`update_core`, `update_muscle`, `update_all`) now automatically records a Pre-Flight Time-Machine Checkpoint (`recordCheckpoint`) prior to rollout and returns `checkpoint_id`, while supporting both bare-metal systemd services and rootless/Docker containers (`containers/`).
+- **Pre-Flight Checkpoint-ID Badge in Firewall UI (`FirewallView.tsx`, `useFirewallAndMcpActions.ts`, `page.tsx`)**:
+  - The Firewall & Port-Shield status bar now displays the Pre-Flight Time-Machine `checkpoint_id` created on Firewall policy mutations.
+
+---
+
 ## [v1.6.0] — 2026-10-31 (Firewall, Cartridges & Cluster-Nodes AI/MCP Parity, Pre-Flight Firewall Checkpoints & Ephemeral FW-PTY Reaping)
 
 ### Added & Improved

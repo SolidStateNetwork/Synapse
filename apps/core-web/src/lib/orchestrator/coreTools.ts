@@ -18,6 +18,7 @@ import { safeFetchJson } from "../safeFetch";
 import { dispatchBlueprintDomainAndOtaTool } from "./blueprintDomainAndOtaTools";
 import { dispatchDisasterRecoveryTool } from "./disasterRecoveryTools";
 import { dispatchFirewallCartridgeAndClusterTool } from "./firewallCartridgeAndClusterTools";
+import { dispatchProjectAndDiagnosticTool } from "./projectAndDiagnosticTools";
 import { dispatchResilienceAndMeshTool } from "./resilienceAndMeshTools";
 import { dispatchSecopsAndWatchdogTool } from "./secopsAndWatchdogTools";
 import { dispatchStudioDevOpsTool } from "./studioDevOpsTools";
@@ -31,26 +32,12 @@ export async function dispatchCoreBrainTool(
   args: Record<string, unknown>
 ): Promise<ToolDispatchResult | null> {
   if (toolName === "core_update_brain_doc") {
-    const doc =
-      args.document === "Memory.md" ? "Memory.md" : "Architecture.md";
+    const doc = args.document === "Memory.md" ? "Memory.md" : "Architecture.md";
     const rawMode = String(args.mode || "overwrite_full");
-    const mode =
-      rawMode === "append"
-        ? "append"
-        : rawMode === "replace_section"
-        ? "replace_section"
-        : "overwrite_full";
-    const sectionHeader = args.section_header
-      ? String(args.section_header)
-      : undefined;
+    const mode = rawMode === "append" ? "append" : rawMode === "replace_section" ? "replace_section" : "overwrite_full";
+    const sectionHeader = args.section_header ? String(args.section_header) : undefined;
     const content = String(args.content || "");
-    const updated = writeBrainDoc(
-      projectId,
-      doc,
-      content,
-      mode,
-      sectionHeader
-    );
+    const updated = writeBrainDoc(projectId, doc, content, mode, sectionHeader);
     appendAuditLog(projectId, {
       timestamp: new Date().toISOString(),
       actor: "ai_orchestrator",
@@ -584,6 +571,7 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
     (await dispatchStudioDevOpsTool(projectId, state, toolName, args)) ??
     (await dispatchResilienceAndMeshTool(projectId, state, toolName, args)) ??
     (await dispatchBlueprintDomainAndOtaTool(projectId, state, toolName, args)) ??
-    (await dispatchFirewallCartridgeAndClusterTool(coreGatewayUrl, projectId, state, toolName, args))
+    (await dispatchFirewallCartridgeAndClusterTool(coreGatewayUrl, projectId, state, toolName, args)) ??
+    (await dispatchProjectAndDiagnosticTool(coreGatewayUrl, projectId, state, toolName, args))
   );
 }

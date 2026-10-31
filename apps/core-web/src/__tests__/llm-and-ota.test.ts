@@ -488,8 +488,9 @@ exit 0
       makeReq("/api/system-update", "POST", { action: "update_muscle", project_id: "proj-debug-ota", node_id: "ota-node-1" })
     );
     assert.equal(otaOkRes.status, 200);
-    const otaOkData = (await otaOkRes.json()) as { success: boolean; steps: Array<{ status: string }> };
+    const otaOkData = (await otaOkRes.json()) as { success: boolean; checkpoint_id?: string; steps: Array<{ status: string }> };
     assert.equal(otaOkData.success, true);
+    assert.ok(String(otaOkData.checkpoint_id || "").startsWith("chk-"), "OTA rollout must return pre-flight checkpoint_id");
     assert.equal(otaOkData.steps[0].status, "ok");
 
     ptyMode = "ota_fail";

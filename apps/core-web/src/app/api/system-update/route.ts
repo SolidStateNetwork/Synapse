@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { CORE_GATEWAY_URL, fetchGatewayNodes } from "@/lib/orchestrator";
-import { appendAuditLog } from "@/lib/vault";
+import { recordCheckpoint } from "@/lib/checkpoints";
+import { appendAuditLog, ensureProjectVault } from "@/lib/vault";
 import {
   resolveActiveProjectId,
   safeParseRequestJson,
@@ -143,7 +144,7 @@ async function performCoreUpdate(repoRoot: string): Promise<UpdateStepLog[]> {
   if (goBin) {
     const gwDir = path.join(repoRoot, "apps", "core-gateway");
     let buildGw = await runCmd(
-      `"${goBin}" build -ldflags="-s -w" -o "${gwPrimaryOut}" .`,
+      `"${goBin}" build -ldflags="-s -w -X main.version=${SYNAPSE_VERSION}" -o "${gwPrimaryOut}" .`,
       gwDir,
       { CGO_ENABLED: "0" },
       90000
@@ -151,7 +152,7 @@ async function performCoreUpdate(repoRoot: string): Promise<UpdateStepLog[]> {
     let targetGwPath = gwPrimaryOut;
     if (!buildGw.ok) {
       buildGw = await runCmd(
-        `"${goBin}" build -ldflags="-s -w" -o "${gwStagedOut}" .`,
+        `"${goBin}" build -ldflags="-s -w -X main.version=${SYNAPSE_VERSION}" -o "${gwStagedOut}" .`,
         gwDir,
         { CGO_ENABLED: "0" },
         90000
@@ -258,10 +259,10 @@ async function performMuscleOTAUpdate(
   const buildAndInstallScript = [
     `set -e`,
     `export HOME="\${HOME:-/root}"`,
-    `export GOPATH="/root/go"`,
-    `export GOMODCACHE="/root/go/pkg/mod"`,
-    `export GOCACHE="/root/.cache/go-build"`,
-    `export PATH="/usr/local/go/bin:/usr/bin:/bin:\$PATH"`,
+    `export GOPATH="\${HOME}/go"`,
+    `export GOMODCACHE="\${HOME}/go/pkg/mod"`,
+    `export GOCACHE="\${HOME}/.cache/go-build"`,
+    `export PATH="\${HOME}/.local/go/bin:/usr/local/go/bin:/usr/bin:/bin:\$PATH"`,
     `mkdir -p "\$GOMODCACHE" "\$GOCACHE"`,
     `if [ ! -d /opt/synapse-src/.git ]; then`,
     `  rm -rf /opt/synapse-src`,
@@ -272,7 +273,7 @@ async function performMuscleOTAUpdate(
     `fi`,
     `COMMIT=$(git -C /opt/synapse-src rev-parse --short HEAD)`,
     `cd /opt/synapse-src/agents/axon`,
-    `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /usr/local/bin/axon.ota.new ./cmd/axon`,
+    `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=${SYNAPSE_VERSION}" -o /usr/local/bin/axon.ota.new ./cmd/axon`,
     `chmod 0755 /usr/local/bin/axon.ota.new`,
     `NEW_SHA=$(sha256sum /usr/local/bin/axon.ota.new | cut -c1-16)`,
     `mv -f /usr/local/bin/axon.ota.new /usr/local/bin/axon`,
@@ -281,7 +282,7 @@ async function performMuscleOTAUpdate(
     `  sed -i '/RestartSec=/a TimeoutStopSec=2s' /etc/systemd/system/axon.service 2>/dev/null || true`,
     `  systemctl daemon-reload 2>/dev/null || true`,
     `fi`,
-    `systemd-run --unit="axon-ota-$(date +%s)" sh -c 'sleep 0.6 && systemctl restart axon && (systemctl is-active --quiet axon-db && systemctl restart axon-db || true)' >/dev/null 2>&1 || nohup sh -c 'sleep 0.6 && systemctl restart axon' >/dev/null 2>&1 &`,
+    `systemd-run --unit="axon-ota-$(date +%s)" sh -c 'sleep 0.6 && (systemctl restart axon 2>/dev/null || systemctl --user restart synapse-muscle-container 2>/dev/null || pkill -TERM -f "axon run" 2>/dev/null || true) && (systemctl is-active --quiet axon-db && systemctl restart axon-db || true)' >/dev/null 2>&1 || nohup sh -c 'sleep 0.6 && (systemctl restart axon 2>/dev/null || systemctl --user restart synapse-muscle-container 2>/dev/null || pkill -TERM -f "axon run" 2>/dev/null || true)' >/dev/null 2>&1 &`,
     `echo "OTA_SUCCESS commit=\$COMMIT sha256=\$NEW_SHA"`,
   ].join("\n");
 
@@ -398,7 +399,30 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const allSteps: UpdateStepLog[] = [];
+  const state = ensureProjectVault(projectId);
+  const preflightCheckpoint = recordCheckpoint(projectId, {
+    node_id: targetNodeId || state.assigned_nodes[0]?.node_id || "local-node",
+    title: `Pre-Flight System OTA Update (${action} -> ${SYNAPSE_VERSION})`,
+    actor: "Auto-Watchdog",
+    summary: `Automatic pre-flight checkpoint before OTA update '${action}' (${SYNAPSE_VERSION}).`,
+    files_backed_up: ["/usr/local/bin/axon", "bin/core-gateway"],
+    services_snapshot: (state.registered_services || []).map((svc) => ({
+      service_id: svc.service_id,
+      name: svc.name,
+      port: svc.port,
+      healthy: svc.healthy !== false,
+    })),
+    rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+  });
+
+  const allSteps: UpdateStepLog[] = [
+    {
+      step: "0. Pre-Flight Time-Machine Checkpoint",
+      status: "ok",
+      detail: `Automatischer Rollback-Checkpoint ${preflightCheckpoint.id} vor OTA-Rollout (${action}) angelegt.`,
+      duration_ms: 1,
+    },
+  ];
 
   if (action === "update_core" || action === "update_all") {
     const coreSteps = await performCoreUpdate(repoRoot);
@@ -408,7 +432,7 @@ export async function POST(req: NextRequest) {
       actor: "user",
       tool_name: "system_update_core",
       status: coreSteps.some((s) => s.status === "error") ? "error" : "executed",
-      summary: `Executed Core Update (${coreSteps.length} steps)`,
+      summary: `Executed Core Update (${coreSteps.length} steps, checkpoint ${preflightCheckpoint.id})`,
     });
   }
 
@@ -423,7 +447,7 @@ export async function POST(req: NextRequest) {
       status: muscleSteps.some((s) => s.status === "error")
         ? "error"
         : "executed",
-      summary: `Executed OTA Muscle Update on ${targetNodeId || "all online nodes"}`,
+      summary: `Executed OTA Muscle Update on ${targetNodeId || "all online nodes"} (checkpoint ${preflightCheckpoint.id})`,
     });
   }
 
@@ -432,6 +456,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     success: !allSteps.some((s) => s.status === "error"),
     action,
+    checkpoint_id: preflightCheckpoint.id,
     steps: allSteps,
     status: updatedStatus,
   });

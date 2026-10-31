@@ -215,6 +215,7 @@ export default function SynapseNetBirdControlCenter() {
                   firewallBusy={c.firewallBusy}
                   firewallError={c.firewallError}
                   setFirewallError={c.setFirewallError}
+                  lastFirewallCheckpointId={c.lastFirewallCheckpointId}
                   fetchFirewallStatus={c.fetchFirewallStatus}
                   handleFirewallAction={c.handleFirewallAction}
                   fwRuleAction={c.fwRuleAction}
