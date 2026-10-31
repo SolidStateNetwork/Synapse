@@ -326,8 +326,8 @@ export function CanvasModalsAndToolbar({
                 <div>
                   <h3 className="text-sm font-semibold text-white">
                     {t(
-                      "1-Click Custom Service Builder (v0.5.0)",
-                      "1-Click Custom Service Builder (v0.5.0)"
+                      "1-Click Custom Service Builder (v0.8.0)",
+                      "1-Click Custom Service Builder (v0.8.0)"
                     )}
                   </h3>
                   <p className="text-[11px] text-nb-gray-400">

@@ -382,12 +382,17 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     const changelogMd = fs.readFileSync(path.join(repoRoot, "CHANGELOG.md"), "utf8");
     const installAxonSh = fs.readFileSync(path.join(repoRoot, "scripts/install-axon.sh"), "utf8");
     const deployCoreSh = fs.readFileSync(path.join(repoRoot, "scripts/deploy-core.sh"), "utf8");
+    const chromeTsx = fs.readFileSync(
+      path.join(repoRoot, "apps/core-web/src/components/layout/ControlCenterChrome.tsx"),
+      "utf8"
+    );
 
     assert.ok(gwMain.includes('"version":         "v0.8.0"'), "core-gateway /healthz must report v0.8.0");
     assert.ok(axonMain.includes('version = "v0.8.0"'), "axon main.go must default to v0.8.0");
     assert.equal(pkgJson.version, "0.8.0", "core-web package.json must report 0.8.0");
     assert.ok(securityMd.includes("0.8.x"), "SECURITY.md must list 0.8.x");
     assert.ok(changelogMd.includes("## [v0.8.0]"), "CHANGELOG.md must document v0.8.0");
+    assert.ok(chromeTsx.includes("v0.8.0") && !chromeTsx.includes("v0.5.0"), "ControlCenterChrome.tsx sidebar badge must report v0.8.0");
 
     assert.ok(installAxonSh.includes("download_url()"), "install-axon.sh must include curl/wget fallback");
     assert.ok(installAxonSh.includes("verify_sha256()"), "install-axon.sh must include SHA-256 verification");

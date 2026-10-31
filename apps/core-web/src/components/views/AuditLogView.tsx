@@ -106,8 +106,8 @@ const AuditLogView = React.memo(function AuditLogView({
             <div>
               <h3 className="text-xs font-semibold text-white">
                 {t(
-                  "Self-Healing & Incident Center (v0.7.0)",
-                  "Self-Healing & Incident Center (v0.7.0)"
+                  "Self-Healing & Incident Center (v0.8.0)",
+                  "Self-Healing & Incident Center (v0.8.0)"
                 )}
               </h3>
               <p className="text-[11px] text-nb-gray-400">

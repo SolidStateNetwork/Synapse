@@ -323,8 +323,8 @@ const AccessRulesView = React.memo(function AccessRulesView({
               <Clock className="h-4 w-4 text-emerald-400" />
               <span>
                 {t(
-                  "Geplante Cron-Jobs & Runbook-Manager (v0.7.0)",
-                  "Scheduled Cron & Automation Runbook Manager (v0.7.0)"
+                  "Geplante Cron-Jobs & Runbook-Manager (v0.8.0)",
+                  "Scheduled Cron & Automation Runbook Manager (v0.8.0)"
                 )}
               </span>
             </h2>

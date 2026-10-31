@@ -291,7 +291,7 @@ export function ControlCenterSidebar({
                 className="group flex min-w-0 items-center gap-1.5 text-left"
               >
                 <span className="whitespace-nowrap font-semibold text-nb-gray-100 group-hover:text-white">
-                  v0.5.0
+                  v0.8.0
                 </span>
                 <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-400">
                   {localShort}
