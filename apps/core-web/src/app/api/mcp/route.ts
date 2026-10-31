@@ -155,7 +155,13 @@ async function executeMcpTool(
       !args.custom_sql &&
       !args.insert_row) ||
     (toolName === "core_manage_cron_jobs" &&
-      (!args.action || args.action === "list"));
+      (!args.action || args.action === "list")) ||
+    (toolName === "core_manage_self_healing" &&
+      (!args.action || args.action === "inspect")) ||
+    (toolName === "core_probe_service_mesh" &&
+      (!args.action ||
+        args.action === "probe_service" ||
+        args.action === "probe_link"));
 
   if (!isReadOnlyTool && !canExecute) {
     return {

@@ -490,22 +490,8 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
       assert.equal(parseCronIntervalMinutes("invalid"), 15);
 
       saveCronJobs(projectId, [
-        {
-          id: "cron-ok-1",
-          name: "Health Check",
-          cron_expression: "*/5 * * * *",
-          node_id: "local-node",
-          command: "uptime",
-          enabled: true,
-        },
-        {
-          id: "cron-fail-1",
-          name: "Disk Forensic Audit",
-          cron_expression: "*/5 * * * *",
-          node_id: "local-node",
-          command: "fail-cron-cmd",
-          enabled: true,
-        },
+        { id: "cron-ok-1", name: "Health Check", cron_expression: "*/5 * * * *", node_id: "local-node", command: "uptime", enabled: true },
+        { id: "cron-fail-1", name: "Disk Forensic Audit", cron_expression: "*/5 * * * *", node_id: "local-node", command: "fail-cron-cmd", enabled: true },
       ]);
 
       const dueRes = await runDueCronJobsOnMuscle({ projectId, forceAll: true });
@@ -515,7 +501,6 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
       const alerts = loadAlertConfig(projectId).events;
       assert.ok(alerts.some((a) => a.severity === "CRITICAL" && a.title.includes("Disk Forensic Audit")));
 
-      // Verify /api/service-ops route actions for v0.6.0 & v0.7.0 MCP/Orchestrator tools
       for (const payload of [
         { action: "tail_service_logs", service_id: "web-app", port: 4012 },
         { action: "node_telemetry_history", node_id: "local-node" },
@@ -557,6 +542,14 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         { name: "core_manage_cron_jobs", arguments: { action: "save", id: "cron-mcp-1", name: "MCP Cron", command: "uptime" } },
         { name: "core_manage_cron_jobs", arguments: { action: "run_now", id: "cron-mcp-1" } },
         { name: "core_manage_cron_jobs", arguments: { action: "delete", id: "cron-mcp-1" } },
+        { name: "core_manage_self_healing", arguments: { action: "inspect" } },
+        { name: "core_manage_self_healing", arguments: { action: "configure", enabled: true, max_latency_ms: 1200, failure_threshold: 2, cooldown_seconds: 10 } },
+        { name: "core_manage_self_healing", arguments: { action: "heal_now", port: 4050, service_id: "web-app" } },
+        { name: "core_manage_self_healing", arguments: { action: "simulate_crash", port: 4050, service_id: "web-app" } },
+        { name: "core_probe_service_mesh", arguments: { action: "probe_service", port: 4050, service_id: "web-app" } },
+        { name: "core_probe_service_mesh", arguments: { action: "probe_link", from_port: 4050, to_port: 4012 } },
+        { name: "core_probe_service_mesh", arguments: { action: "deploy_custom_service", name: "MCP Custom Svc", port: 4096, category: "backend", runtime: "python_http" } },
+        { name: "core_probe_service_mesh", arguments: { action: "deploy_custom_service", name: "Bad Port", port: 80 } },
       ]) {
         const r = await mcpRoute.POST(
           makeReq("/api/mcp", "POST", { project_id: projectId, internal_ui_test: true, jsonrpc: "2.0", id: 99, method: "tools/call", params: toolCall })
@@ -582,6 +575,8 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         "hot-reload: 4050",
         "sqlite: studio",
         "cron-jobs: list",
+        "self-heal: 4050",
+        "probe-mesh: 4050",
       ]) {
         const wf = await runDeterministicAutonomousWorkflow(projectId, chatCmd, undefined, promptParts);
         assert.ok(wf.reply.length > 0);

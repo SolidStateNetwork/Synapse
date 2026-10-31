@@ -8,26 +8,10 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       parameters: {
         type: "object",
         properties: {
-          document: {
-            type: "string",
-            enum: ["Architecture.md", "Memory.md"],
-            description: "Target document in the Core project vault.",
-          },
-          mode: {
-            type: "string",
-            enum: ["replace_section", "append", "overwrite_full", "overwrite"],
-            description: "Type of update operation.",
-          },
-          section_header: {
-            type: "string",
-            description:
-              "Exact Markdown heading (required only when mode is replace_section).",
-          },
-          content: {
-            type: "string",
-            description:
-              "New Markdown content (including updated Mermaid graphs or remote file paths).",
-          },
+          document: { type: "string", enum: ["Architecture.md", "Memory.md"], description: "Target document in the Core project vault." },
+          mode: { type: "string", enum: ["replace_section", "append", "overwrite_full", "overwrite"], description: "Type of update operation." },
+          section_header: { type: "string", description: "Exact Markdown heading (required only when mode is replace_section)." },
+          content: { type: "string", description: "New Markdown content (including updated Mermaid graphs or remote file paths)." },
         },
         required: ["document", "mode", "content"],
       },
@@ -42,94 +26,44 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       parameters: {
         type: "object",
         properties: {
-          action: {
-            type: "string",
-            enum: ["upsert", "remove"],
-            default: "upsert",
-          },
-          service_id: {
-            type: "string",
-            description: "Unique slug, e.g. svc-api-backend",
-          },
-          node_id: {
-            type: "string",
-            description: "ID of the Connector where the service runs.",
-          },
+          action: { type: "string", enum: ["upsert", "remove"], default: "upsert" },
+          service_id: { type: "string", description: "Unique slug, e.g. svc-api-backend" },
+          node_id: { type: "string", description: "ID of the Connector where the service runs." },
           name: { type: "string" },
           category: {
             type: "string",
             enum: ["webui", "backend", "database", "worker"],
-            description:
-              "Component type so the Core UI renders an interactive WebUI, Backend API, or Database Explorer Box in Reverse-Proxy & Live-Preview.",
+            description: "Component type so the Core UI renders an interactive WebUI, Backend API, or Database Explorer Box in Reverse-Proxy & Live-Preview.",
           },
-          description: {
-            type: "string",
-            description:
-              "Plain-language explanation of what this component does and how the user can interact with it from the outside via Reverse Proxy.",
-          },
-          db_path: {
-            type: "string",
-            description:
-              "Optional SQLite file path or database target (e.g. /opt/axon/workspaces/<project>/app.db) for interactive SQL queries in the UI.",
-          },
+          description: { type: "string", description: "Plain-language explanation of what this component does and how the user can interact with it from the outside via Reverse Proxy." },
+          db_path: { type: "string", description: "Optional SQLite file path or database target (e.g. /opt/axon/workspaces/<project>/app.db) for interactive SQL queries in the UI." },
           endpoints: {
             type: "array",
-            description:
-              "Interactive clickable routes, API endpoints, or SQL queries with sample input payloads shown inside the Reverse-Proxy & Live-Preview Box.",
+            description: "Interactive clickable routes, API endpoints, or SQL queries with sample input payloads shown inside the Reverse-Proxy & Live-Preview Box.",
             items: {
               type: "object",
               properties: {
                 id: { type: "string" },
                 label: { type: "string" },
-                method: {
-                  type: "string",
-                  enum: ["GET", "POST", "PUT", "DELETE", "SQL"],
-                },
-                path: {
-                  type: "string",
-                  description: "HTTP path (e.g. /api/events) or SQL target.",
-                },
+                method: { type: "string", enum: ["GET", "POST", "PUT", "DELETE", "SQL"] },
+                path: { type: "string", description: "HTTP path (e.g. /api/events) or SQL target." },
                 description: { type: "string" },
-                sample_payload: {
-                  type: "string",
-                  description:
-                    "Editable default JSON payload (for POST/PUT) or SQL query (for SQL) pre-filled in the UI input box.",
-                },
+                sample_payload: { type: "string", description: "Editable default JSON payload (for POST/PUT) or SQL query (for SQL) pre-filled in the UI input box." },
               },
               required: ["label", "method", "path"],
             },
           },
-          runtime: {
-            type: "string",
-            enum: ["docker", "systemd", "pm2", "binary"],
-          },
-          unit_or_container: {
-            type: "string",
-            description: "Name of the Docker container or systemd unit.",
-          },
-          bind_address: {
-            type: "string",
-            description: "IP address, e.g. 127.0.0.1, 0.0.0.0, or VLAN IP.",
-          },
+          runtime: { type: "string", enum: ["docker", "systemd", "pm2", "binary"] },
+          unit_or_container: { type: "string", description: "Name of the Docker container or systemd unit." },
+          bind_address: { type: "string", description: "IP address, e.g. 127.0.0.1, 0.0.0.0, or VLAN IP." },
           port: { type: "integer" },
-          enable_preview_tunnel: {
-            type: "boolean",
-            description:
-              "When true, exposes the port through the Connector tunnel for the Live-Preview iframe in the Core WebUI.",
-          },
-          auto_heal: {
-            type: "boolean",
-            description:
-              "When true, the Proactive Auto-Watchdog automatically diagnoses and restarts this service if its health probe fails.",
-          },
+          enable_preview_tunnel: { type: "boolean", description: "When true, exposes the port through the Connector tunnel for the Live-Preview iframe in the Core WebUI." },
+          auto_heal: { type: "boolean", description: "When true, the Proactive Auto-Watchdog automatically diagnoses and restarts this service if its health probe fails." },
           health_check: {
             type: "object",
             properties: {
               type: { type: "string", enum: ["HTTP", "TCP", "EXEC"] },
-              target: {
-                type: "string",
-                description: "URL, IP:Port, or shell command on the node.",
-              },
+              target: { type: "string", description: "URL, IP:Port, or shell command on the node." },
               interval_sec: { type: "integer", default: 15 },
             },
             required: ["type", "target"],
@@ -148,23 +82,10 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       parameters: {
         type: "object",
         properties: {
-          action: {
-            type: "string",
-            enum: ["generate_random", "set_value", "set", "delete", "list"],
-          },
-          key: {
-            type: "string",
-            description: "Env-compliant name, e.g. DB_ROOT_PASSWORD",
-          },
-          value: {
-            type: "string",
-            description: "Required only when action is set_value.",
-          },
-          length: {
-            type: "integer",
-            default: 32,
-            description: "Character length when action is generate_random.",
-          },
+          action: { type: "string", enum: ["generate_random", "set_value", "set", "delete", "list"] },
+          key: { type: "string", description: "Env-compliant name, e.g. DB_ROOT_PASSWORD" },
+          value: { type: "string", description: "Required only when action is set_value." },
+          length: { type: "integer", default: 32, description: "Character length when action is generate_random." },
         },
         required: ["action", "key"],
       },
@@ -179,38 +100,12 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       parameters: {
         type: "object",
         properties: {
-          node_id: {
-            type: "string",
-            description: "Target Connector ID from State.json.",
-          },
-          session_id: {
-            type: "string",
-            description:
-              "Name of the PTY session (created automatically if it does not exist), e.g. 'default' or 'db-setup'.",
-          },
-          command: {
-            type: "string",
-            description: "Bash command to execute.",
-          },
-          inject_secret_keys: {
-            type: "array",
-            items: { type: "string" },
-            description:
-              "List of secret keys from the Core Vault to inject as environment variables into the shell before execution.",
-          },
-          wait_timeout_ms: {
-            type: "integer",
-            default: 30000,
-            description:
-              "Max wait time for completion. For background daemons/dev servers, returns partial output after timeout while process keeps running.",
-          },
-          send_signal: {
-            type: "string",
-            enum: ["NONE", "SIGINT", "SIGTERM", "SIGKILL"],
-            default: "NONE",
-            description:
-              "Optional signal sent to the foreground process of the session (e.g. SIGINT for Ctrl+C).",
-          },
+          node_id: { type: "string", description: "Target Connector ID from State.json." },
+          session_id: { type: "string", description: "Name of the PTY session (created automatically if it does not exist), e.g. 'default' or 'db-setup'." },
+          command: { type: "string", description: "Bash command to execute." },
+          inject_secret_keys: { type: "array", items: { type: "string" }, description: "List of secret keys from the Core Vault to inject as environment variables into the shell before execution." },
+          wait_timeout_ms: { type: "integer", default: 30000, description: "Max wait time for completion. For background daemons/dev servers, returns partial output after timeout while process keeps running." },
+          send_signal: { type: "string", enum: ["NONE", "SIGINT", "SIGTERM", "SIGKILL"], default: "NONE", description: "Optional signal sent to the foreground process of the session (e.g. SIGINT for Ctrl+C)." },
         },
         required: ["node_id", "session_id", "command"],
       },
@@ -550,6 +445,57 @@ export const SYNAPSE_TOOL_SCHEMAS = [
           cron_expression: { type: "string", description: "5-field cron schedule (e.g. */15 * * * *)." },
           command: { type: "string", description: "Bash command when action is save." },
           enabled: { type: "boolean", description: "Whether the Cron-Runbook is enabled." },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_manage_self_healing",
+      description:
+        "Manages Autonomous Self-Healing & Chaos-Resilience policies and triggers immediate service recovery or MTTR crash simulation on a Muscle node.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["inspect", "configure", "heal_now", "simulate_crash"], description: "Self-healing action." },
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          service_id: { type: "string", description: "Service ID to heal or simulate crash." },
+          service_name: { type: "string", description: "Optional display name." },
+          port: { type: "integer", description: "Service port number." },
+          container_name: { type: "string", description: "Optional Docker container name." },
+          enabled: { type: "boolean", description: "Enable or disable autonomous self-healing." },
+          max_latency_ms: { type: "integer", description: "Max allowed latency before self-heal." },
+          failure_threshold: { type: "integer", description: "Consecutive failures before self-heal." },
+          cooldown_seconds: { type: "integer", description: "Cooldown seconds between self-heals." },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_probe_service_mesh",
+      description:
+        "Probes live service HTTP/TCP health, measures Service-Mesh link latency between two ports, or deploys a custom microservice (python_http, static_webui, sqlite_rest) on a Muscle node.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["probe_service", "probe_link", "deploy_custom_service"], description: "Service mesh action." },
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          service_id: { type: "string", description: "Service ID for probe_service." },
+          port: { type: "integer", description: "Port for probe_service or deploy_custom_service." },
+          from_service_id: { type: "string", description: "Source service ID for probe_link." },
+          to_service_id: { type: "string", description: "Target service ID for probe_link." },
+          from_port: { type: "integer", description: "Source port for probe_link." },
+          to_port: { type: "integer", description: "Target port for probe_link." },
+          protocol: { type: "string", description: "Protocol label for probe_link." },
+          name: { type: "string", description: "Microservice display name for deploy_custom_service." },
+          category: { type: "string", enum: ["webui", "backend", "database"], description: "Microservice category." },
+          runtime: { type: "string", enum: ["python_http", "static_webui", "sqlite_rest"], description: "Microservice runtime template." },
+          description: { type: "string", description: "Optional service description." },
         },
         required: ["action"],
       },

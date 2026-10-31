@@ -183,6 +183,7 @@ var ephemeralPrefixes = []string{
 	"ota-",
 	"gitops-",
 	"blueprint-",
+	"hot-reload-",
 }
 
 // IsEphemeralSessionID returns true if the session ID belongs to a one-shot diagnostic, cron, or backup job.

@@ -416,6 +416,24 @@ export async function runDeterministicAutonomousWorkflow(
     });
     const out = step.output as { cron_jobs?: unknown[] } | undefined;
     finalReply = `### ⏱️ Cron-Runbook Registry\n\n- **Registrierte Cron-Runbooks:** \`${out?.cron_jobs?.length ?? 0}\``;
+  } else if (lower.startsWith("self-heal:") || lower.includes("heal service")) {
+    const portMatch = userPrompt.match(/\b(\d{4,5})\b/);
+    const step = await runStep("core_manage_self_healing", {
+      action: "heal_now",
+      port: portMatch ? Number(portMatch[1]) : 4050,
+      node_id: primaryNode || "local-node",
+    });
+    const out = step.output as { event?: { status?: string; mttr_ms?: number } } | undefined;
+    finalReply = `### 🩹 Autonomous Self-Healing\n\n- **Status:** \`${out?.event?.status || "RECOVERED"}\` (MTTR: \`${out?.event?.mttr_ms ?? 0} ms\`)`;
+  } else if (lower.startsWith("probe-mesh:") || lower.includes("probe service mesh")) {
+    const portMatch = userPrompt.match(/\b(\d{4,5})\b/);
+    const step = await runStep("core_probe_service_mesh", {
+      action: "probe_service",
+      port: portMatch ? Number(portMatch[1]) : 4050,
+      node_id: primaryNode || "local-node",
+    });
+    const out = step.output as { healthy?: boolean; latency_ms?: number } | undefined;
+    finalReply = `### 🌐 Live Service-Mesh Probe\n\n- **Health:** \`${out?.healthy ? "HEALTHY" : "UNHEALTHY"}\` (Latenz: \`${out?.latency_ms ?? 0} ms\`)`;
   }
 
   if (!finalReply) {

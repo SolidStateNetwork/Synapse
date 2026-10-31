@@ -2,6 +2,18 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v1.4.0] — 2026-10-31 (Self-Healing & Service-Mesh AI/MCP Parity, Ephemeral Hot-Reload PTY-GC & Studio Checkpoint-Badge)
+
+### Added & Improved
+- **AI-Orchestrator & MCP Self-Healing & Service-Mesh Tools (`resilienceAndMeshTools.ts`, `toolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp`)**:
+  - Added `core_manage_self_healing` (`inspect`, `configure`, `heal_now`, `simulate_crash`) and `core_probe_service_mesh` (`probe_service`, `probe_link`, `deploy_custom_service`) so the AI Copilot and external MCP Clients can manage Self-Healing policies, trigger immediate service recovery/chaos tests, probe service-mesh links, and deploy custom microservices.
+- **Ephemeral `hot-reload-*` PTY Garbage Collection in Axon (`pty_discovery.go`, `pty_test.go`)**:
+  - Added `hot-reload-*` to `IsEphemeralSessionID` in `agents/axon/internal/pty/pty_discovery.go` so one-shot Live-Code Hot-Reload sessions are automatically reaped upon completion.
+- **Pre-Flight Checkpoint-ID Badge in Live-Code Hot-Reload Studio UI (`ReverseProxyCodeAndSqliteStudios.tsx`)**:
+  - The Live-Code Hot-Reload status notice now displays both the pre-write file `snapshot_id` and the Pre-Flight Time-Machine `checkpoint_id` upon Save & Hot-Reload.
+
+---
+
 ## [v1.3.0] — 2026-10-31 (Studio-DevOps AI/MCP Parity, Pre-Flight Hot-Reload Time-Machine Checkpoints & 1-Click SecOps Quick-Audit)
 
 ### Added & Improved

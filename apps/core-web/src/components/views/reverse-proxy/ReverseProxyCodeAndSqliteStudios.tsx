@@ -290,18 +290,19 @@ export function ReverseProxyCodeAndSqliteStudios({
                   });
                   const d = await r.json();
                   if (d.ok) {
+                    const cpBadge = d.checkpoint_id ? ` · Checkpoint ${d.checkpoint_id}` : "";
                     if (d.healthy === false || d.http_status >= 500) {
                       setCodeNotice(
                         t(
-                          `⚠️ Syntax-/Start-Fehler erkannt — Automatischer Rollback auf letzte stabile Version aktiv (Snapshot ${d.snapshot_id})!`,
-                          `⚠️ Syntax/startup error detected — automatic rollback to last stable version active (Snapshot ${d.snapshot_id})!`
+                          `⚠️ Syntax-/Start-Fehler erkannt — Automatischer Rollback auf letzte stabile Version aktiv (Snapshot ${d.snapshot_id}${cpBadge})!`,
+                          `⚠️ Syntax/startup error detected — automatic rollback to last stable version active (Snapshot ${d.snapshot_id}${cpBadge})!`
                         )
                       );
                     } else {
                       setCodeNotice(
                         t(
-                          `🔥 Hot-Reload auf :${d.port} in ${d.elapsed_ms} ms aktiv (Snapshot ${d.snapshot_id}, HTTP ${d.http_status})!`,
-                          `🔥 Hot-Reload active on :${d.port} in ${d.elapsed_ms} ms (Snapshot ${d.snapshot_id}, HTTP ${d.http_status})!`
+                          `🔥 Hot-Reload auf :${d.port} in ${d.elapsed_ms} ms aktiv (Snapshot ${d.snapshot_id}${cpBadge}, HTTP ${d.http_status})!`,
+                          `🔥 Hot-Reload active on :${d.port} in ${d.elapsed_ms} ms (Snapshot ${d.snapshot_id}${cpBadge}, HTTP ${d.http_status})!`
                         )
                       );
                     }
