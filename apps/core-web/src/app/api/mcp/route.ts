@@ -176,6 +176,10 @@ async function executeMcpTool(
         args.action === "audit_trail")) ||
     (toolName === "core_run_platform_self_test" &&
       (!args.action || args.action === "self_test")) ||
+    (toolName === "core_manage_playbooks" &&
+      (!args.action || args.action === "list")) ||
+    (toolName === "core_manage_approvals" &&
+      (!args.action || args.action === "list")) ||
     toolName === "core_system_ota_status";
 
   if (!isReadOnlyTool && !canExecute) {

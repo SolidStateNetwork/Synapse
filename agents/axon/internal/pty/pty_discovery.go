@@ -185,6 +185,10 @@ var ephemeralPrefixes = []string{
 	"blueprint-",
 	"hot-reload-",
 	"fw-",
+	"svc-cleanup-",
+	"sys-update-",
+	"mesh-",
+	"custom-svc-",
 }
 
 // IsEphemeralSessionID returns true if the session ID belongs to a one-shot diagnostic, cron, or backup job.

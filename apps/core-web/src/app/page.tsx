@@ -355,6 +355,7 @@ export default function SynapseNetBirdControlCenter() {
                   fetchSystemUpdateStatus={c.fetchSystemUpdateStatus}
                   systemUpdateBusy={c.systemUpdateBusy}
                   systemUpdateActionLabel={c.systemUpdateActionLabel}
+                  lastSystemUpdateCheckpointId={c.lastSystemUpdateCheckpointId}
                   systemUpdateStatus={c.systemUpdateStatus}
                   systemUpdateSteps={c.systemUpdateSteps}
                   setSystemUpdateSteps={c.setSystemUpdateSteps}

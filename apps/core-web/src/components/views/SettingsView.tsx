@@ -137,6 +137,7 @@ export interface SettingsViewProps {
   fetchSystemUpdateStatus: (silent?: boolean, force?: boolean) => void;
   systemUpdateBusy: boolean;
   systemUpdateActionLabel: string;
+  lastSystemUpdateCheckpointId?: string;
   systemUpdateStatus: SystemUpdateStatusSnapshot | null;
   systemUpdateSteps: SystemUpdateStepEntry[];
   setSystemUpdateSteps: React.Dispatch<

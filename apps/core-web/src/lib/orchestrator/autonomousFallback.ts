@@ -466,6 +466,14 @@ export async function runDeterministicAutonomousWorkflow(
     const step = await runStep("core_run_platform_self_test", { action: "self_test" });
     const out = step.output as { passed_count?: number; total_checks?: number } | undefined;
     finalReply = `### 🧪 Full-Platform Self-Test\n\n- **Checks bestanden:** \`${out?.passed_count ?? 0} / ${out?.total_checks ?? 0}\``;
+  } else if (lower.startsWith("playbooks:") || lower.includes("list playbooks")) {
+    const step = await runStep("core_manage_playbooks", { action: "list" });
+    const out = step.output as { playbooks?: unknown[] } | undefined;
+    finalReply = `### 📅 Scheduled AI Playbooks\n\n- **Aktive Playbooks:** \`${out?.playbooks?.length ?? 0}\``;
+  } else if (lower.startsWith("approvals:") || lower.includes("list approvals")) {
+    const step = await runStep("core_manage_approvals", { action: "list" });
+    const out = step.output as { pending_approvals?: unknown[] } | undefined;
+    finalReply = `### ✅ Supervised Tool Approvals\n\n- **Ausstehende Freigaben:** \`${out?.pending_approvals?.length ?? 0}\``;
   }
 
   if (!finalReply) {

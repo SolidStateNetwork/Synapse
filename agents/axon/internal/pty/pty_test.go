@@ -167,7 +167,7 @@ func TestPersistentPtySentinelAndState(t *testing.T) {
 	}
 
 	// 5. Test Ephemeral Session Auto-Reaping & PruneClosedAndExcessSessions
-	if !IsEphemeralSessionID("offsite-bkp-12345") || !IsEphemeralSessionID("ota-updater") || !IsEphemeralSessionID("gitops-stack-1") || !IsEphemeralSessionID("blueprint-ops") || !IsEphemeralSessionID("hot-reload-proj-4050") || !IsEphemeralSessionID("fw-v1-default") || IsEphemeralSessionID("default-demo-proj") {
+	if !IsEphemeralSessionID("offsite-bkp-12345") || !IsEphemeralSessionID("ota-updater") || !IsEphemeralSessionID("gitops-stack-1") || !IsEphemeralSessionID("blueprint-ops") || !IsEphemeralSessionID("hot-reload-proj-4050") || !IsEphemeralSessionID("fw-v1-default") || !IsEphemeralSessionID("svc-cleanup-default") || !IsEphemeralSessionID("sys-update-check") || !IsEphemeralSessionID("mesh-default") || !IsEphemeralSessionID("custom-svc-4090") || IsEphemeralSessionID("default-demo-proj") {
 		t.Fatalf("unexpected IsEphemeralSessionID classification")
 	}
 

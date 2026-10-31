@@ -2,6 +2,18 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v1.8.0] — 2026-11-01 (Playbooks, Custom Cartridges & Approvals AI/MCP Parity, Complete Ephemeral PTY GC & Blueprint/OTA Checkpoint Badges)
+
+### Added & Improved
+- **AI-Orchestrator & MCP Playbook, Custom Cartridge & Approval Tools (`playbookAndApprovalTools.ts`, `extendedToolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp`)**:
+  - Added `core_manage_playbooks` (`list`, `upsert`, `delete`, `create_custom_cartridge`, `delete_custom_cartridge`) and `core_manage_approvals` (`list`, `approve`, `reject`) so the AI Copilot and external MCP Clients have 100% full-stack control over scheduled AI Playbooks, custom Rule Cartridges, and `TIER_3_SUPERVISED` approval requests.
+- **Complete Ephemeral PTY Garbage Collection in Axon (`pty_discovery.go`, `pty_test.go`)**:
+  - Added `svc-cleanup-`, `sys-update-`, `mesh-`, and `custom-svc-` to `IsEphemeralSessionID` in `agents/axon/internal/pty/pty_discovery.go` so all one-shot PTY sessions across service teardown, system-update checks, mesh relays, and custom service builders are automatically reaped upon completion.
+- **Pre-Flight Checkpoint-ID Badges in Blueprint & System-Update UI (`useCanvasOpsController.ts`, `useSystemAndInfraActions.ts`, `SystemUpdateAndDebugTabs.tsx`, `SettingsView.tsx`, `page.tsx`)**:
+  - Blueprint deploy/undeploy notices and the System-Update (OTA) header now display the Pre-Flight Time-Machine `checkpoint_id` created prior to rollout.
+
+---
+
 ## [v1.7.0] — 2026-11-01 (Project & Diagnostics AI/MCP Parity, Container-Native OTA Updates with Pre-Flight Checkpoints & Firewall Checkpoint Badge)
 
 ### Added & Improved

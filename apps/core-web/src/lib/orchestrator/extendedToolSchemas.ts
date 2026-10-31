@@ -245,4 +245,43 @@ export const EXTENDED_SYNAPSE_TOOL_SCHEMAS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "core_manage_playbooks",
+      description: "Manages scheduled AI Playbooks (list, upsert, delete) and custom AI Rule Cartridges (create_custom_cartridge, delete_custom_cartridge) in the active project.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list", "upsert", "delete", "create_custom_cartridge", "delete_custom_cartridge"], description: "Playbook or custom cartridge action." },
+          playbook_id: { type: "string", description: "Playbook ID for upsert or delete." },
+          name: { type: "string", description: "Playbook or custom cartridge title." },
+          cron_expression: { type: "string", description: "5-field cron schedule for upsert (default 0 3 * * *)." },
+          prompt: { type: "string", description: "Autonomous AI prompt for upsert." },
+          target_node_id: { type: "string", description: "Optional target Muscle Peer ID for upsert." },
+          enabled: { type: "boolean", description: "Whether the scheduled playbook is enabled." },
+          cartridge_id: { type: "string", description: "Custom cartridge ID for delete_custom_cartridge." },
+          category: { type: "string", description: "Category for create_custom_cartridge." },
+          description: { type: "string", description: "Description for create_custom_cartridge." },
+          content: { type: "string", description: "Markdown rule content for create_custom_cartridge." },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_manage_approvals",
+      description: "Lists pending TIER_3_SUPERVISED tool approvals or approves/rejects a pending approval request.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list", "approve", "reject"], description: "Approval action (list, approve, or reject)." },
+          approval_id: { type: "string", description: "Approval ID when action is approve or reject." },
+        },
+        required: ["action"],
+      },
+    },
+  },
 ];

@@ -456,6 +456,13 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
       }
       assert.equal((await deleteGitStackOnMuscle({ projectId, stackId: "missing-stack" })).ok, false);
 
+      await withProjectStateTransaction(projectId, (draft) => {
+        draft.pending_approvals.push(
+          { approval_id: "appr-mcp-1", tool_name: "core_vault_search", node_id: "local-node", arguments: { query: "test" }, created_at: new Date().toISOString(), status: "pending" },
+          { approval_id: "appr-mcp-2", tool_name: "core_vault_search", node_id: "local-node", arguments: { query: "test" }, created_at: new Date().toISOString(), status: "pending" }
+        );
+      });
+
       for (const toolCall of [
         { name: "core_deploy_git_stack", arguments: { name: "MCP Stack", repo_url: "https://github.com/example/mcp.git", port: 4087 } },
         { name: "core_tail_service_logs", arguments: { service_id: "web-app", port: 4012, lines: 50 } },
@@ -523,6 +530,15 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         { name: "core_manage_projects", arguments: { action: "audit_trail", limit: 10 } },
         { name: "core_run_platform_self_test", arguments: { action: "self_test" } },
         { name: "core_run_platform_self_test", arguments: { action: "toggle_debug", enabled: true } },
+        { name: "core_manage_playbooks", arguments: { action: "list" } },
+        { name: "core_manage_playbooks", arguments: { action: "upsert", playbook_id: "pb-mcp-1", name: "Nightly Audit", cron_expression: "0 2 * * *", prompt: "Check system" } },
+        { name: "core_manage_playbooks", arguments: { action: "delete", playbook_id: "pb-mcp-1" } },
+        { name: "core_manage_playbooks", arguments: { action: "create_custom_cartridge", name: "MCP Custom Rule", content: "# Rule\n" } },
+        { name: "core_manage_playbooks", arguments: { action: "delete_custom_cartridge", cartridge_id: "custom-mcp-custom-rule" } },
+        { name: "core_manage_approvals", arguments: { action: "list" } },
+        { name: "core_manage_approvals", arguments: { action: "approve", approval_id: "appr-mcp-1" } },
+        { name: "core_manage_approvals", arguments: { action: "reject", approval_id: "appr-mcp-2" } },
+        { name: "core_manage_approvals", arguments: { action: "approve", approval_id: "appr-missing" } },
       ]) {
         const r = await mcpRoute.POST(
           makeReq("/api/mcp", "POST", { project_id: projectId, internal_ui_test: true, jsonrpc: "2.0", id: 99, method: "tools/call", params: toolCall })
@@ -536,28 +552,11 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
 
       const promptParts = { staticPrefix: "System", dynamicSuffix: "Suffix", fullPrompt: "System\nSuffix" };
       for (const chatCmd of [
-        "gitops: https://github.com/example/auto.git 4088",
-        "delete git stack gitops-auto-4088",
-        "telemetry history",
-        "logs: 4088",
-        "cron-due",
-        "backup: pre-flight",
-        "checkpoint: pre-flight",
-        "alerts: evaluate",
-        "intrusion: scan ssh",
-        "hot-reload: 4050",
-        "sqlite: studio",
-        "cron-jobs: list",
-        "self-heal: 4050",
-        "probe-mesh: 4050",
-        "blueprint: list",
-        "domain-tls: list",
-        "ota-status: check",
-        "firewall: inspect",
-        "cartridges: list",
-        "cluster-nodes: list",
-        "projects: list",
-        "self-test: run",
+        "gitops: https://github.com/example/auto.git 4088", "delete git stack gitops-auto-4088", "telemetry history", "logs: 4088",
+        "cron-due", "backup: pre-flight", "checkpoint: pre-flight", "alerts: evaluate", "intrusion: scan ssh", "hot-reload: 4050",
+        "sqlite: studio", "cron-jobs: list", "self-heal: 4050", "probe-mesh: 4050", "blueprint: list", "domain-tls: list",
+        "ota-status: check", "firewall: inspect", "cartridges: list", "cluster-nodes: list", "projects: list", "self-test: run",
+        "playbooks: list", "approvals: list",
       ]) {
         const wf = await runDeterministicAutonomousWorkflow(projectId, chatCmd, undefined, promptParts);
         assert.ok(wf.reply.length > 0);

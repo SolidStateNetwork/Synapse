@@ -95,16 +95,11 @@ export function useSystemAndInfraActions({
 
   const [systemUpdateBusy, setSystemUpdateBusy] = useState(false);
   const [systemUpdateActionLabel, setSystemUpdateActionLabel] = useState("");
+  const [lastSystemUpdateCheckpointId, setLastSystemUpdateCheckpointId] = useState("");
   const [showReleaseNotes, setShowReleaseNotes] = useState(false);
-  const [systemUpdateStatus, setSystemUpdateStatus] =
-    useState<SystemUpdateStatusData | null>(null);
+  const [systemUpdateStatus, setSystemUpdateStatus] = useState<SystemUpdateStatusData | null>(null);
   const [systemUpdateSteps, setSystemUpdateSteps] = useState<
-    Array<{
-      step: string;
-      status: "ok" | "warn" | "error";
-      detail: string;
-      duration_ms: number;
-    }>
+    Array<{ step: string; status: "ok" | "warn" | "error"; detail: string; duration_ms: number }>
   >([]);
 
   const [debugModeEnabled, setDebugModeEnabled] = useState(false);
@@ -543,6 +538,7 @@ export function useSystemAndInfraActions({
       });
       const data = await res.json();
       if (data.status) setSystemUpdateStatus(data.status);
+      if (data.checkpoint_id) setLastSystemUpdateCheckpointId(String(data.checkpoint_id));
       if (Array.isArray(data.steps)) setSystemUpdateSteps(data.steps);
       showToast(
         data.success
@@ -569,7 +565,7 @@ export function useSystemAndInfraActions({
   }
 
   return {
-    systemUpdateBusy, systemUpdateActionLabel, showReleaseNotes, setShowReleaseNotes,
+    systemUpdateBusy, systemUpdateActionLabel, lastSystemUpdateCheckpointId, showReleaseNotes, setShowReleaseNotes,
     systemUpdateStatus, setSystemUpdateStatus, systemUpdateSteps, setSystemUpdateSteps,
     fetchSystemUpdateStatus, handleRunSystemUpdate, debugModeEnabled, debugSnapshot,
     selfTestChecks, runningSelfTest, fetchDebugSnapshot, handleToggleDebugMode, handleRunSelfTest,

@@ -18,6 +18,7 @@ import { safeFetchJson } from "../safeFetch";
 import { dispatchBlueprintDomainAndOtaTool } from "./blueprintDomainAndOtaTools";
 import { dispatchDisasterRecoveryTool } from "./disasterRecoveryTools";
 import { dispatchFirewallCartridgeAndClusterTool } from "./firewallCartridgeAndClusterTools";
+import { dispatchPlaybookAndApprovalTool } from "./playbookAndApprovalTools";
 import { dispatchProjectAndDiagnosticTool } from "./projectAndDiagnosticTools";
 import { dispatchResilienceAndMeshTool } from "./resilienceAndMeshTools";
 import { dispatchSecopsAndWatchdogTool } from "./secopsAndWatchdogTools";
@@ -572,6 +573,7 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
     (await dispatchResilienceAndMeshTool(projectId, state, toolName, args)) ??
     (await dispatchBlueprintDomainAndOtaTool(projectId, state, toolName, args)) ??
     (await dispatchFirewallCartridgeAndClusterTool(coreGatewayUrl, projectId, state, toolName, args)) ??
-    (await dispatchProjectAndDiagnosticTool(coreGatewayUrl, projectId, state, toolName, args))
+    (await dispatchProjectAndDiagnosticTool(coreGatewayUrl, projectId, state, toolName, args)) ??
+    (await dispatchPlaybookAndApprovalTool(projectId, state, toolName, args))
   );
 }

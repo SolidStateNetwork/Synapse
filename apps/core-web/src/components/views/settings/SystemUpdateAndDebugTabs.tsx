@@ -20,6 +20,7 @@ import type {
 export interface SystemUpdateTabProps {
   systemUpdateBusy: boolean;
   systemUpdateActionLabel: string;
+  lastSystemUpdateCheckpointId?: string;
   systemUpdateStatus: SystemUpdateStatusSnapshot | null;
   systemUpdateSteps: SystemUpdateStepEntry[];
   setSystemUpdateSteps: React.Dispatch<
@@ -36,6 +37,7 @@ export interface SystemUpdateTabProps {
 export function SystemUpdateTab({
   systemUpdateBusy,
   systemUpdateActionLabel,
+  lastSystemUpdateCheckpointId,
   systemUpdateStatus,
   systemUpdateSteps,
   setSystemUpdateSteps,
@@ -80,7 +82,12 @@ export function SystemUpdateTab({
               const anyUpdate =
                 systemUpdateStatus.git.update_available || outdatedCount > 0;
               return (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {lastSystemUpdateCheckpointId && (
+                    <span className="rounded-full border border-emerald-500/40 bg-emerald-950/60 px-3 py-1 font-mono text-[11px] font-semibold text-emerald-300">
+                      Pre-Flight Checkpoint: {lastSystemUpdateCheckpointId}
+                    </span>
+                  )}
                   <span
                     className={`rounded-full border px-3 py-1 font-mono text-[11px] font-semibold ${
                       anyUpdate

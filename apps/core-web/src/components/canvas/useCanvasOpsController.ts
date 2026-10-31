@@ -130,57 +130,18 @@ export function useCanvasOpsController({
   }, [allServices]);
 
   useEffect(() => {
-    safeFetchJson("/api/auth")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d && typeof d.enabled === "boolean") {
-          setAuthEnabled(d.enabled);
-        }
-      })
-      .catch(() => {});
-    safeFetchJson("/api/checkpoints")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d && Array.isArray(d.checkpoints)) {
-          setCheckpoints(d.checkpoints);
-        }
-      })
-      .catch(() => {});
-    safeFetchJson("/api/alerts")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d && d.config) {
-          setAlertConfig(d.config);
-        }
-      })
-      .catch(() => {});
-    safeFetchJson("/api/blueprints")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d && Array.isArray(d.blueprints)) {
-          setBlueprints(d.blueprints);
-        }
-      })
-      .catch(() => {});
-    safeFetchJson("/api/backups")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d && Array.isArray(d.backups)) {
-          setOffsiteBackups(d.backups);
-        }
-      })
-      .catch(() => {});
+    safeFetchJson("/api/auth").then((r) => r.json()).then((d) => { if (d && typeof d.enabled === "boolean") setAuthEnabled(d.enabled); }).catch(() => {});
+    safeFetchJson("/api/checkpoints").then((r) => r.json()).then((d) => { if (d && Array.isArray(d.checkpoints)) setCheckpoints(d.checkpoints); }).catch(() => {});
+    safeFetchJson("/api/alerts").then((r) => r.json()).then((d) => { if (d && d.config) setAlertConfig(d.config); }).catch(() => {});
+    safeFetchJson("/api/blueprints").then((r) => r.json()).then((d) => { if (d && Array.isArray(d.blueprints)) setBlueprints(d.blueprints); }).catch(() => {});
+    safeFetchJson("/api/backups").then((r) => r.json()).then((d) => { if (d && Array.isArray(d.backups)) setOffsiteBackups(d.backups); }).catch(() => {});
     safeFetchJson("/api/service-ops")
       .then((r) => r.json())
       .then((d) => {
         if (d && d.domains) {
           setDomainBindings(d.domains);
-          if (d.self_healing && Array.isArray(d.self_healing.events)) {
-            setSelfHealingEvents(d.self_healing.events);
-          }
-          if (Array.isArray(d.service_links) && d.service_links.length > 0) {
-            setServiceLinks(d.service_links);
-          }
+          if (d.self_healing && Array.isArray(d.self_healing.events)) setSelfHealingEvents(d.self_healing.events);
+          if (Array.isArray(d.service_links) && d.service_links.length > 0) setServiceLinks(d.service_links);
         }
       })
       .catch(() => {});
@@ -204,10 +165,11 @@ export function useCanvasOpsController({
       });
       const data = await res.json();
       if (data.ok) {
+        const chkSuffix = data.checkpoint_id ? ` [Pre-Flight Checkpoint: ${data.checkpoint_id}]` : "";
         setBlueprintNotice(
-          action === "deploy"
+          (action === "deploy"
             ? t(`🚀 ${bp.name} bereitgestellt!`, `🚀 ${bp.name} deployed!`)
-            : t(`⏹ ${bp.name} gestoppt`, `⏹ ${bp.name} stopped`)
+            : t(`⏹ ${bp.name} gestoppt`, `⏹ ${bp.name} stopped`)) + chkSuffix
         );
       } else {
         setBlueprintNotice(data.error || "Blueprint error");
@@ -216,7 +178,7 @@ export function useCanvasOpsController({
       setBlueprintNotice(t("Blueprint-Fehler", "Blueprint error"));
     } finally {
       setBlueprintBusyId(null);
-      setTimeout(() => setBlueprintNotice(null), 4000);
+      setTimeout(() => setBlueprintNotice(null), 5000);
     }
   };
 
