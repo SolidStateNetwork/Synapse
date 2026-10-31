@@ -4,6 +4,7 @@ import React from "react";
 import { Code2, Database, ExternalLink, Globe, Zap } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { safeFetchJson } from "@/lib/safeFetch";
+import { SYNAPSE_VERSION } from "@/lib/version";
 import type { ProjectState, RegisteredServiceItem } from "@/types/synapse";
 
 export interface ReverseProxyCodeAndSqliteStudiosProps {
@@ -157,8 +158,8 @@ export function ReverseProxyCodeAndSqliteStudios({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-nb-gray-800/80 bg-nb-gray-950/60 px-5 py-2 text-xs">
         <span className="font-mono text-[10.5px] text-nb-gray-400">
           {t(
-            "v0.8.0 Developer Workbench · API-Tester, Live Code Hot-Reload & Interactive SQLite Data Studio",
-            "v0.8.0 Developer Workbench · API Tester, Live Code Hot-Reload & Interactive SQLite Data Studio"
+            `${SYNAPSE_VERSION} Developer Workbench · API-Tester, Live Code Hot-Reload & Interactive SQLite Data Studio`,
+            `${SYNAPSE_VERSION} Developer Workbench · API Tester, Live Code Hot-Reload & Interactive SQLite Data Studio`
           )}
         </span>
         <div className="flex items-center gap-1.5">
@@ -348,8 +349,8 @@ export function ReverseProxyCodeAndSqliteStudios({
               <Database className="h-4 w-4 text-sky-400" />
               <span className="font-semibold text-white">
                 {t(
-                  "Interactive SQLite Data Studio (v0.8.0)",
-                  "Interactive SQLite Data Studio (v0.8.0)"
+                  `Interactive SQLite Data Studio (${SYNAPSE_VERSION})`,
+                  `Interactive SQLite Data Studio (${SYNAPSE_VERSION})`
                 )}
               </span>
               <span className="rounded border border-sky-500/40 bg-sky-950/70 px-2 py-0.5 font-mono text-[10px] text-sky-300">

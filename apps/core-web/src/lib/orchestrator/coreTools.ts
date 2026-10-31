@@ -14,8 +14,8 @@ import {
   buildDefaultServiceEndpoints,
   pushNodeHealthTargets,
 } from "./servicePresets";
-import { deployGitStackOnMuscle } from "../projects/gitopsDeployer";
-import { tailServiceLogs } from "../self-healing";
+import { deleteGitStackOnMuscle, deployGitStackOnMuscle } from "../projects/gitopsDeployer";
+import { fetchNodeTelemetryHistory, tailServiceLogs } from "../self-healing";
 import { runDueCronJobsOnMuscle } from "../v070-studio";
 import { safeFetchJson } from "../safeFetch";
 import type { ToolDispatchResult } from "../orchestrator";
@@ -534,11 +534,15 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
       composePath: args.compose_path ? String(args.compose_path) : undefined,
       startCommand: args.start_command ? String(args.start_command) : undefined,
     });
-    return {
-      tool_name: toolName,
-      status: res.ok ? "executed" : "error",
-      output: res,
-    };
+    return { tool_name: toolName, status: res.ok ? "executed" : "error", output: res };
+  }
+
+  if (toolName === "core_delete_git_stack") {
+    const res = await deleteGitStackOnMuscle({
+      projectId,
+      stackId: String(args.stack_id || ""),
+    });
+    return { tool_name: toolName, status: res.ok ? "executed" : "error", output: res };
   }
 
   if (toolName === "core_tail_service_logs") {
@@ -549,12 +553,17 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
       port: args.port ? Number(args.port) : undefined,
       containerName: args.container_name ? String(args.container_name) : undefined,
       unitName: args.unit_name ? String(args.unit_name) : undefined,
+      maxLines: args.lines ? Number(args.lines) : undefined,
     });
-    return {
-      tool_name: toolName,
-      status: "executed",
-      output: res,
-    };
+    return { tool_name: toolName, status: "executed", output: res };
+  }
+
+  if (toolName === "core_get_node_telemetry_history") {
+    const res = await fetchNodeTelemetryHistory({
+      projectId,
+      nodeId: args.node_id ? String(args.node_id) : undefined,
+    });
+    return { tool_name: toolName, status: "executed", output: res };
   }
 
   if (toolName === "core_run_due_cron_jobs") {
@@ -563,11 +572,7 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
       nodeId: args.node_id ? String(args.node_id) : undefined,
       forceAll: Boolean(args.force_all),
     });
-    return {
-      tool_name: toolName,
-      status: "executed",
-      output: res,
-    };
+    return { tool_name: toolName, status: "executed", output: res };
   }
 
   return null;

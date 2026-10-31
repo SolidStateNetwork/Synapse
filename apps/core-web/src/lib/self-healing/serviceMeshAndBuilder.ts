@@ -459,11 +459,13 @@ export async function tailServiceLogs(params: {
   port?: number;
   containerName?: string;
   unitName?: string;
+  maxLines?: number;
 }): Promise<{
   ok: boolean;
   service_id: string;
   node_id: string;
   port: number;
+  source: "docker" | "systemd" | "sqlite" | "workspace";
   logs: string;
   lines: string[];
   error_count: number;
@@ -477,26 +479,32 @@ export async function tailServiceLogs(params: {
   const containerName = String(params.containerName || "").trim();
   const unitName = String(params.unitName || "").trim();
   const serviceId = String(params.serviceId || "");
+  const tailLines = Math.min(200, Math.max(10, Number(params.maxLines || 25)));
   const matchedSvc = state.registered_services.find(
     (s) => s.service_id === serviceId || (port > 0 && s.port === port)
   );
   const isSqliteSvc = matchedSvc?.category === "database" || /sqlite|db/i.test(serviceId);
 
+  let source: "docker" | "systemd" | "sqlite" | "workspace" = "workspace";
   let cmd = "";
   if (containerName) {
+    source = "docker";
     const safeC = containerName.replace(/[^a-zA-Z0-9_.-]/g, "");
-    cmd = `docker logs --tail 25 ${safeC} 2>&1; docker inspect -f "Container=${safeC} Status={{.State.Status}} StartedAt={{.State.StartedAt}}" ${safeC} 2>/dev/null || true`;
+    cmd = `docker logs --tail ${tailLines} ${safeC} 2>&1; docker inspect -f "Container=${safeC} Status={{.State.Status}} StartedAt={{.State.StartedAt}}" ${safeC} 2>/dev/null || true`;
   } else if (unitName) {
+    source = "systemd";
     const safeU = unitName.replace(/[^a-zA-Z0-9_.@-]/g, "");
-    cmd = `journalctl -u ${safeU} --no-pager -n 25 2>&1 || systemctl status ${safeU} --no-pager 2>&1 || true`;
+    cmd = `journalctl -u ${safeU} --no-pager -n ${tailLines} 2>&1 || systemctl status ${safeU} --no-pager 2>&1 || true`;
   } else if (isSqliteSvc && port === 3001) {
+    source = "sqlite";
     const dbPath = resolveProjectDbPath(state, matchedSvc?.db_path);
     cmd = `DB_PATH=${JSON.stringify(dbPath)}; if [ ! -f "$DB_PATH" ]; then DB_PATH=$(find /opt/axon/workspaces /var/lib/synapse -maxdepth 3 -name "*.db" 2>/dev/null | head -n1); fi; sqlite3 "$DB_PATH" ".tables" 2>&1 || ls -lh "$DB_PATH" 2>&1`;
   } else {
+    source = "workspace";
     cmd = [
       `PID=$(ss -tlnp 2>/dev/null | awk '/:${port} / {match($0, /pid=[0-9]+/); if (RSTART) print substr($0, RSTART+4, RLENGTH-4)}' | head -n1)`,
       `echo "=== Service :${port} (PID: \${PID:-active}) ==="`,
-      `for lf in /tmp/synapse-svc-${port}.log /tmp/svc${port}.log /var/lib/synapse/blueprints/*/*.log /var/lib/synapse/*/*.log; do if [ -n "$lf" ] && [ -s "$lf" ]; then tail -n 15 "$lf" 2>/dev/null; break; fi; done`,
+      `for lf in /tmp/synapse-svc-${port}.log /tmp/svc${port}.log /var/lib/synapse/blueprints/*/*.log /var/lib/synapse/*/*.log; do if [ -n "$lf" ] && [ -s "$lf" ]; then tail -n ${tailLines} "$lf" 2>/dev/null; break; fi; done`,
       `curl -s -i --max-time 2 http://127.0.0.1:${port}/ 2>/dev/null | head -n 10 || true`,
     ].join("\n");
   }
@@ -532,6 +540,7 @@ export async function tailServiceLogs(params: {
     service_id: serviceId,
     node_id: nodeId,
     port,
+    source,
     logs,
     lines,
     error_count: errorCount,

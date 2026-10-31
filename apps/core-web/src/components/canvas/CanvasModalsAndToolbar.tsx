@@ -14,6 +14,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { SYNAPSE_VERSION } from "@/lib/version";
 import type {
   Point,
   RegisteredService,
@@ -326,8 +327,8 @@ export function CanvasModalsAndToolbar({
                 <div>
                   <h3 className="text-sm font-semibold text-white">
                     {t(
-                      "1-Click Custom Service Builder (v0.8.0)",
-                      "1-Click Custom Service Builder (v0.8.0)"
+                      `1-Click Custom Service Builder (${SYNAPSE_VERSION})`,
+                      `1-Click Custom Service Builder (${SYNAPSE_VERSION})`
                     )}
                   </h3>
                   <p className="text-[11px] text-nb-gray-400">

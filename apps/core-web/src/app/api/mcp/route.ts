@@ -22,6 +22,7 @@ import {
   safeParseRequestJson,
 } from "@/lib/runtimeResolver";
 import { safeFetchJson } from "@/lib/safeFetch";
+import { SYNAPSE_SEMVER } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
 
@@ -130,6 +131,7 @@ async function executeMcpTool(
     toolName === "synapse_get_project_state" ||
     toolName === "core_vault_search" ||
     toolName === "core_tail_service_logs" ||
+    toolName === "core_get_node_telemetry_history" ||
     toolName === "node_deep_search" ||
     (toolName === "node_fs_operation" &&
       ["read_file", "list_dir", "stat"].includes(
@@ -278,7 +280,7 @@ export async function GET(req: NextRequest) {
     protocolVersion: "2024-11-05",
     serverInfo: {
       name: "synapse-core-mcp",
-      version: "0.8.0",
+      version: SYNAPSE_SEMVER,
     },
     endpoint: "/api/mcp",
     project_id: projectId,
@@ -364,7 +366,7 @@ export async function POST(req: NextRequest) {
           },
           serverInfo: {
             name: "synapse-core-mcp",
-            version: "0.8.0",
+            version: SYNAPSE_SEMVER,
           },
         },
       });

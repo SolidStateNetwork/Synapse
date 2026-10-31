@@ -530,7 +530,9 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
 
       for (const toolCall of [
         { name: "core_deploy_git_stack", arguments: { name: "MCP Stack", repo_url: "https://github.com/example/mcp.git", port: 4087 } },
-        { name: "core_tail_service_logs", arguments: { service_id: "web-app", port: 4012 } },
+        { name: "core_tail_service_logs", arguments: { service_id: "web-app", port: 4012, lines: 50 } },
+        { name: "core_get_node_telemetry_history", arguments: { node_id: "local-node" } },
+        { name: "core_delete_git_stack", arguments: { stack_id: "missing-stack" } },
         { name: "core_run_due_cron_jobs", arguments: { force_all: true } },
       ]) {
         const r = await mcpRoute.POST(
@@ -549,6 +551,8 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
       const promptParts = { staticPrefix: "System", dynamicSuffix: "Suffix", fullPrompt: "System\nSuffix" };
       for (const chatCmd of [
         "gitops: https://github.com/example/auto.git 4088",
+        "delete git stack gitops-auto-4088",
+        "telemetry history",
         "logs: 4088",
         "cron-due",
       ]) {

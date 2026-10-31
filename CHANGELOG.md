@@ -2,6 +2,18 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v0.9.0] — 2026-10-31 (Single-Source Versioning, Interactive Live-Log Studio & AI/MCP Teardown + Telemetry Parity)
+
+### Added & Improved
+- **Single-Source-of-Truth Versioning (`apps/core-web/src/lib/version.ts`)**:
+  - Exported `SYNAPSE_VERSION = "v0.9.0"` and `SYNAPSE_SEMVER = "0.9.0"` from a central module and bound all UI version badges (`ControlCenterChrome.tsx`, `CommandPaletteModal.tsx`, `CanvasModalsAndToolbar.tsx`, `ReverseProxyCodeAndSqliteStudios.tsx`, `AccessRulesView.tsx`, `AuditLogView.tsx`, `GitOpsStudioPanel.tsx`) and `/api/mcp` `serverInfo.version` to it, eliminating UI version drift permanently.
+- **Interactive Live-Service-Log Inspector in Studio UI (`GitOpsStudioPanel.tsx`, `serviceMeshAndBuilder.ts`)**:
+  - Added an interactive Live-Log Inspector (`tail_service_logs` via `/api/service-ops`) with port/container/systemd-unit selection, source detection badge (`docker` / `systemd` / `sqlite` / `workspace`), error line counter, configurable line count (`25` / `50` / `100`), and 1-click log inspection directly on each deployed GitOps stack.
+- **100% AI-Orchestrator & MCP Server Parity (`toolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp`)**:
+  - Added `core_delete_git_stack` (GitOps stack teardown) and `core_get_node_telemetry_history` (read-only 60-sample CPU/RAM/Disk trend query) to both the AI Copilot and the MCP Server (`tools/list` & `tools/call`).
+
+---
+
 ## [v0.8.0] — 2026-10-31 (Axon Ephemeral-PTY Garbage Collection, GitOps Stack Teardown & 60-Sample Telemetry Sparklines)
 
 ### Added & Improved

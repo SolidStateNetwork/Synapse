@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, Clock, Play, Plus, Shield, ShieldAlert, Trash2, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { safeFetchJson } from "@/lib/safeFetch";
+import { SYNAPSE_VERSION } from "@/lib/version";
 import RichMarkdownDocument from "@/components/RichMarkdownDocument";
 import {
   CartridgeMeta,
@@ -323,8 +324,8 @@ const AccessRulesView = React.memo(function AccessRulesView({
               <Clock className="h-4 w-4 text-emerald-400" />
               <span>
                 {t(
-                  "Geplante Cron-Jobs & Runbook-Manager (v0.8.0)",
-                  "Scheduled Cron & Automation Runbook Manager (v0.8.0)"
+                  `Geplante Cron-Jobs & Runbook-Manager (${SYNAPSE_VERSION})`,
+                  `Scheduled Cron & Automation Runbook Manager (${SYNAPSE_VERSION})`
                 )}
               </span>
             </h2>

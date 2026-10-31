@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { safeFetchJson } from "@/lib/safeFetch";
+import { SYNAPSE_VERSION } from "@/lib/version";
 import type { SelfHealingEventItem } from "@/components/canvas/canvasTypes";
 
 import { AuditEntry } from "@/types/synapse";
@@ -106,8 +107,8 @@ const AuditLogView = React.memo(function AuditLogView({
             <div>
               <h3 className="text-xs font-semibold text-white">
                 {t(
-                  "Self-Healing & Incident Center (v0.8.0)",
-                  "Self-Healing & Incident Center (v0.8.0)"
+                  `Self-Healing & Incident Center (${SYNAPSE_VERSION})`,
+                  `Self-Healing & Incident Center (${SYNAPSE_VERSION})`
                 )}
               </h3>
               <p className="text-[11px] text-nb-gray-400">

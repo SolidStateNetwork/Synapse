@@ -287,7 +287,7 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     const mcpGetRes = await getMcp(makeGetReq(`/api/mcp?project_id=${projId}`));
     assert.equal(mcpGetRes.status, 200);
     const mcpGetJson = await mcpGetRes.json();
-    assert.equal(mcpGetJson.serverInfo.version, "0.8.0");
+    assert.equal(mcpGetJson.serverInfo.version, "0.9.0");
 
     const mcpKeyRes = await postMcp(
       makePostReq("/api/mcp", {
@@ -371,7 +371,7 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     assert.ok(typeof orchChatJson.reply === "string" && orchChatJson.reply.length > 0);
   });
 
-  it("23. v0.8.0 Version Synchronization & Hardened Installer Script Parity across Core & Muscle", () => {
+  it("23. v0.9.0 Single-Source Version Synchronization & Hardened Installer Script Parity across Core & Muscle", () => {
     const repoRoot = path.resolve(process.cwd(), "../..");
     const gwMain = fs.readFileSync(path.join(repoRoot, "apps/core-gateway/main.go"), "utf8");
     const axonMain = fs.readFileSync(path.join(repoRoot, "agents/axon/cmd/axon/main.go"), "utf8");
@@ -382,17 +382,30 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     const changelogMd = fs.readFileSync(path.join(repoRoot, "CHANGELOG.md"), "utf8");
     const installAxonSh = fs.readFileSync(path.join(repoRoot, "scripts/install-axon.sh"), "utf8");
     const deployCoreSh = fs.readFileSync(path.join(repoRoot, "scripts/deploy-core.sh"), "utf8");
-    const chromeTsx = fs.readFileSync(
-      path.join(repoRoot, "apps/core-web/src/components/layout/ControlCenterChrome.tsx"),
+    const versionTs = fs.readFileSync(
+      path.join(repoRoot, "apps/core-web/src/lib/version.ts"),
       "utf8"
     );
 
-    assert.ok(gwMain.includes('"version":         "v0.8.0"'), "core-gateway /healthz must report v0.8.0");
-    assert.ok(axonMain.includes('version = "v0.8.0"'), "axon main.go must default to v0.8.0");
-    assert.equal(pkgJson.version, "0.8.0", "core-web package.json must report 0.8.0");
-    assert.ok(securityMd.includes("0.8.x"), "SECURITY.md must list 0.8.x");
-    assert.ok(changelogMd.includes("## [v0.8.0]"), "CHANGELOG.md must document v0.8.0");
-    assert.ok(chromeTsx.includes("v0.8.0") && !chromeTsx.includes("v0.5.0"), "ControlCenterChrome.tsx sidebar badge must report v0.8.0");
+    assert.ok(gwMain.includes('"version":         "v0.9.0"'), "core-gateway /healthz must report v0.9.0");
+    assert.ok(axonMain.includes('version = "v0.9.0"'), "axon main.go must default to v0.9.0");
+    assert.equal(pkgJson.version, "0.9.0", "core-web package.json must report 0.9.0");
+    assert.ok(securityMd.includes("0.9.x"), "SECURITY.md must list 0.9.x");
+    assert.ok(changelogMd.includes("## [v0.9.0]"), "CHANGELOG.md must document v0.9.0");
+    assert.ok(versionTs.includes('SYNAPSE_SEMVER = "0.9.0"'), "version.ts must export SYNAPSE_SEMVER = 0.9.0");
+
+    for (const relPath of [
+      "apps/core-web/src/components/layout/ControlCenterChrome.tsx",
+      "apps/core-web/src/components/modals/CommandPaletteModal.tsx",
+      "apps/core-web/src/components/canvas/CanvasModalsAndToolbar.tsx",
+      "apps/core-web/src/components/views/reverse-proxy/ReverseProxyCodeAndSqliteStudios.tsx",
+      "apps/core-web/src/components/views/AccessRulesView.tsx",
+      "apps/core-web/src/components/views/AuditLogView.tsx",
+      "apps/core-web/src/components/views/reverse-proxy/GitOpsStudioPanel.tsx",
+    ]) {
+      const content = fs.readFileSync(path.join(repoRoot, relPath), "utf8");
+      assert.ok(content.includes("SYNAPSE_VERSION"), `${relPath} must use SYNAPSE_VERSION`);
+    }
 
     assert.ok(installAxonSh.includes("download_url()"), "install-axon.sh must include curl/wget fallback");
     assert.ok(installAxonSh.includes("verify_sha256()"), "install-axon.sh must include SHA-256 verification");

@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Check, Clock, Copy, GitBranch, Play, RefreshCw, Rocket, Trash2 } from "lucide-react";
+import { Check, Clock, Copy, GitBranch, Play, RefreshCw, Rocket, ScrollText, Trash2 } from "lucide-react";
 import { safeFetchJson } from "@/lib/safeFetch";
+import { SYNAPSE_VERSION } from "@/lib/version";
 
 export interface GitOpsStackViewItem {
   stack_id: string;
@@ -19,6 +20,15 @@ export interface GitOpsStackViewItem {
   status: "deployed" | "error";
 }
 
+export interface LiveLogSnapshot {
+  service_id: string;
+  port: number;
+  source: "docker" | "systemd" | "sqlite" | "workspace";
+  logs: string;
+  error_count: number;
+  timestamp: string;
+}
+
 export interface GitOpsStudioPanelProps {
   projectId: string;
   nodeId: string;
@@ -31,6 +41,7 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
   onReloadWorkspace,
 }: GitOpsStudioPanelProps) {
   const [open, setOpen] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(false);
   const [stacks, setStacks] = useState<GitOpsStackViewItem[]>([]);
   const [stackName, setStackName] = useState("Analytics Stack");
   const [repoUrl, setRepoUrl] = useState("https://github.com/SolidStateNetwork/Synapse.git");
@@ -41,6 +52,12 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
   const [latestToken, setLatestToken] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
   const [cronBusy, setCronBusy] = useState(false);
+
+  const [logPort, setLogPort] = useState("4085");
+  const [logTarget, setLogTarget] = useState("");
+  const [logLinesLimit, setLogLinesLimit] = useState(50);
+  const [logBusy, setLogBusy] = useState(false);
+  const [logSnapshot, setLogSnapshot] = useState<LiveLogSnapshot | null>(null);
 
   const loadStacks = useCallback(async () => {
     try {
@@ -57,6 +74,46 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
   }, [projectId]);
 
   useEffect(() => { if (open) void loadStacks(); }, [open, loadStacks]);
+
+  const handleTailLogs = useCallback(
+    async (overridePort?: number, overrideServiceId?: string) => {
+      setLogBusy(true);
+      setLogsOpen(true);
+      try {
+        const targetPort = overridePort ?? Number(logPort || 4085);
+        const trimmedTarget = (overrideServiceId ?? logTarget).trim();
+        const isUnit = trimmedTarget.endsWith(".service");
+        const res = await safeFetchJson("/api/service-ops", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "tail_service_logs",
+            project_id: projectId,
+            node_id: nodeId,
+            port: targetPort,
+            service_id: trimmedTarget || `svc-${targetPort}`,
+            unit_name: isUnit ? trimmedTarget : undefined,
+            container_name: !isUnit && trimmedTarget && !trimmedTarget.startsWith("gitops-") ? trimmedTarget : undefined,
+            lines: logLinesLimit,
+          }),
+        });
+        const data = (await res.json()) as Partial<LiveLogSnapshot> & { ok?: boolean };
+        if (data.ok) {
+          setLogSnapshot({
+            service_id: data.service_id || trimmedTarget || `:${targetPort}`,
+            port: data.port ?? targetPort,
+            source: data.source || "workspace",
+            logs: data.logs || "No log output available.",
+            error_count: data.error_count ?? 0,
+            timestamp: data.timestamp || new Date().toISOString(),
+          });
+        }
+      } finally {
+        setLogBusy(false);
+      }
+    },
+    [logLinesLimit, logPort, logTarget, nodeId, projectId]
+  );
 
   const handleDeployStack = async () => {
     if (!repoUrl.trim()) return;
@@ -171,10 +228,22 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
         <div className="flex items-center gap-2">
           <GitBranch className="h-4 w-4 text-emerald-400" />
           <span className="text-xs font-semibold text-white">
-            GitOps Stack-Deployer (`Secrets.enc` -&gt; `0600 .env`) &amp; Autonomous Cron-Due Runner
+            GitOps Stack-Deployer, Live-Log Inspector &amp; Cron-Due Runner ({SYNAPSE_VERSION})
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const next = !logsOpen;
+              setLogsOpen(next);
+              if (next && !logSnapshot) void handleTailLogs();
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-950/60 px-2.5 py-1 text-[11px] font-semibold text-amber-200 hover:bg-amber-900/60"
+          >
+            <ScrollText className="h-3.5 w-3.5" />
+            {logsOpen ? "Live-Logs schließen" : "Live-Service-Logs"}
+          </button>
           <button
             type="button"
             disabled={cronBusy}
@@ -198,6 +267,69 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
       {notice && (
         <div className="mt-2 rounded-lg border border-nb-gray-800 bg-nb-gray-950/90 px-3 py-1.5 font-mono text-[11px] text-emerald-300">
           {notice}
+        </div>
+      )}
+
+      {logsOpen && (
+        <div className="mt-3 space-y-2 rounded-xl border border-nb-gray-800 bg-nb-gray-950/90 p-3 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-amber-300">Live-Service-Log Inspector</span>
+              {logSnapshot && (
+                <>
+                  <span className="rounded border border-sky-500/40 bg-sky-950/70 px-1.5 py-0.5 font-mono text-[10px] uppercase text-sky-300">
+                    Quelle: {logSnapshot.source}
+                  </span>
+                  <span
+                    className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${
+                      logSnapshot.error_count > 0
+                        ? "border border-red-500/40 bg-red-950/70 text-red-300"
+                        : "border border-emerald-500/40 bg-emerald-950/70 text-emerald-300"
+                    }`}
+                  >
+                    {logSnapshot.error_count} Errors
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <input
+                type="number"
+                value={logPort}
+                onChange={(e) => setLogPort(e.target.value)}
+                placeholder="Port"
+                className="w-20 rounded border border-nb-gray-800 bg-nb-gray-900 px-2 py-1 font-mono text-[11px] text-white"
+              />
+              <input
+                type="text"
+                value={logTarget}
+                onChange={(e) => setLogTarget(e.target.value)}
+                placeholder="Container / systemd unit (optional)"
+                className="w-48 rounded border border-nb-gray-800 bg-nb-gray-900 px-2 py-1 font-mono text-[11px] text-white"
+              />
+              <select
+                value={logLinesLimit}
+                onChange={(e) => setLogLinesLimit(Number(e.target.value))}
+                className="rounded border border-nb-gray-800 bg-nb-gray-900 px-2 py-1 font-mono text-[11px] text-white"
+              >
+                <option value={25}>25 Zeilen</option>
+                <option value={50}>50 Zeilen</option>
+                <option value={100}>100 Zeilen</option>
+              </select>
+              <button
+                type="button"
+                disabled={logBusy}
+                onClick={() => void handleTailLogs()}
+                className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-950/70 px-2.5 py-1 text-[11px] font-semibold text-amber-200 hover:bg-amber-900/70 disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3 w-3 ${logBusy ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+            </div>
+          </div>
+          <pre className="max-h-48 overflow-auto rounded-lg border border-nb-gray-900 bg-black/70 p-2.5 font-mono text-[11px] leading-relaxed text-nb-gray-200">
+            {logBusy ? "Lade Live-Logs über mTLS-PTY-Tunnel..." : logSnapshot?.logs || "Klicke auf Refresh, um Live-Logs abzurufen."}
+          </pre>
         </div>
       )}
 
@@ -279,6 +411,19 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={logBusy}
+                      onClick={() => {
+                        setLogPort(String(st.port));
+                        setLogTarget(st.stack_id);
+                        void handleTailLogs(st.port, st.stack_id);
+                      }}
+                      className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-950/60 px-2 py-0.5 text-[11px] text-amber-200 hover:bg-amber-900/60"
+                    >
+                      <ScrollText className="h-3 w-3" />
+                      Logs
+                    </button>
                     <button
                       type="button"
                       disabled={busy}

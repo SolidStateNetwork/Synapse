@@ -3,6 +3,7 @@
 import React from "react";
 import { AlertTriangle, ChevronsUpDown, Lock, Network, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search, Sparkles, Trash2, Wrench } from "lucide-react";
 import { LanguageSwitcher } from "@/lib/i18n";
+import { SYNAPSE_VERSION } from "@/lib/version";
 import { GatewayNode, NavSection, ProjectState } from "@/types/synapse";
 
 type RegisteredService = ProjectState["registered_services"][number];
@@ -254,8 +255,8 @@ export function ControlCenterSidebar({
             onClick={onOpenSystemUpdateTab}
             title={
               hasAnyUpdate
-                ? `Synapse v0.8.0 (${localShort}) — Update verfügbar (${remoteShort})`
-                : `Synapse v0.8.0 (${localShort}) — Aktuell`
+                ? `Synapse ${SYNAPSE_VERSION} (${localShort}) — Update verfügbar (${remoteShort})`
+                : `Synapse ${SYNAPSE_VERSION} (${localShort}) — Aktuell`
             }
             className={`relative mx-auto flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
               hasAnyUpdate
@@ -291,7 +292,7 @@ export function ControlCenterSidebar({
                 className="group flex min-w-0 items-center gap-1.5 text-left"
               >
                 <span className="whitespace-nowrap font-semibold text-nb-gray-100 group-hover:text-white">
-                  v0.8.0
+                  {SYNAPSE_VERSION}
                 </span>
                 <span className="rounded border border-nb-gray-800 bg-nb-gray-950 px-1.5 py-0.5 font-mono text-[9px] text-nb-gray-400">
                   {localShort}

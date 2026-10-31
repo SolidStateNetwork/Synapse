@@ -467,6 +467,21 @@ export const SYNAPSE_TOOL_SCHEMAS = [
   {
     type: "function",
     function: {
+      name: "core_delete_git_stack",
+      description:
+        "Tears down a deployed GitOps stack on a Muscle node (docker compose down, cleans up the stack directory, and removes it from GitStacks.json and State.json).",
+      parameters: {
+        type: "object",
+        properties: {
+          stack_id: { type: "string", description: "Stack ID to tear down and remove." },
+        },
+        required: ["stack_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "core_tail_service_logs",
       description:
         "Retrieves live logs for a Docker container, systemd unit, SQLite service, or exposed port on a Muscle node over the mTLS PTY tunnel and highlights detected errors.",
@@ -478,6 +493,21 @@ export const SYNAPSE_TOOL_SCHEMAS = [
           node_id: { type: "string", description: "Optional target Muscle Peer ID." },
           container_name: { type: "string", description: "Optional Docker container name." },
           unit_name: { type: "string", description: "Optional systemd unit name." },
+          lines: { type: "integer", description: "Number of tail lines (10..200, default: 25)." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_get_node_telemetry_history",
+      description:
+        "Returns the 60-sample ring-buffer telemetry history (CPU, RAM, and Disk trend samples) for a Muscle node.",
+      parameters: {
+        type: "object",
+        properties: {
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
         },
       },
     },

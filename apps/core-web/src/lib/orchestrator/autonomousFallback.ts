@@ -330,6 +330,12 @@ export async function runDeterministicAutonomousWorkflow(
         .map((s) => `\`${s.name}\` (:${s.port})`)
         .join(", ") || "keine"
     }`;
+  } else if (lower.includes("delete git stack") || lower.includes("teardown stack")) {
+    const idMatch = userPrompt.match(/\b(gitops-[a-z0-9-]+)\b/i);
+    const step = await runStep("core_delete_git_stack", {
+      stack_id: idMatch ? idMatch[1] : "gitops-stack",
+    });
+    finalReply = `### 🗑️ GitOps Stack Teardown\n\n- **Status:** \`${step.status}\`\n- **Details:** \`${JSON.stringify(step.output).slice(0, 300)}\``;
   } else if (lower.startsWith("gitops:") || lower.includes("deploy git stack")) {
     const urlMatch = userPrompt.match(/(https?:\/\/\S+|git@\S+)/);
     const portMatch = userPrompt.match(/\b(\d{4,5})\b/);
@@ -340,6 +346,12 @@ export async function runDeterministicAutonomousWorkflow(
       node_id: primaryNode || "local-node",
     });
     finalReply = `### 📦 GitOps Stack Deployment\n\n- **Status:** \`${step.status}\`\n- **Details:** \`${JSON.stringify(step.output).slice(0, 300)}\``;
+  } else if (lower.includes("telemetry history") || lower.includes("sparkline")) {
+    const step = await runStep("core_get_node_telemetry_history", {
+      node_id: primaryNode || "local-node",
+    });
+    const out = step.output as { sample_count?: number; node_id?: string } | undefined;
+    finalReply = `### 📈 60-Sample Node Telemetry History (\`${out?.node_id || primaryNode || "local-node"}\`)\n\n- **Erfasste Zeitreihen-Samples:** \`${out?.sample_count ?? 0}\``;
   } else if (lower.startsWith("logs:") || lower.includes("tail logs")) {
     const portMatch = userPrompt.match(/\b(\d{4,5})\b/);
     const step = await runStep("core_tail_service_logs", {

@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
           port: Number(body.port || 0),
           containerName: body.container_name ? String(body.container_name) : undefined,
           unitName: body.unit_name ? String(body.unit_name) : undefined,
+          maxLines: body.lines ? Number(body.lines) : undefined,
         })
       );
     }

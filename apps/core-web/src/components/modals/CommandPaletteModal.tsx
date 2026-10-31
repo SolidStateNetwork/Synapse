@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { safeFetchJson } from "@/lib/safeFetch";
+import { SYNAPSE_VERSION } from "@/lib/version";
 import type { GatewayNode, NavSection, ProjectState } from "@/types/synapse";
 
 export interface CommandPaletteItem {
@@ -558,7 +559,7 @@ export default function CommandPaletteModal({
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1">
               <Command className="h-3 w-3 text-netbird" />
-              <span>Synapse Command Palette (v0.8.0)</span>
+              <span>Synapse Command Palette ({SYNAPSE_VERSION})</span>
             </span>
           </div>
           <div className="flex items-center gap-3 font-mono text-[10px]">
