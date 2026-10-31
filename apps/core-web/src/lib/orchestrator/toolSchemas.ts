@@ -501,4 +501,55 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "core_manage_blueprint",
+      description:
+        "Lists, deploys, or undeploys official 1-Click Stack Blueprints on a Muscle node with automatic secret generation and Pre-Flight Time-Machine Checkpoint.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list", "deploy", "undeploy"], description: "Blueprint action." },
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          blueprint_id: { type: "string", description: "Blueprint ID for deploy or undeploy." },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_manage_domain_tls",
+      description:
+        "Manages Custom Domain & Auto-TLS Reverse-Proxy bindings (list, bind, unbind) in Domains.json.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list", "bind", "unbind"], description: "Domain TLS action." },
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          service_id: { type: "string", description: "Service ID to bind/unbind." },
+          port: { type: "integer", description: "Target service port." },
+          domain: { type: "string", description: "Custom domain name (e.g. api.example.com)." },
+          auto_tls: { type: "boolean", description: "Whether to issue automatic TLS." },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_system_ota_status",
+      description:
+        "Returns the OTA System Update status including SYNAPSE_VERSION, Git commit sync, and Core/Muscle binary SHA-256 verification.",
+      parameters: {
+        type: "object",
+        properties: {
+          inspect_nodes: { type: "boolean", description: "If true, probes connected Muscle nodes for installed binary SHA-256." },
+        },
+      },
+    },
+  },
 ];

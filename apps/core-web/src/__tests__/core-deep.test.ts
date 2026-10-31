@@ -430,30 +430,10 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
       assert.equal(histRes.sample_count, 2);
 
       // Option B: GitOps & Docker-Compose Stack-Deployer
-      const badUrl = await deployGitStackOnMuscle({
-        projectId,
-        name: "bad",
-        repoUrl: "https://example.com/repo.git; rm -rf /",
-        port: 4080,
-      });
-      assert.equal(badUrl.ok, false);
+      assert.equal((await deployGitStackOnMuscle({ projectId, name: "bad", repoUrl: "https://example.com/repo.git; rm -rf /", port: 4080 })).ok, false);
+      assert.equal((await deployGitStackOnMuscle({ projectId, name: "bad-port", repoUrl: "https://github.com/example/stack.git", port: 80 })).ok, false);
 
-      const badPort = await deployGitStackOnMuscle({
-        projectId,
-        name: "bad-port",
-        repoUrl: "https://github.com/example/stack.git",
-        port: 80,
-      });
-      assert.equal(badPort.ok, false);
-
-      const deployed = await deployGitStackOnMuscle({
-        projectId,
-        name: "Analytics Stack",
-        repoUrl: "https://github.com/example/analytics.git",
-        branch: "main",
-        port: 4085,
-        category: "backend",
-      });
+      const deployed = await deployGitStackOnMuscle({ projectId, name: "Analytics Stack", repoUrl: "https://github.com/example/analytics.git", branch: "main", port: 4085, category: "backend" });
       assert.equal(deployed.ok, true);
       assert.ok(deployed.webhook_token?.startsWith("syn_git_"));
       assert.ok(deployed.checkpoint_id?.startsWith("chk-"));
@@ -461,24 +441,9 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
       assert.ok(deployed.stack?.injected_secret_keys.includes("API_TOKEN"));
       assert.equal(loadGitStacks(projectId).length, 1);
 
-      const badHook = await triggerGitOpsWebhookRedeploy({
-        projectId,
-        stackId: deployed.stack!.stack_id,
-        webhookToken: "wrong-token",
-      });
-      assert.equal(badHook.ok, false);
-
-      const missingHook = await triggerGitOpsWebhookRedeploy({
-        projectId,
-        stackId: "missing-stack",
-      });
-      assert.equal(missingHook.ok, false);
-
-      const goodHook = await triggerGitOpsWebhookRedeploy({
-        projectId,
-        stackId: deployed.stack!.stack_id,
-        webhookToken: deployed.webhook_token,
-      });
+      assert.equal((await triggerGitOpsWebhookRedeploy({ projectId, stackId: deployed.stack!.stack_id, webhookToken: "wrong-token" })).ok, false);
+      assert.equal((await triggerGitOpsWebhookRedeploy({ projectId, stackId: "missing-stack" })).ok, false);
+      const goodHook = await triggerGitOpsWebhookRedeploy({ projectId, stackId: deployed.stack!.stack_id, webhookToken: deployed.webhook_token });
       assert.equal(goodHook.ok, true);
       assert.equal(goodHook.redeployed, true);
 
@@ -550,6 +515,14 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         { name: "core_probe_service_mesh", arguments: { action: "probe_link", from_port: 4050, to_port: 4012 } },
         { name: "core_probe_service_mesh", arguments: { action: "deploy_custom_service", name: "MCP Custom Svc", port: 4096, category: "backend", runtime: "python_http" } },
         { name: "core_probe_service_mesh", arguments: { action: "deploy_custom_service", name: "Bad Port", port: 80 } },
+        { name: "core_manage_blueprint", arguments: { action: "list" } },
+        { name: "core_manage_blueprint", arguments: { action: "deploy", blueprint_id: "bp-4060" } },
+        { name: "core_manage_blueprint", arguments: { action: "undeploy", blueprint_id: "bp-4060" } },
+        { name: "core_manage_blueprint", arguments: { action: "deploy", blueprint_id: "missing-bp" } },
+        { name: "core_manage_domain_tls", arguments: { action: "list" } },
+        { name: "core_manage_domain_tls", arguments: { action: "bind", service_id: "web-app", port: 4050, domain: "app.example.com", auto_tls: true } },
+        { name: "core_manage_domain_tls", arguments: { action: "unbind", service_id: "web-app" } },
+        { name: "core_system_ota_status", arguments: { inspect_nodes: false } },
       ]) {
         const r = await mcpRoute.POST(
           makeReq("/api/mcp", "POST", { project_id: projectId, internal_ui_test: true, jsonrpc: "2.0", id: 99, method: "tools/call", params: toolCall })
@@ -577,6 +550,9 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         "cron-jobs: list",
         "self-heal: 4050",
         "probe-mesh: 4050",
+        "blueprint: list",
+        "domain-tls: list",
+        "ota-status: check",
       ]) {
         const wf = await runDeterministicAutonomousWorkflow(projectId, chatCmd, undefined, promptParts);
         assert.ok(wf.reply.length > 0);

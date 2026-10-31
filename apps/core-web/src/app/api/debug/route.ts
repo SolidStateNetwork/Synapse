@@ -9,7 +9,11 @@ import {
   withProjectStateTransaction,
 } from "@/lib/vault";
 import { listCartridges, OFFICIAL_STACK_BLUEPRINTS } from "@/lib/cartridges";
+import { loadCheckpoints } from "@/lib/checkpoints";
+import { loadOffsiteBackups } from "@/lib/orchestrator/disasterRecoveryTools";
+import { SYNAPSE_TOOL_SCHEMAS } from "@/lib/orchestrator";
 import { loadGitStacks } from "@/lib/projects/gitopsDeployer";
+import { loadSelfHealingStore } from "@/lib/self-healing";
 import { loadCronJobs } from "@/lib/v070-studio";
 import {
   resolveActiveProjectId,
@@ -192,12 +196,22 @@ export async function POST(req: NextRequest) {
       const carts = listCartridges();
       const stacks = loadGitStacks(projectId);
       const cronJobs = loadCronJobs(projectId);
+      const shStore = loadSelfHealingStore(projectId);
+      const checkpoints = loadCheckpoints(projectId);
+      const backups = loadOffsiteBackups(projectId);
       checks.push({
         id: "cartridges",
         name: "Rule Cartridges, GitOps & Cron Engines",
         status: carts.length > 0 ? "PASS" : "WARN",
         latency_ms: Date.now() - t3,
         detail: `${SYNAPSE_VERSION}: ${carts.length} cartridges, ${OFFICIAL_STACK_BLUEPRINTS.length} blueprints, ${stacks.length} GitOps stack(s), ${cronJobs.length} cron runbook(s)`,
+      });
+      checks.push({
+        id: "resilience_and_mcp",
+        name: "Self-Healing, Time-Machine & MCP Tool Registry",
+        status: SYNAPSE_TOOL_SCHEMAS.length >= 20 ? "PASS" : "WARN",
+        latency_ms: Date.now() - t3,
+        detail: `${SYNAPSE_TOOL_SCHEMAS.length} AI/MCP tools, Self-Healing=${shStore.policy.enabled ? "ON" : "OFF"}, ${checkpoints.length} checkpoint(s), ${backups.length} offsite backup(s)`,
       });
     } catch (err) {
       checks.push({

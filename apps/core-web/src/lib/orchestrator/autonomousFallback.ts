@@ -434,6 +434,18 @@ export async function runDeterministicAutonomousWorkflow(
     });
     const out = step.output as { healthy?: boolean; latency_ms?: number } | undefined;
     finalReply = `### 🌐 Live Service-Mesh Probe\n\n- **Health:** \`${out?.healthy ? "HEALTHY" : "UNHEALTHY"}\` (Latenz: \`${out?.latency_ms ?? 0} ms\`)`;
+  } else if (lower.startsWith("blueprint:") || lower.includes("list blueprints")) {
+    const step = await runStep("core_manage_blueprint", { action: "list" });
+    const out = step.output as { blueprints?: unknown[] } | undefined;
+    finalReply = `### 🧩 Official Stack Blueprints\n\n- **Verfügbare Blueprints:** \`${out?.blueprints?.length ?? 0}\``;
+  } else if (lower.startsWith("domain-tls:") || lower.includes("list domains")) {
+    const step = await runStep("core_manage_domain_tls", { action: "list" });
+    const out = step.output as { domains?: Record<string, unknown> } | undefined;
+    finalReply = `### 🔒 Custom Domain & Auto-TLS Bindings\n\n- **Aktive Domains:** \`${Object.keys(out?.domains || {}).length}\``;
+  } else if (lower.startsWith("ota-status:") || lower.includes("ota status")) {
+    const step = await runStep("core_system_ota_status", { inspect_nodes: false });
+    const out = step.output as { version?: string } | undefined;
+    finalReply = `### 🚀 OTA System Update Status\n\n- **Core-Version:** \`${out?.version || "v1.5.0"}\``;
   }
 
   if (!finalReply) {

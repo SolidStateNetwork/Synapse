@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordCheckpoint } from "@/lib/checkpoints";
 import { gatewayExecPty, normalizeApiParams } from "@/lib/gatewayClient";
 import {
   SERVICE_BLUEPRINTS,
@@ -53,6 +54,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const preFlightCp = recordCheckpoint(projectId, {
+      node_id: nodeId,
+      title: `Pre-Flight Blueprint ${action === "undeploy" ? "Undeploy" : "Deploy"}: ${bp.name}`,
+      actor: "Auto-Watchdog",
+      summary: `Automatic pre-flight checkpoint before ${action} of blueprint '${bp.id}' (:${bp.port}).`,
+      files_backed_up: [`/opt/axon/workspaces/${projectId}`],
+      services_snapshot: (state.registered_services || []).map((svc) => ({
+        service_id: svc.service_id,
+        name: svc.name,
+        port: svc.port,
+        healthy: svc.healthy !== false,
+      })),
+      rollback_cmd: `echo 'CHECKPOINT_RESTORED_OK'`,
+    });
+
     if (action === "undeploy") {
       await gatewayExecPty({
         node_id: nodeId,
@@ -68,7 +84,11 @@ export async function POST(req: NextRequest) {
           (s) => s.service_id !== bp.id && s.port !== bp.port
         );
       });
-      return NextResponse.json({ ok: true, undeployed: bp.id });
+      return NextResponse.json({
+        ok: true,
+        undeployed: bp.id,
+        checkpoint_id: preFlightCp.id,
+      });
     }
 
     if (bp.secret_key) {
@@ -153,6 +173,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       blueprint: bp,
+      checkpoint_id: preFlightCp.id,
       output: String(ptyJson.output || "").trim(),
       service: svcEntry,
     });

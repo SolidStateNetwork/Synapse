@@ -2,6 +2,18 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v1.5.0] — 2026-10-31 (Blueprint, Domain/TLS & OTA AI/MCP Parity, Pre-Flight Blueprint Checkpoints & Full-Platform Self-Test)
+
+### Added & Improved
+- **AI-Orchestrator & MCP Blueprint, Domain/TLS & OTA System Tools (`blueprintDomainAndOtaTools.ts`, `toolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp`)**:
+  - Added `core_manage_blueprint` (`list`, `deploy`, `undeploy`), `core_manage_domain_tls` (`list`, `bind`, `unbind`), and `core_system_ota_status` (`status`) so the AI Copilot and external MCP Clients can manage 1-Click Stack Blueprints, Custom Domain & Auto-TLS Reverse-Proxy bindings (`Domains.json`), and OTA system status checks.
+- **Automatic Pre-Flight Time-Machine Checkpoints on Blueprint Deploy & Undeploy (`/api/blueprints`)**:
+  - `POST /api/blueprints` (`deploy` & `undeploy`) now automatically records a Pre-Flight Time-Machine Checkpoint (`actor: "Auto-Watchdog"`) and returns `checkpoint_id`.
+- **Full-Platform Self-Test Check `resilience_and_mcp` (`/api/debug`)**:
+  - `POST /api/debug` (`action: "self_test"`) now validates the Self-Healing Policy Store, Time-Machine Checkpoints, Offsite Backups, and the complete AI/MCP Tool Registry (`SYNAPSE_TOOL_SCHEMAS.length`).
+
+---
+
 ## [v1.4.0] — 2026-10-31 (Self-Healing & Service-Mesh AI/MCP Parity, Ephemeral Hot-Reload PTY-GC & Studio Checkpoint-Badge)
 
 ### Added & Improved

@@ -18,6 +18,7 @@ import { deleteGitStackOnMuscle, deployGitStackOnMuscle } from "../projects/gito
 import { fetchNodeTelemetryHistory, tailServiceLogs } from "../self-healing";
 import { runDueCronJobsOnMuscle } from "../v070-studio";
 import { safeFetchJson } from "../safeFetch";
+import { dispatchBlueprintDomainAndOtaTool } from "./blueprintDomainAndOtaTools";
 import { dispatchDisasterRecoveryTool } from "./disasterRecoveryTools";
 import { dispatchResilienceAndMeshTool } from "./resilienceAndMeshTools";
 import { dispatchSecopsAndWatchdogTool } from "./secopsAndWatchdogTools";
@@ -583,6 +584,7 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
     (await dispatchDisasterRecoveryTool(coreGatewayUrl, projectId, state, toolName, args)) ??
     (await dispatchSecopsAndWatchdogTool(coreGatewayUrl, projectId, state, toolName, args)) ??
     (await dispatchStudioDevOpsTool(projectId, state, toolName, args)) ??
-    (await dispatchResilienceAndMeshTool(projectId, state, toolName, args))
+    (await dispatchResilienceAndMeshTool(projectId, state, toolName, args)) ??
+    (await dispatchBlueprintDomainAndOtaTool(projectId, state, toolName, args))
   );
 }

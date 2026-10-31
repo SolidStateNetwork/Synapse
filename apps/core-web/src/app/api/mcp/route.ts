@@ -161,7 +161,12 @@ async function executeMcpTool(
     (toolName === "core_probe_service_mesh" &&
       (!args.action ||
         args.action === "probe_service" ||
-        args.action === "probe_link"));
+        args.action === "probe_link")) ||
+    (toolName === "core_manage_blueprint" &&
+      (!args.action || args.action === "list")) ||
+    (toolName === "core_manage_domain_tls" &&
+      (!args.action || args.action === "list")) ||
+    toolName === "core_system_ota_status";
 
   if (!isReadOnlyTool && !canExecute) {
     return {
