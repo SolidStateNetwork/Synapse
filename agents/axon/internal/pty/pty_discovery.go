@@ -169,3 +169,82 @@ func checkTier2CommandJail(cmd string, workspaceRoot string, projectID string) (
 	}
 	return false, ""
 }
+
+var ephemeralPrefixes = []string{
+	"offsite-bkp-",
+	"offsite-restore-",
+	"chaos-resilience-",
+	"cron-runner-",
+	"service-logs-",
+	"probe-",
+	"security-radar-",
+	"db-explorer-",
+	"checkpoint-",
+}
+
+// IsEphemeralSessionID returns true if the session ID belongs to a one-shot diagnostic, cron, or backup job.
+func IsEphemeralSessionID(sessionID string) bool {
+	trimmed := strings.TrimSpace(sessionID)
+	for _, p := range ephemeralPrefixes {
+		if strings.HasPrefix(trimmed, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// CloseSession terminates a single PTY session and removes it from the manager map.
+func (m *Manager) CloseSession(sessionID string) {
+	m.mu.Lock()
+	sess, ok := m.sessions[sessionID]
+	if ok {
+		delete(m.sessions, sessionID)
+	}
+	m.mu.Unlock()
+	if ok && sess != nil {
+		sess.subMu.Lock()
+		sess.closed = true
+		sess.subMu.Unlock()
+		_ = sess.Ptmx.Close()
+		if sess.Cmd != nil && sess.Cmd.Process != nil {
+			_ = sess.Cmd.Process.Signal(syscall.SIGTERM)
+		}
+	}
+}
+
+// PruneClosedAndExcessSessions removes closed sessions and caps total idle sessions at maxSessions.
+func (m *Manager) PruneClosedAndExcessSessions(maxSessions int) int {
+	if maxSessions <= 0 {
+		maxSessions = 16
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	reaped := 0
+	for id, s := range m.sessions {
+		if s.isClosed() {
+			delete(m.sessions, id)
+			reaped++
+		}
+	}
+	for id, s := range m.sessions {
+		if len(m.sessions) <= maxSessions {
+			break
+		}
+		if strings.HasPrefix(id, "default-") || id == "default" {
+			continue
+		}
+		s.subMu.Lock()
+		hasSubs := len(s.subscribers) > 0
+		s.closed = !hasSubs
+		s.subMu.Unlock()
+		if !hasSubs {
+			_ = s.Ptmx.Close()
+			if s.Cmd != nil && s.Cmd.Process != nil {
+				_ = s.Cmd.Process.Signal(syscall.SIGTERM)
+			}
+			delete(m.sessions, id)
+			reaped++
+		}
+	}
+	return reaped
+}

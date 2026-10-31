@@ -34,6 +34,7 @@ import {
 import { executeServiceAction } from "../lib/projects/serviceActionRunner";
 import { resetBackgroundCronCooldown } from "../lib/projects/projectTelemetrySync";
 import {
+  deleteGitStackOnMuscle,
   deployGitStackOnMuscle,
   loadGitStacks,
   triggerGitOpsWebhookRedeploy,
@@ -519,11 +520,13 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         { action: "list_git_stacks" },
         { action: "deploy_git_stack", name: "Route Stack", repo_url: "https://github.com/example/route.git", port: 4086 },
         { action: "gitops_webhook", stack_id: deployed.stack!.stack_id, webhook_token: deployed.webhook_token },
+        { action: "delete_git_stack", stack_id: deployed.stack!.stack_id },
         { action: "run_due_cron_jobs" },
       ]) {
         const res = await serviceOpsRoute.POST(makeReq("/api/service-ops", "POST", { project_id: projectId, ...payload }));
         assert.equal(res.status, 200);
       }
+      assert.equal((await deleteGitStackOnMuscle({ projectId, stackId: "missing-stack" })).ok, false);
 
       for (const toolCall of [
         { name: "core_deploy_git_stack", arguments: { name: "MCP Stack", repo_url: "https://github.com/example/mcp.git", port: 4087 } },

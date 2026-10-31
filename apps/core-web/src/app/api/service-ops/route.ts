@@ -24,6 +24,7 @@ import {
   saveCronJobs,
 } from "@/lib/v070-studio";
 import {
+  deleteGitStackOnMuscle,
   deployGitStackOnMuscle,
   loadGitStacks,
   triggerGitOpsWebhookRedeploy,
@@ -502,12 +503,21 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "gitops_webhook") {
+      const rawToken = body.webhook_token || body.webhookToken;
       const res = await triggerGitOpsWebhookRedeploy({
         projectId,
         stackId: String(body.stack_id || body.stackId || ""),
-        webhookToken: String(body.webhook_token || body.webhookToken || ""),
+        webhookToken: rawToken ? String(rawToken) : undefined,
       });
       return NextResponse.json(res, { status: res.ok ? 200 : 403 });
+    }
+
+    if (action === "delete_git_stack") {
+      const res = await deleteGitStackOnMuscle({
+        projectId,
+        stackId: String(body.stack_id || body.stackId || ""),
+      });
+      return NextResponse.json(res, { status: res.ok ? 200 : 404 });
     }
 
     return NextResponse.json({ ok: false, error: `Unknown service-ops action: ${action}` }, { status: 400 });

@@ -284,3 +284,53 @@ export async function triggerGitOpsWebhookRedeploy(params: {
 
   return { ok: res.ok, error: res.error, redeployed: res.ok, stack: res.stack };
 }
+
+export async function deleteGitStackOnMuscle(params: {
+  projectId: string;
+  stackId: string;
+}): Promise<{ ok: boolean; error?: string; stacks: GitOpsStackRecord[] }> {
+  const projectId = resolveActiveProjectId(params.projectId);
+  const current = loadGitStacks(projectId);
+  const target = current.find((s) => s.stack_id === params.stackId);
+  if (!target) {
+    return { ok: false, error: `GitOps stack not found: ${params.stackId}`, stacks: current };
+  }
+
+  const stackDir = `/var/lib/synapse/stacks/${target.stack_id}`;
+  const teardownCmd = `if [ -d "${stackDir}/repo" ]; then cd "${stackDir}/repo" && docker compose -f "${target.compose_path}" down --remove-orphans 2>/dev/null || true; fi; rm -rf "${stackDir}" 2>/dev/null || true`;
+
+  await safeFetchJson(`${getGatewayUrl()}/api/v1/rpc/pty`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      node_id: target.node_id,
+      cmd_id: `gitops-delete-${Date.now()}`,
+      project_id: projectId,
+      session_id: `gitops-${target.stack_id}`,
+      tier: "TIER_1_UNLEASHED",
+      command: teardownCmd,
+      wait_timeout_ms: 12000,
+    }),
+    timeoutMs: 14000,
+  });
+
+  const remaining = current.filter((s) => s.stack_id !== target.stack_id);
+  saveGitStacks(projectId, remaining);
+
+  await withProjectStateTransaction(projectId, (draft) => {
+    draft.registered_services = draft.registered_services.filter(
+      (s) => s.service_id !== target.stack_id && !(s.node_id === target.node_id && s.port === target.port)
+    );
+  });
+
+  appendAuditLog(projectId, {
+    timestamp: new Date().toISOString(),
+    actor: "user",
+    tool_name: "gitops_stack_delete",
+    node_id: target.node_id,
+    status: "executed",
+    summary: `Removed GitOps stack '${target.name}' (${target.stack_id}) from ${target.node_id}:${target.port}`,
+  });
+
+  return { ok: true, stacks: remaining };
+}

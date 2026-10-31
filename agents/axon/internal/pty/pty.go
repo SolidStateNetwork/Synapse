@@ -62,6 +62,7 @@ func NewManager(workspaceRoot string, guardCfg guard.GuardrailConfig) *Manager {
 
 // ActiveSessionIDs returns the IDs of all active PTY sessions.
 func (m *Manager) ActiveSessionIDs() []string {
+	m.PruneClosedAndExcessSessions(16)
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	out := make([]string, 0, len(m.sessions))
@@ -75,6 +76,7 @@ func (m *Manager) ActiveSessionIDs() []string {
 
 // ActiveSessionMeta returns rich metadata (session_id, cwd, running_cmd) for all active PTY sessions.
 func (m *Manager) ActiveSessionMeta() []tunnelv1.PtySessionMeta {
+	m.PruneClosedAndExcessSessions(16)
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	out := make([]tunnelv1.PtySessionMeta, 0, len(m.sessions))
@@ -407,6 +409,10 @@ loop:
 	}
 
 	cleaned, truncated, fullLogPath := guard.SanitizeAndTruncate(m.guardCfg, cmdID, rawOutput, activeSecrets)
+
+	if !timedOut && IsEphemeralSessionID(sess.ID) {
+		m.CloseSession(sess.ID)
+	}
 
 	return tunnelv1.PtyExecResponse{
 		CmdID:       cmdID,

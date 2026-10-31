@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Check, Clock, Copy, GitBranch, Play, RefreshCw, Rocket } from "lucide-react";
+import { Check, Clock, Copy, GitBranch, Play, RefreshCw, Rocket, Trash2 } from "lucide-react";
 import { safeFetchJson } from "@/lib/safeFetch";
 
 export interface GitOpsStackViewItem {
@@ -111,6 +111,28 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
         onReloadWorkspace?.();
       } else {
         setNotice(`Webhook error: ${data.error || "Failed"}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteStack = async (stackId: string) => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const res = await safeFetchJson("/api/service-ops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete_git_stack", project_id: projectId, stack_id: stackId }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string; stacks?: GitOpsStackViewItem[] };
+      if (data.ok) {
+        if (Array.isArray(data.stacks)) setStacks(data.stacks);
+        setNotice(`Removed GitOps stack '${stackId}'`);
+        onReloadWorkspace?.();
+      } else {
+        setNotice(`Delete error: ${data.error || "Failed"}`);
       }
     } finally {
       setBusy(false);
@@ -256,15 +278,26 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
                       :{st.port} ({st.injected_secret_keys.length} Secrets)
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => handleTriggerRedeploy(st.stack_id)}
-                    className="inline-flex items-center gap-1 rounded border border-nb-gray-700 bg-nb-gray-900 px-2 py-0.5 text-[11px] text-nb-gray-200 hover:text-white"
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                    Webhook Redeploy
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => handleTriggerRedeploy(st.stack_id)}
+                      className="inline-flex items-center gap-1 rounded border border-nb-gray-700 bg-nb-gray-900 px-2 py-0.5 text-[11px] text-nb-gray-200 hover:text-white"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Webhook Redeploy
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => handleDeleteStack(st.stack_id)}
+                      className="inline-flex items-center gap-1 rounded border border-red-500/40 bg-red-950/60 px-2 py-0.5 text-[11px] text-red-200 hover:bg-red-900/60"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Teardown
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

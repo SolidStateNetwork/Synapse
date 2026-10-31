@@ -2,6 +2,19 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v0.8.0] — 2026-10-31 (Axon Ephemeral-PTY Garbage Collection, GitOps Stack Teardown & 60-Sample Telemetry Sparklines)
+
+### Added & Improved
+- **Axon Ephemeral-PTY Garbage Collection & Session-Cap (`agents/axon/internal/pty/pty.go`, `pty_discovery.go`)**:
+  - `IsEphemeralSessionID`, `CloseSession`, and `PruneClosedAndExcessSessions` automatically reap one-shot diagnostic, backup, cron, and log PTY sessions (`offsite-bkp-*`, `chaos-resilience-*`, `cron-runner-*`, `service-logs-*`, `probe-*`, `security-radar-*`, `db-explorer-*`, `checkpoint-*`) upon completion and cap total idle sessions to prevent file-descriptor or memory leaks on long-running Muscle nodes.
+- **Complete GitOps Stack Lifecycle — Teardown & Delete (`gitopsDeployer.ts`, `/api/service-ops`, `GitOpsStudioPanel.tsx`)**:
+  - Added `deleteGitStackOnMuscle` (`POST /api/service-ops` -> `delete_git_stack`) and a 1-click **Teardown** button in `GitOpsStudioPanel.tsx` to run `docker compose down --remove-orphans`, clean up the stack directory, and remove the stack from `GitStacks.json` and `State.json`.
+- **60-Sample Live Telemetry Sparklines & Standalone Static Sync (`PeersMeshAndAutomationSubTabs.tsx`, `ensure-core-ha.sh`)**:
+  - Added 60-sample CPU, RAM, and Latency sparkline bars in the Server & Mesh overview (`PeersMeshAndAutomationSubTabs.tsx`).
+  - Automated `.next/static` synchronization into `.next/standalone/.next/` in `package.json` and `scripts/ensure-core-ha.sh`.
+
+---
+
 ## [v0.7.0] — 2026-10-31 (AI-Orchestrator & MCP GitOps/Log/Cron Tools, Interactive GitOps Studio UI & Background Cron Scheduler)
 
 ### Added & Improved

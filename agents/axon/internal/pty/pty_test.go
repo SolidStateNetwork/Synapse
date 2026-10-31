@@ -165,4 +165,35 @@ func TestPersistentPtySentinelAndState(t *testing.T) {
 	if !guardBlocked.BlockedByGuardrail || guardBlocked.ExitCode != 126 {
 		t.Fatalf("expected Self-Lockout Guardrail to block killing agent PID, got %+v", guardBlocked)
 	}
+
+	// 5. Test Ephemeral Session Auto-Reaping & PruneClosedAndExcessSessions
+	if !IsEphemeralSessionID("offsite-bkp-12345") || IsEphemeralSessionID("default-demo-proj") {
+		t.Fatalf("unexpected IsEphemeralSessionID classification")
+	}
+
+	ephResp := mgr.Execute(tunnelv1.PtyExecRequest{
+		CmdID:         "cmd-eph",
+		SessionID:     "offsite-bkp-999",
+		ProjectID:     "demo-proj",
+		Tier:          tunnelv1.Tier1Unleashed,
+		Command:       "echo EPHEMERAL_OK",
+		WaitTimeoutMs: 5000,
+	})
+	if ephResp.ExitCode != 0 || !strings.Contains(ephResp.Output, "EPHEMERAL_OK") {
+		t.Fatalf("expected ephemeral command to succeed, got %+v", ephResp)
+	}
+	for _, activeID := range mgr.ActiveSessionIDs() {
+		if activeID == "offsite-bkp-999" {
+			t.Fatalf("expected ephemeral session offsite-bkp-999 to be auto-reaped")
+		}
+	}
+
+	for i := 0; i < 4; i++ {
+		_, _ = mgr.GetOrCreateSession(fmt.Sprintf("extra-sess-%d", i), "demo-proj", tunnelv1.Tier1Unleashed)
+	}
+	reaped := mgr.PruneClosedAndExcessSessions(2)
+	if reaped == 0 {
+		t.Fatalf("expected PruneClosedAndExcessSessions(2) to reap excess sessions")
+	}
+	mgr.CloseSession("sess-timeout")
 }

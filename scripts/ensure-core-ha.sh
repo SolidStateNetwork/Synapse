@@ -44,6 +44,7 @@ Environment=SYNAPSE_VAULT_DIR=${REPO_ROOT}/.synapse-data/projects
 Environment=SYNAPSE_CARTRIDGES_DIR=${REPO_ROOT}/cartridges
 Environment=CORE_GATEWAY_URL=http://127.0.0.1:8081
 Environment=PORT=3000
+ExecStartPre=-/usr/bin/cp -r ${REPO_ROOT}/apps/core-web/.next/static ${REPO_ROOT}/apps/core-web/.next/standalone/.next/
 ExecStart=/usr/bin/node ${REPO_ROOT}/apps/core-web/.next/standalone/server.js
 Restart=always
 RestartSec=2s
