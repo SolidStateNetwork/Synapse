@@ -148,7 +148,14 @@ async function executeMcpTool(
     (toolName === "core_manage_alerts" &&
       (!args.action || args.action === "inspect")) ||
     (toolName === "core_intrusion_scan" &&
-      (!args.action || args.action === "scan"));
+      (!args.action || args.action === "scan")) ||
+    (toolName === "core_hot_reload_service_code" &&
+      (!args.action || args.action === "inspect")) ||
+    (toolName === "core_sqlite_studio" &&
+      !args.custom_sql &&
+      !args.insert_row) ||
+    (toolName === "core_manage_cron_jobs" &&
+      (!args.action || args.action === "list"));
 
   if (!isReadOnlyTool && !canExecute) {
     return {

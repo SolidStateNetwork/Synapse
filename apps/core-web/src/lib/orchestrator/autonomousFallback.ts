@@ -394,6 +394,28 @@ export async function runDeterministicAutonomousWorkflow(
     });
     const out = step.output as { top_attackers?: unknown[] } | undefined;
     finalReply = `### 🛡️ Autonomous SSH Intrusion Radar\n\n- **Verdächtige Angreifer-IPs:** \`${out?.top_attackers?.length ?? 0}\``;
+  } else if (lower.startsWith("hot-reload:") || lower.includes("inspect service code")) {
+    const portMatch = userPrompt.match(/\b(\d{4,5})\b/);
+    const step = await runStep("core_hot_reload_service_code", {
+      action: "inspect",
+      port: portMatch ? Number(portMatch[1]) : 4050,
+      node_id: primaryNode || "local-node",
+    });
+    const out = step.output as { file_path?: string; runtime?: string } | undefined;
+    finalReply = `### 🔥 Live-Code Hot-Reload Inspector\n\n- **Datei:** \`${out?.file_path || "/var/lib/synapse/services"}\` (\`${out?.runtime || "python3"}\`)`;
+  } else if (lower.startsWith("sqlite:") || lower.includes("sqlite studio")) {
+    const step = await runStep("core_sqlite_studio", {
+      node_id: primaryNode || "local-node",
+    });
+    const out = step.output as { db_path?: string; tables?: string[] } | undefined;
+    finalReply = `### 🗄️ SQLite Data Studio\n\n- **Datenbank:** \`${out?.db_path || "app.db"}\` (Tabellen: \`${out?.tables?.length ?? 0}\`)`;
+  } else if (lower.startsWith("cron-jobs:") || lower.includes("list cron jobs")) {
+    const step = await runStep("core_manage_cron_jobs", {
+      action: "list",
+      node_id: primaryNode || "local-node",
+    });
+    const out = step.output as { cron_jobs?: unknown[] } | undefined;
+    finalReply = `### ⏱️ Cron-Runbook Registry\n\n- **Registrierte Cron-Runbooks:** \`${out?.cron_jobs?.length ?? 0}\``;
   }
 
   if (!finalReply) {

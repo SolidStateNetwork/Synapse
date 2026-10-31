@@ -4,6 +4,7 @@ import {
   recordRollbackSnapshot,
   writeBrainDoc,
 } from "./vault";
+import { recordCheckpoint } from "./checkpoints";
 import {
   resolveActiveProjectId,
   resolveTargetNodeId,
@@ -203,6 +204,7 @@ export async function hotReloadServiceCodeOnMuscle(params: {
   port: number;
   file_path: string;
   snapshot_id: string;
+  checkpoint_id: string;
   healthy: boolean;
   http_status: number;
   latency_ms: number;
@@ -217,6 +219,21 @@ export async function hotReloadServiceCodeOnMuscle(params: {
     params.filePath && params.filePath.startsWith("/")
       ? params.filePath
       : `/var/lib/synapse/services/${serviceId}/server_${port}.py`;
+
+  const preFlightCheckpoint = recordCheckpoint(projectId, {
+    node_id: nodeId || "local-node",
+    title: `Pre-Flight Hot-Reload: ${serviceId} (:${port})`,
+    actor: "Auto-Watchdog",
+    summary: `Automatic pre-flight checkpoint before live code hot-reload of ${serviceId} on port :${port} (${targetPath}).`,
+    files_backed_up: [targetPath],
+    services_snapshot: (state.registered_services || []).map((svc) => ({
+      service_id: svc.service_id,
+      name: svc.name,
+      port: svc.port,
+      healthy: svc.healthy !== false,
+    })),
+    rollback_cmd: `if [ -f "${targetPath}.synapse.bak" ]; then cp -f "${targetPath}.synapse.bak" "${targetPath}"; fi && echo 'CHECKPOINT_RESTORED_OK'`,
+  });
 
   const snapshotId = `snap-hotreload-${Date.now().toString(36)}`;
   try {
@@ -332,6 +349,7 @@ export async function hotReloadServiceCodeOnMuscle(params: {
     port,
     file_path: targetPath,
     snapshot_id: snapshotId,
+    checkpoint_id: preFlightCheckpoint.id,
     healthy,
     http_status: httpStatus,
     latency_ms: latencyMs,

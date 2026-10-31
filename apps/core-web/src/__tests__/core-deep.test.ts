@@ -549,6 +549,14 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         { name: "core_manage_alerts", arguments: { action: "evaluate" } },
         { name: "core_intrusion_scan", arguments: { action: "scan", node_id: "local-node" } },
         { name: "core_intrusion_scan", arguments: { action: "block_ip", node_id: "local-node", ip: "198.51.100.44" } },
+        { name: "core_hot_reload_service_code", arguments: { action: "inspect", port: 4050 } },
+        { name: "core_hot_reload_service_code", arguments: { action: "hot_reload", port: 4050, code: "print('ok')" } },
+        { name: "core_hot_reload_service_code", arguments: { action: "hot_reload", port: 4050, code: "" } },
+        { name: "core_sqlite_studio", arguments: { table: "metrics", insert_row: { key: "k1", value: "v1" } } },
+        { name: "core_manage_cron_jobs", arguments: { action: "list" } },
+        { name: "core_manage_cron_jobs", arguments: { action: "save", id: "cron-mcp-1", name: "MCP Cron", command: "uptime" } },
+        { name: "core_manage_cron_jobs", arguments: { action: "run_now", id: "cron-mcp-1" } },
+        { name: "core_manage_cron_jobs", arguments: { action: "delete", id: "cron-mcp-1" } },
       ]) {
         const r = await mcpRoute.POST(
           makeReq("/api/mcp", "POST", { project_id: projectId, internal_ui_test: true, jsonrpc: "2.0", id: 99, method: "tools/call", params: toolCall })
@@ -571,6 +579,9 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         "checkpoint: pre-flight",
         "alerts: evaluate",
         "intrusion: scan ssh",
+        "hot-reload: 4050",
+        "sqlite: studio",
+        "cron-jobs: list",
       ]) {
         const wf = await runDeterministicAutonomousWorkflow(projectId, chatCmd, undefined, promptParts);
         assert.ok(wf.reply.length > 0);

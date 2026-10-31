@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Check, Clock, Copy, GitBranch, HardDriveDownload, Play, RefreshCw, Rocket, ScrollText, Trash2 } from "lucide-react";
+import { Check, Clock, Copy, GitBranch, HardDriveDownload, Play, RefreshCw, Rocket, ScrollText, ShieldAlert, Trash2 } from "lucide-react";
 import { safeFetchJson } from "@/lib/safeFetch";
 import { SYNAPSE_VERSION } from "@/lib/version";
 
@@ -53,6 +53,7 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
   const [copiedToken, setCopiedToken] = useState(false);
   const [cronBusy, setCronBusy] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [secopsBusy, setSecopsBusy] = useState(false);
 
   const [logPort, setLogPort] = useState("4085");
   const [logTarget, setLogTarget] = useState("");
@@ -260,6 +261,32 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
     }
   };
 
+  const handleRunSecopsQuickAudit = async () => {
+    setSecopsBusy(true);
+    setNotice(null);
+    try {
+      const [alertRes, intrRes] = await Promise.all([
+        safeFetchJson("/api/alerts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "evaluate", project_id: projectId }),
+        }),
+        safeFetchJson("/api/service-ops", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "intrusion_scan", project_id: projectId, node_id: nodeId }),
+        }),
+      ]);
+      const alertData = (await alertRes.json()) as { triggered_count?: number };
+      const intrData = (await intrRes.json()) as { failed_count_24h?: number; top_attackers?: Array<{ ip: string }> };
+      setNotice(
+        `SecOps & Watchdog Quick-Audit (${nodeId}): ${alertData.triggered_count ?? 0} Schwellenwert-Verletzungen · ${intrData.failed_count_24h ?? 0} SSH-Fehlversuche (${intrData.top_attackers?.length ?? 0} Angreifer-IPs)`
+      );
+    } finally {
+      setSecopsBusy(false);
+    }
+  };
+
   return (
     <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940/90 p-3.5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -270,6 +297,15 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={secopsBusy}
+            onClick={handleRunSecopsQuickAudit}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-950/60 px-2.5 py-1 text-[11px] font-semibold text-rose-200 hover:bg-rose-900/60 disabled:opacity-50"
+          >
+            <ShieldAlert className="h-3.5 w-3.5" />
+            {secopsBusy ? "Prüfe SecOps..." : "SecOps & Watchdog Check"}
+          </button>
           <button
             type="button"
             disabled={backupBusy}

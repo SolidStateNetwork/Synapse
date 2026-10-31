@@ -2,6 +2,18 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v1.3.0] — 2026-10-31 (Studio-DevOps AI/MCP Parity, Pre-Flight Hot-Reload Time-Machine Checkpoints & 1-Click SecOps Quick-Audit)
+
+### Added & Improved
+- **AI-Orchestrator & MCP Studio-DevOps Tools (`studioDevOpsTools.ts`, `toolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp`)**:
+  - Added `core_hot_reload_service_code` (`inspect`, `hot_reload`), `core_sqlite_studio` (`db_path`, `table`, `custom_sql`, `insert_row`), and `core_manage_cron_jobs` (`list`, `save`, `delete`, `run_now`) so the AI Copilot and external MCP Clients have 100% parity with the Studio UI.
+- **Automatic Pre-Flight Time-Machine Checkpoints on Live-Code Hot-Reload (`v070-studio.ts`)**:
+  - `hotReloadServiceCodeOnMuscle` now automatically records a Pre-Flight Time-Machine Checkpoint (`actor: "Auto-Watchdog"`) before modifying and restarting a live service on a Muscle node, returning `checkpoint_id`.
+- **1-Click SecOps & Watchdog Quick-Audit in Studio UI (`GitOpsStudioPanel.tsx`)**:
+  - Added a 1-Click **SecOps & Watchdog Check** button in the Service Workbench that runs a combined Watchdog threshold evaluation (`/api/alerts` -> `evaluate`) and SSH intrusion radar scan (`/api/service-ops` -> `intrusion_scan`).
+
+---
+
 ## [v1.2.0] — 2026-10-31 (Autonomous SecOps/Watchdog AI & MCP Tools, Background Threshold Evaluator & Ephemeral GitOps/Blueprint PTY Reaping)
 
 ### Added & Improved

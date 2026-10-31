@@ -228,29 +228,11 @@ export const SYNAPSE_TOOL_SCHEMAS = [
           node_id: { type: "string" },
           operation: {
             type: "string",
-            enum: [
-              "read_file",
-              "write_file",
-              "apply_unified_diff",
-              "list_dir",
-              "stat",
-              "delete",
-            ],
+            enum: ["read_file", "write_file", "apply_unified_diff", "list_dir", "stat", "delete"],
           },
-          path: {
-            type: "string",
-            description: "Path on the target Connector.",
-          },
-          content_or_patch: {
-            type: "string",
-            description:
-              "Full file content (for write_file) or Unified-Diff patch (for apply_unified_diff).",
-          },
-          file_mode: {
-            type: "string",
-            default: "0644",
-            description: "Octal file permissions, e.g. 0755 for scripts.",
-          },
+          path: { type: "string", description: "Path on the target Connector." },
+          content_or_patch: { type: "string", description: "Full file content (for write_file) or Unified-Diff patch (for apply_unified_diff)." },
+          file_mode: { type: "string", default: "0644", description: "Octal file permissions, e.g. 0755 for scripts." },
         },
         required: ["node_id", "operation", "path"],
       },
@@ -265,39 +247,13 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       parameters: {
         type: "object",
         properties: {
-          action: {
-            type: "string",
-            enum: ["upsert", "remove"],
-            default: "upsert",
-          },
-          source_node_id: {
-            type: "string",
-            description:
-              "Source Muscle Peer where the local loopback port is opened.",
-          },
-          target_node_id: {
-            type: "string",
-            description:
-              "Destination Muscle Peer hosting the target service.",
-          },
-          local_port: {
-            type: "integer",
-            description:
-              "Local loopback port on source_node_id (127.0.0.1:<local_port>).",
-          },
-          remote_port: {
-            type: "integer",
-            description:
-              "Target port on target_node_id (127.0.0.1:<remote_port>).",
-          },
-          protocol: {
-            type: "string",
-            enum: ["tcp", "http"],
-            default: "tcp",
-          },
-          description: {
-            type: "string",
-          },
+          action: { type: "string", enum: ["upsert", "remove"], default: "upsert" },
+          source_node_id: { type: "string", description: "Source Muscle Peer where the local loopback port is opened." },
+          target_node_id: { type: "string", description: "Destination Muscle Peer hosting the target service." },
+          local_port: { type: "integer", description: "Local loopback port on source_node_id (127.0.0.1:<local_port>)." },
+          remote_port: { type: "integer", description: "Target port on target_node_id (127.0.0.1:<remote_port>)." },
+          protocol: { type: "string", enum: ["tcp", "http"], default: "tcp" },
+          description: { type: "string" },
         },
         required: ["source_node_id", "target_node_id", "remote_port"],
       },
@@ -312,43 +268,16 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       parameters: {
         type: "object",
         properties: {
-          node_id: {
-            type: "string",
-            description: "Target Connector ID from State.json.",
-          },
+          node_id: { type: "string", description: "Target Connector ID from State.json." },
           search_mode: {
             type: "string",
-            enum: [
-              "content_grep",
-              "file_find",
-              "log_scan",
-              "process_and_port_map",
-              "sqlite_inspect",
-              "security_forensics",
-            ],
+            enum: ["content_grep", "file_find", "log_scan", "process_and_port_map", "sqlite_inspect", "security_forensics"],
             description: "Specialized DevOps search and inspection mode.",
           },
-          query: {
-            type: "string",
-            description:
-              "Optional regex, keyword, filename pattern, or filter string (e.g. 'ERROR|Exception', 'sqlite', '4085', 'def do_POST').",
-          },
-          target_dir: {
-            type: "string",
-            description:
-              "Optional base directory to search (defaults to /opt/axon/workspaces).",
-          },
-          file_glob: {
-            type: "string",
-            description:
-              "Optional file glob filter (e.g. '*.py', '*.log', '*.db', '*.json').",
-          },
-          context_lines: {
-            type: "integer",
-            default: 2,
-            description:
-              "Number of surrounding context lines for content_grep / log_scan.",
-          },
+          query: { type: "string", description: "Optional regex, keyword, filename pattern, or filter string (e.g. 'ERROR|Exception', 'sqlite', '4085', 'def do_POST')." },
+          target_dir: { type: "string", description: "Optional base directory to search (defaults to /opt/axon/workspaces)." },
+          file_glob: { type: "string", description: "Optional file glob filter (e.g. '*.py', '*.log', '*.db', '*.json')." },
+          context_lines: { type: "integer", default: 2, description: "Number of surrounding context lines for content_grep / log_scan." },
         },
         required: ["node_id", "search_mode"],
       },
@@ -363,21 +292,10 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       parameters: {
         type: "object",
         properties: {
-          query: {
-            type: "string",
-            description:
-              "Keyword, regex, port number, service name, or topic to search across all Brain Vault documents, State.json, and Audit logs. Leave empty for a full Brain & State consistency dump.",
-          },
+          query: { type: "string", description: "Keyword, regex, port number, service name, or topic to search across all Brain Vault documents, State.json, and Audit logs. Leave empty for a full Brain & State consistency dump." },
           scope: {
             type: "string",
-            enum: [
-              "all",
-              "architecture",
-              "memory",
-              "services",
-              "audit",
-              "cartridges",
-            ],
+            enum: ["all", "architecture", "memory", "services", "audit", "cartridges"],
             default: "all",
           },
         },
@@ -573,6 +491,65 @@ export const SYNAPSE_TOOL_SCHEMAS = [
           action: { type: "string", enum: ["scan", "block_ip"], description: "Intrusion action (scan or block_ip)." },
           node_id: { type: "string", description: "Optional target Muscle Peer ID." },
           ip: { type: "string", description: "Attacker IPv4/IPv6 address to block when action is block_ip." },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_hot_reload_service_code",
+      description:
+        "Inspects or hot-reloads the live source code of a running microservice on a Muscle node with Python syntax validation, Pre-Flight Time-Machine Checkpoint, and zero-downtime restart.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["inspect", "hot_reload"], description: "Inspect or hot_reload service code." },
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          service_id: { type: "string", description: "Service ID (e.g. svc-4050)." },
+          port: { type: "integer", description: "Service port number." },
+          file_path: { type: "string", description: "Optional remote script path." },
+          code: { type: "string", description: "New source code when action is hot_reload." },
+        },
+        required: ["action", "port"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_sqlite_studio",
+      description:
+        "Inspects SQLite database tables, executes custom SQL queries, or inserts rows on a Muscle node over the mTLS PTY tunnel.",
+      parameters: {
+        type: "object",
+        properties: {
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          db_path: { type: "string", description: "Optional SQLite database file path." },
+          table: { type: "string", description: "Optional table name to inspect or insert into." },
+          custom_sql: { type: "string", description: "Optional SQL query to execute." },
+          insert_row: { type: "object", description: "Optional key-value row object to insert." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_manage_cron_jobs",
+      description:
+        "Manages scheduled Cron-Runbooks (list, save, delete, run_now) in CronJobs.json and executes individual runbooks on a Muscle node.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list", "save", "delete", "run_now"], description: "Cron-Runbook action." },
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          id: { type: "string", description: "Cron job ID for save, delete, or run_now." },
+          name: { type: "string", description: "Runbook title when action is save." },
+          cron_expression: { type: "string", description: "5-field cron schedule (e.g. */15 * * * *)." },
+          command: { type: "string", description: "Bash command when action is save." },
+          enabled: { type: "boolean", description: "Whether the Cron-Runbook is enabled." },
         },
         required: ["action"],
       },

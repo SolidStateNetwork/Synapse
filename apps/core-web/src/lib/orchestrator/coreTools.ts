@@ -20,6 +20,7 @@ import { runDueCronJobsOnMuscle } from "../v070-studio";
 import { safeFetchJson } from "../safeFetch";
 import { dispatchDisasterRecoveryTool } from "./disasterRecoveryTools";
 import { dispatchSecopsAndWatchdogTool } from "./secopsAndWatchdogTools";
+import { dispatchStudioDevOpsTool } from "./studioDevOpsTools";
 import type { ToolDispatchResult } from "../orchestrator";
 
 export async function dispatchCoreBrainTool(
@@ -579,6 +580,7 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
 
   return (
     (await dispatchDisasterRecoveryTool(coreGatewayUrl, projectId, state, toolName, args)) ??
-    (await dispatchSecopsAndWatchdogTool(coreGatewayUrl, projectId, state, toolName, args))
+    (await dispatchSecopsAndWatchdogTool(coreGatewayUrl, projectId, state, toolName, args)) ??
+    (await dispatchStudioDevOpsTool(projectId, state, toolName, args))
   );
 }
