@@ -15,16 +15,7 @@ const bareRemoteRoot = path.join(tmpRoot, "remote.git");
 const fakeBinDir = path.join(tmpRoot, "fake-bin");
 const fakeGoBinDir = path.join(tmpRoot, ".local", "go", "bin");
 
-for (const d of [
-  vaultRoot,
-  cartridgesRoot,
-  path.join(fakeRepoRoot, "agents", "axon"),
-  path.join(fakeRepoRoot, "apps", "core-gateway"),
-  path.join(fakeRepoRoot, "bin"),
-  bareRemoteRoot,
-  fakeBinDir,
-  fakeGoBinDir,
-]) {
+for (const d of [vaultRoot, cartridgesRoot, path.join(fakeRepoRoot, "agents", "axon"), path.join(fakeRepoRoot, "apps", "core-gateway"), path.join(fakeRepoRoot, "bin"), bareRemoteRoot, fakeBinDir, fakeGoBinDir]) {
   fs.mkdirSync(d, { recursive: true });
 }
 
@@ -33,19 +24,12 @@ process.env.SYNAPSE_CARTRIDGES_DIR = cartridgesRoot;
 process.env.SYNAPSE_REPO_ROOT = fakeRepoRoot;
 process.env.SYNAPSE_MASTER_KEY = "synapse-llm-ota-test-master-key-32b!";
 
-function makeReq(
-  urlPath: string,
-  method = "GET",
-  body?: unknown,
-  headers?: Record<string, string>
-): NextRequest {
+function makeReq(urlPath: string, method = "GET", body?: unknown, headers?: Record<string, string>): NextRequest {
   const init: { method: string; headers: Record<string, string>; body?: string } = {
     method,
     headers: { "content-type": "application/json", ...(headers || {}) },
   };
-  if (body !== undefined) {
-    init.body = typeof body === "string" ? body : JSON.stringify(body);
-  }
+  if (body !== undefined) init.body = typeof body === "string" ? body : JSON.stringify(body);
   return new NextRequest(`http://127.0.0.1:3000${urlPath}`, init);
 }
 
@@ -104,60 +88,36 @@ exit 0
         openAiTurn += 1;
         res.writeHead(200, { "Content-Type": "application/json" });
         if (openAiTurn === 1) {
-          res.end(
-            JSON.stringify({
-              usage: { prompt_tokens: 120, completion_tokens: 45, prompt_tokens_details: { cached_tokens: 80 } },
-              choices: [
-                {
-                  message: {
-                    reasoning_content: "Initial reasoning step from provider.",
-                    content: "<think>Analyzing vault state</think>Let me inspect the project state.",
-                    tool_calls: [
-                      {
-                        id: "call_1",
-                        function: { name: "core_get_state", arguments: JSON.stringify({ include_audit_count: 5 }) },
-                      },
-                    ],
-                  },
-                },
-              ],
-            })
-          );
+          res.end(JSON.stringify({
+            usage: { prompt_tokens: 120, completion_tokens: 45, prompt_tokens_details: { cached_tokens: 80 } },
+            choices: [{
+              message: {
+                reasoning_content: "Initial reasoning step from provider.",
+                content: "<think>Analyzing vault state</think>Let me inspect the project state.",
+                tool_calls: [{ id: "call_1", function: { name: "core_get_state", arguments: JSON.stringify({ include_audit_count: 5 }) } }],
+              },
+            }],
+          }));
           return;
         }
         if (openAiTurn === 2) {
-          res.end(
-            JSON.stringify({
-              usage: { prompt_tokens: 160, completion_tokens: 60 },
-              choices: [{ message: { content: "<think>Done</think>### Completed Inspection\nAll services healthy." } }],
-            })
-          );
+          res.end(JSON.stringify({
+            usage: { prompt_tokens: 160, completion_tokens: 60 },
+            choices: [{ message: { content: "<think>Done</think>### Completed Inspection\nAll services healthy." } }],
+          }));
           return;
         }
         if (openAiTurn === 3) {
-          res.end(
-            JSON.stringify({
-              choices: [
-                {
-                  message: {
-                    content: "",
-                    tool_calls: [{ id: "call_synth", function: { name: "core_get_state", arguments: "{}" } }],
-                  },
-                },
-              ],
-            })
-          );
+          res.end(JSON.stringify({
+            choices: [{ message: { content: "", tool_calls: [{ id: "call_synth", function: { name: "core_get_state", arguments: "{}" } }] } }],
+          }));
           return;
         }
         if (openAiTurn === 4) {
           res.end(JSON.stringify({ choices: [] }));
           return;
         }
-        res.end(
-          JSON.stringify({
-            choices: [{ message: { content: "<think>Synthesized</think>Synthesized final DevOps report." } }],
-          })
-        );
+        res.end(JSON.stringify({ choices: [{ message: { content: "<think>Synthesized</think>Synthesized final DevOps report." } }] }));
         return;
       }
 
@@ -170,23 +130,19 @@ exit 0
         }
         res.writeHead(200, { "Content-Type": "application/json" });
         if (anthropicTurn === 1) {
-          res.end(
-            JSON.stringify({
-              usage: { input_tokens: 100, cache_read_input_tokens: 64, cache_creation_input_tokens: 16 },
-              content: [
-                { type: "thinking", thinking: "Anthropic thinking block." },
-                { type: "tool_use", id: "tu_1", name: "core_get_state", input: { include_audit_count: 3 } },
-              ],
-            })
-          );
+          res.end(JSON.stringify({
+            usage: { input_tokens: 100, cache_read_input_tokens: 64, cache_creation_input_tokens: 16 },
+            content: [
+              { type: "thinking", thinking: "Anthropic thinking block." },
+              { type: "tool_use", id: "tu_1", name: "core_get_state", input: { include_audit_count: 3 } },
+            ],
+          }));
           return;
         }
-        res.end(
-          JSON.stringify({
-            usage: { input_tokens: 140, cache_read_input_tokens: 64 },
-            content: [{ type: "text", text: "Anthropic final response after tool execution." }],
-          })
-        );
+        res.end(JSON.stringify({
+          usage: { input_tokens: 140, cache_read_input_tokens: 64 },
+          content: [{ type: "text", text: "Anthropic final response after tool execution." }],
+        }));
         return;
       }
 
@@ -195,46 +151,46 @@ exit 0
         res.end(JSON.stringify({ data: [{ id: "gpt-4o-mini" }, { id: "claude-3-5-sonnet-latest" }] }));
         return;
       }
-      if (req.url === "/healthz") {
+      if (req.url === "/healthz" || req.url === "/api/v1/nodes/health-targets" || req.url === "/webhook") {
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok" }));
+        res.end(JSON.stringify({ status: "ok", ok: true }));
         return;
       }
       if (req.url === "/api/v1/nodes") {
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            nodes: [
-              {
-                node_id: "ota-node-1",
-                online: true,
-                tier: "TIER_1_UNLEASHED",
-                remote_addr: "127.0.0.1:50001",
-                last_heartbeat: { hostname: "ota-host-1", os_arch: "linux/amd64", private_ipv4: "10.0.0.11" },
-              },
-            ],
-          })
-        );
+        res.end(JSON.stringify({
+          nodes: [{
+            node_id: "ota-node-1",
+            online: true,
+            tier: "TIER_1_UNLEASHED",
+            remote_addr: "127.0.0.1:50001",
+            connected_at: "2026-10-31T00:00:00Z",
+            last_heartbeat: {
+              hostname: "ota-host-1",
+              os_arch: "linux/amd64",
+              private_ipv4: "10.0.0.11",
+              timestamp_unix: 1730000000,
+              cpu_percent: 92.5,
+              ram_percent: 91.0,
+              disk_percent: 90.0,
+              active_cores: 2,
+              connected_cores: ["primary"],
+              active_pty_sessions: ["default"],
+              services: [
+                { service_id: "svc-web-1", name: "Web Portal", port: 4050, healthy: true },
+                { service_id: "svc-db-1", name: "SQLite DB", port: 5432, healthy: false, last_error: "ECONNREFUSED" },
+              ],
+            },
+          }],
+        }));
         return;
       }
       if (req.url === "/api/v1/debug") {
         res.writeHead(200, { "Content-Type": "application/json" });
         if (req.method === "POST" && parsed.action === "ping_nodes") {
-          res.end(
-            JSON.stringify({
-              ping_results: [
-                {
-                  node_id: "ota-node-1",
-                  fs_ok: true,
-                  pty_ok: true,
-                  fs_entries: 12,
-                  current_cwd: "/workspace",
-                  pty_output: "synapse-ok",
-                  latency_ms: 4,
-                },
-              ],
-            })
-          );
+          res.end(JSON.stringify({
+            ping_results: [{ node_id: "ota-node-1", fs_ok: true, pty_ok: true, fs_entries: 12, current_cwd: "/workspace", pty_output: "synapse-ok", latency_ms: 4 }],
+          }));
           return;
         }
         res.end(JSON.stringify({ debug_enabled: true, events: [] }));
@@ -242,18 +198,20 @@ exit 0
       }
       if (req.url === "/api/v1/rpc/fs") {
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true }));
+        res.end(JSON.stringify({ success: true, content: "PORT=3000\n", entries: [] }));
         return;
       }
       if (req.url === "/api/v1/rpc/pty") {
         res.writeHead(200, { "Content-Type": "application/json" });
+        if (String(parsed.command || "").includes(".synapse_fw_apply.py")) {
+          res.end(JSON.stringify({ exit_code: 0, output: "SYNAPSE_FW_APPLIED_OK\n" }));
+          return;
+        }
         if (String(parsed.session_id || "") === "sys-update-check") {
-          res.end(
-            JSON.stringify({
-              exit_code: 0,
-              output: "SHA=0123456789abcdef\nMTIME=2026-10-31 01:00:00\nSVC=active\nSRC=release\nAXON_SRC=0123456789ab\n",
-            })
-          );
+          res.end(JSON.stringify({
+            exit_code: 0,
+            output: "SHA=0123456789abcdef\nMTIME=2026-10-31 01:00:00\nSVC=active\nSRC=release\nAXON_SRC=0123456789ab\n",
+          }));
           return;
         }
         if (ptyMode === "ota_fail") {
@@ -550,5 +508,59 @@ exit 0
     const coreUpdateData = (await coreUpdateRes.json()) as { success: boolean; steps: Array<{ step: string; status: string }> };
     assert.equal(coreUpdateData.success, true);
     assert.ok(coreUpdateData.steps.length >= 3);
+  });
+
+  it("33. Alerts, GatewayClient, ServicePresets, ProjectTelemetrySync, Firewall & Orchestrator FS/PTY RPCs", async () => {
+    const alertsRoute = await import("../app/api/alerts/route");
+    const { gatewayFetchLiveNodes, gatewayFsOperation, gatewayPushHealthTargets } = await import("../lib/gatewayClient");
+    const { buildDefaultServiceEndpoints } = await import("../lib/orchestrator/servicePresets");
+    const { syncProjectTelemetryAndWatchdog } = await import("../lib/projects/projectTelemetrySync");
+    const { executeFirewallAction } = await import("../lib/firewall");
+    const { interceptAndExecuteTool } = await import("../lib/orchestrator");
+
+    const projectId = "proj-debug-ota";
+    assert.equal(buildDefaultServiceEndpoints(projectId, "mesh-db", "Mesh DB", "database").length, 2);
+    assert.equal(buildDefaultServiceEndpoints(projectId, "sqlite-db", "SQLite DB", "database").length, 4);
+
+    const liveNodes = await gatewayFetchLiveNodes(2000);
+    assert.equal(liveNodes.length, 1);
+    const fsRes = await gatewayFsOperation({ node_id: "ota-node-1", project_id: projectId, operation: "read_file", path: "app.env" });
+    assert.equal(fsRes.success, true);
+    assert.equal(await gatewayPushHealthTargets("ota-node-1", []), true);
+
+    const cfgRes = await alertsRoute.POST(makeReq("/api/alerts", "POST", {
+      project_id: projectId, action: "configure", enabled: true, telegram_enabled: true, telegram_bot_token: "bot123", telegram_chat_id: "chat456",
+      discord_enabled: true, discord_webhook_url: `${mockBaseUrl}/webhook`, webhook_enabled: true, webhook_url: `${mockBaseUrl}/webhook`,
+      cpu_threshold: 50, ram_threshold: 50, disk_threshold: 50, alert_on_service_down: true, alert_on_peer_offline: true, auto_heal_services: true,
+    }));
+    assert.equal(cfgRes.status, 200);
+    assert.equal((await alertsRoute.POST(makeReq("/api/alerts", "POST", { project_id: projectId, action: "test_alert", message: "Verify channels" }))).status, 200);
+    const evalRes = await alertsRoute.POST(makeReq("/api/alerts", "POST", { project_id: projectId, action: "evaluate" }));
+    assert.equal(evalRes.status, 200);
+    const evalData = (await evalRes.json()) as { triggered_count: number };
+    assert.ok(evalData.triggered_count >= 3);
+
+    const { withProjectStateTransaction } = await import("../lib/vault");
+    await withProjectStateTransaction(projectId, (st) => {
+      st.registered_services.push({ service_id: "svc-db-1", name: "SQLite DB", node_id: "ota-node-1", protocol: "http", port: 5432, healthy: true, registered_at: new Date().toISOString() });
+    });
+    const synced = await syncProjectTelemetryAndWatchdog(projectId);
+    assert.ok(synced.state.assigned_nodes.some((n) => n.node_id === "ota-node-1" && n.online));
+
+    await executeFirewallAction(projectId, { action: "set_profile", node_id: "ota-node-1", profile: "web_standard" });
+    await executeFirewallAction(projectId, { action: "set_profile", node_id: "ota-node-1", profile: "custom" });
+    await executeFirewallAction(projectId, { action: "shield_port", node_id: "ota-node-1", port: 4050 });
+    await executeFirewallAction(projectId, { action: "unshield_port", node_id: "ota-node-1", port: 4050 });
+    const ipAdded = await executeFirewallAction(projectId, { action: "add_ip_rule", node_id: "ota-node-1", ip_or_cidr: "10.20.0.0/16", rule_action: "allow", port: 4050, note: "Internal subnet" });
+    await executeFirewallAction(projectId, { action: "remove_ip_rule", node_id: "ota-node-1", rule_id: ipAdded.policy.ip_rules[0]?.rule_id || "" });
+
+    const r1 = await interceptAndExecuteTool("proj-llm-loop", "node_fs_operation", { node_id: "ota-node-1", operation: "read_file", path: "/workspace/app.env" });
+    const r2 = await interceptAndExecuteTool("proj-llm-loop", "node_fs_operation", { node_id: "ota-node-1", operation: "read_file", path: "/workspace/app.env" });
+    assert.equal(r1.status, "executed");
+    assert.equal(r2.cached, true);
+    const w1 = await interceptAndExecuteTool("proj-llm-loop", "node_fs_operation", { node_id: "ota-node-1", operation: "write_file", path: "/workspace/app.env", content: "PORT=4000\n" });
+    assert.equal(w1.status, "executed");
+    const p1 = await interceptAndExecuteTool("proj-llm-loop", "node_pty_exec", { node_id: "ota-node-1", command: "echo ok" });
+    assert.equal(p1.status, "executed");
   });
 });

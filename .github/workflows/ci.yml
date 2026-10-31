@@ -99,7 +99,7 @@ jobs:
           cache: "npm"
           cache-dependency-path: apps/core-web/package-lock.json
 
-      - name: Install Dependencies, Verify Strict TypeScript, Run Unit Tests (>= 85% Coverage Gate) & Build Next.js 15 App Router
+      - name: Install Dependencies, Verify Strict TypeScript, Run Unit Tests (>= 90% Coverage Gate) & Build Next.js 15 App Router
         working-directory: apps/core-web
         run: |
           set -o pipefail
@@ -107,11 +107,11 @@ jobs:
           npx tsc --noEmit
           node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON --experimental-test-coverage --import ./src/__tests__/register-hooks.mjs --test src/__tests__/synapse.test.ts src/__tests__/fault-injection.test.ts src/__tests__/api-routes.test.ts src/__tests__/core-deep.test.ts src/__tests__/llm-and-ota.test.ts | tee /tmp/ts-cov.out
           TS_LINE_COV=$(awk -F'|' '/all files/ { gsub(/[[:space:]]/, "", $2); print $2 }' /tmp/ts-cov.out | tail -n 1)
-          if [ -z "$TS_LINE_COV" ] || awk "BEGIN { exit !($TS_LINE_COV < 85.0) }"; then
-            echo "ERROR: TypeScript line coverage (${TS_LINE_COV:-0}%) is below the 85% minimum coverage gate!"
+          if [ -z "$TS_LINE_COV" ] || awk "BEGIN { exit !($TS_LINE_COV < 90.0) }"; then
+            echo "ERROR: TypeScript line coverage (${TS_LINE_COV:-0}%) is below the 90% minimum coverage gate!"
             exit 1
           fi
-          echo "TypeScript line coverage gate passed: ${TS_LINE_COV}% (>= 85.0%)."
+          echo "TypeScript line coverage gate passed: ${TS_LINE_COV}% (>= 90.0%)."
           npm run build
 
   publish-ghcr-images:

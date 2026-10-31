@@ -23,6 +23,7 @@ All notable changes to **Synapse** are documented in this file.
   - Atomic JSON persistence with automatic `.bak` self-healing (`atomicWriteJsonSync` / `safeReadJsonWithBackupSync`) across all project stores (`State.json`, `Alerts.json`, `Auth.json`, `Checkpoints.json`, `SelfHealing.json`, `ServiceLinks.json`, `CronJobs.json`).
   - Timeout- and abort-guarded `safeFetchJson` across all frontend hooks, views, Next.js API routes, and backend libraries.
   - Hardened `/install.sh` and `scripts/install-axon.sh` with automatic `curl`/`wget` fallback, SHA-256 binary integrity verification, `systemd`, `OpenRC` (Alpine Linux), and rootless daemon support.
+  - Enforced automated CI/Release quality gates: `< 500` lines per Go file, `< 600` lines per TypeScript/React file, `0` explicit `any` types, `shellcheck -S warning` on all shell scripts, `>= 85%` statement coverage across all 11 Go packages (`-race`), and `>= 90%` line coverage across `apps/core-web`.
 
 ---
 

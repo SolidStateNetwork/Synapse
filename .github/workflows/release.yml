@@ -33,8 +33,17 @@ jobs:
             agents/axon/go.sum
             apps/core-gateway/go.sum
 
-      - name: Run Verification Suite with Race Detector
-        run: go test -v -race ./proto/... ./agents/axon/... ./apps/core-gateway/...
+      - name: Run Verification Suite with Race Detector & >= 85% Coverage Gate
+        run: |
+          set -o pipefail
+          go test -v -race -cover ./proto/... ./agents/axon/... ./apps/core-gateway/... | tee /tmp/go-cov.out
+          LOW_COV=$(awk '/^ok[[:space:]]/ {for(i=1;i<=NF;i++) if($i=="coverage:") {val=$(i+1); gsub(/%/,"",val); if(val+0 < 85.0) print $2, val"%"}}' /tmp/go-cov.out)
+          if [ -n "$LOW_COV" ]; then
+            echo "ERROR: Go packages below 85% minimum statement coverage gate:"
+            echo "$LOW_COV"
+            exit 1
+          fi
+          echo "All 11 Go packages passed the >= 85% statement coverage gate."
 
       - name: Cross-Compile Static Binaries (Axon Muscle + Core Gateway)
         env:
@@ -122,6 +131,9 @@ jobs:
           EOF
 
           if gh release view "${REL_TAG}" >/dev/null 2>&1; then
+            gh release edit "${REL_TAG}" \
+              --title "Synapse ${REL_TAG} — Brain & Muscle Platform" \
+              --notes-file release-notes.md
             gh release upload "${REL_TAG}" \
               release-dist/axon-linux-amd64 \
               release-dist/axon-linux-arm64 \
