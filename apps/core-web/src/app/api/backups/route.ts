@@ -229,6 +229,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (action === "delete") {
+      const backupId = String(body.backup_id || "");
+      const projDir = getProjectDir(projectId);
+      const bkpFile = path.join(projDir, "Backups", `${backupId}.enc`);
+      if (fs.existsSync(bkpFile)) fs.unlinkSync(bkpFile);
+      const nextList = loadBackupsIndex(projectId).filter((b) => b.id !== backupId);
+      saveBackupsIndex(projectId, nextList);
+      return NextResponse.json({ ok: true, deleted_id: backupId, backups: nextList });
+    }
+
     return NextResponse.json(
       { ok: false, error: `Unknown backup action: ${action}` },
       { status: 400 }

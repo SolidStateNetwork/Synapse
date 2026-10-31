@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Check, Clock, Copy, GitBranch, Play, RefreshCw, Rocket, ScrollText, Trash2 } from "lucide-react";
+import { Check, Clock, Copy, GitBranch, HardDriveDownload, Play, RefreshCw, Rocket, ScrollText, Trash2 } from "lucide-react";
 import { safeFetchJson } from "@/lib/safeFetch";
 import { SYNAPSE_VERSION } from "@/lib/version";
 
@@ -52,6 +52,7 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
   const [latestToken, setLatestToken] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
   const [cronBusy, setCronBusy] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
 
   const [logPort, setLogPort] = useState("4085");
   const [logTarget, setLogTarget] = useState("");
@@ -222,6 +223,34 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
     }
   };
 
+  const handleCreateOffsiteBackup = async () => {
+    setBackupBusy(true);
+    setNotice(null);
+    try {
+      const res = await safeFetchJson("/api/backups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          project_id: projectId,
+          node_id: nodeId,
+          title: `Pre-Rollout Studio Backup (${nodeId})`,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        backup?: { id?: string; size_bytes?: number; sha256?: string };
+      };
+      if (data.ok && data.backup) {
+        setNotice(
+          `AES-256-GCM Offsite-Backup '${data.backup.id}' gespeichert (${data.backup.size_bytes ?? 0} Bytes · SHA256 ${String(data.backup.sha256 || "").slice(0, 12)})`
+        );
+      }
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
   return (
     <div className="rounded-xl border border-nb-gray-800/90 bg-nb-gray-940/90 p-3.5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -232,6 +261,15 @@ export const GitOpsStudioPanel = React.memo(function GitOpsStudioPanel({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={backupBusy}
+            onClick={handleCreateOffsiteBackup}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-950/60 px-2.5 py-1 text-[11px] font-semibold text-purple-200 hover:bg-purple-900/60 disabled:opacity-50"
+          >
+            <HardDriveDownload className="h-3.5 w-3.5" />
+            {backupBusy ? "Sichere Vault..." : "Offsite-Backup (AES-256-GCM)"}
+          </button>
           <button
             type="button"
             onClick={() => {

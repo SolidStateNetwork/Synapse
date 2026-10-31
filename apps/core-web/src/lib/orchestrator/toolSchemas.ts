@@ -527,4 +527,41 @@ export const SYNAPSE_TOOL_SCHEMAS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "core_manage_backup",
+      description:
+        "Manages AES-256-GCM encrypted Offsite Core Backups (list, create, restore, delete) pulled from Muscle nodes into the Core Vault.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list", "create", "restore", "delete"], description: "Backup action." },
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          backup_id: { type: "string", description: "Backup ID for restore or delete." },
+          title: { type: "string", description: "Optional title when creating a backup." },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "core_manage_checkpoint",
+      description:
+        "Manages Time-Machine Server Checkpoints (list, create, rollback) capturing active service states and atomic database snapshots.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list", "create", "rollback"], description: "Checkpoint action." },
+          node_id: { type: "string", description: "Optional target Muscle Peer ID." },
+          checkpoint_id: { type: "string", description: "Checkpoint ID for rollback." },
+          title: { type: "string", description: "Optional title when creating a checkpoint." },
+          summary: { type: "string", description: "Optional summary when creating a checkpoint." },
+        },
+        required: ["action"],
+      },
+    },
+  },
 ];

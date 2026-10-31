@@ -18,6 +18,7 @@ import { deleteGitStackOnMuscle, deployGitStackOnMuscle } from "../projects/gito
 import { fetchNodeTelemetryHistory, tailServiceLogs } from "../self-healing";
 import { runDueCronJobsOnMuscle } from "../v070-studio";
 import { safeFetchJson } from "../safeFetch";
+import { dispatchDisasterRecoveryTool } from "./disasterRecoveryTools";
 import type { ToolDispatchResult } from "../orchestrator";
 
 export async function dispatchCoreBrainTool(
@@ -575,5 +576,5 @@ http.server.ThreadingHTTPServer(("127.0.0.1", ${localPort}), MeshRelay).serve_fo
     return { tool_name: toolName, status: "executed", output: res };
   }
 
-  return null;
+  return dispatchDisasterRecoveryTool(coreGatewayUrl, projectId, state, toolName, args);
 }

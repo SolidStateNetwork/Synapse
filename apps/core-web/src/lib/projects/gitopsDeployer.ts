@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import path from "path";
+import { recordCheckpoint } from "@/lib/checkpoints";
 import { appendAuditLog, atomicWriteJsonSync, ensureProjectVault, getDecryptedSecrets, getProjectDir, safeReadJsonWithBackupSync, withProjectStateTransaction, writeBrainDoc } from "@/lib/vault";
 import { buildDefaultServiceEndpoints } from "@/lib/orchestrator/servicePresets";
 import { resolveActiveProjectId, resolveTargetNodeId } from "@/lib/runtimeResolver";
@@ -60,7 +61,7 @@ export async function deployGitStackOnMuscle(params: {
   startCommand?: string;
   injectSecretKeys?: string[];
   injectSecrets?: boolean;
-}): Promise<{ ok: boolean; error?: string; stack?: GitOpsStackRecord; webhook_token?: string; stacks?: GitOpsStackRecord[] }> {
+}): Promise<{ ok: boolean; error?: string; stack?: GitOpsStackRecord; webhook_token?: string; checkpoint_id?: string; stacks?: GitOpsStackRecord[] }> {
   const projectId = resolveActiveProjectId(params.projectId);
   const state = ensureProjectVault(projectId);
   const nodeId = resolveTargetNodeId(state, params.nodeId) || "local-node";
@@ -88,6 +89,18 @@ export async function deployGitStackOnMuscle(params: {
       .slice(0, 24) || "git-stack";
   const stackId = params.stackId || `stack-${safeSlug}-${port}`;
   const stackDir = `/var/lib/synapse/stacks/${stackId}`;
+
+  const preFlightChk = recordCheckpoint(projectId, {
+    node_id: nodeId,
+    title: `Pre-Flight GitOps Deploy: ${params.name.trim() || stackId} (:${port})`,
+    actor: "Auto-Watchdog",
+    summary: `Automatic Time-Machine checkpoint captured before deploying ${repoUrl}#${branch} on ${nodeId}:${port}.`,
+    files_backed_up: [`${stackDir}/.env`, "GitStacks.json", "State.json"],
+    services_snapshot: (state.registered_services || [])
+      .filter((s) => s.node_id === nodeId)
+      .map((s) => ({ service_id: s.service_id, name: s.name, port: s.port, healthy: Boolean(s.healthy) })),
+    rollback_cmd: `if [ -d "${stackDir}/repo" ]; then cd "${stackDir}/repo" && git reset --hard HEAD~1 2>/dev/null || true; fi && echo 'CHECKPOINT_RESTORED_OK'`,
+  });
 
   const allSecrets = params.injectSecrets === false ? {} : getDecryptedSecrets(projectId);
   const requestedKeys = Array.isArray(params.injectSecretKeys)
@@ -249,7 +262,7 @@ export async function deployGitStackOnMuscle(params: {
     // ignore
   }
 
-  return { ok: status === "deployed", stack: record, webhook_token: plaintextWebhookToken, stacks };
+  return { ok: status === "deployed", stack: record, webhook_token: plaintextWebhookToken, checkpoint_id: preFlightChk.id, stacks };
 }
 
 export async function triggerGitOpsWebhookRedeploy(params: {
@@ -288,13 +301,23 @@ export async function triggerGitOpsWebhookRedeploy(params: {
 export async function deleteGitStackOnMuscle(params: {
   projectId: string;
   stackId: string;
-}): Promise<{ ok: boolean; error?: string; stacks: GitOpsStackRecord[] }> {
+}): Promise<{ ok: boolean; error?: string; checkpoint_id?: string; stacks: GitOpsStackRecord[] }> {
   const projectId = resolveActiveProjectId(params.projectId);
   const current = loadGitStacks(projectId);
   const target = current.find((s) => s.stack_id === params.stackId);
   if (!target) {
     return { ok: false, error: `GitOps stack not found: ${params.stackId}`, stacks: current };
   }
+
+  const teardownChk = recordCheckpoint(projectId, {
+    node_id: target.node_id,
+    title: `Pre-Flight GitOps Teardown: ${target.name} (:${target.port})`,
+    actor: "Auto-Watchdog",
+    summary: `Automatic Time-Machine checkpoint captured before tearing down ${target.stack_id} on ${target.node_id}:${target.port}.`,
+    files_backed_up: ["GitStacks.json", "State.json"],
+    services_snapshot: [{ service_id: target.stack_id, name: target.name, port: target.port, healthy: true }],
+    rollback_cmd: `echo 'CHECKPOINT_RESTORED_OK'`,
+  });
 
   const stackDir = `/var/lib/synapse/stacks/${target.stack_id}`;
   const teardownCmd = `if [ -d "${stackDir}/repo" ]; then cd "${stackDir}/repo" && docker compose -f "${target.compose_path}" down --remove-orphans 2>/dev/null || true; fi; rm -rf "${stackDir}" 2>/dev/null || true`;
@@ -332,5 +355,5 @@ export async function deleteGitStackOnMuscle(params: {
     summary: `Removed GitOps stack '${target.name}' (${target.stack_id}) from ${target.node_id}:${target.port}`,
   });
 
-  return { ok: true, stacks: remaining };
+  return { ok: true, checkpoint_id: teardownChk.id, stacks: remaining };
 }

@@ -2,6 +2,19 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v1.1.0] — 2026-10-31 (AI/MCP Disaster-Recovery & Time-Machine Tools, Pre-Flight GitOps Checkpoints & 1-Click Studio Backup)
+
+### Added & Improved
+- **AI-Orchestrator & MCP Disaster-Recovery Tools (`disasterRecoveryTools.ts`, `toolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp`)**:
+  - Added `core_manage_backup` (`list`, `create`, `restore`, `delete`) and `core_manage_checkpoint` (`list`, `create`, `rollback`) so the AI Copilot and external MCP Clients can create and restore AES-256-GCM Offsite Backups and Time-Machine Server Checkpoints autonomously.
+  - Added `action: "delete"` to `/api/backups`.
+- **Automatic Pre-Flight Time-Machine Checkpoints in GitOps (`gitopsDeployer.ts`)**:
+  - `deployGitStackOnMuscle` and `deleteGitStackOnMuscle` now automatically record a Pre-Flight Time-Machine Checkpoint (`actor: "Auto-Watchdog"`) before modifying or tearing down stacks, returning `checkpoint_id`.
+- **1-Click Offsite-Backup in GitOps Studio UI (`GitOpsStudioPanel.tsx`)**:
+  - Added a 1-Click **Offsite-Backup (`AES-256-GCM`)** button directly inside the Service Workbench Studio Panel.
+
+---
+
 ## [v1.0.0] — 2026-10-31 (General Availability GA — Production OTA Sync, Ephemeral OTA-PTY GC, Cluster Self-Test & Bilingual Docs Seal)
 
 ### Added & Improved

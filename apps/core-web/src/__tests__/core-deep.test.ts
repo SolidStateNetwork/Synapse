@@ -27,6 +27,7 @@ import {
   listCartridges,
   saveCustomCartridge,
 } from "../lib/cartridges";
+import { loadOffsiteBackups } from "../lib/orchestrator/disasterRecoveryTools";
 import {
   executeCoreVaultSearch,
   executeNodeDeepSearch,
@@ -455,6 +456,7 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
       });
       assert.equal(deployed.ok, true);
       assert.ok(deployed.webhook_token?.startsWith("syn_git_"));
+      assert.ok(deployed.checkpoint_id?.startsWith("chk-"));
       assert.equal(deployed.stack?.last_commit, "a1b2c3d");
       assert.ok(deployed.stack?.injected_secret_keys.includes("API_TOKEN"));
       assert.equal(loadGitStacks(projectId).length, 1);
@@ -534,6 +536,13 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         { name: "core_get_node_telemetry_history", arguments: { node_id: "local-node" } },
         { name: "core_delete_git_stack", arguments: { stack_id: "missing-stack" } },
         { name: "core_run_due_cron_jobs", arguments: { force_all: true } },
+        { name: "core_manage_backup", arguments: { action: "list" } },
+        { name: "core_manage_backup", arguments: { action: "create", title: "MCP Backup" } },
+        { name: "core_manage_backup", arguments: { action: "restore", backup_id: "missing-bkp" } },
+        { name: "core_manage_checkpoint", arguments: { action: "list" } },
+        { name: "core_manage_checkpoint", arguments: { action: "create", title: "MCP Checkpoint" } },
+        { name: "core_manage_checkpoint", arguments: { action: "rollback", checkpoint_id: deployed.checkpoint_id } },
+        { name: "core_manage_checkpoint", arguments: { action: "rollback", checkpoint_id: "missing-chk" } },
       ]) {
         const r = await mcpRoute.POST(
           makeReq("/api/mcp", "POST", {
@@ -547,6 +556,10 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         );
         assert.equal(r.status, 200);
       }
+      const realBkpId = loadOffsiteBackups(projectId)[0]?.id;
+      for (const act of ["restore", "delete"]) {
+        await mcpRoute.POST(makeReq("/api/mcp", "POST", { project_id: projectId, internal_ui_test: true, jsonrpc: "2.0", id: 100, method: "tools/call", params: { name: "core_manage_backup", arguments: { action: act, backup_id: realBkpId } } }));
+      }
 
       const promptParts = { staticPrefix: "System", dynamicSuffix: "Suffix", fullPrompt: "System\nSuffix" };
       for (const chatCmd of [
@@ -555,6 +568,8 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         "telemetry history",
         "logs: 4088",
         "cron-due",
+        "backup: pre-flight",
+        "checkpoint: pre-flight",
       ]) {
         const wf = await runDeterministicAutonomousWorkflow(projectId, chatCmd, undefined, promptParts);
         assert.ok(wf.reply.length > 0);

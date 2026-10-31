@@ -367,6 +367,22 @@ export async function runDeterministicAutonomousWorkflow(
     });
     const out = step.output as { executed_count?: number; failed_count?: number } | undefined;
     finalReply = `### ⏱️ Autonomous Cron Due-Scheduler\n\n- **Ausgeführte Runbooks:** \`${out?.executed_count ?? 0}\` (Fehler: \`${out?.failed_count ?? 0}\`)`;
+  } else if (lower.startsWith("backup:") || lower.includes("create offsite backup")) {
+    const step = await runStep("core_manage_backup", {
+      action: "create",
+      node_id: primaryNode || "local-node",
+      title: "Autonomous Pre-Flight Offsite Backup",
+    });
+    const out = step.output as { backup?: { id?: string; size_bytes?: number } } | undefined;
+    finalReply = `### 🔐 Encrypted Offsite Backup (\`AES-256-GCM\`)\n\n- **Backup-ID:** \`${out?.backup?.id || "created"}\` (\`${out?.backup?.size_bytes ?? 0}\` Bytes)`;
+  } else if (lower.startsWith("checkpoint:") || lower.includes("create checkpoint")) {
+    const step = await runStep("core_manage_checkpoint", {
+      action: "create",
+      node_id: primaryNode || "local-node",
+      title: "Autonomous Time-Machine Snapshot",
+    });
+    const out = step.output as { checkpoint?: { id?: string; title?: string } } | undefined;
+    finalReply = `### ⏳ Time-Machine Server Checkpoint\n\n- **Checkpoint-ID:** \`${out?.checkpoint?.id || "created"}\` (${out?.checkpoint?.title || ""})`;
   }
 
   if (!finalReply) {

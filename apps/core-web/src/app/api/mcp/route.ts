@@ -141,7 +141,10 @@ async function executeMcpTool(
       (args.action === "list_keys" || args.action === "list")) ||
     ((toolName === "node_firewall_control" ||
       toolName === "core_manage_firewall") &&
-      (!args.action || args.action === "inspect"));
+      (!args.action || args.action === "inspect")) ||
+    ((toolName === "core_manage_backup" ||
+      toolName === "core_manage_checkpoint") &&
+      (!args.action || args.action === "list"));
 
   if (!isReadOnlyTool && !canExecute) {
     return {
