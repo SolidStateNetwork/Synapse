@@ -20,7 +20,9 @@ import {
   OFFICIAL_STACK_BLUEPRINTS,
   saveCustomCartridge,
 } from "@/lib/cartridges";
+import { recordCheckpoint } from "@/lib/checkpoints";
 import { CORE_GATEWAY_URL, interceptAndExecuteTool } from "@/lib/orchestrator";
+import { dispatchTopologyAndCanaryTool } from "@/lib/orchestrator/topologyAndCanaryTools";
 import { executeServiceAction } from "@/lib/projects/serviceActionRunner";
 import { syncProjectTelemetryAndWatchdog } from "@/lib/projects/projectTelemetrySync";
 import {
@@ -221,6 +223,15 @@ export async function POST(req: NextRequest) {
       enabled: body.enabled !== undefined ? Boolean(body.enabled) : true,
       last_status: "Scheduled",
     };
+    const preFlightCp = recordCheckpoint(projectId, {
+      node_id: pb.target_node_id || "local-node",
+      title: `Pre-Flight Playbook Upsert: ${pb.name}`,
+      actor: "Auto-Watchdog",
+      summary: `Automatic pre-flight checkpoint before upserting playbook '${pbId}'.`,
+      files_backed_up: [`/opt/axon/workspaces/${projectId}`],
+      services_snapshot: [],
+      rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+    });
     const saved = await withProjectStateTransaction(projectId, (draft) => {
       draft.scheduled_playbooks = [
         ...(draft.scheduled_playbooks || []).filter(
@@ -229,17 +240,26 @@ export async function POST(req: NextRequest) {
         pb,
       ];
     });
-    return NextResponse.json({ project: saved });
+    return NextResponse.json({ project: saved, checkpoint_id: preFlightCp.id });
   }
 
   if (action === "delete_playbook") {
     const pbId = String(body.playbook_id || "");
+    const preFlightCp = recordCheckpoint(projectId, {
+      node_id: "local-node",
+      title: `Pre-Flight Playbook Delete: ${pbId}`,
+      actor: "Auto-Watchdog",
+      summary: `Automatic pre-flight checkpoint before deleting playbook '${pbId}'.`,
+      files_backed_up: [`/opt/axon/workspaces/${projectId}`],
+      services_snapshot: [],
+      rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+    });
     const saved = await withProjectStateTransaction(projectId, (draft) => {
       draft.scheduled_playbooks = (draft.scheduled_playbooks || []).filter(
         (x) => x.playbook_id !== pbId
       );
     });
-    return NextResponse.json({ project: saved });
+    return NextResponse.json({ project: saved, checkpoint_id: preFlightCp.id });
   }
 
   if (action === "upsert_mesh_link") {
@@ -471,6 +491,41 @@ export async function POST(req: NextRequest) {
       payload,
     });
     return NextResponse.json(out);
+  }
+
+  if (action === "export_topology_bundle" || action === "import_topology_bundle") {
+    const current = ensureProjectVault(projectId);
+    const res = await dispatchTopologyAndCanaryTool(
+      projectId,
+      current,
+      "core_manage_topology_bundle",
+      {
+        action: action === "import_topology_bundle" ? "import" : "export",
+        bundle: body.bundle,
+        node_id: body.node_id,
+      }
+    );
+    return NextResponse.json(res?.output || { ok: false }, {
+      status: res?.status === "error" ? 400 : 200,
+    });
+  }
+
+  if (action === "verify_fleet_health" || action === "canary_rollout") {
+    const current = ensureProjectVault(projectId);
+    const res = await dispatchTopologyAndCanaryTool(
+      projectId,
+      current,
+      "core_cluster_canary_exec",
+      {
+        action,
+        command: body.command,
+        node_ids: body.node_ids,
+        node_id: body.node_id,
+      }
+    );
+    return NextResponse.json(res?.output || { ok: false }, {
+      status: res?.status === "error" ? 400 : 200,
+    });
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });

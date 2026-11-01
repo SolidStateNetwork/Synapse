@@ -15,6 +15,7 @@ import {
   Save,
   Trash2,
 } from "lucide-react";
+import { safeFetchJson } from "@/lib/safeFetch";
 import RichMarkdownDocument from "@/components/RichMarkdownDocument";
 import {
   SynapseSubTabs,
@@ -47,6 +48,64 @@ export const BrainVaultView = React.memo(function BrainVaultView({
   setMemoryMd,
   handleSaveBrainDoc,
 }: BrainVaultViewProps) {
+  const [showBundleDrawer, setShowBundleDrawer] = React.useState(false);
+  const [bundleJsonText, setBundleJsonText] = React.useState("");
+  const [bundleBusy, setBundleBusy] = React.useState(false);
+  const [bundleNotice, setBundleNotice] = React.useState<string | null>(null);
+
+  const handleExportTopologyBundle = async () => {
+    setBundleBusy(true);
+    setBundleNotice(null);
+    try {
+      const res = await safeFetchJson("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "export_topology_bundle",
+          project_id: projectId,
+        }),
+      });
+      const data = await res.json();
+      if (data.bundle) {
+        setBundleJsonText(JSON.stringify(data.bundle, null, 2));
+        setBundleNotice(
+          `📦 Exportiert (${data.bundle.schema_version}): ${(data.bundle.registered_services || []).length} Services`
+        );
+      }
+    } finally {
+      setBundleBusy(false);
+    }
+  };
+
+  const handleImportTopologyBundle = async () => {
+    if (!bundleJsonText.trim()) return;
+    setBundleBusy(true);
+    setBundleNotice(null);
+    try {
+      const res = await safeFetchJson("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "import_topology_bundle",
+          project_id: projectId,
+          bundle: bundleJsonText,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setBundleNotice(
+          `✔ Topologie importiert (${data.imported_services_count ?? 0} Services)${
+            data.checkpoint_id ? ` · Checkpoint: ${data.checkpoint_id}` : ""
+          }`
+        );
+      } else {
+        setBundleNotice(data.error || "Import error");
+      }
+    } finally {
+      setBundleBusy(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-6xl p-6 space-y-5">
       <SynapseViewHeader
@@ -56,6 +115,22 @@ export const BrainVaultView = React.memo(function BrainVaultView({
         description="Das persistente Langzeit-Gedächtnis deines Projekts. Der KI-Orchestrator liest und aktualisiert Architecture.md (Topologie, Ports, Dienste) und Memory.md (Runbooks, gelöste Fehler) vollautomatisch."
         actions={
           <>
+            <button
+              type="button"
+              onClick={() => {
+                setShowBundleDrawer((v) => {
+                  const next = !v;
+                  if (next && !bundleJsonText) {
+                    void handleExportTopologyBundle();
+                  }
+                  return next;
+                });
+              }}
+              className="flex items-center gap-1.5 rounded-xl border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 text-xs font-medium text-nb-gray-200 hover:text-white transition"
+            >
+              <FolderGit2 className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Topology-Bundle (v2.0)</span>
+            </button>
             <button
               onClick={() => setIsEditingMarkdown((v) => !v)}
               className="flex items-center gap-1.5 rounded-xl border border-nb-gray-800 bg-nb-gray-920 px-3.5 py-2 text-xs font-medium text-nb-gray-200 hover:text-white transition"
@@ -102,6 +177,45 @@ export const BrainVaultView = React.memo(function BrainVaultView({
           </div>
         }
       />
+
+      {showBundleDrawer && (
+        <div className="rounded-xl border border-emerald-500/30 bg-nb-gray-940 p-4 space-y-3 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-mono font-semibold text-emerald-300">
+              📦 Deklaratives Topology-Bundle (synapse-stack/v2.0) — Export &amp; Import mit Pre-Flight Checkpoint
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={bundleBusy}
+                onClick={handleExportTopologyBundle}
+                className="rounded-lg border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 font-medium text-white hover:border-sky-400 transition"
+              >
+                Neu exportieren
+              </button>
+              <button
+                type="button"
+                disabled={bundleBusy || !bundleJsonText.trim()}
+                onClick={handleImportTopologyBundle}
+                className="rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-500 disabled:opacity-50 transition"
+              >
+                Bundle importieren
+              </button>
+            </div>
+          </div>
+          {bundleNotice && (
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/30 px-3 py-1.5 font-mono text-[11px] text-emerald-300">
+              {bundleNotice}
+            </div>
+          )}
+          <textarea
+            value={bundleJsonText}
+            onChange={(e) => setBundleJsonText(e.target.value)}
+            placeholder='{"schema_version": "synapse-stack/v2.0", ...}'
+            className="h-44 w-full rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-3 font-mono text-[11px] text-nb-gray-100 focus:border-emerald-400 focus:outline-none"
+          />
+        </div>
+      )}
 
       <div className="flex flex-col overflow-hidden rounded-xl border border-nb-gray-900 bg-nb-gray-940">
         <div className="p-6">

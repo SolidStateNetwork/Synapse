@@ -1,3 +1,4 @@
+import { recordCheckpoint } from "../checkpoints";
 import { resolveTargetNodeId } from "../runtimeResolver";
 import {
   executeSqliteStudioAction,
@@ -70,6 +71,20 @@ export async function dispatchStudioDevOpsTool(
 
     if (action === "save") {
       const jobId = String(args.id || `cron-${Date.now().toString(36)}`);
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: nodeId,
+        title: `Pre-Flight Cron Runbook Save: ${jobId}`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before saving cron runbook '${jobId}' on ${nodeId}.`,
+        files_backed_up: [`/opt/axon/workspaces/${projectId}`],
+        services_snapshot: (state.registered_services || []).map((s) => ({
+          service_id: s.service_id,
+          name: s.name,
+          port: s.port,
+          healthy: s.healthy !== false,
+        })),
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
       const existingIdx = jobs.findIndex((j) => j.id === jobId);
       const job = {
         id: jobId,
@@ -86,14 +101,36 @@ export async function dispatchStudioDevOpsTool(
       if (existingIdx >= 0) jobs[existingIdx] = job;
       else jobs.unshift(job);
       saveCronJobs(projectId, jobs);
-      return { tool_name: toolName, status: "executed", output: { ok: true, job, cron_jobs: jobs } };
+      return {
+        tool_name: toolName,
+        status: "executed",
+        output: { ok: true, job, cron_jobs: jobs, checkpoint_id: preFlightCp.id },
+      };
     }
 
     if (action === "delete") {
       const jobId = String(args.id || "");
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: nodeId,
+        title: `Pre-Flight Cron Runbook Delete: ${jobId}`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before deleting cron runbook '${jobId}'.`,
+        files_backed_up: [`/opt/axon/workspaces/${projectId}`],
+        services_snapshot: (state.registered_services || []).map((s) => ({
+          service_id: s.service_id,
+          name: s.name,
+          port: s.port,
+          healthy: s.healthy !== false,
+        })),
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
       const remaining = jobs.filter((j) => j.id !== jobId);
       saveCronJobs(projectId, remaining);
-      return { tool_name: toolName, status: "executed", output: { ok: true, cron_jobs: remaining } };
+      return {
+        tool_name: toolName,
+        status: "executed",
+        output: { ok: true, cron_jobs: remaining, checkpoint_id: preFlightCp.id },
+      };
     }
 
     if (action === "run_now") {

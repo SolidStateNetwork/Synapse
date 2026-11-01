@@ -459,6 +459,15 @@ export async function POST(req: NextRequest) {
     if (action === "save_cron_job") {
       const jobs = loadCronJobs(projectId);
       const jobId = String(body.id || `cron-${Date.now().toString(36)}`);
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: nodeId,
+        title: `Pre-Flight Cron Runbook Save: ${jobId}`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before saving cron runbook '${jobId}'.`,
+        files_backed_up: [`/opt/axon/workspaces/${projectId}`],
+        services_snapshot: [],
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
       const existingIdx = jobs.findIndex((j) => j.id === jobId);
       const job = {
         id: jobId,
@@ -475,14 +484,23 @@ export async function POST(req: NextRequest) {
       if (existingIdx >= 0) jobs[existingIdx] = job;
       else jobs.unshift(job);
       saveCronJobs(projectId, jobs);
-      return NextResponse.json({ ok: true, job, cron_jobs: jobs });
+      return NextResponse.json({ ok: true, job, cron_jobs: jobs, checkpoint_id: preFlightCp.id });
     }
 
     if (action === "delete_cron_job") {
       const jobId = String(body.id || "");
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: nodeId,
+        title: `Pre-Flight Cron Runbook Delete: ${jobId}`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before deleting cron runbook '${jobId}'.`,
+        files_backed_up: [`/opt/axon/workspaces/${projectId}`],
+        services_snapshot: [],
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
       const jobs = loadCronJobs(projectId).filter((j) => j.id !== jobId);
       saveCronJobs(projectId, jobs);
-      return NextResponse.json({ ok: true, cron_jobs: jobs });
+      return NextResponse.json({ ok: true, cron_jobs: jobs, checkpoint_id: preFlightCp.id });
     }
 
     if (action === "run_cron_job") {

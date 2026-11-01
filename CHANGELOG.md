@@ -2,6 +2,18 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v2.1.0] — 2026-11-01 (1-Click Topology Bundle UI, Interactive Multi-Node Canary Control Bar & Cron/Playbook Checkpoints)
+
+### Added & Improved
+- **1-Click Topology Bundle (`synapse-stack/v2.0`) Export/Import Drawer in Brain Vault (`BrainVaultAndWorkspaceViews.tsx`, `/api/projects`)**:
+  - Added `export_topology_bundle` and `import_topology_bundle` to `POST /api/projects` and integrated an interactive Topology Bundle Export/Import drawer into `BrainVaultView` displaying the Pre-Flight Time-Machine `checkpoint_id` upon import.
+- **Interactive Multi-Node Canary Rollout & Fleet-Health Control Bar in Peers View (`PeersView.tsx`, `/api/projects`)**:
+  - Added `verify_fleet_health` and `canary_rollout` to `POST /api/projects` and integrated a Multi-Node Canary & Fleet-Health control bar into `PeersView` with live `checkpoint_id` badge.
+- **Automatic Pre-Flight Time-Machine Checkpoints on Cron-Runbook & Playbook Mutations (`studioDevOpsTools.ts`, `/api/service-ops`, `playbookAndApprovalTools.ts`, `/api/projects`)**:
+  - `core_manage_cron_jobs` (`save`, `delete`), `save_cron_job`/`delete_cron_job` (`/api/service-ops`), `core_manage_playbooks` (`upsert`, `delete`), and `upsert_playbook`/`delete_playbook` (`/api/projects`) now automatically record and return a Pre-Flight Time-Machine Checkpoint (`checkpoint_id`).
+
+---
+
 ## [v2.0.0] — 2026-11-01 (Declarative Topology Bundles, Multi-Node Canary Rollouts, Enterprise Architecture Lexicon & Domain/TLS Checkpoints)
 
 ### Added & Improved

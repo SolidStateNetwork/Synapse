@@ -279,6 +279,10 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
       { action: "invoke_service_action", node_id: "node-1", port: 4050, method: "GET", path: "/health" },
       { action: "resolve_approval", approval_id: "appr-reject-1", decision: "reject" },
       { action: "resolve_approval", approval_id: "appr-approve-1", decision: "approve" },
+      { action: "export_topology_bundle" },
+      { action: "import_topology_bundle", bundle: { schema_version: "synapse-stack/v2.0", active_cartridges: ["docker-first"] } },
+      { action: "verify_fleet_health" },
+      { action: "canary_rollout", command: "echo CANARY_OK" },
     ]) {
       const r = await projectsRoute.POST(makeReq("/api/projects", "POST", { project_id: projectId, ...payload }));
       assert.equal(r.status, 200);

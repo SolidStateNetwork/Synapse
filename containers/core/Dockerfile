@@ -5,8 +5,8 @@ COPY go.work ./go.work
 COPY proto ./proto
 COPY agents/axon ./agents/axon
 COPY apps/core-gateway ./apps/core-gateway
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -C agents/axon -ldflags="-s -w -X main.version=v2.0.0" -o /out/axon-linux-amd64 ./cmd/axon
-RUN CGO_ENABLED=0 GOOS=linux go build -C apps/core-gateway -ldflags="-s -w -X main.version=v2.0.0" -o /out/core-gateway .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -C agents/axon -ldflags="-s -w -X main.version=v2.1.0" -o /out/axon-linux-amd64 ./cmd/axon
+RUN CGO_ENABLED=0 GOOS=linux go build -C apps/core-gateway -ldflags="-s -w -X main.version=v2.1.0" -o /out/core-gateway .
 
 # Stage 2: Build Next.js 15 Core-Web Standalone Bundle
 FROM node:22-alpine AS web-builder

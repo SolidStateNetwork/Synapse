@@ -3,6 +3,7 @@ import {
   listCartridges,
   saveCustomCartridge,
 } from "../cartridges";
+import { recordCheckpoint } from "../checkpoints";
 import { interceptAndExecuteTool, type ToolDispatchResult } from "../orchestrator";
 import {
   appendAuditLog,
@@ -34,6 +35,15 @@ export async function dispatchPlaybookAndApprovalTool(
     if (action === "upsert") {
       const pbId = String(args.playbook_id || `pb-${Date.now()}`);
       const cronExpr = String(args.cron_expression || args.cron || "0 3 * * *");
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: String(args.target_node_id || state.assigned_nodes[0]?.node_id || "local-node"),
+        title: `Pre-Flight Playbook Upsert: ${pbId}`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before upserting scheduled playbook '${pbId}'.`,
+        files_backed_up: [`/opt/axon/workspaces/${projectId}`],
+        services_snapshot: [],
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
       const pb = {
         playbook_id: pbId,
         name: String(args.name || "Scheduled AI Playbook"),
@@ -55,7 +65,7 @@ export async function dispatchPlaybookAndApprovalTool(
         actor: "ai_orchestrator",
         tool_name: toolName,
         status: "executed",
-        summary: `Upserted scheduled AI Playbook '${pb.name}' (${pbId}, cron=${cronExpr})`,
+        summary: `Upserted scheduled AI Playbook '${pb.name}' (${pbId}, cron=${cronExpr}, checkpoint=${preFlightCp.id})`,
         args,
       });
       return {
@@ -65,12 +75,22 @@ export async function dispatchPlaybookAndApprovalTool(
           action,
           playbook: pb,
           playbooks: updated.scheduled_playbooks || [],
+          checkpoint_id: preFlightCp.id,
         },
       };
     }
 
     if (action === "delete") {
       const pbId = String(args.playbook_id || "").trim();
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: String(state.assigned_nodes[0]?.node_id || "local-node"),
+        title: `Pre-Flight Playbook Delete: ${pbId}`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before deleting scheduled playbook '${pbId}'.`,
+        files_backed_up: [`/opt/axon/workspaces/${projectId}`],
+        services_snapshot: [],
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
       const updated = await withProjectStateTransaction(projectId, (draft) => {
         draft.scheduled_playbooks = (draft.scheduled_playbooks || []).filter(
           (x) => x.playbook_id !== pbId
@@ -81,7 +101,7 @@ export async function dispatchPlaybookAndApprovalTool(
         actor: "ai_orchestrator",
         tool_name: toolName,
         status: "executed",
-        summary: `Deleted scheduled AI Playbook '${pbId}'`,
+        summary: `Deleted scheduled AI Playbook '${pbId}' (checkpoint=${preFlightCp.id})`,
         args,
       });
       return {
@@ -91,6 +111,7 @@ export async function dispatchPlaybookAndApprovalTool(
           action,
           deleted_id: pbId,
           playbooks: updated.scheduled_playbooks || [],
+          checkpoint_id: preFlightCp.id,
         },
       };
     }

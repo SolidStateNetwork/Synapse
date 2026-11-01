@@ -15,6 +15,7 @@ import {
   SynapseSubTabs,
   SynapseViewHeader,
 } from "@/components/ui/SynapseDesignSystem";
+import { safeFetchJson } from "@/lib/safeFetch";
 import {
   AutonomyTier,
   GatewayNode,
@@ -80,47 +81,48 @@ export interface PeersViewProps {
 }
 
 const PeersView = React.memo(function PeersView({
-  activeProject,
-  gatewayNodes,
-  filteredPeers,
-  blueprints,
-  peersSubTab,
-  setPeersSubTab,
-  peerSearch,
-  setPeerSearch,
-  peerTierFilter,
-  setPeerTierFilter,
-  expandedPeerRows,
-  setExpandedPeerRows,
-  systemUpdateBusy,
-  onRunSystemUpdate,
-  onOpenAddPeerModal,
-  onSelectNodeAndNavigate,
-  onOpenTerminalForNode,
-  onAssignNode,
-  onUnassignNode,
-  onOpenServiceInProxy,
-  meshSourceNode,
-  setMeshSourceNode,
-  meshTargetNode,
-  setMeshTargetNode,
-  meshTargetPort,
-  setMeshTargetPort,
-  meshAliasEnv,
-  setMeshAliasEnv,
-  onAddMeshLink,
-  onRemoveMeshLink,
-  onRunPromptInCopilot,
-  playbookName,
-  setPlaybookName,
-  playbookCron,
-  setPlaybookCron,
-  playbookPrompt,
-  setPlaybookPrompt,
-  onAddPlaybook,
-  onTogglePlaybook,
-  onDeletePlaybook,
+  activeProject, gatewayNodes, filteredPeers, blueprints, peersSubTab, setPeersSubTab,
+  peerSearch, setPeerSearch, peerTierFilter, setPeerTierFilter, expandedPeerRows, setExpandedPeerRows,
+  systemUpdateBusy, onRunSystemUpdate, onOpenAddPeerModal, onSelectNodeAndNavigate,
+  onOpenTerminalForNode, onAssignNode, onUnassignNode, onOpenServiceInProxy,
+  meshSourceNode, setMeshSourceNode, meshTargetNode, setMeshTargetNode,
+  meshTargetPort, setMeshTargetPort, meshAliasEnv, setMeshAliasEnv,
+  onAddMeshLink, onRemoveMeshLink, onRunPromptInCopilot,
+  playbookName, setPlaybookName, playbookCron, setPlaybookCron,
+  playbookPrompt, setPlaybookPrompt, onAddPlaybook, onTogglePlaybook, onDeletePlaybook,
 }: PeersViewProps) {
+  const [canaryCommand, setCanaryCommand] = React.useState("uname -sr && uptime -p && echo CANARY_OK");
+  const [canaryBusy, setCanaryBusy] = React.useState(false);
+  const [canaryNotice, setCanaryNotice] = React.useState<string | null>(null);
+
+  const handleFleetOrCanaryAction = async (mode: "verify_fleet_health" | "canary_rollout") => {
+    setCanaryBusy(true);
+    setCanaryNotice(null);
+    try {
+      const res = await safeFetchJson("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: mode,
+          project_id: activeProject?.project_id || "default",
+          command: canaryCommand,
+        }),
+      });
+      const data = await res.json();
+      if (mode === "verify_fleet_health") {
+        setCanaryNotice(`🩺 Fleet-Health: ${data.healthy_nodes ?? 0}/${data.total_nodes ?? 0} Nodes gesund`);
+      } else {
+        setCanaryNotice(
+          `🐤 Canary-Rollout (${data.canary_aborted ? "ABGEBROCHEN" : "OK"})${
+            data.checkpoint_id ? ` · Checkpoint: ${data.checkpoint_id}` : ""
+          }`
+        );
+      }
+    } finally {
+      setCanaryBusy(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-6xl p-6 space-y-5">
       <SynapseViewHeader
@@ -175,6 +177,38 @@ const PeersView = React.memo(function PeersView({
 
       {peersSubTab === "nodes" && (
         <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-3 text-xs">
+            <input
+              type="text"
+              value={canaryCommand}
+              onChange={(e) => setCanaryCommand(e.target.value)}
+              placeholder="Multi-Node Canary Befehl..."
+              className="flex-1 min-w-[220px] rounded-md border border-nb-gray-800 bg-nb-gray-950 px-2.5 py-1.5 font-mono text-[11px] text-white"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={canaryBusy}
+                onClick={() => handleFleetOrCanaryAction("verify_fleet_health")}
+                className="rounded-md border border-nb-gray-800 bg-nb-gray-920 px-3 py-1.5 font-mono text-[11px] text-nb-gray-200 hover:border-sky-400 hover:text-white transition"
+              >
+                Fleet-Health prüfen
+              </button>
+              <button
+                type="button"
+                disabled={canaryBusy}
+                onClick={() => handleFleetOrCanaryAction("canary_rollout")}
+                className="rounded-md bg-netbird px-3 py-1.5 font-mono text-[11px] font-semibold text-white hover:bg-netbird-500 transition"
+              >
+                Canary-Rollout starten
+              </button>
+            </div>
+            {canaryNotice && (
+              <div className="w-full font-mono text-[11px] text-emerald-400">
+                {canaryNotice}
+              </div>
+            )}
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-nb-gray-900 bg-nb-gray-940 p-3">
             <div className="flex flex-1 items-center gap-2 min-w-[240px]">
               <Search className="h-4 w-4 text-nb-gray-400 ml-1" />

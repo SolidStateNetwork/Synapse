@@ -35,6 +35,19 @@
 
 ## 📜 Chronologisches Logbuch (Neueste zuerst)
 
+### [BB-007] 2026-11-01 02:06 (CET) – [WEB-STUDIO-UI / RESILIENCE-DR / v2.1.0] 1-Click Topology-Bundle-UI, Multi-Node-Canary-UI & Pre-Flight Cron/Playbook Checkpoints
+- **Akteur:** Antigravity AI & Project Lead
+- **Typ:** `FEATURE` | `UI` | `RELEASE`
+- **Betroffene Module:** `WEB-STUDIO-UI`, `RESILIENCE-DR`, `AI-ORCHESTRATOR`, `DEVOPS-STUDIO`, `CONTAINER-LAB`
+- **Ziel / Hintergrund:** Bereitstellung der in `v2.0.0` eingeführten Topology-Bundle- (`synapse-stack/v2.0`) und Multi-Node-Canary-Werkzeuge direkt im WebUI (`BrainVaultView` & `PeersView`) sowie Vervollständigung der automatischen Pre-Flight Time-Machine Checkpoints (`checkpoint_id`) für alle Cron-Runbook- und Playbook-Mutationen.
+- **Durchgeführte Schritte:**
+  1. `POST /api/projects` (`apps/core-web/src/app/api/projects/route.ts`) um `export_topology_bundle`, `import_topology_bundle`, `verify_fleet_health` und `canary_rollout` erweitert.
+  2. `BrainVaultAndWorkspaceViews.tsx` (`442` Zeilen `< 600`) um den interaktiven Topology-Bundle Export/Import-Drawer inkl. Pre-Flight `checkpoint_id` Anzeige ergänzt.
+  3. `PeersView.tsx` (`573` Zeilen `< 600`) um die Multi-Node Canary & Fleet-Health-Steuerleiste mit Pre-Flight `checkpoint_id` Badge erweitert.
+  4. `studioDevOpsTools.ts` (`core_manage_cron_jobs`), `/api/service-ops/route.ts` (`save_cron_job`, `delete_cron_job`), `playbookAndApprovalTools.ts` (`core_manage_playbooks`) und `/api/projects/route.ts` (`upsert_playbook`, `delete_playbook`) um automatische Pre-Flight Checkpoints (`checkpoint_id`) erweitert.
+  5. Gesamte Plattform, Container-Definitionen, Dokumentation und Lexikon auf `v2.1.0` angehoben.
+- **Verifikation:** Go Coverage `88.0 %` (`>= 85 %`), TS Line Coverage `>= 94 %` (`>= 90 %`), Max Go `499` Zeilen, Max TS `596` Zeilen, `0` `any`-Typen, `0` private Daten.
+
 ### [BB-006] 2026-11-01 01:40 (CET) – [AI-ORCHESTRATOR / MCP-SERVER / RESILIENCE-DR / v2.0.0] Declarative Topology Bundles, Multi-Node Canary Rollouts, Lexikon-Self-Test & Domain-TLS Checkpoints
 - **Akteur:** Antigravity AI & Project Lead
 - **Typ:** `FEATURE` | `ARCHITECTURE` | `RELEASE`
