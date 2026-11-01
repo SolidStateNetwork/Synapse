@@ -505,9 +505,7 @@ export async function POST(req: NextRequest) {
         node_id: body.node_id,
       }
     );
-    return NextResponse.json(res?.output || { ok: false }, {
-      status: res?.status === "error" ? 400 : 200,
-    });
+    return NextResponse.json(res?.output || { ok: false });
   }
 
   if (action === "verify_fleet_health" || action === "canary_rollout") {
@@ -523,9 +521,7 @@ export async function POST(req: NextRequest) {
         node_id: body.node_id,
       }
     );
-    return NextResponse.json(res?.output || { ok: false }, {
-      status: res?.status === "error" ? 400 : 200,
-    });
+    return NextResponse.json(res?.output || { ok: false });
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
