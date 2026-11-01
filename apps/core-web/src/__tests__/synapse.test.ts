@@ -533,6 +533,22 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
     const resolvedDb = resolveProjectDbPath(testProjectId, "");
     assert.ok(resolvedDb.endsWith(".db"));
 
+    const { sanitizeBrainContentForVisibility, formatBlackboxAppend, readBrainDoc, writeBrainDoc } = await import("../lib/vault.ts");
+    const sanitizedPub = sanitizeBrainContentForVisibility(
+      "Token sk-1234567890abcdef and path /" + "home/alice/app on 88.99.100.101",
+      "public",
+      ["88.99.100.101"]
+    );
+    assert.ok(sanitizedPub.includes("<REDACTED_SECRET>"));
+    assert.ok(sanitizedPub.includes("/workspace/app"));
+    assert.ok(sanitizedPub.includes("<REDACTED_PUBLIC_IP>"));
+    const bb = formatBlackboxAppend("- **[BB-001]** Init", "Added feature");
+    assert.equal(bb.bbTag, "[BB-002]");
+    assert.ok(readBrainDoc(testProjectId, "Milestones.md").includes("MILESTONES"));
+    assert.ok(readBrainDoc(testProjectId, "AGENTS.md").includes("AGENTS.md"));
+    writeBrainDoc(testProjectId, "Memory.md", "Logged entry", "append");
+    assert.ok(readBrainDoc(testProjectId, "Memory.md").includes("[BB-002]"));
+
     const repoRoot = path.resolve(import.meta.dirname, "../../../..");
     const forbiddenTokens = [
       ["217", "154", "20", "24"].join("\\."),

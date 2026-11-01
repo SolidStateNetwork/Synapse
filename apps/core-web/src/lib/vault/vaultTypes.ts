@@ -178,10 +178,14 @@ export interface FirewallNodePolicy {
   last_synced_at: string;
 }
 
+export type BrainDocName = "Architecture.md" | "Memory.md" | "Milestones.md" | "AGENTS.md";
+export type ProjectVisibility = "public" | "private";
+
 export interface ProjectState {
   project_id: string;
   name: string;
   description: string;
+  visibility?: ProjectVisibility;
   planning_only: boolean;
   assigned_nodes: AssignedNode[];
   active_cartridges: string[];

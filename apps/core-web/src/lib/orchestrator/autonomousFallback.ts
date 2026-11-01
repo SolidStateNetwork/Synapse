@@ -496,6 +496,10 @@ export async function runDeterministicAutonomousWorkflow(
     const step = await runStep("core_cluster_canary_exec", { action: "verify_fleet_health" });
     const out = step.output as { healthy_nodes?: number; total_nodes?: number } | undefined;
     finalReply = `### 🐤 Multi-Node Canary & Fleet Health\n\n- **Gesunde Muscle-Nodes:** \`${out?.healthy_nodes ?? 0} / ${out?.total_nodes ?? 0}\``;
+  } else if (lower.startsWith("mcp-keys:") || lower.includes("list mcp keys")) {
+    const step = await runStep("core_manage_mcp_keys", { action: "list" });
+    const out = step.output as { count?: number } | undefined;
+    finalReply = `### 🔑 Scoped MCP API Keys\n\n- **Aktive MCP-Schlüssel:** \`${out?.count ?? 0}\``;
   }
 
   if (!finalReply) {

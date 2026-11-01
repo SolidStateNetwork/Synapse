@@ -5,6 +5,7 @@ import type {
   AIProviderSettings,
   AssignedNode,
   AuditEntry,
+  BrainDocName,
   ChatAttachment,
   FileRollbackSnapshot,
   FirewallIpRule,
@@ -14,17 +15,20 @@ import type {
   PeerMeshLink,
   PendingApproval,
   ProjectState,
+  ProjectVisibility,
   PromptCacheMetrics,
   RegisteredService,
   ScheduledPlaybook,
   ServiceEndpointAction,
   ServiceHealthCheckSpec,
 } from "./vault/vaultTypes";
+import { ensureLexiconDocsExist } from "./vault/lexiconGovernance";
 
 export type {
   AIProviderSettings,
   AssignedNode,
   AuditEntry,
+  BrainDocName,
   ChatAttachment,
   FileRollbackSnapshot,
   FirewallIpRule,
@@ -34,6 +38,7 @@ export type {
   PeerMeshLink,
   PendingApproval,
   ProjectState,
+  ProjectVisibility,
   PromptCacheMetrics,
   RegisteredService,
   ScheduledPlaybook,
@@ -212,12 +217,14 @@ flowchart LR
   }
 
   if (!fs.existsSync(memPath)) {
-    const defaultMem = `# Engineering Journal & Memory — ${name || cleanId}
+    const defaultMem = `# ⬛ BLACKBOX & ENGINEERING MEMORY — ${name || cleanId}
 
-- **[${new Date().toISOString()}]** Project Brain Vault initialized on Synapse Core.
+- **[BB-001] [${new Date().toISOString()}]** Project Brain Vault & SolidState 4-Document Lexicon initialized on Synapse Core.
 `;
     fs.writeFileSync(memPath, defaultMem, "utf8");
   }
+
+  ensureLexiconDocsExist(dir, cleanId, name, "private");
 
   if (!fs.existsSync(secPath)) {
     fs.writeFileSync(secPath, encryptSecretsMap({}), {
@@ -242,6 +249,8 @@ flowchart LR
     null
   );
   if (existing && typeof existing === "object" && existing.project_id) {
+    existing.visibility = existing.visibility === "public" ? "public" : "private";
+    ensureLexiconDocsExist(dir, cleanId, existing.name || name, existing.visibility);
     existing.assigned_nodes = Array.isArray(existing.assigned_nodes)
       ? existing.assigned_nodes
       : [];
@@ -259,6 +268,7 @@ flowchart LR
     description:
       description ||
       "Distributed AI DevOps project managed via Synapse Brain & Muscle architecture.",
+    visibility: "private",
     planning_only: true,
     assigned_nodes: [],
     active_cartridges: ["docker-first", "zero-trust-networking"],
@@ -416,98 +426,15 @@ export function getRollbackSnapshot(
   );
 }
 
-export function readBrainDoc(
-  projectId: string,
-  doc: "Architecture.md" | "Memory.md"
-): string {
-  ensureProjectVault(projectId);
-  const filePath = path.join(getProjectDir(projectId), doc);
-  return fs.readFileSync(filePath, "utf8");
-}
-
-export function writeBrainDoc(
-  projectId: string,
-  doc: "Architecture.md" | "Memory.md",
-  content: string,
-  mode:
-    | "overwrite"
-    | "overwrite_full"
-    | "append"
-    | "replace_section" = "overwrite",
-  sectionHeader?: string
-): string {
-  ensureProjectVault(projectId);
-  const filePath = path.join(getProjectDir(projectId), doc);
-  const existing = fs.existsSync(filePath)
-    ? fs.readFileSync(filePath, "utf8")
-    : "";
-
-  if (mode === "append") {
-    const next = existing.endsWith("\n")
-      ? `${existing}${content}\n`
-      : `${existing}\n${content}\n`;
-    atomicWriteTextSync(filePath, next);
-    return next;
-  }
-
-  if (mode === "replace_section" && sectionHeader && sectionHeader.trim()) {
-    const lines = existing.split("\n");
-    const targetHeader = sectionHeader
-      .trim()
-      .replace(/^#+\s*/, "")
-      .toLowerCase();
-    let startIdx = -1;
-    let startLevel = 2;
-
-    for (let i = 0; i < lines.length; i++) {
-      const m = lines[i].match(/^(#{1,6})\s+(.*)$/);
-      if (m) {
-        const headingText = m[2].trim().toLowerCase();
-        if (
-          headingText === targetHeader ||
-          lines[i].trim().toLowerCase() === sectionHeader.trim().toLowerCase()
-        ) {
-          startIdx = i;
-          startLevel = m[1].length;
-          break;
-        }
-      }
-    }
-
-    if (startIdx !== -1) {
-      let endIdx = lines.length;
-      for (let j = startIdx + 1; j < lines.length; j++) {
-        const m = lines[j].match(/^(#{1,6})\s+/);
-        if (m && m[1].length <= startLevel) {
-          endIdx = j;
-          break;
-        }
-      }
-      const headerLine = content.trim().startsWith("#")
-        ? content.trim()
-        : `${lines[startIdx]}\n\n${content.trim()}`;
-      const updatedLines = [
-        ...lines.slice(0, startIdx),
-        headerLine,
-        "",
-        ...lines.slice(endIdx),
-      ];
-      const next = updatedLines.join("\n");
-      atomicWriteTextSync(filePath, next);
-      return next;
-    } else {
-      const prefixHeader = sectionHeader.trim().startsWith("#")
-        ? sectionHeader.trim()
-        : `## ${sectionHeader.trim()}`;
-      const next = `${existing.trimEnd()}\n\n${prefixHeader}\n\n${content.trim()}\n`;
-      atomicWriteTextSync(filePath, next);
-      return next;
-    }
-  }
-
-  atomicWriteTextSync(filePath, content);
-  return content;
-}
+export {
+  buildDefaultAgentsDoc,
+  buildDefaultMilestonesDoc,
+  formatBlackboxAppend,
+  normalizeBrainDocName,
+  readBrainDoc,
+  sanitizeBrainContentForVisibility,
+  writeBrainDoc,
+} from "./vault/lexiconGovernance";
 
 export function generateRandomSecret(
   projectId: string,

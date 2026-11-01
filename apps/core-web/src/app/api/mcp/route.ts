@@ -188,6 +188,8 @@ async function executeMcpTool(
       (!args.action || args.action === "export")) ||
     (toolName === "core_cluster_canary_exec" &&
       (!args.action || args.action === "verify_fleet_health")) ||
+    (toolName === "core_manage_mcp_keys" &&
+      (!args.action || args.action === "list")) ||
     toolName === "core_system_ota_status";
 
   if (!isReadOnlyTool && !canExecute) {

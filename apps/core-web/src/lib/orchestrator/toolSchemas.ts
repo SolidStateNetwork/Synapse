@@ -6,12 +6,12 @@ export const SYNAPSE_TOOL_SCHEMAS = [
     function: {
       name: "core_update_brain_doc",
       description:
-        "Updates project documentation (Architecture.md or Memory.md) in the Core Vault. Must be called after every structural change on a node.",
+        "Updates project documentation in the 4-Document SolidState Brain Vault Lexicon (Architecture.md, Memory.md [BB-XXX], Milestones.md, or AGENTS.md) with automatic Zero-Secret and Public Clean-Room sanitization.",
       parameters: {
         type: "object",
         properties: {
-          document: { type: "string", enum: ["Architecture.md", "Memory.md"], description: "Target document in the Core project vault." },
-          mode: { type: "string", enum: ["replace_section", "append", "overwrite_full", "overwrite"], description: "Type of update operation." },
+          document: { type: "string", enum: ["Architecture.md", "Memory.md", "Milestones.md", "AGENTS.md"], description: "Target document in the Core project vault." },
+          mode: { type: "string", enum: ["replace_section", "append", "overwrite_full", "overwrite"], description: "Type of update operation (append on Memory.md automatically assigns the next [BB-XXX] tag)." },
           section_header: { type: "string", description: "Exact Markdown heading (required only when mode is replace_section)." },
           content: { type: "string", description: "New Markdown content (including updated Mermaid graphs or remote file paths)." },
         },

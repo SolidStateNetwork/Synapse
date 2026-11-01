@@ -230,8 +230,8 @@ export function useCanvasOpsController({
       setBackupNotice(
         data.ok
           ? t(
-              "✔ Offsite-Backup auf Muscle wiederhergestellt!",
-              "✔ Offsite backup restored to Muscle!"
+              `✔ Offsite-Backup auf Muscle wiederhergestellt!${data.checkpoint_id ? ` [Checkpoint: ${data.checkpoint_id}]` : ""}`,
+              `✔ Offsite backup restored to Muscle!${data.checkpoint_id ? ` [Checkpoint: ${data.checkpoint_id}]` : ""}`
             )
           : t("Wiederherstellung geprüft", "Restore checked")
       );
@@ -305,7 +305,10 @@ export function useCanvasOpsController({
           };
         });
         setIntrusionNotice(
-          t(`🛡️ IP ${ip} gesperrt!`, `🛡️ IP ${ip} blocked!`)
+          t(
+            `🛡️ IP ${ip} gesperrt!${data.checkpoint_id ? ` [Checkpoint: ${data.checkpoint_id}]` : ""}`,
+            `🛡️ IP ${ip} blocked!${data.checkpoint_id ? ` [Checkpoint: ${data.checkpoint_id}]` : ""}`
+          )
         );
       }
     } finally {

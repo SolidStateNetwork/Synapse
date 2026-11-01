@@ -162,11 +162,20 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (action === "block_attacker") {
+    if (action === "block_attacker" || action === "block_intrusion_ip") {
       const attackerIp = String(body.ip || "").trim();
       if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(attackerIp)) {
         return NextResponse.json({ ok: false, error: "Invalid IPv4 address" }, { status: 400 });
       }
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: nodeId,
+        title: `Pre-Flight Intrusion IP Block (${attackerIp})`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before blocking attacker IP ${attackerIp} on ${nodeId}.`,
+        files_backed_up: ["State.json"],
+        services_snapshot: [],
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
 
       let blockedIps: string[] = [];
       await withProjectStateTransaction(projectId, (draft) => {
@@ -204,7 +213,7 @@ export async function POST(req: NextRequest) {
         summary: `Blocked brute-force attacker IP ${attackerIp} on ${nodeId}`,
       });
 
-      return NextResponse.json({ ok: true, blocked_ip: attackerIp, blocked_ips: blockedIps });
+      return NextResponse.json({ ok: true, checkpoint_id: preFlightCp.id, blocked_ip: attackerIp, blocked_ips: blockedIps });
     }
 
     if (action === "configure_domain" || action === "bind_domain") {

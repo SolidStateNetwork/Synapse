@@ -17,8 +17,11 @@ export function buildCacheOptimizedSystemPromptParts(projectId: string): {
   fullPrompt: string;
 } {
   const state = ensureProjectVault(projectId);
+  const visibility = state.visibility === "public" ? "public" : "private";
   const archDoc = readBrainDoc(projectId, "Architecture.md");
   const memDoc = readBrainDoc(projectId, "Memory.md");
+  const milestonesDoc = readBrainDoc(projectId, "Milestones.md");
+  const agentsDoc = readBrainDoc(projectId, "AGENTS.md");
   const secretKeys = listSecretKeys(projectId);
   const allCartridges = listCartridges();
   const activeCartridges = allCartridges.filter((c) =>
@@ -43,10 +46,12 @@ You are the Principal Autonomous DevOps & Software Engineering Engine operating 
 CRITICAL ARCHITECTURAL LAWS:
 1. NO LOCAL EXECUTION ON CORE: You reside in the stateless "Brain" (Control Plane). You DO NOT have a local shell or local code workspace on the Core. All application code, builds, databases, and configurations MUST be created and executed directly on the assigned Remote Connectors ("Muscles") using \`node_*\` tools.
 2. ZERO-CONNECTOR LOCK: Inspect \`<assigned_infrastructure>\` below. If \`assigned_nodes\` is empty, you are in PLANNING-ONLY MODE. You may only use \`core_update_brain_doc\` to design architectures and must instruct the user to assign at least one Connector in the UI before implementation.
-3. STATE SYNCHRONIZATION DUTY: Because application code lives exclusively on remote servers, the Core relies entirely on your discipline to stay informed:
-   - Whenever you create/move directories or change system topology on a node, you MUST update \`Architecture.md\` via \`core_update_brain_doc\`.
-   - Whenever you expose a port, start a daemon/container, or configure a database, you MUST register it via \`core_register_service\` so the Core UI can monitor health and open Live-Preview tunnels.
-   - Whenever you solve a non-trivial bug or server quirk, record the lesson in \`Memory.md\`.
+3. SOLIDSTATE 5-STEP LEXICON & VISIBILITY GOVERNANCE (${visibility.toUpperCase()} MODE):
+   - Step 1 (Read First): Always inspect \`AGENTS.md\`, \`Architecture.md\`, \`Memory.md\` (\`[BB-XXX]\`), and \`Milestones.md\` before making changes.
+   - Step 2 (Visibility Guardrail — ${visibility === "public" ? "PUBLIC CLEAN-ROOM (Strata/Synapse Standard): Zero secrets AND zero local user paths, real server public IPs, or private internal domains in code or docs!" : "PRIVATE INFRASTRUCTURE (Gateway/Fleet Standard): Zero secrets (<REDACTED_SECRET> / Secrets.enc), while internal node topology and subnets may be documented in Architecture.md & Memory.md."}): Never write plaintext secrets; always use \`core_manage_secret\`.
+   - Step 3 (Modularization Gates): Keep Go files \`< 500\` lines, TS/TSX files \`< 600\` lines, and \`0\` \`any\` types.
+   - Step 4 (Service Registration): Whenever you expose a port, start a daemon/container, or configure a database, you MUST register it via \`core_register_service\`.
+   - Step 5 (Mandatory Lexicon Write-Back \`[BB-XXX]\`): After every change, update \`Architecture.md\`, check off completed items in \`Milestones.md\`, and append a numbered \`[BB-XXX]\` entry in \`Memory.md\` via \`core_update_brain_doc\`.
 4. SELF-PRESERVATION: Never stop \`axon\` / \`muscle-agent\`, never flush firewall rules without preserving the outbound connection to the Core Hub, and never expose raw database ports to \`0.0.0.0\` without firewall restrictions.
 5. MULTIMODAL VISION & CONTEXT MENTIONS: When the user attaches screenshots, architecture diagrams, or error photos, inspect the visual details carefully and translate them directly into concrete file changes, service configurations, or fixes on the target node.
 6. LANGUAGE MATCHING RULE (CRITICAL): Always respond in the exact natural language used by the user in their latest message. If the user writes to you in English, you MUST write your entire response, explanations, section headings, and tables in English. If the user writes to you in German, you MUST write your entire response, explanations, section headings, and tables in German.
@@ -59,8 +64,12 @@ ${cartridgeBlock || "No active rule cartridges selected."}
 </active_rule_cartridges>
 
 <!-- ===================================================================== -->
-<!-- LAYER 4: PROJECT BRAIN CONTEXT (ARCHITECTURE & LONG-TERM MEMORY)      -->
+<!-- LAYER 4: PROJECT BRAIN CONTEXT (4-DOC SOLIDSTATE LEXICON)             -->
 <!-- ===================================================================== -->
+<project_governance_agents visibility="${visibility}">
+${agentsDoc}
+</project_governance_agents>
+
 <project_architecture>
 ${archDoc}
 </project_architecture>
@@ -68,6 +77,10 @@ ${archDoc}
 <project_memory>
 ${memDoc}
 </project_memory>
+
+<project_milestones>
+${milestonesDoc}
+</project_milestones>
 
 <!-- ===================================================================== -->
 <!-- LAYER 5: EXECUTION PROTOCOL                                           -->
@@ -121,6 +134,7 @@ When developing web applications, backend APIs, or databases on any node, always
     {
       project_id: state.project_id,
       project_name: state.name,
+      visibility,
       updated_at: state.updated_at,
       active_cartridges: state.active_cartridges,
       assigned_nodes: assignedNodesMap,

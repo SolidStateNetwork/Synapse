@@ -35,6 +35,19 @@
 
 ## 📜 Chronologisches Logbuch (Neueste zuerst)
 
+### [BB-008] 2026-11-01 02:45 (CET) – [BRAIN-VAULT / AI-ORCHESTRATOR / MCP-SERVER / AXON-AGENT / v2.2.0] SolidState 4-Doc AI Lexicon, Public/Private Clean-Room Governance, Scoped MCP Key Tool & 100 % Ephemeral PTY GC
+- **Akteur:** Antigravity AI & Project Lead
+- **Typ:** `ARCHITECTURE` | `FEATURE` | `SECURITY` | `UI` | `RELEASE`
+- **Betroffene Module:** `BRAIN-VAULT`, `AI-ORCHESTRATOR`, `MCP-SERVER`, `AXON-AGENT`, `RESILIENCE-DR`, `WEB-STUDIO-UI`, `CONTAINER-LAB`
+- **Ziel / Hintergrund:** Verankerung des strukturierten SolidState 5-Schritte-Protokolls (`Infrastructure` / `Strata` / `Synapse` Standard) direkt in der internen Synapse-KI mit harter Unterscheidung zwischen `PUBLIC (Clean-Room)` und `PRIVATE (Infrastructure)` Projekten, Ausbau des MCP-Key-Lifecycles (`core_manage_mcp_keys`), 100 % Ephemeral PTY Garbage Collection im Axon-Agenten sowie Pre-Flight Checkpoints für Offsite-Backup-Restores und Intrusion-IP-Blocks.
+- **Durchgeführte Schritte:**
+  1. `apps/core-web/src/lib/vault/lexiconGovernance.ts` (`220` Zeilen) erstellt: 4-Dokumente-Lexikon (`Architecture.md`, `Memory.md` mit Auto-`[BB-XXX]`-Nummerierung, `Milestones.md`, `AGENTS.md`), `visibility: "public" | "private"` und `sanitizeBrainContentForVisibility` (Redaktion von Secrets sowie im `public`-Modus lokaler `/home/<user>`-Pfade und echter Node-IPs).
+  2. `promptBuilder.ts`, `toolSchemas.ts`, `coreTools.ts`, `/api/projects/route.ts` und `BrainVaultAndWorkspaceViews.tsx` (`535` Zeilen `< 600`) um das 5-Schritte-Protokoll, den Public/Private-Governance-Umschalter und die 4 Lexikon-Tabs erweitert sowie `cartridges/solidstate-public-cleanroom.md` und `cartridges/solidstate-private-infra.md` angelegt.
+  3. `core_manage_mcp_keys` (`list`, `create`, `revoke`) in `workbenchAndAuthTools.ts` (`190` Zeilen `< 220`), `extendedToolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts` und `/api/mcp/route.ts` integriert (`36` MCP-Tools gesamt).
+  4. `deep-search-`, `self-heal-` und `link-probe-` in `agents/axon/internal/pty/pty_discovery.go` (`IsEphemeralSessionID`) inkl. Go-Unit-Tests in `pty_test.go` ergänzt.
+  5. Pre-Flight Checkpoints (`checkpoint_id`) in `disasterRecoveryTools.ts`, `/api/backups/route.ts`, `secopsAndWatchdogTools.ts` und `/api/service-ops/route.ts` sowie UI-Badges in `AccessRulesView.tsx`, `useSystemAndInfraActions.ts` und `useCanvasOpsController.ts` ergänzt.
+- **Verifikation:** Go Coverage `88.0 %` (`>= 85 %`), TS Line Coverage `>= 91 %` (`>= 90 %`), Max Go `499` Zeilen, Max TS `< 600` Zeilen, `0` `any`-Typen, `0` private Daten.
+
 ### [BB-007] 2026-11-01 02:06 (CET) – [WEB-STUDIO-UI / RESILIENCE-DR / v2.1.0] 1-Click Topology-Bundle-UI, Multi-Node-Canary-UI & Pre-Flight Cron/Playbook Checkpoints
 - **Akteur:** Antigravity AI & Project Lead
 - **Typ:** `FEATURE` | `UI` | `RELEASE`

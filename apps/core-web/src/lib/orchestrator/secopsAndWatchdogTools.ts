@@ -1,4 +1,5 @@
 import { dispatchAlertEvent, loadAlertConfig, saveAlertConfig, type AlertEvent } from "../alerts";
+import { recordCheckpoint } from "../checkpoints";
 import { resolveKnownNodeIps, resolveTargetNodeId } from "../runtimeResolver";
 import { safeFetchJson } from "../safeFetch";
 import { appendAuditLog, withProjectStateTransaction, type ProjectState } from "../vault";
@@ -125,6 +126,15 @@ export async function dispatchSecopsAndWatchdogTool(
       if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(attackerIp)) {
         return { tool_name: toolName, status: "error", output: { ok: false, error: "Invalid IPv4 address" } };
       }
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: nodeId,
+        title: `Pre-Flight Intrusion IP Block (${attackerIp})`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before blocking attacker IP ${attackerIp} on ${nodeId}.`,
+        files_backed_up: ["State.json"],
+        services_snapshot: [],
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
       let blockedIps: string[] = [];
       await withProjectStateTransaction(projectId, (draft) => {
         if (!draft.firewall_policies) draft.firewall_policies = {};
@@ -159,7 +169,7 @@ export async function dispatchSecopsAndWatchdogTool(
         status: "executed",
         summary: `Blocked brute-force attacker IP ${attackerIp} on ${nodeId}`,
       });
-      return { tool_name: toolName, status: "executed", output: { ok: true, blocked_ip: attackerIp, blocked_ips: blockedIps } };
+      return { tool_name: toolName, status: "executed", output: { ok: true, checkpoint_id: preFlightCp.id, blocked_ip: attackerIp, blocked_ips: blockedIps } };
     }
 
     const scanCmd = `FAILED_COUNT=$(journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep -iE "Failed password|Invalid user" | wc -l); ACCEPTED_COUNT=$(journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep -iE "Accepted " | wc -l); TOP_IPS=$(journalctl -u ssh -u sshd --no-pager -n 400 2>/dev/null | grep -iE "Failed password|Invalid user" | grep -oE "([0-9]{1,3}\\.){3}[0-9]{1,3}" | sort | uniq -c | sort -nr | head -n 5 | awk '{print $2 ":" $1}' | tr '\\n' ','); printf "INTRUSION_%s|%s|%s|%s\\n" "RESULT" "$FAILED_COUNT" "$ACCEPTED_COUNT" "$TOP_IPS"`;

@@ -6,6 +6,7 @@ import { loadSelfHealingStore } from "../self-healing";
 import { loadCronJobs } from "../v070-studio";
 import {
   appendAuditLog,
+  buildDefaultAgentsDoc,
   deleteSecret,
   ensureProjectVault,
   getDecryptedSecrets,
@@ -13,6 +14,7 @@ import {
   readAuditLogs,
   setSecret,
   withProjectStateTransaction,
+  writeBrainDoc,
   type ProjectState,
 } from "../vault";
 import { SYNAPSE_VERSION } from "../version";
@@ -80,6 +82,19 @@ export async function dispatchProjectAndDiagnosticTool(
           project_id: projectId,
           planning_only: updated.planning_only,
         },
+      };
+    }
+
+    if (action === "set_visibility") {
+      const nextVis = args.visibility === "public" ? "public" : "private";
+      const updated = await withProjectStateTransaction(projectId, (draft) => {
+        draft.visibility = nextVis;
+      });
+      writeBrainDoc(projectId, "AGENTS.md", buildDefaultAgentsDoc(updated.name, nextVis), "overwrite");
+      return {
+        tool_name: toolName,
+        status: "executed",
+        output: { ok: true, project_id: projectId, visibility: nextVis },
       };
     }
 

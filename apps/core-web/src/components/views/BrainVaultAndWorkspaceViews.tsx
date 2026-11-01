@@ -52,6 +52,61 @@ export const BrainVaultView = React.memo(function BrainVaultView({
   const [bundleJsonText, setBundleJsonText] = React.useState("");
   const [bundleBusy, setBundleBusy] = React.useState(false);
   const [bundleNotice, setBundleNotice] = React.useState<string | null>(null);
+  const [lexiconTab, setLexiconTab] = React.useState<"Architecture.md" | "Memory.md" | "Milestones.md" | "AGENTS.md">(brainDocTab);
+  const [milestonesMd, setMilestonesMd] = React.useState("");
+  const [agentsMd, setAgentsMd] = React.useState("");
+  const [visibility, setVisibility] = React.useState<"public" | "private">("private");
+
+  React.useEffect(() => {
+    setLexiconTab(brainDocTab);
+  }, [brainDocTab]);
+
+  React.useEffect(() => {
+    void safeFetchJson(`/api/projects?project_id=${encodeURIComponent(projectId || "default")}&light=1`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d?.milestones_md === "string") setMilestonesMd(d.milestones_md);
+        if (typeof d?.agents_md === "string") setAgentsMd(d.agents_md);
+        if (d?.active_project?.visibility === "public" || d?.active_project?.visibility === "private") {
+          setVisibility(d.active_project.visibility);
+        }
+      })
+      .catch(() => {});
+  }, [projectId]);
+
+  const handleToggleVisibility = async () => {
+    const nextVis = visibility === "public" ? "private" : "public";
+    const res = await safeFetchJson("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_project_visibility", project_id: projectId, visibility: nextVis }),
+    });
+    const data = await res.json();
+    if (data?.ok) {
+      setVisibility(nextVis);
+      if (typeof data.agents_md === "string") setAgentsMd(data.agents_md);
+      setBundleNotice(`✔ Governance-Modus auf ${nextVis.toUpperCase()} umgestellt (AGENTS.md aktualisiert)`);
+    }
+  };
+
+  const handleSaveCurrentLexiconDoc = async () => {
+    if (lexiconTab === "Architecture.md" || lexiconTab === "Memory.md") {
+      handleSaveBrainDoc(lexiconTab);
+      return;
+    }
+    const content = lexiconTab === "Milestones.md" ? milestonesMd : agentsMd;
+    const res = await safeFetchJson("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "save_doc", project_id: projectId, document: lexiconTab, content, mode: "overwrite" }),
+    });
+    const data = await res.json();
+    if (typeof data?.content === "string") {
+      if (lexiconTab === "Milestones.md") setMilestonesMd(data.content);
+      else setAgentsMd(data.content);
+    }
+    setIsEditingMarkdown(false);
+  };
 
   const handleExportTopologyBundle = async () => {
     setBundleBusy(true);
@@ -117,6 +172,18 @@ export const BrainVaultView = React.memo(function BrainVaultView({
           <>
             <button
               type="button"
+              onClick={handleToggleVisibility}
+              className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${
+                visibility === "public"
+                  ? "border-emerald-500/40 bg-emerald-950/30 text-emerald-300 hover:border-emerald-400"
+                  : "border-amber-500/40 bg-amber-950/30 text-amber-300 hover:border-amber-400"
+              }`}
+              title="Umschalten zwischen Public Clean-Room (Strata/Synapse Standard) und Private Infrastructure (Gateway/Fleet Standard)"
+            >
+              <span>{visibility === "public" ? "🌐 PUBLIC (Clean-Room)" : "🔒 PRIVATE (Infra)"}</span>
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setShowBundleDrawer((v) => {
                   const next = !v;
@@ -141,7 +208,7 @@ export const BrainVaultView = React.memo(function BrainVaultView({
 
             {isEditingMarkdown && (
               <button
-                onClick={() => handleSaveBrainDoc(brainDocTab)}
+                onClick={handleSaveCurrentLexiconDoc}
                 className="flex items-center gap-1.5 rounded-xl bg-netbird px-4 py-2 text-xs font-medium text-white hover:bg-netbird-500 transition shadow-sm"
               >
                 <Save className="h-3.5 w-3.5" />
@@ -153,26 +220,39 @@ export const BrainVaultView = React.memo(function BrainVaultView({
         subTabs={
           <div className="flex flex-wrap items-center justify-between gap-3 w-full">
             <SynapseSubTabs
-              activeTab={brainDocTab}
+              activeTab={lexiconTab}
               onChange={(doc) => {
-                setBrainDocTab(doc);
+                setLexiconTab(doc);
+                if (doc === "Architecture.md" || doc === "Memory.md") {
+                  setBrainDocTab(doc);
+                }
                 setIsEditingMarkdown(false);
               }}
               tabs={[
                 {
                   id: "Architecture.md",
-                  label: "Architecture.md (System-Topologie)",
+                  label: "Architecture.md (Topologie)",
                   icon: <FileText className="h-3.5 w-3.5" />,
                 },
                 {
                   id: "Memory.md",
-                  label: "Memory.md (KI-Erfahrungsschatz)",
+                  label: "Memory.md (Blackbox [BB-XXX])",
                   icon: <BookOpen className="h-3.5 w-3.5" />,
+                },
+                {
+                  id: "Milestones.md",
+                  label: "Milestones.md (Roadmap)",
+                  icon: <FileCode2 className="h-3.5 w-3.5" />,
+                },
+                {
+                  id: "AGENTS.md",
+                  label: "AGENTS.md (5-Step Governance)",
+                  icon: <Brain className="h-3.5 w-3.5" />,
                 },
               ]}
             />
             <span className="hidden sm:inline font-mono text-[11px] text-nb-gray-400">
-              /projects/{projectId || "default-project"}/{brainDocTab}
+              /projects/{projectId || "default-project"}/{lexiconTab}
             </span>
           </div>
         }
@@ -222,22 +302,35 @@ export const BrainVaultView = React.memo(function BrainVaultView({
           {isEditingMarkdown ? (
             <textarea
               value={
-                brainDocTab === "Architecture.md" ? architectureMd : memoryMd
+                lexiconTab === "Architecture.md"
+                  ? architectureMd
+                  : lexiconTab === "Memory.md"
+                    ? memoryMd
+                    : lexiconTab === "Milestones.md"
+                      ? milestonesMd
+                      : agentsMd
               }
-              onChange={(e) =>
-                brainDocTab === "Architecture.md"
-                  ? setArchitectureMd(e.target.value)
-                  : setMemoryMd(e.target.value)
-              }
+              onChange={(e) => {
+                if (lexiconTab === "Architecture.md") setArchitectureMd(e.target.value);
+                else if (lexiconTab === "Memory.md") setMemoryMd(e.target.value);
+                else if (lexiconTab === "Milestones.md") setMilestonesMd(e.target.value);
+                else setAgentsMd(e.target.value);
+              }}
               className="h-[560px] w-full rounded-lg border border-nb-gray-800 bg-nb-gray-960 p-4 font-mono text-xs text-nb-gray-100 focus:border-netbird focus:outline-none"
             />
           ) : (
             <RichMarkdownDocument
               variant={
-                brainDocTab === "Memory.md" ? "memory" : "architecture"
+                lexiconTab === "Memory.md" ? "memory" : "architecture"
               }
               markdown={
-                brainDocTab === "Architecture.md" ? architectureMd : memoryMd
+                lexiconTab === "Architecture.md"
+                  ? architectureMd
+                  : lexiconTab === "Memory.md"
+                    ? memoryMd
+                    : lexiconTab === "Milestones.md"
+                      ? milestonesMd
+                      : agentsMd
               }
             />
           )}

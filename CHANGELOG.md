@@ -2,6 +2,19 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v2.2.0] — 2026-11-01 (SolidState 4-Document AI Lexicon, Public/Private Clean-Room Governance, Scoped MCP Key Tool & 100% Ephemeral PTY GC)
+
+### Added & Improved
+- **SolidState 4-Document Brain Vault Lexicon & Public/Private Clean-Room Governance (`lexiconGovernance.ts`, `vault.ts`, `promptBuilder.ts`, `BrainVaultAndWorkspaceViews.tsx`, `cartridges/solidstate-*.md`)**:
+  - Expanded every project's Brain Vault to the full 4-document SolidState Lexicon (`Architecture.md`, `Memory.md` with automatic `[BB-XXX]` Blackbox numbering, `Milestones.md`, and `AGENTS.md`) with a 1-click `PUBLIC (Clean-Room)` vs. `PRIVATE (Infrastructure)` governance switcher and automatic Zero-Secret + Public Clean-Room sanitization.
+- **Scoped MCP API Key Lifecycle AI/MCP Tool (`core_manage_mcp_keys`) & 100% Ephemeral PTY Garbage Collection (`workbenchAndAuthTools.ts`, `pty_discovery.go`)**:
+  - Added `core_manage_mcp_keys` (`list`, `create`, `revoke` with `read`/`execute`/`admin` scopes) across the AI Orchestrator, deterministic fallback, and `/api/mcp`.
+  - Added `deep-search-`, `self-heal-`, and `link-probe-` to `IsEphemeralSessionID` in `agents/axon/internal/pty/pty_discovery.go`.
+- **Pre-Flight Checkpoints on Offsite Backup Restore/Delete & Intrusion IP Block + UI Badges (`disasterRecoveryTools.ts`, `/api/backups`, `secopsAndWatchdogTools.ts`, `/api/service-ops`, `AccessRulesView.tsx`, `useSystemAndInfraActions.ts`, `useCanvasOpsController.ts`)**:
+  - Added automatic Pre-Flight Time-Machine Checkpoints (`checkpoint_id`) on backup restore/delete and intrusion IP block, and surfaced `checkpoint_id` badges across Cron-Runbooks, Playbooks, and Offsite Backups UI.
+
+---
+
 ## [v2.1.0] — 2026-11-01 (1-Click Topology Bundle UI, Interactive Multi-Node Canary Control Bar & Cron/Playbook Checkpoints)
 
 ### Added & Improved

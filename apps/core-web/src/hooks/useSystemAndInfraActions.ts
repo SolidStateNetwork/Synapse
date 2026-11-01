@@ -311,7 +311,7 @@ export function useSystemAndInfraActions({
     e.preventDefault();
     if (!activeProject || !playbookName.trim() || !playbookPrompt.trim())
       return;
-    await safeFetchJson("/api/projects", {
+    const res = await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -323,12 +323,14 @@ export function useSystemAndInfraActions({
         enabled: true,
       }),
     });
+    const d = await res.json();
+    const cpSuffix = d?.checkpoint_id ? ` [Checkpoint: ${d.checkpoint_id}]` : "";
     setPlaybookName("");
     setPlaybookPrompt("");
     showToast(
-      isDe
+      (isDe
         ? "Geplantes KI-Playbook gespeichert"
-        : "Scheduled AI Playbook saved"
+        : "Scheduled AI Playbook saved") + cpSuffix
     );
     await loadWorkspace(activeProject.project_id);
   }
@@ -362,7 +364,7 @@ export function useSystemAndInfraActions({
 
   async function handleDeletePlaybook(playbookId: string) {
     if (!activeProject) return;
-    await safeFetchJson("/api/projects", {
+    const res = await safeFetchJson("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -371,6 +373,10 @@ export function useSystemAndInfraActions({
         playbook_id: playbookId,
       }),
     });
+    const d = await res.json();
+    if (d?.checkpoint_id) {
+      showToast(`Playbook deleted [Checkpoint: ${d.checkpoint_id}]`);
+    }
     await loadWorkspace(activeProject.project_id);
   }
 

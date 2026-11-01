@@ -4,7 +4,10 @@ import { executeServiceAction } from "../projects/serviceActionRunner";
 import { resolveTargetNodeId } from "../runtimeResolver";
 import {
   appendAuditLog,
+  createMcpApiKey,
+  ensureProjectVault,
   listSecretKeys,
+  revokeMcpApiKey,
   setSecret,
   withProjectStateTransaction,
   type ProjectState,
@@ -158,6 +161,29 @@ export async function dispatchWorkbenchAndAuthTool(
         secret_keys: listSecretKeys(projectId),
       },
     };
+  }
+
+  if (toolName === "core_manage_mcp_keys") {
+    const action = String(args.action || "list");
+    if (action === "list") {
+      const keys = ensureProjectVault(projectId).mcp_api_keys || [];
+      return { tool_name: toolName, status: "executed", output: { ok: true, action: "list", count: keys.length, keys } };
+    }
+    if (action === "create") {
+      const name = String(args.name || "External AI / MCP Client").trim();
+      const rawScopes = Array.isArray(args.scopes) ? args.scopes.map((s) => String(s)) : ["read", "execute"];
+      const validScopes = rawScopes.filter((s): s is "read" | "execute" | "admin" => s === "read" || s === "execute" || s === "admin");
+      const created = createMcpApiKey(projectId, name, validScopes.length > 0 ? validScopes : ["read", "execute"]);
+      return { tool_name: toolName, status: "executed", output: { ok: true, action: "create", key: created.key, plaintext_token: created.plaintext_token } };
+    }
+    if (action === "revoke") {
+      const keyId = String(args.key_id || "").trim();
+      if (!keyId) {
+        return { tool_name: toolName, status: "error", output: { ok: false, error: "key_id is required for revoke" } };
+      }
+      const remaining = revokeMcpApiKey(projectId, keyId);
+      return { tool_name: toolName, status: "executed", output: { ok: true, action: "revoke", revoked_key_id: keyId, keys: remaining } };
+    }
   }
 
   return null;

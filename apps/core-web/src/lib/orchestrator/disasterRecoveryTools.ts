@@ -135,6 +135,15 @@ export async function dispatchDisasterRecoveryTool(
       if (!fs.existsSync(bkpFile)) {
         return { tool_name: toolName, status: "error", output: { ok: false, error: "Encrypted backup file missing" } };
       }
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: target.node_id,
+        title: `Pre-Flight Offsite Backup Restore (${backupId})`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before restoring offsite backup ${backupId} on ${target.node_id}.`,
+        files_backed_up: [dbPath, "Backups.json"],
+        services_snapshot: [],
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
       const decrypted = decryptSecretsMap(fs.readFileSync(bkpFile, "utf8"));
       const dbB64 = decrypted.db_b64 || "";
       const targetDbPath = decrypted.db_path || dbPath;
@@ -157,15 +166,24 @@ export async function dispatchDisasterRecoveryTool(
       }
       target.restored_at = new Date().toISOString();
       saveOffsiteBackups(projectId, list);
-      return { tool_name: toolName, status: "executed", output: { ok: true, output: restoreOutput, restored: target } };
+      return { tool_name: toolName, status: "executed", output: { ok: true, checkpoint_id: preFlightCp.id, output: restoreOutput, restored: target } };
     }
 
     if (action === "delete") {
       const backupId = String(args.backup_id || "");
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: nodeId,
+        title: `Pre-Flight Offsite Backup Delete (${backupId})`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before deleting offsite backup ${backupId}.`,
+        files_backed_up: ["Backups.json"],
+        services_snapshot: [],
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
       const bkpFile = path.join(getProjectDir(projectId), "Backups", `${backupId}.enc`);
       if (fs.existsSync(bkpFile)) fs.unlinkSync(bkpFile);
       const backups = saveOffsiteBackups(projectId, loadOffsiteBackups(projectId).filter((b) => b.id !== backupId));
-      return { tool_name: toolName, status: "executed", output: { ok: true, deleted_id: backupId, backups } };
+      return { tool_name: toolName, status: "executed", output: { ok: true, checkpoint_id: preFlightCp.id, deleted_id: backupId, backups } };
     }
   }
 

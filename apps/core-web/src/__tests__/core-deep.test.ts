@@ -273,6 +273,10 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
       { action: "remove_mesh_link", link_id: "mesh-node-a-node-b-5432" },
       { action: "toggle_service_auto_heal", service_id: "svc-heal-1" },
       { action: "save_doc", document: "Memory.md", content: "- Entry", mode: "append" },
+      { action: "save_doc", document: "Milestones.md", content: "# Milestones\n- [x] M1", mode: "overwrite" },
+      { action: "save_doc", document: "AGENTS.md", content: "# AGENTS\nStrict mode", mode: "overwrite" },
+      { action: "set_project_visibility", visibility: "public" },
+      { action: "set_project_visibility", visibility: "private" },
       { action: "set_secret", key: "API_TOKEN", value: "tok-123" },
       { action: "delete_secret", key: "API_TOKEN" },
       { action: "save_ai_settings", provider: "openai-compatible", model: "gpt-4o-mini", api_key: "sk-new-key" },
@@ -374,13 +378,8 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
       assert.ok(wf.reply.length > 0);
     }
 
-    const visionWf = await runDeterministicAutonomousWorkflow(
-      projectId,
-      "inspect architecture screenshot",
-      [{ id: "att-1", name: "arch.png", mime_type: "image/png", data_url: "data:image/png;base64,AA==" }],
-      promptParts
-    );
-    assert.ok(visionWf.reply.includes("Multimodal Vision Analysis"));
+      const visionWf = await runDeterministicAutonomousWorkflow(projectId, "inspect architecture screenshot", [{ id: "att-1", name: "arch.png", mime_type: "image/png", data_url: "data:image/png;base64,AA==" }], promptParts);
+      assert.ok(visionWf.reply.includes("Multimodal Vision Analysis"));
   });
 
   it("29. v0.6.0 Option A/B/C: tailServiceLogs, fetchNodeTelemetryHistory, gitopsDeployer & runDueCronJobsOnMuscle", async () => {
@@ -531,7 +530,12 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         { name: "core_manage_projects", arguments: { action: "list" } },
         { name: "core_manage_projects", arguments: { action: "create", new_project_id: "mcp-sub-proj", name: "MCP Sub Project", planning_only: true } },
         { name: "core_manage_projects", arguments: { action: "set_planning_only", planning_only: false } },
+        { name: "core_manage_projects", arguments: { action: "set_visibility", visibility: "public" } },
         { name: "core_manage_projects", arguments: { action: "audit_trail", limit: 10 } },
+        { name: "core_manage_mcp_keys", arguments: { action: "list" } },
+        { name: "core_manage_mcp_keys", arguments: { action: "create", name: "CI Token", scopes: ["read", "execute"] } },
+        { name: "core_manage_mcp_keys", arguments: { action: "revoke", key_id: "mcp-none" } },
+        { name: "core_manage_mcp_keys", arguments: { action: "revoke", key_id: "" } },
         { name: "core_run_platform_self_test", arguments: { action: "self_test" } },
         { name: "core_run_platform_self_test", arguments: { action: "toggle_debug", enabled: true } },
         { name: "core_manage_playbooks", arguments: { action: "list" } },
@@ -573,7 +577,7 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         "cron-due", "backup: pre-flight", "checkpoint: pre-flight", "alerts: evaluate", "intrusion: scan ssh", "hot-reload: 4050",
         "sqlite: studio", "cron-jobs: list", "self-heal: 4050", "probe-mesh: 4050", "blueprint: list", "domain-tls: list",
         "ota-status: check", "firewall: inspect", "cartridges: list", "cluster-nodes: list", "projects: list", "self-test: run",
-        "playbooks: list", "approvals: list", "workbench: 4050", "auth-status: check", "topology-bundle: export", "canary-rollout: check",
+        "playbooks: list", "approvals: list", "workbench: 4050", "auth-status: check", "topology-bundle: export", "canary-rollout: check", "mcp-keys: list",
       ]) {
         const wf = await runDeterministicAutonomousWorkflow(projectId, chatCmd, undefined, promptParts);
         assert.ok(wf.reply.length > 0);

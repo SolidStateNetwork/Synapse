@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   appendAuditLog,
+  buildDefaultAgentsDoc,
   clearChatHistory,
   deleteSecret,
   ensureProjectVault,
   getDecryptedSecrets,
   listProjects,
   listSecretKeys,
+  normalizeBrainDocName,
   readAuditLogs,
   readBrainDoc,
   readChatHistory,
@@ -46,6 +48,8 @@ export async function GET(req: NextRequest) {
     active_project: state,
     architecture_md: readBrainDoc(projectId, "Architecture.md"),
     memory_md: readBrainDoc(projectId, "Memory.md"),
+    milestones_md: readBrainDoc(projectId, "Milestones.md"),
+    agents_md: readBrainDoc(projectId, "AGENTS.md"),
     secret_keys: listSecretKeys(projectId),
     audit_logs: readAuditLogs(projectId, 200),
     chat_history: isLightPoll ? undefined : readChatHistory(projectId, 100),
@@ -310,8 +314,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "save_doc") {
-    const doc =
-      body.document === "Memory.md" ? "Memory.md" : "Architecture.md";
+    const doc = normalizeBrainDocName(body.document);
     const updated = writeBrainDoc(
       projectId,
       doc,
@@ -325,7 +328,33 @@ export async function POST(req: NextRequest) {
       status: "executed",
       summary: `Updated ${doc} via Brain Vault Editor`,
     });
-    return NextResponse.json({ content: updated });
+    return NextResponse.json({ document: doc, content: updated });
+  }
+
+  if (action === "set_project_visibility") {
+    const nextVis = body.visibility === "public" ? "public" : "private";
+    const saved = await withProjectStateTransaction(projectId, (draft) => {
+      draft.visibility = nextVis;
+    });
+    const updatedAgents = writeBrainDoc(
+      projectId,
+      "AGENTS.md",
+      buildDefaultAgentsDoc(saved.name, nextVis),
+      "overwrite"
+    );
+    appendAuditLog(projectId, {
+      timestamp: new Date().toISOString(),
+      actor: "user",
+      tool_name: "core_manage_projects",
+      status: "executed",
+      summary: `Switched project visibility governance to ${nextVis.toUpperCase()}`,
+    });
+    return NextResponse.json({
+      ok: true,
+      visibility: nextVis,
+      project: saved,
+      agents_md: updatedAgents,
+    });
   }
 
   if (action === "set_secret") {

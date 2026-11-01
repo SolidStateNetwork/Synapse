@@ -3,6 +3,7 @@ import {
   deleteSecret,
   generateRandomSecret,
   listSecretKeys,
+  normalizeBrainDocName,
   setSecret,
   withProjectStateTransaction,
   writeBrainDoc,
@@ -35,7 +36,7 @@ export async function dispatchCoreBrainTool(
   args: Record<string, unknown>
 ): Promise<ToolDispatchResult | null> {
   if (toolName === "core_update_brain_doc") {
-    const doc = args.document === "Memory.md" ? "Memory.md" : "Architecture.md";
+    const doc = normalizeBrainDocName(args.document);
     const rawMode = String(args.mode || "overwrite_full");
     const mode = rawMode === "append" ? "append" : rawMode === "replace_section" ? "replace_section" : "overwrite_full";
     const sectionHeader = args.section_header ? String(args.section_header) : undefined;

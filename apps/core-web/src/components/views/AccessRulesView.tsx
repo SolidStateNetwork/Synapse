@@ -79,6 +79,7 @@ const AccessRulesView = React.memo(function AccessRulesView({
   const [newCronName, setNewCronName] = useState("");
   const [newCronExpr, setNewCronExpr] = useState("*/15 * * * *");
   const [newCronCmd, setNewCronCmd] = useState("");
+  const [lastCronCheckpointId, setLastCronCheckpointId] = useState<string | null>(null);
 
   useEffect(() => {
     const pid = activeProject?.project_id || "default-project";
@@ -433,6 +434,7 @@ const AccessRulesView = React.memo(function AccessRulesView({
                       if (d.ok && Array.isArray(d.cron_jobs)) {
                         setCronJobs(d.cron_jobs);
                       }
+                      if (d.checkpoint_id) setLastCronCheckpointId(String(d.checkpoint_id));
                     }}
                     className="rounded p-1 text-nb-gray-500 hover:text-red-400"
                     title={t("Cron-Runbook löschen", "Delete Cron Runbook")}
@@ -485,9 +487,15 @@ const AccessRulesView = React.memo(function AccessRulesView({
               setNewCronName("");
               setNewCronCmd("");
             }
+            if (d.checkpoint_id) setLastCronCheckpointId(String(d.checkpoint_id));
           }}
           className="grid grid-cols-1 gap-2.5 sm:grid-cols-4 pt-1 text-xs"
         >
+          {lastCronCheckpointId && (
+            <div className="sm:col-span-4 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-1.5 font-mono text-[11px] text-amber-300">
+              [Pre-Flight Checkpoint: {lastCronCheckpointId}]
+            </div>
+          )}
           <input
             type="text"
             required

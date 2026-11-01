@@ -11,6 +11,7 @@ import {
   getProjectDir,
   safeReadJsonWithBackupSync,
 } from "@/lib/vault";
+import { recordCheckpoint } from "@/lib/checkpoints";
 import {
   resolveActiveProjectId,
   resolveProjectDbPath,
@@ -180,6 +181,15 @@ export async function POST(req: NextRequest) {
       const decrypted = decryptSecretsMap(fs.readFileSync(bkpFile, "utf8"));
       const dbB64 = decrypted.db_b64 || decrypted.pulse_db_b64 || "";
       const targetDbPath = decrypted.db_path || dbPath;
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: target.node_id,
+        title: `Pre-Flight Offsite Backup Restore (${backupId})`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before restoring offsite backup ${backupId} on ${target.node_id}.`,
+        files_backed_up: [targetDbPath, "Backups.json"],
+        services_snapshot: [],
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
 
       let restoreOutput = "RESTORE_SKIPPED";
       if (dbB64 && dbB64 !== "EMPTY_DB") {
@@ -223,6 +233,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         ok: true,
+        checkpoint_id: preFlightCp.id,
         output: restoreOutput,
         restored: target,
         backups: list,
@@ -231,12 +242,21 @@ export async function POST(req: NextRequest) {
 
     if (action === "delete") {
       const backupId = String(body.backup_id || "");
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: nodeId,
+        title: `Pre-Flight Offsite Backup Delete (${backupId})`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before deleting offsite backup ${backupId}.`,
+        files_backed_up: ["Backups.json"],
+        services_snapshot: [],
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
       const projDir = getProjectDir(projectId);
       const bkpFile = path.join(projDir, "Backups", `${backupId}.enc`);
       if (fs.existsSync(bkpFile)) fs.unlinkSync(bkpFile);
       const nextList = loadBackupsIndex(projectId).filter((b) => b.id !== backupId);
       saveBackupsIndex(projectId, nextList);
-      return NextResponse.json({ ok: true, deleted_id: backupId, backups: nextList });
+      return NextResponse.json({ ok: true, checkpoint_id: preFlightCp.id, deleted_id: backupId, backups: nextList });
     }
 
     return NextResponse.json(
