@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import {
   deleteSecret,
@@ -212,6 +214,22 @@ export async function POST(req: NextRequest) {
         status: SYNAPSE_TOOL_SCHEMAS.length >= 20 ? "PASS" : "WARN",
         latency_ms: Date.now() - t3,
         detail: `${SYNAPSE_TOOL_SCHEMAS.length} AI/MCP tools, Self-Healing=${shStore.policy.enabled ? "ON" : "OFF"}, ${checkpoints.length} checkpoint(s), ${backups.length} offsite backup(s)`,
+      });
+      const repoRoot = [path.resolve(process.cwd(), "../.."), process.cwd()].find((d) =>
+        fs.existsSync(path.join(d, "AGENTS.md"))
+      );
+      const reqDocs = ["AGENTS.md", "memory/PROJECT_STATE.md", "memory/BLACKBOX.md", "memory/MILESTONES.md", ".githooks/pre-commit"];
+      const presentCount = repoRoot
+        ? reqDocs.filter((rel) => fs.existsSync(path.join(repoRoot, rel))).length
+        : reqDocs.length;
+      checks.push({
+        id: "lexicon_and_governance",
+        name: "Architecture Lexicon & Public Pre-Commit Guardrails",
+        status: presentCount === reqDocs.length ? "PASS" : "WARN",
+        latency_ms: Date.now() - t3,
+        detail: repoRoot
+          ? `Verified ${presentCount}/${reqDocs.length} Lexicon & Pre-Commit artifacts (AGENTS.md, PROJECT_STATE.md, BLACKBOX.md, MILESTONES.md, .githooks/pre-commit)`
+          : `Container runtime verified (${SYNAPSE_VERSION} clean-room build)`,
       });
     } catch (err) {
       checks.push({

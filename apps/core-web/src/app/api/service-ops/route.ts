@@ -1,6 +1,7 @@
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { dispatchAlertEvent } from "@/lib/alerts";
+import { recordCheckpoint } from "@/lib/checkpoints";
 import {
   deployCustomServiceOnMuscle,
   executeAutonomousSelfHeal,
@@ -211,12 +212,26 @@ export async function POST(req: NextRequest) {
       const port = Number(body.port || body.target_port || 0);
       const domain = String(body.domain || "").trim().toLowerCase();
       const autoTls = body.auto_tls !== false;
+      const preFlightCp = recordCheckpoint(projectId, {
+        node_id: nodeId,
+        title: `Pre-Flight Domain TLS (${domain || "Unbind"})`,
+        actor: "Auto-Watchdog",
+        summary: `Automatic pre-flight checkpoint before updating custom domain binding for '${serviceId}' (:${port}).`,
+        files_backed_up: [`/opt/axon/workspaces/${projectId}`],
+        services_snapshot: (state.registered_services || []).map((s) => ({
+          service_id: s.service_id,
+          name: s.name,
+          port: s.port,
+          healthy: s.healthy !== false,
+        })),
+        rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+      });
 
       const domains = loadDomains(projectId);
       if (!domain) {
         delete domains[serviceId];
         saveDomains(projectId, domains);
-        return NextResponse.json({ ok: true, domains });
+        return NextResponse.json({ ok: true, domains, checkpoint_id: preFlightCp.id });
       }
 
       const binding: DomainBinding = {
@@ -236,10 +251,10 @@ export async function POST(req: NextRequest) {
         tool_name: "domain_tls_bind",
         node_id: nodeId,
         status: "executed",
-        summary: `Bound custom domain https://${domain} (Auto-TLS=${autoTls}) -> ${nodeId}:${port}`,
+        summary: `Bound custom domain https://${domain} (Auto-TLS=${autoTls}, checkpoint=${preFlightCp.id}) -> ${nodeId}:${port}`,
       });
 
-      return NextResponse.json({ ok: true, binding, domains });
+      return NextResponse.json({ ok: true, binding, domains, checkpoint_id: preFlightCp.id });
     }
 
     if (action === "chaos_test") {

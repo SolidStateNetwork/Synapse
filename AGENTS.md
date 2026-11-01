@@ -10,7 +10,7 @@
 
 ### Schritt 1: Kontext laden (Read First)
 Bevor du neuen Code schreibst oder bestehende Module änderst, lies **zwingend**:
-1. [`memory/PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Welche Subsysteme und Versionen (`v1.9.0`) sind aktiv?
+1. [`memory/PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Welche Subsysteme und Versionen (`v2.0.0`) sind aktiv?
 2. [`memory/BLACKBOX.md`](./memory/BLACKBOX.md) – Was waren die letzten Entwicklungs-Schritte (`[BB-XXX]`) und welche Architecture Decision Records (`ADR-001` bis `ADR-006`) gelten?
 3. [`memory/MILESTONES.md`](./memory/MILESTONES.md) – Welche Phasen sind abgeschlossen und welche Ziele stehen an?
 

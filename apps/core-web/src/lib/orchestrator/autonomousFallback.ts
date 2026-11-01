@@ -488,6 +488,14 @@ export async function runDeterministicAutonomousWorkflow(
     const step = await runStep("core_manage_auth_and_ai", { action: "inspect_auth" });
     const out = step.output as { auth?: { password_protected?: boolean; totp_enabled?: boolean } } | undefined;
     finalReply = `### 🔐 RBAC & AI Endpoint Status\n\n- **Passwort-Schutz:** \`${out?.auth?.password_protected ? "AKTIV" : "OFFEN"}\` (2FA TOTP: \`${out?.auth?.totp_enabled ? "AKTIV" : "AUS"}\`)`;
+  } else if (lower.startsWith("topology-bundle:") || lower.includes("export topology")) {
+    const step = await runStep("core_manage_topology_bundle", { action: "export" });
+    const out = step.output as { bundle?: { schema_version?: string; registered_services?: unknown[] } } | undefined;
+    finalReply = `### 📦 Declarative Topology Bundle (\`${out?.bundle?.schema_version || "synapse-stack/v2.0"}\`)\n\n- **Exportierte Services:** \`${out?.bundle?.registered_services?.length ?? 0}\``;
+  } else if (lower.startsWith("canary-rollout:") || lower.includes("verify fleet")) {
+    const step = await runStep("core_cluster_canary_exec", { action: "verify_fleet_health" });
+    const out = step.output as { healthy_nodes?: number; total_nodes?: number } | undefined;
+    finalReply = `### 🐤 Multi-Node Canary & Fleet Health\n\n- **Gesunde Muscle-Nodes:** \`${out?.healthy_nodes ?? 0} / ${out?.total_nodes ?? 0}\``;
   }
 
   if (!finalReply) {

@@ -184,6 +184,10 @@ async function executeMcpTool(
       (!args.method || String(args.method).toUpperCase() === "GET")) ||
     (toolName === "core_manage_auth_and_ai" &&
       (!args.action || args.action === "inspect_auth")) ||
+    (toolName === "core_manage_topology_bundle" &&
+      (!args.action || args.action === "export")) ||
+    (toolName === "core_cluster_canary_exec" &&
+      (!args.action || args.action === "verify_fleet_health")) ||
     toolName === "core_system_ota_status";
 
   if (!isReadOnlyTool && !canExecute) {

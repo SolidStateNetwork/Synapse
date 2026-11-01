@@ -287,10 +287,11 @@ const ReverseProxyView = React.memo(function ReverseProxyView({
               });
               const data = await res.json();
               if (data.ok) {
+                const cpSuffix = data.checkpoint_id ? ` · Checkpoint: ${data.checkpoint_id}` : "";
                 setNewSvcNotice(
                   t(
-                    `🚀 ${data.service.name} auf :${data.service.port} gestartet!`,
-                    `🚀 ${data.service.name} deployed on :${data.service.port}!`
+                    `🚀 ${data.service.name} auf :${data.service.port} gestartet${cpSuffix}!`,
+                    `🚀 ${data.service.name} deployed on :${data.service.port}${cpSuffix}!`
                   )
                 );
                 setNewSvcName("");

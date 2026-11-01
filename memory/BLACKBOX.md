@@ -35,6 +35,18 @@
 
 ## 📜 Chronologisches Logbuch (Neueste zuerst)
 
+### [BB-006] 2026-11-01 01:40 (CET) – [AI-ORCHESTRATOR / MCP-SERVER / RESILIENCE-DR / v2.0.0] Declarative Topology Bundles, Multi-Node Canary Rollouts, Lexikon-Self-Test & Domain-TLS Checkpoints
+- **Akteur:** Antigravity AI & Project Lead
+- **Typ:** `FEATURE` | `ARCHITECTURE` | `RELEASE`
+- **Betroffene Module:** `AI-ORCHESTRATOR`, `MCP-SERVER`, `RESILIENCE-DR`, `WEB-STUDIO-UI`, `ARCH-LEXICON`, `CONTAINER-LAB`
+- **Ziel / Hintergrund:** Abschluss des Major-Releases `v2.0.0` mit portablen deklarativen Projekt-Topologie-Bundles (`synapse-stack/v2.0`), gestaffelten Multi-Node Canary Rollouts mit automatischem Abbruch bei Fehler, Live-Selbsttest des Architektur-Lexikons in `/api/debug` sowie Pre-Flight Time-Machine Checkpoints bei Domain/TLS-Änderungen.
+- **Durchgeführte Schritte:**
+  1. `topologyAndCanaryTools.ts` (`212` Zeilen `< 220`) mit `core_manage_topology_bundle` (`export`, `import`) und `core_cluster_canary_exec` (`canary_rollout`, `verify_fleet_health`) erstellt und in `extendedToolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts` und `/api/mcp/route.ts` verdrahtet (`35` MCP-Tools gesamt).
+  2. `/api/debug/route.ts` (`self_test`) um die Prüf-Stufe `lexicon_and_governance` (`AGENTS.md`, `memory/PROJECT_STATE.md`, `memory/BLACKBOX.md`, `memory/MILESTONES.md`, `.githooks/pre-commit`) erweitert.
+  3. `core_manage_domain_tls` (`blueprintDomainAndOtaTools.ts`), `/api/service-ops` (`configure_domain`), `useCanvasStudioAndDomainActions.ts` und `ReverseProxyView.tsx` um automatische Pre-Flight Checkpoints (`checkpoint_id`) und UI-Badges ergänzt.
+  4. Gesamte Plattform, Container-Definitionen, Dokumentation und Lexikon auf `v2.0.0` angehoben.
+- **Verifikation:** Go Coverage `88.0 %` (`>= 85 %`), TS Line Coverage `94.34 %` (`>= 90 %`), Max Go `499` Zeilen, Max TS `596` Zeilen, `0` `any`-Typen, `0` private Daten.
+
 ### [BB-005] 2026-11-01 01:16 (CET) – [ARCH-LEXICON] Einführung des Enterprise Architektur-Lexikons, Multi-IDE KI-Governance & Public Pre-Commit Guardrails
 - **Akteur:** Antigravity AI & Project Lead
 - **Typ:** `ARCHITECTURE` | `SECURITY`

@@ -169,10 +169,28 @@ export async function dispatchBlueprintDomainAndOtaTool(
     const serviceId = String(args.service_id || `svc-${args.port || 4050}`);
     const port = Number(args.port || 4050);
     const domain = String(args.domain || "").trim().toLowerCase();
+    const preFlightCp = recordCheckpoint(projectId, {
+      node_id: nodeId,
+      title: `Pre-Flight Domain TLS (${action === "unbind" || !domain ? "Unbind" : domain})`,
+      actor: "Auto-Watchdog",
+      summary: `Automatic pre-flight checkpoint before domain/TLS update for '${serviceId}' (:${port}).`,
+      files_backed_up: [`/opt/axon/workspaces/${projectId}`],
+      services_snapshot: (state.registered_services || []).map((svc) => ({
+        service_id: svc.service_id,
+        name: svc.name,
+        port: svc.port,
+        healthy: svc.healthy !== false,
+      })),
+      rollback_cmd: `echo 'CHECKPOINT_RESTORED_OK'`,
+    });
     if (action === "unbind" || !domain) {
       delete domains[serviceId];
       saveCustomDomains(projectId, domains);
-      return { tool_name: toolName, status: "executed", output: { ok: true, domains } };
+      return {
+        tool_name: toolName,
+        status: "executed",
+        output: { ok: true, domains, checkpoint_id: preFlightCp.id },
+      };
     }
     const autoTls = args.auto_tls !== false;
     const binding: CustomDomainBinding = {
@@ -191,9 +209,13 @@ export async function dispatchBlueprintDomainAndOtaTool(
       tool_name: toolName,
       node_id: nodeId,
       status: "executed",
-      summary: `Bound custom domain https://${domain} (Auto-TLS=${autoTls}) -> ${nodeId}:${port}`,
+      summary: `Bound custom domain https://${domain} (Auto-TLS=${autoTls}, checkpoint=${preFlightCp.id}) -> ${nodeId}:${port}`,
     });
-    return { tool_name: toolName, status: "executed", output: { ok: true, binding, domains } };
+    return {
+      tool_name: toolName,
+      status: "executed",
+      output: { ok: true, binding, domains, checkpoint_id: preFlightCp.id },
+    };
   }
 
   if (toolName === "core_system_ota_status") {

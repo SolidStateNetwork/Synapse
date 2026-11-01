@@ -545,6 +545,13 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         { name: "core_manage_auth_and_ai", arguments: { action: "inspect_auth" } },
         { name: "core_manage_auth_and_ai", arguments: { action: "revoke_sessions" } },
         { name: "core_manage_auth_and_ai", arguments: { action: "configure_ai_endpoint", provider: "openai-compatible", base_url: "https://api.openai.com/v1", model: "gpt-4o", enable_prompt_caching: true, enable_auto_watchdog: true } },
+        { name: "core_manage_topology_bundle", arguments: { action: "export" } },
+        { name: "core_manage_topology_bundle", arguments: { action: "import", bundle: { schema_version: "synapse-stack/v2.0", registered_services: [{ service_id: "svc-bundle-4050", name: "Bundle API", node_id: "local-node", category: "backend", port: 4050, protocol: "http", path: "/", healthy: true, registered_at: new Date().toISOString() }], active_cartridges: ["docker-first"], cron_jobs: [{ id: "cron-b1", name: "Bundle Cron", cron_expression: "*/15 * * * *", node_id: "local-node", command: "uptime", enabled: true }], custom_domains: {} } } },
+        { name: "core_manage_topology_bundle", arguments: { action: "import", bundle: '{"schema_version":"synapse-stack/v2.0","active_cartridges":["docker-first"]}' } },
+        { name: "core_manage_topology_bundle", arguments: { action: "import", bundle: "{invalid_json" } },
+        { name: "core_manage_topology_bundle", arguments: { action: "import" } },
+        { name: "core_cluster_canary_exec", arguments: { action: "verify_fleet_health", node_ids: ["local-node", "edge-node-2"] } },
+        { name: "core_cluster_canary_exec", arguments: { action: "canary_rollout", command: "echo CANARY_OK", node_ids: ["local-node", "edge-node-2"] } },
       ]) {
         const r = await mcpRoute.POST(
           makeReq("/api/mcp", "POST", { project_id: projectId, internal_ui_test: true, jsonrpc: "2.0", id: 99, method: "tools/call", params: toolCall })
@@ -562,7 +569,7 @@ describe("Synapse Core-Web Deep Coverage Suite (SearchEngine, ServiceRunner, Car
         "cron-due", "backup: pre-flight", "checkpoint: pre-flight", "alerts: evaluate", "intrusion: scan ssh", "hot-reload: 4050",
         "sqlite: studio", "cron-jobs: list", "self-heal: 4050", "probe-mesh: 4050", "blueprint: list", "domain-tls: list",
         "ota-status: check", "firewall: inspect", "cartridges: list", "cluster-nodes: list", "projects: list", "self-test: run",
-        "playbooks: list", "approvals: list", "workbench: 4050", "auth-status: check",
+        "playbooks: list", "approvals: list", "workbench: 4050", "auth-status: check", "topology-bundle: export", "canary-rollout: check",
       ]) {
         const wf = await runDeterministicAutonomousWorkflow(projectId, chatCmd, undefined, promptParts);
         assert.ok(wf.reply.length > 0);

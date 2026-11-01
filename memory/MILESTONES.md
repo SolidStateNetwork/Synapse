@@ -50,7 +50,8 @@ Dieses Dokument dokumentiert die abgeschlossenen Entwicklungsphasen von **Synaps
 
 ---
 
-## 🚀 Phase 6: Ausblick (`v2.0` Roadmap)
-- [ ] **M6.1:** Multi-Node Rollout-Pipelines (Staged Canary Deployments über mehrere Muscle-Nodes mit automatischem Pre-Flight Checkpoint-Vergleich).
-- [ ] **M6.2:** Erweiterte OIDC / Passkey (WebAuthn) Authentifizierung für Enterprise-Teams zusätzlich zu RBAC & TOTP.
-- [ ] **M6.3:** Deklarativer Export & Import kompletter Projekt-Topologien (`synapse-stack.yaml`) für 1-Click Reproduzierbarkeit zwischen Clustern.
+## ✅ Phase 6: Declarative Topology Bundles, Multi-Node Canary Rollouts & Lexicon Self-Test (`v2.0.0`)
+*Referenz: [`architecture/03-ai-orchestrator-and-mcp-server.md`](../architecture/03-ai-orchestrator-and-mcp-server.md) & [`CHANGELOG.md`](../CHANGELOG.md)*
+- [x] **M6.1 (`v2.0.0`):** Multi-Node Canary Rollout-Engine (`core_cluster_canary_exec`: `canary_rollout`, `verify_fleet_health`) mit automatischem Pre-Flight Time-Machine Checkpoint und sofortigem Canary-Abbruch bei Exit-Code != 0.
+- [x] **M6.2 (`v2.0.0`):** Deklarativer Export & Import kompletter Projekt-Topologien (`core_manage_topology_bundle`: `synapse-stack/v2.0` Schema für Services, Mesh-Links, Cartridges, Playbooks, Cron-Jobs, Domains & Secret-Key-Namen) mit automatischem Pre-Flight Checkpoint.
+- [x] **M6.3 (`v2.0.0`):** Live-Verifikation des Architektur-Lexikons (`lexicon_and_governance`) im Plattform-Selbsttest (`/api/debug`) sowie automatische Pre-Flight Checkpoints (`checkpoint_id`) bei Domain/TLS-Mutationen.

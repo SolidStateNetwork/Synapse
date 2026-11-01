@@ -2,6 +2,19 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v2.0.0] — 2026-11-01 (Declarative Topology Bundles, Multi-Node Canary Rollouts, Enterprise Architecture Lexicon & Domain/TLS Checkpoints)
+
+### Added & Improved
+- **Declarative Topology Bundles & Multi-Node Canary Rollout AI/MCP Tools (`topologyAndCanaryTools.ts`, `extendedToolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp`)**:
+  - Added `core_manage_topology_bundle` (`export`, `import`) to export and atomically import complete project topologies (`synapse-stack/v2.0` schema: services, mesh links, cartridges, playbooks, cron jobs, custom domains, and secret key names) with an automatic Pre-Flight Time-Machine Checkpoint (`checkpoint_id`).
+  - Added `core_cluster_canary_exec` (`canary_rollout`, `verify_fleet_health`) to execute staged canary commands across assigned Muscle nodes with automatic Pre-Flight Checkpoint creation and instant canary abort on non-zero exit code.
+- **Enterprise Architecture Lexicon & Governance Self-Test (`architecture/`, `memory/`, `playbooks/`, `AGENTS.md`, `.githooks/pre-commit`, `/api/debug`)**:
+  - Added the `lexicon_and_governance` verification stage to `POST /api/debug` (`action: "self_test"`) validating `AGENTS.md`, `memory/PROJECT_STATE.md`, `memory/BLACKBOX.md`, `memory/MILESTONES.md`, and `.githooks/pre-commit`.
+- **Automatic Pre-Flight Time-Machine Checkpoints on Domain/TLS Mutations (`blueprintDomainAndOtaTools.ts`, `/api/service-ops`, `useCanvasStudioAndDomainActions.ts`, `ReverseProxyView.tsx`)**:
+  - Domain bind/unbind operations in `core_manage_domain_tls` and `/api/service-ops` (`configure_domain`) now automatically create a Pre-Flight Time-Machine Checkpoint (`checkpoint_id`) and surface it in the UI status notice.
+
+---
+
 ## [v1.9.0] — 2026-11-01 (Service-Workbench, RBAC & AI-Endpoint AI/MCP Parity, Pre-Flight GitOps/Custom-Service Checkpoints & Studio Checkpoint Badges)
 
 ### Added & Improved

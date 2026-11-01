@@ -153,11 +153,12 @@ export function useCanvasStudioAndDomainActions({
       if (data.domains) {
         setDomainBindings(data.domains);
       }
+      const cpSuffix = data.checkpoint_id ? ` · Checkpoint: ${data.checkpoint_id}` : "";
       setDomainNoticeMap((prev) => ({
         ...prev,
         [svc.service_id]: t(
-          `🔒 HTTPS aktiv: https://${rawDomain}`,
-          `🔒 HTTPS active: https://${rawDomain}`
+          `🔒 HTTPS aktiv: https://${rawDomain}${cpSuffix}`,
+          `🔒 HTTPS active: https://${rawDomain}${cpSuffix}`
         ),
       }));
       setTimeout(() => {
