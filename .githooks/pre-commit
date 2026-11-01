@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# =============================================================================
+# SolidStateNetwork/Synapse - Public Repo Pre-Commit Security, Privacy & Gate
+# =============================================================================
+set -euo pipefail
+
+STAGED_DIFF=$(git diff --cached --unified=0 || true)
+
+# 1. Block Private Keys
+if echo "$STAGED_DIFF" | grep -E "^\+.*BEGIN [A-Z0-9 ]*PRIVATE KEY" >/dev/null 2>&1; then
+  echo "❌ [PRE-COMMIT BLOCKED] Public Security Violation: Private Key found in staged commit!" >&2
+  exit 1
+fi
+
+# 2. Block Cloud / API Bearer tokens (MTI-..., ghp_..., github_pat_...)
+if echo "$STAGED_DIFF" | grep -E "^\+.*(MTI-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})" >/dev/null 2>&1; then
+  echo "❌ [PRE-COMMIT BLOCKED] Public Security Violation: API Token found in staged commit!" >&2
+  exit 1
+fi
+
+# 3. Block hardcoded local Linux user home paths (/home/$USER/) in public repo
+CURRENT_USER=$(id -un 2>/dev/null || echo "")
+if [ -n "$CURRENT_USER" ] && echo "$STAGED_DIFF" | grep -E "^\+.*/home/${CURRENT_USER}(/|\"|'|[[:space:]]|$)" >/dev/null 2>&1; then
+  echo "❌ [PRE-COMMIT BLOCKED] Public Privacy Violation: Hardcoded local user path (/home/${CURRENT_USER}) found in staged diff!" >&2
+  echo "   Please use relative paths or generic placeholders (<user>) in public repositories." >&2
+  exit 1
+fi
+
+# 4. Enforce < 500 lines for Go files and < 600 lines for TS/TSX files
+OVERSIZE_GO=$(find proto apps/core-gateway agents/axon -type f -name "*.go" -exec awk 'FNR == 500 { print FILENAME }' {} +)
+if [ -n "$OVERSIZE_GO" ]; then
+  echo "❌ [PRE-COMMIT BLOCKED] Go files exceeding 500 lines detected:" >&2
+  echo "$OVERSIZE_GO" >&2
+  exit 1
+fi
+
+OVERSIZE_TS=$(find apps/core-web/src -type f \( -name "*.ts" -o -name "*.tsx" \) -exec awk 'FNR == 600 { print FILENAME }' {} +)
+if [ -n "$OVERSIZE_TS" ]; then
+  echo "❌ [PRE-COMMIT BLOCKED] TypeScript/React files exceeding 600 lines detected:" >&2
+  echo "$OVERSIZE_TS" >&2
+  exit 1
+fi
+
+exit 0

@@ -9,12 +9,14 @@
 
 [![CI Pipeline](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SolidStateNetwork/Synapse?label=Release&color=f68330&labelColor=181a1d)](https://github.com/SolidStateNetwork/Synapse/releases)
+[![MCP Server: 33 Tools](https://img.shields.io/badge/MCP_Server-33_Integrierte_Tools-31c48d?labelColor=181a1d)](#)
+[![Stack: Go 1.23 + Next.js 15](https://img.shields.io/badge/Stack-Go_1.23_%2B_Next.js_15-3b82f6?labelColor=181a1d)](#)
 [![Lizenz: Source-Available (Non-Commercial)](https://img.shields.io/badge/Lizenz-Source--Available_(Non--Commercial)-f68330?labelColor=181a1d)](./LICENSE)
 
 ### **Synapse — Dein KI-verwaltetes Server- & DevOps-Control-Center**
-Verwalte, überwache und repariere deine Linux-Server gemeinsam mit einer KI – über eine aufgeräumte grafische Oberfläche statt stundenlanger Fehlersuche im Terminal.
+Verwalte, überwache und repariere deine Linux-Server gemeinsam mit einer KI – über eine aufgeräumte grafische Oberfläche und einen integrierten **Model Context Protocol (`MCP`) Server** statt stundenlanger Fehlersuche im Terminal.
 
-[Was ist Synapse?](#-was-ist-synapse) · [Die 5 Kernfunktionen](#-die-5-kernfunktionen) · [Wie ist Synapse aufgebaut?](#-wie-ist-synapse-aufgebaut-core--muscle) · [Sicherheit & Kontrolle](#️-sicherheit--kontrolle) · [Schnellstart in 2 Schritten](#-schnellstart-in-2-schritten)
+[Was ist Synapse?](#-was-ist-synapse) · [Die 6 Kernpfeiler](#-die-6-kernpfeiler) · [Wie ist Synapse aufgebaut?](#-wie-ist-synapse-aufgebaut-core--muscle) · [Sicherheit & Kontrolle](#️-sicherheit--kontrolle) · [Schnellstart](#-schnellstart-in-2-schritten) · [Architektur-Lexikon](#-repository-navigation--architektur-lexikon)
 
 </div>
 
@@ -24,13 +26,13 @@ Verwalte, überwache und repariere deine Linux-Server gemeinsam mit einer KI –
 
 Wer einen oder mehrere Linux-Server betreibt, kennt den Alltag: Man verbindet sich per SSH, sucht in langen Log-Dateien nach Fehlern, passt Konfigurationsdateien von Hand an, spielt Updates ein und prüft danach mühsam, ob noch alle Dienste laufen.
 
-**Synapse ist ein KI-gesteuertes Management-Tool (AI-Managed Infrastructure Tool), das dir diese Arbeit abnimmt.**
+**Synapse ist ein KI-gesteuertes Infrastruktur-Control-Center (`v1.9.0`), das dir diese Arbeit abnimmt.**
 
-Statt selbst Befehle im Terminal einzutippen, arbeitest du in einer visuellen Oberfläche (jederzeit per Klick zwischen **Deutsch** und **Englisch** umschaltbar) mit einem integrierten KI-Systemadministrator zusammen. Die KI ist direkt mit deinen Servern verbunden: Sie kann den Zustand des Systems prüfen, Dienste einrichten, Sicherheitslücken aufspüren, Updates vorbereiten und Fehler beheben – während du jederzeit die volle Übersicht und das letzte Wort behältst.
+Statt selbst Befehle im Terminal einzutippen, arbeitest du in einer visuellen Oberfläche (jederzeit per Klick zwischen **Deutsch** und **Englisch** umschaltbar) mit einem integrierten KI-Systemadministrator zusammen – oder verbindest externe KI-Clients wie **Claude Desktop, Cursor oder Windsurf** direkt über den eingebauten **MCP-Server (`/api/mcp`)**. Die KI ist über einen ausgehenden `mTLS 1.3`-Tunnel mit deinen Servern verbunden: Sie prüft den Systemzustand, richtet Dienste ein, legt vor Änderungen automatisch **Pre-Flight Time-Machine Checkpoints** an und heilt ausgefallene Dienste selbstständig – während du jederzeit die volle Übersicht und das letzte Wort behältst.
 
 ---
 
-## 🎯 Die 5 Kernfunktionen
+## 🎯 Die 6 Kernpfeiler
 
 ### 1. Interaktiver KI-Chat, fertige Prüf-Skills & Interview-Modus
 Neben dem normalen Chat (in dem du der KI in Alltagssprache Aufgaben geben, Server per `@` erwähnen oder Screenshots hineinziehen kannst) bringt Synapse fertige **DevOps-Skills** mit, die du direkt im KI-Panel oder über **`✨ Skills`** startest:
@@ -41,28 +43,34 @@ Neben dem normalen Chat (in dem du der KI in Alltagssprache Aufgaben geben, Serv
 
 > **Der Interview-Modus:** Wenn ein Skill seinen Bericht fertiggestellt hat, ändert die KI nichts ungefragt. Mit einem Klick auf **„Interview starten"** geht die KI jeden gefundenen Punkt einzeln mit dir durch und fragt dich: *„Jetzt beheben oder überspringen?"*
 
-### 2. Visuelle Übersicht & direkter App-Tester im Browser
+### 2. Visuelle Topologie-Übersicht, Service-Workbench & direkter App-Tester im Browser
 Auf der Startseite (**Übersicht**) siehst du alle verbundenen Server, die KI-Zentrale und deine laufenden Anwendungen als interaktive Karten, die du mit der Maus aufklappen und frei anordnen kannst:
 
 <div align="center">
   <img src="./docs/assets/control-center-ui-preview.svg" alt="Synapse Control Center Vorschau" width="100%" />
 </div>
 
-- **Sofort testen ohne Firewall-Stress:** Wenn die KI auf deinem Server eine Web-App, eine API oder eine Datenbank startet, kannst du sie unter **Services** direkt im Browser öffnen und testen – ganz ohne Ports in deiner Server-Firewall nach außen öffnen zu müssen.
-- **GitOps Stack-Deployer, Live-Log Inspector & Cron-Due Runner:** Git-Repositories per 1-Klick klonen und starten (`docker compose up -d --build`) inklusive automatischer `Secrets.enc` -> `0600 .env`-Injektion, Webhook-Redeploy & Teardown, Live-Logs (`docker`/`systemd`/`workspace`) direkt über den mTLS-Tunnel inspizieren sowie zeitgesteuerte Cron-Runbooks mit automatischen Forensik-Alerts ausführen.
-- **Eingebautes Live-Terminal & Datei-Explorer:** Wenn du doch einmal selbst nachsehen möchtest, kannst du am unteren Bildschirmrand jederzeit das Live-Terminal aufklappen oder unter **Dateien** direkt im Browser Dateien bearbeiten.
+- **Sofort testen ohne Firewall-Stress:** Wenn die KI auf deinem Server eine Web-App, eine API oder eine Datenbank startet, kannst du sie unter **Services** (`GET`/`POST`/`PUT`/`DELETE`/`SQL` Workbench) direkt im Browser öffnen und testen – ganz ohne Ports in deiner Server-Firewall nach außen öffnen zu müssen.
+- **GitOps Stack-Deployer, Live-Log Inspector & Cron-Due Runner:** Git-Repositories per 1-Klick klonen und starten (`docker compose up -d --build`) inklusive automatischer `Secrets.enc` -> `0600 .env`-Injektion, Webhook-Redeploy & Teardown, Live-Logs (`docker`/`systemd`/`workspace`) direkt über den mTLS-Tunnel inspizieren sowie zeitgesteuerte Cron-Runbooks ausführen.
+- **Live-Code Hot-Reload & SQLite Data Studio:** Laufenden Microservice-Code direkt im Browser mit automatischer Python-Syntaxprüfung und Rollback-Schutz aktualisieren oder SQLite-Datenbanken live abfragen.
 
-### 3. Versionsanzeige & 1-Klick Updates unten links (wie bei NetBird)
-Unten links in der Seitenleiste siehst du jederzeit die aktuell installierte Version und den Commit-Stand:
-- **Sofort sehen, wenn ein Update bereitsteht:** Sobald für die Steuerzentrale (**Core**) oder deine verbundenen Linux-Server (**Muscle**) ein Update verfügbar ist, erscheint direkt unten links der Hinweis **`Update verfügbar`** samt **`Update`**-Button, mit dem du alles mit einem Klick aktualisieren kannst.
+### 3. Automatische Pre-Flight Time-Machine Checkpoints & Autonome Selbstheilung
+- **Pre-Flight Time-Machine Checkpoints (`chk-...`):** Vor jeder zustandsverändernden Aktion (Blueprint-Deploy/Undeploy, GitOps-Rollout/Teardown, Custom-Service-Deploy, Code-Hot-Reload, Firewall-Änderung oder System-Update) legt Synapse automatisch einen wiederherstellbaren **Time-Machine Checkpoint** an und zeigt die `checkpoint_id` direkt als Badge in der Oberfläche an.
+- **Autonomous Self-Healing & Chaos-Resilience:** Überwacht laufende Dienste kontinuierlich, startet ausgefallene Container oder Prozesse automatisch neu, misst die **MTTR (Mean Time To Recovery)** und unterstützt 1-Klick Chaos-Simulationen.
+- **Verschlüsselte Offsite-Backups (`AES-256-GCM`):** Komplette Projekt- und Workspace-Sicherungen im Core-Vault speichern und wiederherstellen.
 
-### 4. Projekt-Gedächtnis (`Brain Vault`), das nichts vergisst
-Ein normaler KI-Chat vergisst nach jedem Gespräch, wie dein Server eingerichtet ist. Synapse führt für jedes Projekt automatisch zwei lebendige Dokumente unter **Brain Vault**:
-- **`Architecture.md`:** Eine übersichtliche Dokumentation deiner Server-Struktur, Ports und Pfade (inklusive interaktivem Topologie-Graphen).
-- **`Memory.md`:** Ein technisches Tagebuch, in dem die KI festhält, welche Probleme bereits gelöst wurden und worauf bei deinem Server geachtet werden muss.
+### 4. Integrierter Model Context Protocol (`MCP`) Server (`/api/mcp` — 33 Tools)
+Verbinde **Claude Desktop, Cursor, Windsurf oder jeden anderen MCP-fähigen KI-Client** direkt per Streamable HTTP JSON-RPC 2.0 (`/api/mcp`) mit deiner Synapse-Steuerzentrale:
+- **33 Full-Stack-Tools:** 100 % Funktionsparität über PTY-Befehle, Dateisystem, GitOps-Stacks, Time-Machine Checkpoints, Offsite-Backups, Self-Healing, Service-Mesh-Probes, 1-Click Blueprints, Domain/TLS-Bindings, Synapse Shield Firewall, AI Rule Cartridges, Cluster-Enrollment, geplante KI-Playbooks, Freigaben (`Approvals`), Service-Workbench und Plattform-Selbsttests.
+- **Gehashte SHA-256 API-Keys (`syn_mcp_...`):** Vergib feingranulare `read`-, `execute`- oder `admin`-Berechtigungen und widerrufe Schlüssel jederzeit per 1-Klick.
 
-### 5. Eigene Regeln per Klick aktivieren (`Regeln`)
-Unter **Regeln** kannst du fertige Vorgaben (sogenannte *Rule Cartridges*) einfach per Schalter auf `AKTIV` setzen – etwa *„Nutze immer Docker-Container"*, *„Öffne keine Ports direkt ins Internet"* oder *„Richte Dienste sauber über Systemd ein"*. Die KI hält sich dann bei jeder Aufgabe automatisch an deine Vorgaben.
+### 5. Versionsanzeige & 1-Klick OTA-Updates (Bare-Metal & Container-Native)
+Unten links in der Seitenleiste siehst du jederzeit die aktuell installierte Version (`v1.9.0`) und den Commit-Stand:
+- **1-Klick Rollout mit Pre-Flight Checkpoint:** Sobald für **Core** oder deine verbundenen **Muscle**-Server ein Update bereitsteht, legt der **`Update`**-Button automatisch einen Pre-Flight Time-Machine Checkpoint an und aktualisiert sowohl klassische Systemd-Dienste als auch Container-Umgebungen.
+
+### 6. Projekt-Gedächtnis (`Brain Vault`) & Modulare KI-Regeln (`Regeln`)
+- **Persistenter Brain Vault:** Pflegt für jedes Projekt automatisch `Architecture.md` (inkl. interaktivem Topologie-Graphen) und `Memory.md` (technisches Logbuch).
+- **1-Klick Rule Cartridges:** Aktiviere fertige oder eigene Architektur-Vorgaben (*Docker-First*, *Zero-Trust Networking*, *Native Systemd*), an die sich die KI bei jeder Aufgabe automatisch hält.
 
 ---
 
@@ -122,22 +130,41 @@ Der Server verbindet sich automatisch im Hintergrund (ohne dass du eingehende Po
 
 ---
 
-## 🛠️ Manuelles Kompilieren & Testen (für Entwickler)
+## 🛠️ Lokales 2-Container-Labor & Entwickler-Build
 
 ```bash
-# 1. Go-Unit- & Concurrency-Tests (-race) für Protokoll, Agent (axon) und Gateway (core-gateway) ausführen
-go test -v -race ./proto/... ./agents/axon/... ./apps/core-gateway/...
+# Option A: Komplettes lokales 2-Container-Labor starten (synapse-core + synapse-muscle)
+bash containers/manage.sh restart
+bash containers/manage.sh status
 
-# 2. Statische Binaries bauen
-CGO_ENABLED=0 go build -C agents/axon -o ../../bin/axon ./cmd/axon
-CGO_ENABLED=0 go build -C apps/core-gateway -o ../../bin/core-gateway .
-
-# 3. Next.js 15 Weboberfläche prüfen, testen & bauen
+# Option B: Vollständige Test- & Coverage-Gates ausführen (>= 85% Go über 11 Pakete, >= 90% TS Line-Coverage)
+go test -v -race -cover ./proto/... ./agents/axon/... ./apps/core-gateway/...
 npm --prefix apps/core-web ci
 npx --prefix apps/core-web tsc -p apps/core-web/tsconfig.json --noEmit
-npm --prefix apps/core-web test
+npm --prefix apps/core-web test -- --experimental-test-coverage
 npm --prefix apps/core-web run build
 ```
+
+---
+
+## 📂 Repository-Navigation & Architektur-Lexikon
+
+- **Architektur- & Engineering-Spezifikationen:** [`architecture/`](./architecture/)
+  - [`00-product-vision.md`](./architecture/00-product-vision.md) – Core („The Brain“) & Muscle („The Hands“) Trennung & die 3 Autonomie-Stufen
+  - [`01-tech-stack-and-monorepo.md`](./architecture/01-tech-stack-and-monorepo.md) – Go 1.23 Workspace, Next.js 15 Studio & `< 500` Go / `< 600` TS Modularisierungs-Gates
+  - [`02-mtls-tunnel-and-axon-agent.md`](./architecture/02-mtls-tunnel-and-axon-agent.md) – ECDSA P-256 PKI, Yamux-Multiplexing, Ephemeral PTY GC & Self-Lockout Guard
+  - [`03-ai-orchestrator-and-mcp-server.md`](./architecture/03-ai-orchestrator-and-mcp-server.md) – 33 AI/MCP-Tools, Prompt-Caching & Streamable HTTP JSON-RPC 2.0 MCP-Server
+  - [`04-resilience-security-and-ota.md`](./architecture/04-resilience-security-and-ota.md) – `AES-256-GCM` Secret Vault, Pre-Flight Time-Machine Checkpoints, Self-Healing & OTA
+- **Projekt-Gedächtnis & Roadmap:** [`memory/`](./memory/)
+  - [`PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Echtzeit-Statusmatrix aller Subsysteme (`v1.9.0`)
+  - [`MILESTONES.md`](./memory/MILESTONES.md) – End-to-End Entwicklungs-Fahrplan (`Phase 1`–`Phase 6`)
+  - [`BLACKBOX.md`](./memory/BLACKBOX.md) – Chronologisches Entwicklungs-Logbuch & Architecture Decision Records (`ADR-001`–`ADR-006`)
+- **Standard-Playbooks (SOPs):** [`playbooks/`](./playbooks/)
+  - [`01-feature-and-milestone-sop.md`](./playbooks/01-feature-and-milestone-sop.md) – SOP für Feature-Entwicklung, Modularisierung & Coverage-Gates
+  - [`02-container-lab-and-release-sop.md`](./playbooks/02-container-lab-and-release-sop.md) – SOP für das lokale 2-Container-Labor & GitHub-Releases
+- **Governance, Sicherheit & Changelog:** [`AGENTS.md`](./AGENTS.md) · [`CONTRIBUTING.md`](./CONTRIBUTING.md) · [`SECURITY.md`](./SECURITY.md) · [`CHANGELOG.md`](./CHANGELOG.md)
+
+---
 
 ## 📄 Lizenz
 

@@ -9,12 +9,14 @@
 
 [![CI Pipeline](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SolidStateNetwork/Synapse?label=Release&color=f68330&labelColor=181a1d)](https://github.com/SolidStateNetwork/Synapse/releases)
+[![MCP Server: 33 Tools](https://img.shields.io/badge/MCP_Server-33_Built--In_Tools-31c48d?labelColor=181a1d)](#)
+[![Stack: Go 1.23 + Next.js 15](https://img.shields.io/badge/Stack-Go_1.23_%2B_Next.js_15-3b82f6?labelColor=181a1d)](#)
 [![License: Source-Available (Non-Commercial)](https://img.shields.io/badge/License-Source--Available_(Non--Commercial)-f68330?labelColor=181a1d)](./LICENSE)
 
 ### **Synapse — Your AI-Managed Linux Server & DevOps Control Center**
-Manage, monitor, and repair your Linux servers together with an AI — through a clean visual control center instead of hours of manual troubleshooting in the terminal.
+Manage, monitor, and repair your Linux servers together with an AI — through a clean visual control center and built-in **Model Context Protocol (`MCP`) Server** instead of hours of manual troubleshooting in the terminal.
 
-[What is Synapse?](#-what-is-synapse) · [The 5 Core Features](#-the-5-core-features) · [How It Works (Core & Muscle)](#-how-is-synapse-built-core--muscle) · [Security & Control](#️-security--control) · [Quick Start](#-quick-start-in-2-steps)
+[What is Synapse?](#-what-is-synapse) · [The 6 Core Pillars](#-the-6-core-pillars) · [How It Works (Core & Muscle)](#-how-is-synapse-built-core--muscle) · [Security & Control](#️-security--control) · [Quick Start](#-quick-start-in-2-steps) · [Architecture Lexicon](#-repository-navigation--architecture-lexicon)
 
 </div>
 
@@ -24,13 +26,13 @@ Manage, monitor, and repair your Linux servers together with an AI — through a
 
 Anyone running one or more Linux servers knows the routine: connecting via SSH, digging through endless log files for errors, editing configuration files by hand, applying updates, and manually checking whether every service is still healthy afterward.
 
-**Synapse is an AI-Managed Infrastructure Tool designed to take that routine work off your shoulders.**
+**Synapse is an AI-Managed Infrastructure Control Center (`v1.9.0`) designed to take that routine work off your shoulders.**
 
-Instead of typing shell commands yourself, you work inside a visual dashboard (available in **English** and **German**) alongside an integrated AI system administrator. The AI is connected directly to your servers: it can inspect system health, deploy services, audit security, prepare updates, and fix issues — while you stay in full visual control and keep the final say on every change.
+Instead of typing shell commands yourself, you work inside a visual dashboard (available in **English** and **German**) alongside an integrated AI system administrator — or connect external AI clients like **Claude Desktop, Cursor, or Windsurf** via the built-in **MCP Server (`/api/mcp`)**. The AI is connected directly to your servers over an outbound `mTLS 1.3` tunnel: it can inspect system health, deploy services, audit security, create automatic **Pre-Flight Time-Machine Checkpoints**, and self-heal crashes — while you stay in full visual control and keep the final say on every change.
 
 ---
 
-## 🎯 The 5 Core Features
+## 🎯 The 6 Core Pillars
 
 ### 1. Interactive AI Chat, 1-Click DevOps Skills & Interview Mode
 Beyond normal chat (where you can give instructions in plain language, reference servers with `@`, or drag and drop screenshots), Synapse includes ready-to-use **DevOps Skills** right inside the AI Copilot panel:
@@ -41,28 +43,34 @@ Beyond normal chat (where you can give instructions in plain language, reference
 
 > **Interactive Interview Mode:** After a skill finishes its report, the AI never modifies your system unprompted. Click **"Start Interview"** and the AI walks you through each finding one by one, asking: *"Fix this item now or skip?"*
 
-### 2. Visual Topology Canvas & Built-In Browser App Tester
+### 2. Visual Topology Canvas, Service Workbench & Built-In Browser App Tester
 On the main **Overview** screen, all connected servers, the AI hub, and your running applications appear as interactive cards that you can expand and arrange freely:
 
 <div align="center">
   <img src="./docs/assets/control-center-ui-preview.svg" alt="Synapse Control Center Preview" width="100%" />
 </div>
 
-- **Test Services Without Opening Firewall Ports:** When the AI deploys a web app, an API, or a SQLite database on your server, you can open and test it directly inside your browser under **Services** — without exposing public ports on your server's firewall.
+- **Test Services Without Opening Firewall Ports:** When the AI deploys a web app, an API, or a SQLite database on your server, you can open and test it directly inside your browser under **Services** (`GET`/`POST`/`PUT`/`DELETE`/`SQL` Workbench) — without exposing public ports on your server's firewall.
 - **GitOps Stack Deployer, Live-Log Inspector & Cron-Due Runner:** Clone and deploy Git repositories (`docker compose up -d --build`) with automatic `Secrets.enc` -> `0600 .env` injection, webhook redeploy & 1-click teardown, inspect live `docker`/`systemd`/`workspace` service logs over mTLS, and run scheduled Cron-Runbooks with automatic `CRITICAL` forensic alerts.
-- **Built-In Live Terminal & File Explorer:** Whenever you want to inspect something yourself, expand the live Linux terminal at the bottom of the screen or edit files directly in the browser under **Files**.
+- **Live-Code Hot-Reload & SQLite Data Studio:** Edit running microservice code live in the browser with automatic Python syntax validation and rollback protection, or inspect and query SQLite tables directly over the mTLS tunnel.
 
-### 3. Effortless 1-Click Updates (Bottom-Left Sidebar)
-Just like NetBird, Synapse displays your current version and commit status right in the **bottom-left corner of the sidebar**:
-- **Instant Update Notification & Rollout:** Whenever a new update is available for the control center (**Core**) or your connected Linux servers (**Muscle**), an **`Update available`** badge and a **`Update`** button appear right in the bottom-left sidebar for 1-click over-the-air updates.
+### 3. Automatic Pre-Flight Time-Machine Checkpoints & Autonomous Self-Healing
+- **Pre-Flight Time-Machine Checkpoints (`chk-...`):** Before every mutating operation (Blueprint deploy/undeploy, GitOps rollout/teardown, Custom-Service deploy, Live-Code Hot-Reload, Firewall policy change, or OTA System Update), Synapse automatically captures a restorable **Time-Machine Checkpoint** and displays the `checkpoint_id` badge right in the UI.
+- **Autonomous Self-Healing & Chaos-Resilience:** Continuously monitors service health and latency, automatically restarts crashed containers or daemons, measures **MTTR (Mean Time To Recovery)**, and supports 1-click Chaos Engineering crash simulations.
+- **Encrypted Offsite Backups (`AES-256-GCM`):** Archive and restore full project & workspace snapshots directly inside the Core Vault.
 
-### 4. Project Memory (`Brain Vault`) That Never Forgets
-A standard AI chat forgets how your server is set up as soon as you start a new conversation. Synapse automatically maintains two living documents for every project under **Brain Vault**:
-- **`Architecture.md`:** A clear documentation of your server topology, ports, and file paths (rendered with an interactive topology graph).
-- **`Memory.md`:** An engineering journal where the AI records past fixes, configuration details, and lessons learned for your server.
+### 4. Built-In Model Context Protocol (`MCP`) Server (`/api/mcp` — 33 Tools)
+Connect **Claude Desktop, Cursor, Windsurf, or any MCP-compatible AI agent** directly to your Synapse Control Center via Streamable HTTP JSON-RPC 2.0 (`/api/mcp`):
+- **33 Full-Stack Tools:** 100% parity across PTY execution, filesystem operations, GitOps stacks, Time-Machine checkpoints, Offsite backups, Self-Healing, Service-Mesh probes, 1-Click Blueprints, Custom Domain/TLS bindings, Synapse Shield Firewall, AI Rule Cartridges, Cluster Node enrollment, Scheduled AI Playbooks, Supervised Approvals, Service Action Workbench, and Platform Self-Tests.
+- **Scoped SHA-256 API Keys (`syn_mcp_...`):** Issue granular `read`, `execute`, or `admin` MCP tokens and revoke them at any time with 1 click.
 
-### 5. Enforce Your Own Rules with 1 Click (`Rules`)
-Under **Rules**, you can toggle ready-made policy guardrails (*Rule Cartridges*) to `ACTIVE` with a single click — such as *"Always use Docker containers"*, *"Never expose internal database ports to the public internet"*, or *"Manage services via hardened systemd units"*. The AI automatically follows your active rules on every task.
+### 5. Effortless 1-Click OTA Updates (Bare-Metal & Container-Native)
+Just like NetBird, Synapse displays your current version (`v1.9.0`) and commit status right in the **bottom-left corner of the sidebar**:
+- **Instant Update Notification & Pre-Flight Rollout:** Whenever a new update is available for **Core** or your connected **Muscle** nodes, a 1-click **`Update`** button creates a Pre-Flight Time-Machine Checkpoint and updates both bare-metal systemd services and container deployments seamlessly.
+
+### 6. Project Memory (`Brain Vault`) & Modular AI Rule Cartridges (`Rules`)
+- **Persistent Brain Vault:** Automatically maintains `Architecture.md` (with live Mermaid topology graphs) and `Memory.md` (engineering journal) per project workspace.
+- **1-Click Rule Cartridges:** Toggle built-in or custom policy guardrails (*Docker-First*, *Zero-Trust Networking*, *Native Systemd*) to `ACTIVE` so the AI strictly follows your architectural standards.
 
 ---
 
@@ -122,22 +130,41 @@ Your server connects automatically in the background (without opening any inboun
 
 ---
 
-## 🛠️ Manual Build & Test (For Developers)
+## 🛠️ Local 2-Container Lab & Developer Build
 
 ```bash
-# 1. Run Go unit & concurrency tests (-race) with >= 85% per-package coverage gate across all 11 packages
+# Option A: Launch the complete 2-Container Local Lab (synapse-core + synapse-muscle)
+bash containers/manage.sh restart
+bash containers/manage.sh status
+
+# Option B: Run full test & coverage gates (>= 85% Go across 11 packages, >= 90% TS line coverage)
 go test -v -race -cover ./proto/... ./agents/axon/... ./apps/core-gateway/...
-
-# 2. Build static Go binaries
-CGO_ENABLED=0 go build -C agents/axon -o ../../bin/axon ./cmd/axon
-CGO_ENABLED=0 go build -C apps/core-gateway -o ../../bin/core-gateway .
-
-# 3. Install, strict type-check (0 any), test (>= 90% line coverage gate) & build Next.js 15 WebUI
 npm --prefix apps/core-web ci
 npx --prefix apps/core-web tsc -p apps/core-web/tsconfig.json --noEmit
-npm --prefix apps/core-web test
+npm --prefix apps/core-web test -- --experimental-test-coverage
 npm --prefix apps/core-web run build
 ```
+
+---
+
+## 📂 Repository Navigation & Architecture Lexicon
+
+- **Architecture & Engineering Specifications:** [`architecture/`](./architecture/)
+  - [`00-product-vision.md`](./architecture/00-product-vision.md) – Core ("The Brain") & Muscle ("The Hands") separation & 3 Autonomy Tiers
+  - [`01-tech-stack-and-monorepo.md`](./architecture/01-tech-stack-and-monorepo.md) – Go 1.23 workspace, Next.js 15 Studio & `< 500` Go / `< 600` TS modularization gates
+  - [`02-mtls-tunnel-and-axon-agent.md`](./architecture/02-mtls-tunnel-and-axon-agent.md) – ECDSA P-256 PKI, Yamux multiplexing, Ephemeral PTY GC & Self-Lockout Guard
+  - [`03-ai-orchestrator-and-mcp-server.md`](./architecture/03-ai-orchestrator-and-mcp-server.md) – 33 AI/MCP tools, Prompt Caching & Streamable HTTP JSON-RPC 2.0 MCP Server
+  - [`04-resilience-security-and-ota.md`](./architecture/04-resilience-security-and-ota.md) – `AES-256-GCM` Secret Vault, Pre-Flight Time-Machine Checkpoints, Self-Healing & OTA
+- **Project Memory & Roadmap:** [`memory/`](./memory/)
+  - [`PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Live subsystem status matrix (`v1.9.0`)
+  - [`MILESTONES.md`](./memory/MILESTONES.md) – End-to-end engineering roadmap (`Phase 1`–`Phase 6`)
+  - [`BLACKBOX.md`](./memory/BLACKBOX.md) – Chronological engineering log & Architecture Decision Records (`ADR-001`–`ADR-006`)
+- **Standard Operating Procedures:** [`playbooks/`](./playbooks/)
+  - [`01-feature-and-milestone-sop.md`](./playbooks/01-feature-and-milestone-sop.md) – Feature development, modularization & test gate SOP
+  - [`02-container-lab-and-release-sop.md`](./playbooks/02-container-lab-and-release-sop.md) – Local 2-Container Lab & GitHub release SOP
+- **Governance, Security & Changelog:** [`AGENTS.md`](./AGENTS.md) · [`CONTRIBUTING.md`](./CONTRIBUTING.md) · [`SECURITY.md`](./SECURITY.md) · [`CHANGELOG.md`](./CHANGELOG.md)
+
+---
 
 ## 📄 License
 

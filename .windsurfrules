@@ -1,0 +1,7 @@
+# CRITICAL SYSTEM DIRECTIVE FOR WINDSURF AI (SolidStateNetwork/Synapse)
+
+1. **READ FIRST:** Always read `AGENTS.md`, `memory/PROJECT_STATE.md`, `memory/BLACKBOX.md`, and `memory/MILESTONES.md` before making changes.
+2. **CHECK STANDARDS:** Follow `architecture/00-product-vision.md` through `architecture/04-resilience-security-and-ota.md`.
+3. **STRICT GATES:** Keep every Go file `< 500` lines, every TS/TSX file `< 600` lines, `0` `any` types, `>= 85%` Go coverage, and `>= 90%` TS coverage.
+4. **PUBLIC CLEAN-ROOM POLICY:** Never commit secrets, private keys, `.env` files, hardcoded `/home/<user>` paths, or private server IPs.
+5. **WRITE BACK & PUSH:** Update `memory/PROJECT_STATE.md`, `memory/MILESTONES.md`, and `memory/BLACKBOX.md` (`[BB-XXX]`), then commit and push to `origin main`.

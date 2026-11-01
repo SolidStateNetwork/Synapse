@@ -1,0 +1,22 @@
+{
+  "synapse-session-injector": {
+    "enabled": true,
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "python3 ./scripts/session-start-lexicon.py",
+        "timeout": 5
+      }
+    ]
+  },
+  "synapse-stop-guardrail": {
+    "enabled": true,
+    "Stop": [
+      {
+        "type": "command",
+        "command": "python3 ./scripts/stop-verify-git.py",
+        "timeout": 5
+      }
+    ]
+  }
+}

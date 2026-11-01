@@ -1,0 +1,22 @@
+# CRITICAL SYSTEM DIRECTIVE FOR CURSOR AI (SolidStateNetwork/Synapse)
+
+You are operating inside the public repository **Synapse (`SolidStateNetwork/Synapse`)** — an AI-Managed Linux Server & Infrastructure Control Center (Go 1.23 `core-gateway` + `axon` Muscle Agent + Next.js 15 / React 19 / TypeScript Studio & MCP Server).
+
+## Mandatory 5-Step Protocol for Every Task:
+1. **READ FIRST:** Before writing or modifying any code, ALWAYS read:
+   - `AGENTS.md`
+   - `memory/PROJECT_STATE.md`
+   - `memory/BLACKBOX.md`
+   - `memory/MILESTONES.md`
+2. **CHECK STANDARDS:** Strictly follow `architecture/00-product-vision.md` through `architecture/04-resilience-security-and-ota.md`.
+3. **MODULARIZATION & COVERAGE GATES:**
+   - Every Go file (`*.go`) MUST be `< 500` lines; every TypeScript/React file (`*.ts`, `*.tsx`) MUST be `< 600` lines.
+   - Maintain `0` `any` types, `>= 85%` Go statement coverage across all 11 packages, and `>= 90%` TypeScript line coverage.
+4. **PUBLIC REPO SAFETY GUARDRAILS:**
+   - **Zero-Secret-Policy:** NEVER commit API tokens, private keys (`*.key`), `Secrets.enc`, or `.env` files.
+   - **Zero-Personal-Data:** NEVER commit hardcoded local user paths (`/home/<user>/...`), private server IPs, or personal domains.
+5. **WRITE BACK & PUSH:** After completing any feature or milestone, you MUST in the same turn:
+   - Update `memory/PROJECT_STATE.md`
+   - Check off completed items in `memory/MILESTONES.md`
+   - Prepend a new `[BB-XXX]` entry to `memory/BLACKBOX.md`
+   - Run `git add`, `git commit`, and `git push origin main`.
