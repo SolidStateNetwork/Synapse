@@ -6,16 +6,17 @@ export const SYNAPSE_TOOL_SCHEMAS = [
     function: {
       name: "core_update_brain_doc",
       description:
-        "Updates project documentation in the 4-Document SolidState Brain Vault Lexicon (Architecture.md, Memory.md [BB-XXX], Milestones.md, or AGENTS.md) with automatic Zero-Secret and Public Clean-Room sanitization.",
+        "Updates project documentation in the 4-Document SolidState Brain Vault Lexicon (Architecture.md, Memory.md [BB-XXX], Milestones.md, or AGENTS.md) with automatic Zero-Secret and Public Clean-Room sanitization, or syncs all 4 Lexicon docs directly to the Muscle Node workspace (mode='sync_lexicon_to_node').",
       parameters: {
         type: "object",
         properties: {
           document: { type: "string", enum: ["Architecture.md", "Memory.md", "Milestones.md", "AGENTS.md"], description: "Target document in the Core project vault." },
-          mode: { type: "string", enum: ["replace_section", "append", "overwrite_full", "overwrite"], description: "Type of update operation (append on Memory.md automatically assigns the next [BB-XXX] tag)." },
+          mode: { type: "string", enum: ["replace_section", "append", "overwrite_full", "overwrite", "sync_lexicon_to_node"], description: "Type of update operation (append on Memory.md automatically assigns the next [BB-XXX] tag; sync_lexicon_to_node pushes AGENTS.md and memory/* to the Muscle workspace)." },
           section_header: { type: "string", description: "Exact Markdown heading (required only when mode is replace_section)." },
           content: { type: "string", description: "New Markdown content (including updated Mermaid graphs or remote file paths)." },
+          node_id: { type: "string", description: "Optional target Muscle Node ID when mode is sync_lexicon_to_node." },
         },
-        required: ["document", "mode", "content"],
+        required: ["mode"],
       },
     },
   },
@@ -180,12 +181,12 @@ export const SYNAPSE_TOOL_SCHEMAS = [
     type: "function",
     function: {
       name: "core_vault_search",
-      description: "Searches the entire Synapse Core Brain Vault (State.json, Architecture.md, Memory.md, Audit.jsonl history, Registered Services & Endpoints, Rule Cartridges, and Secret Key names) for any keyword, port, service, or configuration, and compares documented state against registered infrastructure.",
+      description: "Searches the entire Synapse Core Brain Vault (State.json, Architecture.md, Memory.md, Milestones.md, AGENTS.md, Audit.jsonl history, Registered Services & Endpoints, Rule Cartridges, and Secret Key names) for any keyword, port, service, or configuration, and compares documented state against registered infrastructure.",
       parameters: {
         type: "object",
         properties: {
           query: { type: "string", description: "Keyword, regex, port number, service name, or topic to search across all Brain Vault documents, State.json, and Audit logs. Leave empty for a full Brain & State consistency dump." },
-          scope: { type: "string", enum: ["all", "architecture", "memory", "services", "audit", "cartridges"], default: "all" },
+          scope: { type: "string", enum: ["all", "architecture", "memory", "milestones", "agents", "services", "audit", "cartridges"], default: "all" },
         },
       },
     },

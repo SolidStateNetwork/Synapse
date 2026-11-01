@@ -2,6 +2,20 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v2.3.0] — 2026-11-01 (Lexicon-Everywhere: 4-Doc Topology Bundles, Vault Search, MCP Resources, Remote Muscle Workspace Sync & Remote FS Clean-Room Guard)
+
+### Added & Improved
+- **4-Document Lexicon & Visibility in Topology Bundles, Vault Search, `@`-Mentions & `/api/mcp` (`topologyAndCanaryTools.ts`, `searchEngine.ts`, `llmStreamHelpers.ts`, `/api/mcp/route.ts`)**:
+  - Extended `SynapseTopologyBundle` (`core_manage_topology_bundle` `export` & `import`) with `visibility` (`"public" | "private"`) and `lexicon_docs` (`architecture_md`, `memory_md`, `milestones_md`, `agents_md`), automatically sanitized via `sanitizeBrainContentForVisibility`.
+  - Extended `executeCoreVaultSearch` (`core_vault_search`) with `milestones` and `agents` scopes, added `@Milestones.md` and `@AGENTS.md` context mentions to `expandContextMentions`, and exposed `Milestones.md`, `AGENTS.md`, and `visibility` in `/api/mcp` (`synapse_get_project_state`, `resources/list`, `resources/read`).
+- **Remote Muscle Workspace Lexicon Sync (`sync_lexicon_to_node`) & Public Clean-Room Guard on `node_fs_operation` (`lexiconGovernance.ts`, `coreTools.ts`, `/api/projects`, `orchestrator.ts`)**:
+  - Added `sync_lexicon_to_node` to `core_update_brain_doc` and `POST /api/projects`, writing `AGENTS.md`, `memory/PROJECT_STATE.md`, `memory/BLACKBOX.md`, and `memory/MILESTONES.md` directly into the remote Muscle workspace (`/opt/axon/workspaces/<projectId>/`) with an automatic Pre-Flight Time-Machine Checkpoint (`checkpoint_id`).
+  - Integrated `sanitizeBrainContentForVisibility` directly into `node_fs_operation` (`write_file` / `apply_unified_diff`) in `orchestrator.ts` so secrets and public clean-room leaks are automatically scrubbed before writing to remote nodes.
+- **Brain Vault UI Quick-Actions (`BrainVaultAndWorkspaceViews.tsx`)**:
+  - Added 1-click **`Sync Lexicon to Node`** (with Pre-Flight `checkpoint_id` status banner) and **`+ [BB-XXX]`** quick Blackbox append buttons in the Brain Vault header.
+
+---
+
 ## [v2.2.0] — 2026-11-01 (SolidState 4-Document AI Lexicon, Public/Private Clean-Room Governance, Scoped MCP Key Tool & 100% Ephemeral PTY GC)
 
 ### Added & Improved

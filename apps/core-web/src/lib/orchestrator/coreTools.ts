@@ -5,6 +5,7 @@ import {
   listSecretKeys,
   normalizeBrainDocName,
   setSecret,
+  syncLexiconDocsToMuscleNode,
   withProjectStateTransaction,
   writeBrainDoc,
   type ProjectState,
@@ -36,8 +37,16 @@ export async function dispatchCoreBrainTool(
   args: Record<string, unknown>
 ): Promise<ToolDispatchResult | null> {
   if (toolName === "core_update_brain_doc") {
+    const rawMode = String(args.mode || args.action || "overwrite_full");
+    if (rawMode === "sync_lexicon_to_node") {
+      const syncOut = await syncLexiconDocsToMuscleNode(
+        projectId,
+        state,
+        args.node_id ? String(args.node_id) : undefined
+      );
+      return { tool_name: toolName, status: "executed", output: syncOut };
+    }
     const doc = normalizeBrainDocName(args.document);
-    const rawMode = String(args.mode || "overwrite_full");
     const mode = rawMode === "append" ? "append" : rawMode === "replace_section" ? "replace_section" : "overwrite_full";
     const sectionHeader = args.section_header ? String(args.section_header) : undefined;
     const content = String(args.content || "");

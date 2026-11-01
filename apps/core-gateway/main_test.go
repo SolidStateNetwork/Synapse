@@ -55,7 +55,7 @@ func TestGatewayHealthzAndDebugRoutes(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &health); err != nil {
 		t.Fatalf("unmarshal /healthz: %v", err)
 	}
-	if health["version"] != "v2.2.0" || health["status"] != "ok" {
+	if health["version"] != "v2.3.0" || health["status"] != "ok" {
 		t.Fatalf("unexpected /healthz response: %+v", health)
 	}
 

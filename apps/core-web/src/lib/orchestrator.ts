@@ -8,10 +8,12 @@ import type {
 } from "@proto/tunnel";
 import {
   appendAuditLog,
+  collectProjectPublicIps,
   ensureProjectVault,
   getDecryptedSecrets,
   getRollbackSnapshot,
   recordRollbackSnapshot,
+  sanitizeBrainContentForVisibility,
   withProjectStateTransaction,
   type FileRollbackSnapshot,
   type ProjectState,
@@ -457,6 +459,27 @@ export async function interceptAndExecuteTool(
       invalidateNodeReadCache(projectId, targetNodeId);
     }
 
+    const rawWriteContent =
+      operation === "write_file"
+        ? contentOrPatch ?? String(args.content || "")
+        : String(args.content || "");
+    const rawDiffContent =
+      operation === "apply_unified_diff"
+        ? contentOrPatch ?? String(args.diff || "")
+        : String(args.diff || "");
+    const vis = state.visibility === "public" ? "public" : "private";
+    const knownIps = collectProjectPublicIps(state);
+    const sanitizedWriteContent =
+      operation === "write_file"
+        ? sanitizeBrainContentForVisibility(rawWriteContent, vis, knownIps)
+        : rawWriteContent;
+    const sanitizedDiffContent =
+      operation === "apply_unified_diff"
+        ? sanitizeBrainContentForVisibility(rawDiffContent, vis, knownIps)
+        : rawDiffContent;
+    const cleanRoomSanitized =
+      sanitizedWriteContent !== rawWriteContent || sanitizedDiffContent !== rawDiffContent;
+
     const payload = {
       node_id: targetNodeId,
       request_id: reqId,
@@ -464,14 +487,8 @@ export async function interceptAndExecuteTool(
       tier,
       operation,
       path: targetPath,
-      content:
-        operation === "write_file"
-          ? contentOrPatch ?? String(args.content || "")
-          : String(args.content || ""),
-      diff:
-        operation === "apply_unified_diff"
-          ? contentOrPatch ?? String(args.diff || "")
-          : String(args.diff || ""),
+      content: sanitizedWriteContent,
+      diff: sanitizedDiffContent,
       file_mode: String(args.file_mode || "0644"),
     };
 
@@ -537,7 +554,7 @@ export async function interceptAndExecuteTool(
       return {
         tool_name: toolName,
         status: data.success ? "executed" : "error",
-        output: data,
+        output: cleanRoomSanitized ? { ...data, clean_room_sanitized: true } : data,
         rollback_snapshot_id: data.success ? rollbackSnapshotId : undefined,
         rollback_path: data.success ? targetPath : undefined,
       };

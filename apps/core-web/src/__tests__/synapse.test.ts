@@ -534,33 +534,36 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
     assert.ok(resolvedDb.endsWith(".db"));
 
     const { sanitizeBrainContentForVisibility, formatBlackboxAppend, readBrainDoc, writeBrainDoc } = await import("../lib/vault.ts");
-    const sanitizedPub = sanitizeBrainContentForVisibility(
-      "Token sk-1234567890abcdef and path /" + "home/alice/app on 88.99.100.101",
-      "public",
-      ["88.99.100.101"]
-    );
-    assert.ok(sanitizedPub.includes("<REDACTED_SECRET>"));
-    assert.ok(sanitizedPub.includes("/workspace/app"));
-    assert.ok(sanitizedPub.includes("<REDACTED_PUBLIC_IP>"));
-    const bb = formatBlackboxAppend("- **[BB-001]** Init", "Added feature");
-    assert.equal(bb.bbTag, "[BB-002]");
-    assert.ok(readBrainDoc(testProjectId, "Milestones.md").includes("MILESTONES"));
-    assert.ok(readBrainDoc(testProjectId, "AGENTS.md").includes("AGENTS.md"));
+    const sanitizedPub = sanitizeBrainContentForVisibility("Token sk-1234567890abcdef and path /" + "home/alice/app on 88.99.100.101", "public", ["88.99.100.101"]);
+    assert.ok(sanitizedPub.includes("<REDACTED_SECRET>") && sanitizedPub.includes("/workspace/app") && sanitizedPub.includes("<REDACTED_PUBLIC_IP>"));
+    assert.equal(formatBlackboxAppend("- **[BB-001]** Init", "Added feature").bbTag, "[BB-002]");
+    assert.ok(readBrainDoc(testProjectId, "Milestones.md").includes("MILESTONES") && readBrainDoc(testProjectId, "AGENTS.md").includes("AGENTS.md"));
     writeBrainDoc(testProjectId, "Memory.md", "Logged entry", "append");
     assert.ok(readBrainDoc(testProjectId, "Memory.md").includes("[BB-002]"));
 
+    const { interceptAndExecuteTool } = await import("../lib/orchestrator.ts");
+    const { expandContextMentions } = await import("../lib/orchestrator/llmStreamHelpers.ts");
+    const expanded = expandContextMentions(testProjectId, "Check @Milestones.md and @AGENTS.md");
+    assert.ok(expanded.includes('target="@Milestones.md"') && expanded.includes('target="@AGENTS.md"'));
+
+    const searchMs = await interceptAndExecuteTool(testProjectId, "core_vault_search", { scope: "milestones", query: "Phase" });
+    const searchAg = await interceptAndExecuteTool(testProjectId, "core_vault_search", { scope: "agents", query: "Step" });
+    assert.equal(searchMs.status, "executed");
+    assert.equal(searchAg.status, "executed");
+
+    const bundleExport = await interceptAndExecuteTool(testProjectId, "core_manage_topology_bundle", { action: "export" });
+    const exportedBundle = (bundleExport.output as { bundle: { lexicon_docs?: Record<string, string>; visibility?: string } }).bundle;
+    assert.ok(exportedBundle.lexicon_docs?.milestones_md?.includes("MILESTONES") && exportedBundle.lexicon_docs?.agents_md?.includes("AGENTS.md"));
+    const bundleImport = await interceptAndExecuteTool(testProjectId, "core_manage_topology_bundle", { action: "import", bundle: { ...exportedBundle, visibility: "public" } });
+    assert.equal((bundleImport.output as { imported_lexicon_docs?: boolean }).imported_lexicon_docs, true);
+    const syncToolOut = await interceptAndExecuteTool(testProjectId, "core_update_brain_doc", { mode: "sync_lexicon_to_node" });
+    assert.ok(String((syncToolOut.output as { checkpoint_id?: string }).checkpoint_id || "").startsWith("chk-"));
+
     const repoRoot = path.resolve(import.meta.dirname, "../../../..");
     const forbiddenTokens = [
-      ["217", "154", "20", "24"].join("\\."),
-      ["/home", "denis"].join("/"),
-      ["vps", "2"].join(""),
-      ["cachy", "os"].join(""),
-      ["synapse-cloud", "demo"].join("-"),
-      ["pulse", "webui"].join("-"),
-      ["pulse", "analytics"].join("-"),
-      ["pulse", "sqlite"].join("-"),
-      ["uptime-beacon", "4060"].join("-"),
-      ["json", "telemetrie"].join("-"),
+      ["217", "154", "20", "24"].join("\\."), ["/home", "denis"].join("/"), ["vps", "2"].join(""),
+      ["cachy", "os"].join(""), ["synapse-cloud", "demo"].join("-"), ["pulse", "webui"].join("-"),
+      ["pulse", "analytics"].join("-"), ["pulse", "sqlite"].join("-"), ["uptime-beacon", "4060"].join("-"), ["json", "telemetrie"].join("-"),
     ];
     const pattern = forbiddenTokens.join("|");
     let matches = "";

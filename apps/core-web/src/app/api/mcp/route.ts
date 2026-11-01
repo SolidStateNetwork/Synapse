@@ -222,8 +222,11 @@ async function executeMcpTool(
       isError: false,
       result: {
         state,
+        visibility: state.visibility || "private",
         architecture_md: readBrainDoc(projectId, "Architecture.md"),
         memory_md: readBrainDoc(projectId, "Memory.md"),
+        milestones_md: readBrainDoc(projectId, "Milestones.md"),
+        agents_md: readBrainDoc(projectId, "AGENTS.md"),
         secret_keys: listSecretKeys(projectId),
         available_cartridges: listCartridges().map((c) => ({
           id: c.id,
@@ -469,26 +472,12 @@ export async function POST(req: NextRequest) {
         id: rpcId,
         result: {
           resources: [
-            {
-              uri: `synapse://${projectId}/Architecture.md`,
-              name: "Architecture.md (System Blueprint & Mermaid Topology)",
-              mimeType: "text/markdown",
-            },
-            {
-              uri: `synapse://${projectId}/Memory.md`,
-              name: "Memory.md (Engineering Journal & Lessons Learned)",
-              mimeType: "text/markdown",
-            },
-            {
-              uri: `synapse://${projectId}/State.json`,
-              name: "State.json (Live Peers, Services & Telemetry)",
-              mimeType: "application/json",
-            },
-            {
-              uri: `synapse://${projectId}/Audit.jsonl`,
-              name: "Audit.jsonl (Immutable Security & Tool Trail)",
-              mimeType: "application/json",
-            },
+            { uri: `synapse://${projectId}/Architecture.md`, name: "Architecture.md (System Blueprint & Mermaid Topology)", mimeType: "text/markdown" },
+            { uri: `synapse://${projectId}/Memory.md`, name: "Memory.md (Blackbox [BB-XXX] Engineering Journal)", mimeType: "text/markdown" },
+            { uri: `synapse://${projectId}/Milestones.md`, name: "Milestones.md (Project Roadmap & Phases)", mimeType: "text/markdown" },
+            { uri: `synapse://${projectId}/AGENTS.md`, name: "AGENTS.md (5-Step SolidState AI Governance)", mimeType: "text/markdown" },
+            { uri: `synapse://${projectId}/State.json`, name: "State.json (Live Peers, Services & Telemetry)", mimeType: "application/json" },
+            { uri: `synapse://${projectId}/Audit.jsonl`, name: "Audit.jsonl (Immutable Security & Tool Trail)", mimeType: "application/json" },
           ],
         },
       });
@@ -504,6 +493,12 @@ export async function POST(req: NextRequest) {
       } else if (uri.endsWith("Memory.md")) {
         textContent = readBrainDoc(projectId, "Memory.md");
         mimeType = "text/markdown";
+      } else if (uri.endsWith("Milestones.md")) {
+        textContent = readBrainDoc(projectId, "Milestones.md");
+        mimeType = "text/markdown";
+      } else if (uri.endsWith("AGENTS.md")) {
+        textContent = readBrainDoc(projectId, "AGENTS.md");
+        mimeType = "text/markdown";
       } else if (uri.endsWith("Audit.jsonl")) {
         textContent = JSON.stringify(readAuditLogs(projectId, 50), null, 2);
         mimeType = "application/json";
@@ -515,13 +510,7 @@ export async function POST(req: NextRequest) {
         jsonrpc: "2.0",
         id: rpcId,
         result: {
-          contents: [
-            {
-              uri,
-              mimeType,
-              text: textContent,
-            },
-          ],
+          contents: [{ uri, mimeType, text: textContent }],
         },
       });
     }

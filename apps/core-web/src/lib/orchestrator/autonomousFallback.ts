@@ -500,6 +500,10 @@ export async function runDeterministicAutonomousWorkflow(
     const step = await runStep("core_manage_mcp_keys", { action: "list" });
     const out = step.output as { count?: number } | undefined;
     finalReply = `### 🔑 Scoped MCP API Keys\n\n- **Aktive MCP-Schlüssel:** \`${out?.count ?? 0}\``;
+  } else if (lower.includes("sync lexicon") || lower.includes("sync_lexicon_to_node")) {
+    const step = await runStep("core_update_brain_doc", { mode: "sync_lexicon_to_node", node_id: primaryNode });
+    const out = step.output as { checkpoint_id?: string; synced_files?: string[] } | undefined;
+    finalReply = `### 🚀 SolidState Lexicon Sync (\`${primaryNode || "local-node"}\`)\n\n- **Synchronisierte Dateien:** ${(out?.synced_files || []).join(", ")}\n- **Pre-Flight Checkpoint:** \`${out?.checkpoint_id || "chk-sync"}\``;
   }
 
   if (!finalReply) {

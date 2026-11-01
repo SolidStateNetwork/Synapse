@@ -113,6 +113,24 @@ export function expandContextMentions(
       )}\n</mentioned_context>`
     );
   }
+  if (/@milestones(\.md)?\b/i.test(promptText)) {
+    const ms = readBrainDoc(projectId, "Milestones.md");
+    supplements.push(
+      `<mentioned_context target="@Milestones.md">\n${ms.slice(
+        0,
+        4000
+      )}\n</mentioned_context>`
+    );
+  }
+  if (/@agents(\.md)?\b/i.test(promptText)) {
+    const ag = readBrainDoc(projectId, "AGENTS.md");
+    supplements.push(
+      `<mentioned_context target="@AGENTS.md">\n${ag.slice(
+        0,
+        4000
+      )}\n</mentioned_context>`
+    );
+  }
 
   for (const node of state.assigned_nodes) {
     if (

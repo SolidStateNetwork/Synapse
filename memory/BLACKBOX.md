@@ -35,6 +35,19 @@
 
 ## 📜 Chronologisches Logbuch (Neueste zuerst)
 
+### [BB-009] 2026-11-01 03:09 (CET) – [BRAIN-VAULT / AI-ORCHESTRATOR / MCP-SERVER / WEB-STUDIO-UI / v2.3.0] Lexicon-Everywhere: 4-Doc Topology Bundles, Vault Search, MCP Resources, Remote Muscle Workspace Sync & Remote FS Clean-Room Guard
+- **Akteur:** Antigravity AI & Project Lead
+- **Typ:** `ARCHITECTURE` | `FEATURE` | `SECURITY` | `UI` | `RELEASE`
+- **Betroffene Module:** `BRAIN-VAULT`, `AI-ORCHESTRATOR`, `MCP-SERVER`, `RESILIENCE-DR`, `WEB-STUDIO-UI`, `CONTAINER-LAB`
+- **Ziel / Hintergrund:** Durchgängige Verankerung des in `v2.2.0` eingeführten 4-Dokumente-Lexikons (`Architecture.md`, `Memory.md [BB-XXX]`, `Milestones.md`, `AGENTS.md`) und der `public`/`private` Clean-Room Governance in allen verbleibenden Subsystemen: Topology-Bundles, Vault-Suche, `@`-Context-Mentions, externen MCP-Resources, 1-Click-Synchronisation in das Remote-Workspace auf dem Axon Muscle Node (`sync_lexicon_to_node`) sowie als automatischer Clean-Room-Filter bei Remote-Dateischreibzugriffen (`node_fs_operation`).
+- **Durchgeführte Schritte:**
+  1. `SynapseTopologyBundle` in `topologyAndCanaryTools.ts` (`export` & `import`) um `visibility` (`"public" | "private"`) und `lexicon_docs` (`architecture_md`, `memory_md`, `milestones_md`, `agents_md` inkl. `sanitizeBrainContentForVisibility`) erweitert.
+  2. `executeCoreVaultSearch` (`searchEngine.ts`) und `core_vault_search` (`toolSchemas.ts`) um die Scopes `milestones` und `agents` erweitert, `@Milestones.md` und `@AGENTS.md` in `expandContextMentions` (`llmStreamHelpers.ts`) ergänzt und `/api/mcp/route.ts` (`566` Zeilen `< 600`) in `synapse_get_project_state`, `resources/list` und `resources/read` um `Milestones.md`, `AGENTS.md` und `visibility` erweitert.
+  3. `syncLexiconDocsToMuscleNode` in `lexiconGovernance.ts` implementiert und über `core_update_brain_doc` (`mode: "sync_lexicon_to_node"`), `autonomousFallback.ts` und `POST /api/projects` (`action: "sync_lexicon_to_node"`) verdrahtet (schreibt `AGENTS.md`, `memory/PROJECT_STATE.md`, `memory/BLACKBOX.md` und `memory/MILESTONES.md` mit Pre-Flight Checkpoint `checkpoint_id` in `/opt/axon/workspaces/<projectId>/`).
+  4. In `orchestrator.ts` (`node_fs_operation`: `write_file` & `apply_unified_diff`) den automatischen `sanitizeBrainContentForVisibility` Clean-Room-Guard integriert.
+  5. In `BrainVaultAndWorkspaceViews.tsx` (`568` Zeilen `< 600`) den 1-Click `Sync Lexicon to Node`-Button (mit Pre-Flight `checkpoint_id`-Banner) und den `+ [BB-XXX]`-Schnellbutton ergänzt und die gesamte Plattform inkl. Container auf `v2.3.0` angehoben.
+- **Verifikation:** Go Coverage `88.0 %` (`>= 85 %`), TS Line Coverage `>= 91 %` (`>= 90 %`), Max Go `499` Zeilen, Max TS `< 600` Zeilen, `0` `any`-Typen, `0` private Daten.
+
 ### [BB-008] 2026-11-01 02:45 (CET) – [BRAIN-VAULT / AI-ORCHESTRATOR / MCP-SERVER / AXON-AGENT / v2.2.0] SolidState 4-Doc AI Lexicon, Public/Private Clean-Room Governance, Scoped MCP Key Tool & 100 % Ephemeral PTY GC
 - **Akteur:** Antigravity AI & Project Lead
 - **Typ:** `ARCHITECTURE` | `FEATURE` | `SECURITY` | `UI` | `RELEASE`

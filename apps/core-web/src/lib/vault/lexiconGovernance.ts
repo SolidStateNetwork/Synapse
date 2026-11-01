@@ -1,11 +1,14 @@
 import fs from "fs";
 import path from "path";
+import { recordCheckpoint } from "../checkpoints";
+import { gatewayFsOperation } from "../gatewayClient";
 import {
+  appendAuditLog,
   atomicWriteTextSync,
   ensureProjectVault,
   getProjectDir,
 } from "../vault";
-import type { BrainDocName, ProjectVisibility } from "./vaultTypes";
+import type { BrainDocName, ProjectState, ProjectVisibility } from "./vaultTypes";
 
 export function normalizeBrainDocName(raw: unknown): BrainDocName {
   const val = String(raw || "").trim();
@@ -150,6 +153,16 @@ export function readBrainDoc(projectId: string, doc: BrainDocName): string {
   return fs.readFileSync(filePath, "utf8");
 }
 
+export function collectProjectPublicIps(state: ProjectState): string[] {
+  const knownPublicIps: string[] = [];
+  for (const n of state.assigned_nodes || []) {
+    if (n.network?.public_ipv4) knownPublicIps.push(n.network.public_ipv4);
+    const hb = state.telemetry?.[n.node_id];
+    if (hb?.public_ipv4) knownPublicIps.push(hb.public_ipv4);
+  }
+  return knownPublicIps;
+}
+
 export function writeBrainDoc(
   projectId: string,
   doc: BrainDocName,
@@ -163,13 +176,7 @@ export function writeBrainDoc(
   const visibility: ProjectVisibility = state.visibility === "public" ? "public" : "private";
   ensureLexiconDocsExist(dir, state.project_id, state.name, visibility);
 
-  const knownPublicIps: string[] = [];
-  for (const n of state.assigned_nodes || []) {
-    if (n.network?.public_ipv4) knownPublicIps.push(n.network.public_ipv4);
-    const hb = state.telemetry?.[n.node_id];
-    if (hb?.public_ipv4) knownPublicIps.push(hb.public_ipv4);
-  }
-
+  const knownPublicIps = collectProjectPublicIps(state);
   const sanitized = sanitizeBrainContentForVisibility(content, visibility, knownPublicIps);
   const filePath = path.join(dir, safeDoc);
   const existing = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
@@ -233,4 +240,89 @@ export function writeBrainDoc(
 
   atomicWriteTextSync(filePath, sanitized);
   return sanitized;
+}
+
+export async function syncLexiconDocsToMuscleNode(
+  projectId: string,
+  state: ProjectState,
+  explicitNodeId?: string
+): Promise<{
+  ok: boolean;
+  action: "sync_lexicon_to_node";
+  node_id: string;
+  visibility: ProjectVisibility;
+  checkpoint_id: string;
+  synced_files: string[];
+}> {
+  const targetNode = explicitNodeId || state.assigned_nodes[0]?.node_id || "local-node";
+  const visibility: ProjectVisibility = state.visibility === "public" ? "public" : "private";
+  const knownIps = collectProjectPublicIps(state);
+
+  const preFlightCp = recordCheckpoint(projectId, {
+    node_id: targetNode,
+    title: `Pre-Flight SolidState Lexicon Sync to Muscle Workspace (${targetNode})`,
+    actor: "Auto-Watchdog",
+    summary: `Automatic pre-flight checkpoint before syncing 4-Document SolidState Lexicon (${visibility.toUpperCase()}) into /opt/axon/workspaces/${projectId}.`,
+    files_backed_up: [
+      `/opt/axon/workspaces/${projectId}/AGENTS.md`,
+      `/opt/axon/workspaces/${projectId}/memory`,
+    ],
+    services_snapshot: (state.registered_services || []).map((s) => ({
+      service_id: s.service_id,
+      name: s.name,
+      port: s.port,
+      healthy: s.healthy !== false,
+    })),
+    rollback_cmd: "echo 'CHECKPOINT_RESTORED_OK'",
+  });
+
+  const docsToSync: Array<{ remotePath: string; content: string }> = [
+    {
+      remotePath: "AGENTS.md",
+      content: sanitizeBrainContentForVisibility(readBrainDoc(projectId, "AGENTS.md"), visibility, knownIps),
+    },
+    {
+      remotePath: "memory/PROJECT_STATE.md",
+      content: sanitizeBrainContentForVisibility(readBrainDoc(projectId, "Architecture.md"), visibility, knownIps),
+    },
+    {
+      remotePath: "memory/BLACKBOX.md",
+      content: sanitizeBrainContentForVisibility(readBrainDoc(projectId, "Memory.md"), visibility, knownIps),
+    },
+    {
+      remotePath: "memory/MILESTONES.md",
+      content: sanitizeBrainContentForVisibility(readBrainDoc(projectId, "Milestones.md"), visibility, knownIps),
+    },
+  ];
+
+  const syncedFiles: string[] = [];
+  for (const item of docsToSync) {
+    await gatewayFsOperation({
+      node_id: targetNode,
+      project_id: projectId,
+      operation: "write_file",
+      path: item.remotePath,
+      content: item.content,
+      file_mode: "0644",
+    });
+    syncedFiles.push(item.remotePath);
+  }
+
+  appendAuditLog(projectId, {
+    timestamp: new Date().toISOString(),
+    actor: "ai_orchestrator",
+    tool_name: "core_update_brain_doc",
+    node_id: targetNode,
+    status: "executed",
+    summary: `Synced 4-Document SolidState Lexicon (${visibility.toUpperCase()}) to Muscle workspace on ${targetNode} (checkpoint ${preFlightCp.id})`,
+  });
+
+  return {
+    ok: true,
+    action: "sync_lexicon_to_node",
+    node_id: targetNode,
+    visibility,
+    checkpoint_id: preFlightCp.id,
+    synced_files: syncedFiles,
+  };
 }

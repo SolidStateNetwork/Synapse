@@ -21,6 +21,8 @@ export function executeCoreVaultSearch(
   const scope = String(args.scope || "all").toLowerCase();
   const archDoc = readBrainDoc(projectId, "Architecture.md");
   const memDoc = readBrainDoc(projectId, "Memory.md");
+  const milestonesDoc = readBrainDoc(projectId, "Milestones.md");
+  const agentsDoc = readBrainDoc(projectId, "AGENTS.md");
   const auditLogs = readAuditLogs(projectId, 80);
   const cartridges = listCartridges();
   const secretKeys = listSecretKeys(projectId);
@@ -54,6 +56,7 @@ export function executeCoreVaultSearch(
 
   const resultPayload: Record<string, unknown> = {
     project_id: projectId,
+    visibility: state.visibility || "private",
     query: rawQuery || "*",
     scope,
   };
@@ -76,6 +79,14 @@ export function executeCoreVaultSearch(
 
   if (scope === "all" || scope === "memory") {
     resultPayload.memory_matches = filterLines(memDoc, rawQuery);
+  }
+
+  if (scope === "all" || scope === "milestones") {
+    resultPayload.milestones_matches = filterLines(milestonesDoc, rawQuery);
+  }
+
+  if (scope === "all" || scope === "agents") {
+    resultPayload.agents_matches = filterLines(agentsDoc, rawQuery);
   }
 
   if (scope === "all" || scope === "audit") {

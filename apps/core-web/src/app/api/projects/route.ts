@@ -13,6 +13,7 @@ import {
   readBrainDoc,
   readChatHistory,
   setSecret,
+  syncLexiconDocsToMuscleNode,
   withProjectStateTransaction,
   writeBrainDoc,
 } from "@/lib/vault";
@@ -519,6 +520,16 @@ export async function POST(req: NextRequest) {
       rawPath,
       payload,
     });
+    return NextResponse.json(out);
+  }
+
+  if (action === "sync_lexicon_to_node") {
+    const current = ensureProjectVault(projectId);
+    const out = await syncLexiconDocsToMuscleNode(
+      projectId,
+      current,
+      body.node_id ? String(body.node_id) : undefined
+    );
     return NextResponse.json(out);
   }
 

@@ -6,10 +6,15 @@ import { loadServiceLinks, saveServiceLinks, type PersistedServiceLink } from ".
 import { loadCronJobs, saveCronJobs } from "../v070-studio";
 import {
   appendAuditLog,
+  collectProjectPublicIps,
   listSecretKeys,
+  readBrainDoc,
+  sanitizeBrainContentForVisibility,
   withProjectStateTransaction,
+  writeBrainDoc,
   type PeerMeshLink,
   type ProjectState,
+  type ProjectVisibility,
   type RegisteredService,
   type ScheduledPlaybook,
 } from "../vault";
@@ -20,6 +25,13 @@ export interface SynapseTopologyBundle {
   schema_version: "synapse-stack/v2.0";
   exported_at: string;
   project_id: string;
+  visibility?: ProjectVisibility;
+  lexicon_docs?: {
+    architecture_md: string;
+    memory_md: string;
+    milestones_md: string;
+    agents_md: string;
+  };
   registered_services: RegisteredService[];
   peer_mesh_links: PeerMeshLink[];
   active_cartridges: string[];
@@ -42,10 +54,19 @@ export async function dispatchTopologyAndCanaryTool(
   if (toolName === "core_manage_topology_bundle") {
     const action = String(args.action || "export");
     if (action === "export") {
+      const visibility: ProjectVisibility = state.visibility === "public" ? "public" : "private";
+      const knownIps = collectProjectPublicIps(state);
       const bundle: SynapseTopologyBundle = {
         schema_version: "synapse-stack/v2.0",
         exported_at: new Date().toISOString(),
         project_id: projectId,
+        visibility,
+        lexicon_docs: {
+          architecture_md: sanitizeBrainContentForVisibility(readBrainDoc(projectId, "Architecture.md"), visibility, knownIps),
+          memory_md: sanitizeBrainContentForVisibility(readBrainDoc(projectId, "Memory.md"), visibility, knownIps),
+          milestones_md: sanitizeBrainContentForVisibility(readBrainDoc(projectId, "Milestones.md"), visibility, knownIps),
+          agents_md: sanitizeBrainContentForVisibility(readBrainDoc(projectId, "AGENTS.md"), visibility, knownIps),
+        },
         registered_services: state.registered_services || [],
         peer_mesh_links: state.peer_mesh_links || [],
         active_cartridges: state.active_cartridges || [],
@@ -91,13 +112,22 @@ export async function dispatchTopologyAndCanaryTool(
       const mesh = Array.isArray(b.peer_mesh_links) ? b.peer_mesh_links : [];
       const carts = Array.isArray(b.active_cartridges) ? b.active_cartridges : [];
       const playbooks = Array.isArray(b.scheduled_playbooks) ? b.scheduled_playbooks : [];
+      const importedVisibility: ProjectVisibility | undefined =
+        b.visibility === "public" || b.visibility === "private" ? b.visibility : undefined;
 
       await withProjectStateTransaction(projectId, (draft) => {
+        if (importedVisibility) draft.visibility = importedVisibility;
         if (svcs.length > 0) draft.registered_services = svcs;
         if (mesh.length > 0) draft.peer_mesh_links = mesh;
         if (carts.length > 0) draft.active_cartridges = carts;
         if (playbooks.length > 0) draft.scheduled_playbooks = playbooks;
       });
+      if (b.lexicon_docs && typeof b.lexicon_docs === "object") {
+        if (typeof b.lexicon_docs.architecture_md === "string") writeBrainDoc(projectId, "Architecture.md", b.lexicon_docs.architecture_md, "overwrite");
+        if (typeof b.lexicon_docs.memory_md === "string") writeBrainDoc(projectId, "Memory.md", b.lexicon_docs.memory_md, "overwrite");
+        if (typeof b.lexicon_docs.milestones_md === "string") writeBrainDoc(projectId, "Milestones.md", b.lexicon_docs.milestones_md, "overwrite");
+        if (typeof b.lexicon_docs.agents_md === "string") writeBrainDoc(projectId, "AGENTS.md", b.lexicon_docs.agents_md, "overwrite");
+      }
       if (Array.isArray(b.service_links)) saveServiceLinks(projectId, b.service_links);
       if (Array.isArray(b.cron_jobs)) saveCronJobs(projectId, b.cron_jobs);
       if (b.custom_domains && typeof b.custom_domains === "object") saveCustomDomains(projectId, b.custom_domains);
@@ -117,6 +147,8 @@ export async function dispatchTopologyAndCanaryTool(
           ok: true,
           action: "import",
           checkpoint_id: preFlightCp.id,
+          visibility: importedVisibility || state.visibility || "private",
+          imported_lexicon_docs: Boolean(b.lexicon_docs),
           imported_services_count: svcs.length,
           imported_cartridges_count: carts.length,
           imported_cron_jobs_count: Array.isArray(b.cron_jobs) ? b.cron_jobs.length : 0,

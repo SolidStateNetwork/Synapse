@@ -89,6 +89,48 @@ export const BrainVaultView = React.memo(function BrainVaultView({
     }
   };
 
+  const handleSyncLexiconToNode = async () => {
+    setBundleBusy(true);
+    try {
+      const res = await safeFetchJson("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync_lexicon_to_node", project_id: projectId }),
+      });
+      const data = await res.json();
+      if (data?.ok) {
+        setBundleNotice(
+          `🚀 4-Doc Lexikon auf Muscle-Node (${data.node_id}) synchronisiert${
+            data.checkpoint_id ? ` · Checkpoint: ${data.checkpoint_id}` : ""
+          }`
+        );
+      }
+    } finally {
+      setBundleBusy(false);
+    }
+  };
+
+  const handleQuickBlackboxAppend = async () => {
+    const res = await safeFetchJson("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "save_doc",
+        project_id: projectId,
+        document: "Memory.md",
+        mode: "append",
+        content: "Manual architecture & runbook milestone recorded via Brain Vault UI.",
+      }),
+    });
+    const data = await res.json();
+    if (typeof data?.content === "string") {
+      setMemoryMd(data.content);
+      setLexiconTab("Memory.md");
+      setBrainDocTab("Memory.md");
+      setBundleNotice("✔ Neuer [BB-XXX] Blackbox-Eintrag in Memory.md protokolliert");
+    }
+  };
+
   const handleSaveCurrentLexiconDoc = async () => {
     if (lexiconTab === "Architecture.md" || lexiconTab === "Memory.md") {
       handleSaveBrainDoc(lexiconTab);
@@ -115,17 +157,12 @@ export const BrainVaultView = React.memo(function BrainVaultView({
       const res = await safeFetchJson("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "export_topology_bundle",
-          project_id: projectId,
-        }),
+        body: JSON.stringify({ action: "export_topology_bundle", project_id: projectId }),
       });
       const data = await res.json();
       if (data.bundle) {
         setBundleJsonText(JSON.stringify(data.bundle, null, 2));
-        setBundleNotice(
-          `📦 Exportiert (${data.bundle.schema_version}): ${(data.bundle.registered_services || []).length} Services`
-        );
+        setBundleNotice(`📦 Exportiert (${data.bundle.schema_version}): ${(data.bundle.registered_services || []).length} Services`);
       }
     } finally {
       setBundleBusy(false);
@@ -140,19 +177,11 @@ export const BrainVaultView = React.memo(function BrainVaultView({
       const res = await safeFetchJson("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "import_topology_bundle",
-          project_id: projectId,
-          bundle: bundleJsonText,
-        }),
+        body: JSON.stringify({ action: "import_topology_bundle", project_id: projectId, bundle: bundleJsonText }),
       });
       const data = await res.json();
       if (data.ok) {
-        setBundleNotice(
-          `✔ Topologie importiert (${data.imported_services_count ?? 0} Services)${
-            data.checkpoint_id ? ` · Checkpoint: ${data.checkpoint_id}` : ""
-          }`
-        );
+        setBundleNotice(`✔ Topologie importiert (${data.imported_services_count ?? 0} Services)${data.checkpoint_id ? ` · Checkpoint: ${data.checkpoint_id}` : ""}`);
       } else {
         setBundleNotice(data.error || "Import error");
       }
@@ -184,12 +213,29 @@ export const BrainVaultView = React.memo(function BrainVaultView({
             </button>
             <button
               type="button"
+              disabled={bundleBusy}
+              onClick={handleSyncLexiconToNode}
+              className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-950/30 px-3.5 py-2 text-xs font-medium text-sky-300 hover:border-sky-400 transition"
+              title="Synchronisiert AGENTS.md & memory/* (Clean-Room-geprüft) mit Pre-Flight Checkpoint direkt auf den Muscle-Node"
+            >
+              <RefreshCw className="h-3.5 w-3.5 text-sky-400" />
+              <span>Sync Lexicon to Node</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleQuickBlackboxAppend}
+              className="flex items-center gap-1.5 rounded-xl border border-purple-500/40 bg-purple-950/30 px-3 py-2 text-xs font-medium text-purple-300 hover:border-purple-400 transition"
+              title="Neuen fortlaufend nummerierten [BB-XXX] Eintrag an Memory.md anhängen"
+            >
+              <Plus className="h-3.5 w-3.5 text-purple-400" />
+              <span>+ [BB-XXX]</span>
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setShowBundleDrawer((v) => {
                   const next = !v;
-                  if (next && !bundleJsonText) {
-                    void handleExportTopologyBundle();
-                  }
+                  if (next && !bundleJsonText) void handleExportTopologyBundle();
                   return next;
                 });
               }}
@@ -205,7 +251,6 @@ export const BrainVaultView = React.memo(function BrainVaultView({
               <Code2 className="h-3.5 w-3.5 text-netbird" />
               <span>{isEditingMarkdown ? "Leseansicht" : "Bearbeiten"}</span>
             </button>
-
             {isEditingMarkdown && (
               <button
                 onClick={handleSaveCurrentLexiconDoc}
@@ -223,32 +268,14 @@ export const BrainVaultView = React.memo(function BrainVaultView({
               activeTab={lexiconTab}
               onChange={(doc) => {
                 setLexiconTab(doc);
-                if (doc === "Architecture.md" || doc === "Memory.md") {
-                  setBrainDocTab(doc);
-                }
+                if (doc === "Architecture.md" || doc === "Memory.md") setBrainDocTab(doc);
                 setIsEditingMarkdown(false);
               }}
               tabs={[
-                {
-                  id: "Architecture.md",
-                  label: "Architecture.md (Topologie)",
-                  icon: <FileText className="h-3.5 w-3.5" />,
-                },
-                {
-                  id: "Memory.md",
-                  label: "Memory.md (Blackbox [BB-XXX])",
-                  icon: <BookOpen className="h-3.5 w-3.5" />,
-                },
-                {
-                  id: "Milestones.md",
-                  label: "Milestones.md (Roadmap)",
-                  icon: <FileCode2 className="h-3.5 w-3.5" />,
-                },
-                {
-                  id: "AGENTS.md",
-                  label: "AGENTS.md (5-Step Governance)",
-                  icon: <Brain className="h-3.5 w-3.5" />,
-                },
+                { id: "Architecture.md", label: "Architecture.md (Topologie)", icon: <FileText className="h-3.5 w-3.5" /> },
+                { id: "Memory.md", label: "Memory.md (Blackbox [BB-XXX])", icon: <BookOpen className="h-3.5 w-3.5" /> },
+                { id: "Milestones.md", label: "Milestones.md (Roadmap)", icon: <FileCode2 className="h-3.5 w-3.5" /> },
+                { id: "AGENTS.md", label: "AGENTS.md (5-Step Governance)", icon: <Brain className="h-3.5 w-3.5" /> },
               ]}
             />
             <span className="hidden sm:inline font-mono text-[11px] text-nb-gray-400">
@@ -257,6 +284,12 @@ export const BrainVaultView = React.memo(function BrainVaultView({
           </div>
         }
       />
+
+      {bundleNotice && !showBundleDrawer && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-4 py-2 font-mono text-xs text-emerald-300">
+          {bundleNotice}
+        </div>
+      )}
 
       {showBundleDrawer && (
         <div className="rounded-xl border border-emerald-500/30 bg-nb-gray-940 p-4 space-y-3 text-xs">

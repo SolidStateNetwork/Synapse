@@ -429,10 +429,12 @@ export function getRollbackSnapshot(
 export {
   buildDefaultAgentsDoc,
   buildDefaultMilestonesDoc,
+  collectProjectPublicIps,
   formatBlackboxAppend,
   normalizeBrainDocName,
   readBrainDoc,
   sanitizeBrainContentForVisibility,
+  syncLexiconDocsToMuscleNode,
   writeBrainDoc,
 } from "./vault/lexiconGovernance";
 

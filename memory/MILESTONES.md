@@ -50,10 +50,11 @@ Dieses Dokument dokumentiert die abgeschlossenen Entwicklungsphasen von **Synaps
 
 ---
 
-## ✅ Phase 6: Declarative Topology Bundles, Multi-Node Canary Rollouts & SolidState 4-Doc AI Lexicon (`v2.0.0` – `v2.2.0`)
+## ✅ Phase 6: Declarative Topology Bundles, Multi-Node Canary Rollouts & SolidState 4-Doc AI Lexicon (`v2.0.0` – `v2.3.0`)
 *Referenz: [`architecture/03-ai-orchestrator-and-mcp-server.md`](../architecture/03-ai-orchestrator-and-mcp-server.md) & [`CHANGELOG.md`](../CHANGELOG.md)*
 - [x] **M6.1 (`v2.0.0`):** Multi-Node Canary Rollout-Engine (`core_cluster_canary_exec`: `canary_rollout`, `verify_fleet_health`) mit automatischem Pre-Flight Time-Machine Checkpoint und sofortigem Canary-Abbruch bei Exit-Code != 0.
 - [x] **M6.2 (`v2.0.0`):** Deklarativer Export & Import kompletter Projekt-Topologien (`core_manage_topology_bundle`: `synapse-stack/v2.0` Schema für Services, Mesh-Links, Cartridges, Playbooks, Cron-Jobs, Domains & Secret-Key-Namen) mit automatischem Pre-Flight Checkpoint.
 - [x] **M6.3 (`v2.0.0`):** Live-Verifikation des Architektur-Lexikons (`lexicon_and_governance`) im Plattform-Selbsttest (`/api/debug`) sowie automatische Pre-Flight Checkpoints (`checkpoint_id`) bei Domain/TLS-Mutationen.
 - [x] **M6.4 (`v2.1.0`):** 1-Click Topology-Bundle Export/Import-Drawer im Brain-Vault UI (`BrainVaultAndWorkspaceViews.tsx`), Multi-Node Canary & Fleet-Health-Steuerleiste im Peers-UI (`PeersView.tsx`) sowie automatische Pre-Flight Checkpoints (`checkpoint_id`) bei Cron-Runbook- und Playbook-Mutationen.
 - [x] **M6.5 (`v2.2.0`):** SolidState 4-Dokumente-Lexikon (`Architecture.md`, `Memory.md [BB-XXX]`, `Milestones.md`, `AGENTS.md`) mit Public/Private Clean-Room Governance & Sanitizer für die interne KI (`lexiconGovernance.ts`, `promptBuilder.ts`, `BrainVaultAndWorkspaceViews.tsx`), Scoped MCP API-Key-Tool (`core_manage_mcp_keys`), 100 % Ephemeral PTY GC (`deep-search-`, `self-heal-`, `link-probe-`) sowie Pre-Flight Checkpoints & UI-Badges für Offsite-Backup-Restores und Intrusion-IP-Blocks.
+- [x] **M6.6 (`v2.3.0`):** Lexicon-Everywhere Integration: 4-Doc Lexikon & `visibility` in Topology-Bundles (`core_manage_topology_bundle`), Vault-Search (`milestones` & `agents` Scopes), `@Milestones.md`/`@AGENTS.md` Context-Mentions und `/api/mcp` Resources, 1-Click & KI-gesteuerte Synchronisation des 4-Doc Lexikons in das Remote-Muscle-Workspace (`sync_lexicon_to_node` mit Pre-Flight Checkpoint) sowie automatischer Public Clean-Room Guard für `node_fs_operation` (`write_file`/`apply_unified_diff`).
