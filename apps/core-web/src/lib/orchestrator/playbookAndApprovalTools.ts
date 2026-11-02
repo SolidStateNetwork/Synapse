@@ -87,6 +87,7 @@ export async function dispatchPlaybookAndApprovalTool(
         toolName: String(args.target_tool || "node_pty_exec"),
         tier: typeof args.tier === "string" ? args.tier : undefined,
         command: typeof args.command === "string" ? args.command : undefined,
+        path: typeof args.path === "string" ? args.path : undefined,
       });
       return {
         tool_name: toolName,

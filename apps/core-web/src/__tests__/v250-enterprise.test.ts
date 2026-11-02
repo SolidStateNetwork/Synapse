@@ -222,10 +222,21 @@ describe("Synapse v2.5.0 — Phase 8 Enterprise CRL, Signed Topology Bundles, DA
     assert.equal(expiredCheck.valid, false);
   });
 
-  it("54. Policy-as-Code (.synapse/policies.json) initializes ruleset and evaluates deny / require_approval / allow rules", async () => {
+  it("54. Policy-as-Code (.synapse/policies.json) initializes ruleset and evaluates deny / require_approval / allow rules with path_prefixes & orchestrator interception", async () => {
     const policyCfg = ensurePolicyAsCodeFile(projId);
     assert.equal(policyCfg.schema_version, "synapse.policy.v2.5");
     assert.ok(policyCfg.rules.length >= 3);
+
+    // Append a custom path_prefixes deny rule AFTER default-zero-trust-allow to verify deny precedence
+    const policyPath = path.join(tmpDir, projId, ".synapse", "policies.json");
+    policyCfg.rules.push({
+      id: "deny-shadow-access",
+      description: "Prohibit reading or modifying /etc/shadow",
+      effect: "deny",
+      tools: ["node_fs_operation"],
+      path_prefixes: ["/etc/shadow"],
+    });
+    fs.writeFileSync(policyPath, JSON.stringify(policyCfg, null, 2));
 
     const denyEval = evaluatePolicyAsCode(projId, {
       toolName: "node_pty_exec",
@@ -234,6 +245,21 @@ describe("Synapse v2.5.0 — Phase 8 Enterprise CRL, Signed Topology Bundles, DA
     assert.equal(denyEval.allowed, false);
     assert.equal(denyEval.effect, "deny");
     assert.equal(denyEval.matched_rule, "deny-destructive-root-wipe");
+
+    const pathDenyEval = evaluatePolicyAsCode(projId, {
+      toolName: "node_fs_operation",
+      path: "/etc/shadow",
+    });
+    assert.equal(pathDenyEval.allowed, false);
+    assert.equal(pathDenyEval.effect, "deny");
+    assert.equal(pathDenyEval.matched_rule, "deny-shadow-access");
+
+    const pathAllowEval = evaluatePolicyAsCode(projId, {
+      toolName: "node_fs_operation",
+      path: "/opt/axon/workspaces/app.ts",
+    });
+    assert.equal(pathAllowEval.allowed, true);
+    assert.equal(pathAllowEval.effect, "allow");
 
     const supEval = evaluatePolicyAsCode(projId, {
       toolName: "node_firewall_control",
@@ -248,6 +274,22 @@ describe("Synapse v2.5.0 — Phase 8 Enterprise CRL, Signed Topology Bundles, DA
     });
     assert.equal(allowEval.allowed, true);
     assert.equal(allowEval.effect, "allow");
+
+    // Verify interceptAndExecuteTool enforces Policy-as-Code deny rules before execution
+    await interceptAndExecuteTool(
+      projId,
+      "core_manage_cluster_nodes",
+      { action: "assign_node", node_id: "policy-test-node", tier: "TIER_2_WORKSPACE_JAIL" },
+      true
+    );
+    const blockedExec = await interceptAndExecuteTool(
+      projId,
+      "node_pty_exec",
+      { node_id: "policy-test-node", command: "sudo rm -rf / --no-preserve-root" },
+      true
+    );
+    assert.equal(blockedExec.status, "error");
+    assert.equal((blockedExec.output as { matched_rule?: string }).matched_rule, "deny-destructive-root-wipe");
   });
 
   it("55. Signed Audit Snapshots (AuditSnapshot.json) cryptographically sign Audit.jsonl Chain-Tip-Hash and detect tampering", () => {

@@ -403,7 +403,7 @@ export function ensurePolicyAsCodeFile(projectId: string): PolicyAsCodeConfig {
   if (fs.existsSync(policyPath)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(policyPath, "utf8")) as PolicyAsCodeConfig;
-      if (parsed && Array.isArray(parsed.rules)) return parsed;
+      if (parsed && parsed.schema_version === "synapse.policy.v2.5" && Array.isArray(parsed.rules)) return parsed;
     } catch {
       // recreate below
     }
@@ -446,17 +446,29 @@ export function evaluatePolicyAsCode(
 ): { allowed: boolean; effect: "allow" | "require_approval" | "deny"; matched_rule: string; reason?: string } {
   const cfg = ensurePolicyAsCodeFile(projectId);
   const cmdLower = (input.command || "").toLowerCase();
+  const matched: PolicyRuleSpec[] = [];
 
   for (const rule of cfg.rules) {
-    if (rule.command_patterns && rule.command_patterns.length > 0 && cmdLower) {
-      if (rule.command_patterns.some((pat) => cmdLower.includes(pat.toLowerCase()))) {
-        return { allowed: rule.effect === "allow", effect: rule.effect, matched_rule: rule.id, reason: rule.description };
-      }
+    const toolMatch = !rule.tools || rule.tools.length === 0 || rule.tools.includes("*") || rule.tools.includes(input.toolName);
+    const tierMatch = !rule.tiers || rule.tiers.length === 0 || (input.tier ? rule.tiers.includes(input.tier) : false);
+    const cmdMatch =
+      !rule.command_patterns ||
+      rule.command_patterns.length === 0 ||
+      (Boolean(cmdLower) && rule.command_patterns.some((pat) => cmdLower.includes(pat.toLowerCase())));
+    const pathMatch =
+      !rule.path_prefixes ||
+      rule.path_prefixes.length === 0 ||
+      (Boolean(input.path) && rule.path_prefixes.some((pref) => String(input.path).startsWith(pref)));
+
+    if (toolMatch && tierMatch && cmdMatch && pathMatch) {
+      matched.push(rule);
     }
-    const toolMatch = !rule.tools || rule.tools.includes("*") || rule.tools.includes(input.toolName);
-    const tierMatch = !rule.tiers || (input.tier ? rule.tiers.includes(input.tier) : false);
-    if (toolMatch && tierMatch && (!rule.command_patterns || rule.command_patterns.length === 0)) {
-      return { allowed: rule.effect === "allow", effect: rule.effect, matched_rule: rule.id, reason: rule.description };
+  }
+
+  for (const priority of ["deny", "require_approval", "allow"] as const) {
+    const winner = matched.find((r) => r.effect === priority);
+    if (winner) {
+      return { allowed: winner.effect === "allow", effect: winner.effect, matched_rule: winner.id, reason: winner.description };
     }
   }
   return { allowed: true, effect: "allow", matched_rule: "implicit-default-allow" };

@@ -1,11 +1,5 @@
 import crypto from "crypto";
-import type {
-  AutonomyTier,
-  FsOperation,
-  FsResponse,
-  NodeHeartbeat,
-  PtyExecResponse,
-} from "@proto/tunnel";
+import type { AutonomyTier, FsOperation, FsResponse, NodeHeartbeat, PtyExecResponse } from "@proto/tunnel";
 import {
   appendAuditLog,
   collectProjectPublicIps,
@@ -18,21 +12,13 @@ import {
   type FileRollbackSnapshot,
   type ProjectState,
 } from "./vault";
+import { evaluatePolicyAsCode } from "./vault/v250Enterprise";
 import { recordCheckpoint } from "./checkpoints";
 import { executeFirewallAction, type FirewallActionInput } from "./firewall";
 import { SYNAPSE_TOOL_SCHEMAS } from "./orchestrator/toolSchemas";
-import {
-  buildDefaultServiceEndpoints,
-  pushNodeHealthTargets,
-} from "@/lib/orchestrator/servicePresets";
-import {
-  buildCacheOptimizedSystemPromptParts,
-  buildSystemPrompt,
-} from "@/lib/orchestrator/promptBuilder";
-import {
-  executeCoreVaultSearch,
-  executeNodeDeepSearch,
-} from "@/lib/orchestrator/searchEngine";
+import { buildDefaultServiceEndpoints, pushNodeHealthTargets } from "@/lib/orchestrator/servicePresets";
+import { buildCacheOptimizedSystemPromptParts, buildSystemPrompt } from "@/lib/orchestrator/promptBuilder";
+import { executeCoreVaultSearch, executeNodeDeepSearch } from "@/lib/orchestrator/searchEngine";
 import { dispatchCoreBrainTool } from "@/lib/orchestrator/coreTools";
 import { CORE_GATEWAY_URL } from "./gatewayClient";
 import { safeFetchJson } from "./safeFetch";
@@ -250,9 +236,20 @@ export async function interceptAndExecuteTool(
 
   const targetNodeId = String(args.node_id || state.assigned_nodes[0]?.node_id || "");
   const tier = resolveNodeTier(state, liveNodes, targetNodeId);
+  const policyRes = evaluatePolicyAsCode(projectId, {
+    toolName,
+    tier,
+    command: typeof args.command === "string" ? args.command : undefined,
+    path: typeof args.path === "string" ? args.path : undefined,
+  });
+  if (policyRes.effect === "deny") {
+    const errMsg = `Blocked by Policy-as-Code (${policyRes.matched_rule}): ${policyRes.reason || "Denied by policy"}`;
+    appendAuditLog(projectId, { timestamp: new Date().toISOString(), actor: "policy_interceptor", tool_name: toolName, node_id: targetNodeId, status: "error", summary: errMsg, args });
+    return { tool_name: toolName, status: "error", output: { error: errMsg, matched_rule: policyRes.matched_rule } };
+  }
 
   if (
-    tier === "TIER_3_SUPERVISED" &&
+    (tier === "TIER_3_SUPERVISED" || policyRes.effect === "require_approval") &&
     !bypassTier3Approval &&
     isWriteOrExecTool(toolName, args)
   ) {
