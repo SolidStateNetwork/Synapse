@@ -35,6 +35,18 @@
 
 ## 📜 Chronologisches Logbuch (Neueste zuerst)
 
+### [BB-010] 2026-11-02 12:35 (CET) – [MCP-SERVER / AI-ORCHESTRATOR / WEB-STUDIO-UI / v2.3.0] M8ven Security Audit Remediation, 42-Tool MCP Safety Annotations & Cross-Platform Test Hardening
+- **Akteur:** Antigravity AI & Project Lead
+- **Typ:** `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
+- **Betroffene Module:** `MCP-SERVER`, `AI-ORCHESTRATOR`, `WEB-STUDIO-UI`, `ARCH-LEXICON`
+- **Ziel / Hintergrund:** Vollständige Behebung aller im M8ven Security Audit (`https://m8ven.ai/mcp/solidstatenetwork/synapse`) gemeldeten Punkte: Upgrade der gepinnten `Next.js`- und `PostCSS`-Abhängigkeiten zur Beseitigung von `CVE-2025-55182` (`GHSA-9g9p-9gw9-jx7f`, `GHSA-h25m-26qc-wcjf`, `GHSA-f82v-jwr5-mffw`, `GHSA-q4gf-8mx6-v5v3`), Ergänzung expliziter MCP Safety Annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) für alle **42 integrierten MCP-Tools** sowie Härtung der Test-Suite (`llm-and-ota.test.ts`) für deterministische Ausführung unter Linux (`bash`) und Windows (`cmd.exe`).
+- **Durchgeführte Schritte:**
+  1. `next` und `eslint-config-next` auf `^15.5.15` sowie `postcss` auf `^8.5.10` in `apps/core-web/package.json` aktualisiert (`npm audit`: `0 vulnerabilities`).
+  2. `getMcpToolSafetyAnnotations(toolName)` in `apps/core-web/src/lib/orchestrator/toolSchemas.ts` implementiert und in `apps/core-web/src/app/api/mcp/route.ts` sowohl bei `tools/list` (`JSON-RPC 2.0`) als auch bei `GET /api/mcp` für alle 42 Tools ausgeliefert.
+  3. M8ven Verified Badge und aktualisierte `42 Tools` Dokumentation in `README.md`, `README.de.md`, `memory/PROJECT_STATE.md` und `memory/MILESTONES.md` hinterlegt.
+  4. In `apps/core-web/src/__tests__/llm-and-ota.test.ts` plattformübergreifende `go.cmd`/`systemctl.cmd` Shims, doppelte Anführungszeichen für `git commit -m` und `path.delimiter` ergänzt.
+- **Verifikation:** `npm audit` = `0 vulnerabilities`, `npx tsc --noEmit` = `0 errors`, `npm test` = `33/33 passed` (5 Suites, 0 Failures), Clean-Room Policy (`0` private IPs/Secrets) eingehalten.
+
 ### [BB-009] 2026-11-01 03:09 (CET) – [BRAIN-VAULT / AI-ORCHESTRATOR / MCP-SERVER / WEB-STUDIO-UI / v2.3.0] Lexicon-Everywhere: 4-Doc Topology Bundles, Vault Search, MCP Resources, Remote Muscle Workspace Sync & Remote FS Clean-Room Guard
 - **Akteur:** Antigravity AI & Project Lead
 - **Typ:** `ARCHITECTURE` | `FEATURE` | `SECURITY` | `UI` | `RELEASE`

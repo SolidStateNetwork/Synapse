@@ -56,7 +56,7 @@ describe("Synapse LLM Streaming, Providers, Debug & OTA System-Update Deep Suite
     execSync('git config user.email "test@example.local"', { cwd: fakeRepoRoot, stdio: "ignore" });
     execSync('git config user.name "Synapse Test"', { cwd: fakeRepoRoot, stdio: "ignore" });
     execSync(`git remote add origin "${bareRemoteRoot}"`, { cwd: fakeRepoRoot, stdio: "ignore" });
-    execSync("git add -A && git commit -m 'init fake repo'", { cwd: fakeRepoRoot, stdio: "ignore" });
+    execSync('git add -A && git commit -m "init fake repo"', { cwd: fakeRepoRoot, stdio: "ignore" });
     execSync("git push -u origin main", { cwd: fakeRepoRoot, stdio: "ignore" });
 
     fs.writeFileSync(
@@ -72,7 +72,12 @@ exit 0
 `,
       { mode: 0o755 }
     );
+    fs.writeFileSync(
+      path.join(fakeGoBinDir, "go.cmd"),
+      `@echo off\r\nif "%~1"=="version" (\r\n  echo go version go1.24.0 windows/amd64\r\n  exit /b 0\r\n)\r\n:loop\r\nif "%~1"=="" goto done\r\nif "%~1"=="-o" (\r\n  echo fake-bin > "%~2"\r\n  exit /b 0\r\n)\r\nshift\r\ngoto loop\r\n:done\r\nexit /b 0\r\n`
+    );
     fs.writeFileSync(path.join(fakeBinDir, "systemctl"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
+    fs.writeFileSync(path.join(fakeBinDir, "systemctl.cmd"), "@echo off\r\nexit /b 0\r\n");
 
     mockServer = http.createServer(async (req, res) => {
       const chunks: Buffer[] = [];
@@ -237,7 +242,7 @@ exit 0
     process.env.CORE_GATEWAY_URL = mockBaseUrl;
     process.env.CORE_GATEWAY_INTERNAL_URL = mockBaseUrl;
     process.env.HOME = tmpRoot;
-    process.env.PATH = `${fakeBinDir}:${fakeGoBinDir}:${origPath || "/usr/bin:/bin"}`;
+    process.env.PATH = [fakeBinDir, fakeGoBinDir, origPath || "/usr/bin:/bin"].join(path.delimiter);
   });
 
   after(async () => {

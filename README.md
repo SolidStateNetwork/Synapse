@@ -10,7 +10,7 @@
 [![CI Pipeline](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SolidStateNetwork/Synapse?label=Release&color=f68330&labelColor=181a1d)](https://github.com/SolidStateNetwork/Synapse/releases)
 [![M8ven Verified](https://m8ven.ai/badge/solidstatenetwork/synapse.svg)](https://m8ven.ai/mcp/solidstatenetwork/synapse)
-[![MCP Server: 33 Tools](https://img.shields.io/badge/MCP_Server-33_Built--In_Tools-31c48d?labelColor=181a1d)](#)
+[![MCP Server: 42 Tools](https://img.shields.io/badge/MCP_Server-42_Built--In_Tools-31c48d?labelColor=181a1d)](#)
 [![Stack: Go 1.23 + Next.js 15](https://img.shields.io/badge/Stack-Go_1.23_%2B_Next.js_15-3b82f6?labelColor=181a1d)](#)
 [![License: Source-Available (Non-Commercial)](https://img.shields.io/badge/License-Source--Available_(Non--Commercial)-f68330?labelColor=181a1d)](./LICENSE)
 
@@ -60,9 +60,9 @@ On the main **Overview** screen, all connected servers, the AI hub, and your run
 - **Autonomous Self-Healing & Chaos-Resilience:** Continuously monitors service health and latency, automatically restarts crashed containers or daemons, measures **MTTR (Mean Time To Recovery)**, and supports 1-click Chaos Engineering crash simulations.
 - **Encrypted Offsite Backups (`AES-256-GCM`):** Archive and restore full project & workspace snapshots directly inside the Core Vault.
 
-### 4. Built-In Model Context Protocol (`MCP`) Server (`/api/mcp` — 33 Tools)
+### 4. Built-In Model Context Protocol (`MCP`) Server (`/api/mcp` — 42 Tools)
 Connect **Claude Desktop, Cursor, Windsurf, or any MCP-compatible AI agent** directly to your Synapse Control Center via Streamable HTTP JSON-RPC 2.0 (`/api/mcp`):
-- **33 Full-Stack Tools:** 100% parity across PTY execution, filesystem operations, GitOps stacks, Time-Machine checkpoints, Offsite backups, Self-Healing, Service-Mesh probes, 1-Click Blueprints, Custom Domain/TLS bindings, Synapse Shield Firewall, AI Rule Cartridges, Cluster Node enrollment, Scheduled AI Playbooks, Supervised Approvals, Service Action Workbench, and Platform Self-Tests.
+- **42 Full-Stack Tools (with MCP Safety Annotations):** 100% parity across PTY execution, filesystem operations, GitOps stacks, Time-Machine checkpoints, Offsite backups, Self-Healing, Service-Mesh probes, 1-Click Blueprints, Custom Domain/TLS bindings, Synapse Shield Firewall, AI Rule Cartridges, Cluster Node enrollment, Scheduled AI Playbooks, Supervised Approvals, Service Action Workbench, and Platform Self-Tests.
 - **Scoped SHA-256 API Keys (`syn_mcp_...`):** Issue granular `read`, `execute`, or `admin` MCP tokens and revoke them at any time with 1 click.
 
 ### 5. Effortless 1-Click OTA Updates (Bare-Metal & Container-Native)
@@ -154,7 +154,7 @@ npm --prefix apps/core-web run build
   - [`00-product-vision.md`](./architecture/00-product-vision.md) – Core ("The Brain") & Muscle ("The Hands") separation & 3 Autonomy Tiers
   - [`01-tech-stack-and-monorepo.md`](./architecture/01-tech-stack-and-monorepo.md) – Go 1.23 workspace, Next.js 15 Studio & `< 500` Go / `< 600` TS modularization gates
   - [`02-mtls-tunnel-and-axon-agent.md`](./architecture/02-mtls-tunnel-and-axon-agent.md) – ECDSA P-256 PKI, Yamux multiplexing, Ephemeral PTY GC & Self-Lockout Guard
-  - [`03-ai-orchestrator-and-mcp-server.md`](./architecture/03-ai-orchestrator-and-mcp-server.md) – 33 AI/MCP tools, Prompt Caching & Streamable HTTP JSON-RPC 2.0 MCP Server
+  - [`03-ai-orchestrator-and-mcp-server.md`](./architecture/03-ai-orchestrator-and-mcp-server.md) – 42 AI/MCP tools, Prompt Caching & Streamable HTTP JSON-RPC 2.0 MCP Server
   - [`04-resilience-security-and-ota.md`](./architecture/04-resilience-security-and-ota.md) – `AES-256-GCM` Secret Vault, Pre-Flight Time-Machine Checkpoints, Self-Healing & OTA
 - **Project Memory & Roadmap:** [`memory/`](./memory/)
   - [`PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Live subsystem status matrix (`v2.3.0`)

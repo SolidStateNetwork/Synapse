@@ -10,7 +10,7 @@
 [![CI Pipeline](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SolidStateNetwork/Synapse?label=Release&color=f68330&labelColor=181a1d)](https://github.com/SolidStateNetwork/Synapse/releases)
 [![M8ven Verified](https://m8ven.ai/badge/solidstatenetwork/synapse.svg)](https://m8ven.ai/mcp/solidstatenetwork/synapse)
-[![MCP Server: 33 Tools](https://img.shields.io/badge/MCP_Server-33_Integrierte_Tools-31c48d?labelColor=181a1d)](#)
+[![MCP Server: 42 Tools](https://img.shields.io/badge/MCP_Server-42_Integrierte_Tools-31c48d?labelColor=181a1d)](#)
 [![Stack: Go 1.23 + Next.js 15](https://img.shields.io/badge/Stack-Go_1.23_%2B_Next.js_15-3b82f6?labelColor=181a1d)](#)
 [![Lizenz: Source-Available (Non-Commercial)](https://img.shields.io/badge/Lizenz-Source--Available_(Non--Commercial)-f68330?labelColor=181a1d)](./LICENSE)
 
@@ -60,9 +60,9 @@ Auf der Startseite (**Übersicht**) siehst du alle verbundenen Server, die KI-Ze
 - **Autonomous Self-Healing & Chaos-Resilience:** Überwacht laufende Dienste kontinuierlich, startet ausgefallene Container oder Prozesse automatisch neu, misst die **MTTR (Mean Time To Recovery)** und unterstützt 1-Klick Chaos-Simulationen.
 - **Verschlüsselte Offsite-Backups (`AES-256-GCM`):** Komplette Projekt- und Workspace-Sicherungen im Core-Vault speichern und wiederherstellen.
 
-### 4. Integrierter Model Context Protocol (`MCP`) Server (`/api/mcp` — 33 Tools)
+### 4. Integrierter Model Context Protocol (`MCP`) Server (`/api/mcp` — 42 Tools)
 Verbinde **Claude Desktop, Cursor, Windsurf oder jeden anderen MCP-fähigen KI-Client** direkt per Streamable HTTP JSON-RPC 2.0 (`/api/mcp`) mit deiner Synapse-Steuerzentrale:
-- **33 Full-Stack-Tools:** 100 % Funktionsparität über PTY-Befehle, Dateisystem, GitOps-Stacks, Time-Machine Checkpoints, Offsite-Backups, Self-Healing, Service-Mesh-Probes, 1-Click Blueprints, Domain/TLS-Bindings, Synapse Shield Firewall, AI Rule Cartridges, Cluster-Enrollment, geplante KI-Playbooks, Freigaben (`Approvals`), Service-Workbench und Plattform-Selbsttests.
+- **42 Full-Stack-Tools (inkl. MCP Safety Annotations):** 100 % Funktionsparität über PTY-Befehle, Dateisystem, GitOps-Stacks, Time-Machine Checkpoints, Offsite-Backups, Self-Healing, Service-Mesh-Probes, 1-Click Blueprints, Domain/TLS-Bindings, Synapse Shield Firewall, AI Rule Cartridges, Cluster-Enrollment, geplante KI-Playbooks, Freigaben (`Approvals`), Service-Workbench und Plattform-Selbsttests.
 - **Gehashte SHA-256 API-Keys (`syn_mcp_...`):** Vergib feingranulare `read`-, `execute`- oder `admin`-Berechtigungen und widerrufe Schlüssel jederzeit per 1-Klick.
 
 ### 5. Versionsanzeige & 1-Klick OTA-Updates (Bare-Metal & Container-Native)
@@ -154,7 +154,7 @@ npm --prefix apps/core-web run build
   - [`00-product-vision.md`](./architecture/00-product-vision.md) – Core („The Brain“) & Muscle („The Hands“) Trennung & die 3 Autonomie-Stufen
   - [`01-tech-stack-and-monorepo.md`](./architecture/01-tech-stack-and-monorepo.md) – Go 1.23 Workspace, Next.js 15 Studio & `< 500` Go / `< 600` TS Modularisierungs-Gates
   - [`02-mtls-tunnel-and-axon-agent.md`](./architecture/02-mtls-tunnel-and-axon-agent.md) – ECDSA P-256 PKI, Yamux-Multiplexing, Ephemeral PTY GC & Self-Lockout Guard
-  - [`03-ai-orchestrator-and-mcp-server.md`](./architecture/03-ai-orchestrator-and-mcp-server.md) – 33 AI/MCP-Tools, Prompt-Caching & Streamable HTTP JSON-RPC 2.0 MCP-Server
+  - [`03-ai-orchestrator-and-mcp-server.md`](./architecture/03-ai-orchestrator-and-mcp-server.md) – 42 AI/MCP-Tools, Prompt-Caching & Streamable HTTP JSON-RPC 2.0 MCP-Server
   - [`04-resilience-security-and-ota.md`](./architecture/04-resilience-security-and-ota.md) – `AES-256-GCM` Secret Vault, Pre-Flight Time-Machine Checkpoints, Self-Healing & OTA
 - **Projekt-Gedächtnis & Roadmap:** [`memory/`](./memory/)
   - [`PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Echtzeit-Statusmatrix aller Subsysteme (`v2.3.0`)
