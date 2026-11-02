@@ -4,7 +4,7 @@ Dieses Dokument beschreibt die Architektur des **Synapse AI Orchestrators**, das
 
 ---
 
-## 1. 100 % Full-Stack Tool-Parität (35 Tools total: 31 Core/Node-Tools + 4 MCP-Meta-Tools)
+## 1. 100 % Full-Stack Tool-Parität (42 Tools total: 38 Core/Node-Tools + 4 MCP-Meta-Tools)
 
 Synapse stellt sicher, dass sowohl der interne **AI Copilot** als auch externe KI-Agenten (Claude Desktop, Cursor, Windsurf, Cline) über exakt dieselben strukturierten Werkzeuge verfügen wie ein menschlicher Administrator im WebUI.
 
@@ -23,7 +23,7 @@ Synapse stellt sicher, dass sowohl der interne **AI Copilot** als auch externe K
 | **`projectAndDiagnosticTools.ts`** | `core_manage_projects`, `core_run_platform_self_test` | Projekt-Workspaces, `planning_only`-Guardrail, `Audit.jsonl`-Abfrage & 6-stufiger Plattform-Selbsttest. |
 | **`playbookAndApprovalTools.ts`** | `core_manage_playbooks`, `core_manage_approvals` | Geplante KI-Playbooks, eigene Rule-Cartridges & Freigabe/Ablehnung von `TIER_3_SUPERVISED`-Aktionen. |
 | **`workbenchAndAuthTools.ts`** | `core_invoke_service_action`, `core_manage_auth_and_ai` | Service-Workbench (`GET`/`POST`/`PUT`/`DELETE`/`SQL`), RBAC/2FA-Status, Session-Revocation & AI-Provider-Konfiguration. |
-| **`topologyAndCanaryTools.ts`** | `core_manage_topology_bundle`, `core_cluster_canary_exec` | Deklarativer Export/Import kompletter Projekt-Topologien (`synapse-stack/v2.0`) & Multi-Node Canary Rollouts mit Pre-Flight Checkpoint. |
+| **`topologyAndCanaryTools.ts` & `extendedToolSchemas.ts`** | `core_manage_topology_bundle`, `core_cluster_canary_exec`, `core_manage_mcp_keys` | Deklarativer Export/Import kompletter Projekt-Topologien (`synapse-stack/v2.0`) & Multi-Node Canary Rollouts mit Pre-Flight Checkpoint. |
 
 ---
 
@@ -39,7 +39,7 @@ Um Latenz und Token-Kosten bei Multi-Step-Agentenläufen drastisch zu senken, te
 
 Unter `/api/mcp` implementiert Synapse einen standardkonformen **MCP Streamable HTTP (`JSON-RPC 2.0`) + REST Tool Server** (`protocolVersion: "2024-11-05"`):
 
-- **Unterstützte JSON-RPC-Methoden:** `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`, `resources/list`, `resources/read` (`Architecture.md`, `Memory.md`, `State.json`, `Audit.jsonl`), `prompts/list`.
+- **Unterstützte JSON-RPC-Methoden:** `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`, `resources/list`, `resources/read` (`Architecture.md`, `Memory.md`, `Milestones.md`, `AGENTS.md`, `State.json`, `Audit.jsonl`), `prompts/list`.
 - **Gehashte API-Keys & Scopes (`syn_mcp_...`):**
   - Jeder MCP-API-Schlüssel wird nur bei der Erstellung einmalig im Klartext angezeigt und in `State.json` ausschließlich als **SHA-256-Hash** gespeichert.
   - **Scope-Enforcement (`isReadOnlyTool`):** Schlüssel mit reinem `read`-Scope dürfen alle Inspektions-, Diagnose-, Selbsttest- und `GET`-Abfragen ausführen, werden aber bei mutierenden Tools deterministisch blockiert.

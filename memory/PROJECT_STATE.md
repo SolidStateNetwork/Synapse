@@ -28,10 +28,22 @@
 | **`CORE-GATEWAY`** | **mTLS 1.3 Hub & PKI Authority** | `apps/core-gateway/` | ECDSA P-256 Root CA, CSR Join-Tokens, Yamux-Stream-Hub, 60-Sample Telemetrie & Reverse-Proxy | 🟢 `PRODUCTION (v2.3.0)` |
 | **`AXON-AGENT`** | **Statischer Linux Muscle-Agent** | `agents/axon/` | Outbound mTLS 1.3 Client, 100 % Ephemeral PTY GC (`IsEphemeralSessionID`), Workspace-Jail & Self-Lockout Guard | 🟢 `PRODUCTION (v2.3.0)` |
 | **`BRAIN-VAULT`** | **Encrypted Project Brain Vault** | `apps/core-web/src/lib/vault*` | SolidState 4-Doc Lexikon (`Architecture.md`, `Memory.md [BB-XXX]`, `Milestones.md`, `AGENTS.md`), Remote-Node-Sync, Public/Private Sanitizer & `Secrets.enc` | 🟢 `PRODUCTION (v2.3.0)` |
-| **`AI-ORCHESTRATOR`** | **Multi-LLM & Fallback Engine** | `apps/core-web/src/lib/orchestrator/` | 32 Core/Node-Tools, 4-Doc Vault-Search & `@`-Mentions, Remote-FS Clean-Room Guard & deterministischer Fallback | 🟢 `PRODUCTION (v2.3.0)` |
+| **`AI-ORCHESTRATOR`** | **Multi-LLM & Fallback Engine** | `apps/core-web/src/lib/orchestrator/` | 38 Core/Node-Tools, 4-Doc Vault-Search & `@`-Mentions, Remote-FS Clean-Room Guard & deterministischer Fallback | 🟢 `PRODUCTION (v2.3.0)` |
 | **`MCP-SERVER`** | **Model Context Protocol API** | `apps/core-web/src/app/api/mcp/` | JSON-RPC 2.0 + REST MCP-Server (`42` Tools mit MCP Safety Annotations, Rate-Limiting, `PRIVACY.md` + 4-Doc Lexicon Resources, `read`/`execute`/`admin` Scopes) | 🟢 `PRODUCTION (v2.3.0)` |
 | **`RESILIENCE-DR`** | **Time-Machine, Backups & Self-Heal** | `src/lib/checkpoints.ts`, `backups.ts`, `self-healing/` | Automatische Pre-Flight Checkpoints (`chk-...`), `AES-256-GCM` Offsite-Backups & MTTR-Self-Healing | 🟢 `PRODUCTION (v2.3.0)` |
 | **`DEVOPS-STUDIO`** | **GitOps, Hot-Reload, SQLite & Cron** | `src/lib/projects/`, `src/lib/v070-studio.ts` | GitOps Stack-Deployer, Syntax-geprüfter Code-Hot-Reload, SQLite-Studio & Cron-Due-Runner | 🟢 `PRODUCTION (v2.3.0)` |
 | **`SECOPS-SHIELD`** | **Synapse Shield Firewall & RBAC** | `src/app/api/firewall/`, `src/lib/auth.ts` | 4 Firewall-Sicherheitsprofile, Port-Shielding, SSH-Intrusion-Radar, RBAC & 2FA-TOTP | 🟢 `PRODUCTION (v2.3.0)` |
 | **`WEB-STUDIO-UI`** | **Next.js 15 Visual Control Center** | `apps/core-web/src/components/` | Interaktiver Topology Canvas, 4-Doc Lexikon-UI mit Node-Sync & `+ [BB-XXX]`, Checkpoint-Badges, Bilingual (`DE`/`EN`) | 🟢 `PRODUCTION (v2.3.0)` |
 | **`CONTAINER-LAB`** | **Lokales 2-Container-Labor & OTA** | `containers/`, `/api/system-update` | Isoliertes 2-Container-Setup (`synapse-core` + `synapse-muscle`) & Container-native OTA-Updates | 🟢 `PRODUCTION (v2.3.0)` |
+
+---
+
+## 3. Geplante Ausbaustufe (Phase 7: `v2.4.0` Enterprise Hardening & Standalone MCP Bridge)
+
+Details und Einzel-Meilensteine (`M7.1`–`M7.6`) sind in [`memory/MILESTONES.md`](./MILESTONES.md) spezifiziert:
+- **`M7.1`:** Cryptographic MCP Request Signing, 3-Tier Scope Enforcement (`read` / `execute` / `admin`) & Tamper-Evident `Audit.jsonl` SHA-256 Hash-Chain.
+- **`M7.2`:** Go `core-gateway` & `axon` mTLS 1.3 Hardening, Zero-Downtime Client-Cert Auto-Rotation, Reconnect Jitter & Symlink-Safe `TIER_2_WORKSPACE_JAIL`.
+- **`M7.3`:** Standalone `packages/mcp-server` (`index.mjs`) mit voller 42-Tool-Parität, Streamable HTTP/Stdio Bridge & Offline-Fallback.
+- **`M7.4`:** Atomic Vault Concurrency (`.tmp` + `fs.renameSync` für alle Vault-Dateien), In-Process Write-Locking & `PBKDF2-SHA256` Master-Key-Ableitung.
+- **`M7.5`:** CI/CD Supply-Chain Security (`npm audit --audit-level=high` Gate, Clean-Room Guard & SBOM Generation in `.github/workflows/ci.yml`).
+- **`M7.6`:** End-to-End Test Suite Expansion (`>= 45` TypeScript-Tests & `>= 88 %` Go Statement Coverage Gate über alle 11 Packages).

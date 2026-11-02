@@ -35,6 +35,27 @@
 
 ## 📜 Chronologisches Logbuch (Neueste zuerst)
 
+### [BB-012] 2026-11-02 14:00 (CET) – [ARCH-LEXICON / MCP-SERVER / BRAIN-VAULT / CORE-GATEWAY / AXON-AGENT / v2.4.0 Roadmap] Forensisches Codebase-Audit & Konzeption der Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) Enterprise Security & Hardening Roadmap
+- **Akteur:** Antigravity AI & Project Lead
+- **Typ:** `ARCHITECTURE` | `SECURITY` | `ARCH-LEXICON`
+- **Betroffene Module:** `ARCH-LEXICON`, `MCP-SERVER`, `BRAIN-VAULT`, `CORE-GATEWAY`, `AXON-AGENT`, `SECOPS-SHIELD`
+- **Ziel / Hintergrund:** Systematische Analyse der Codebasis (`apps/core-web`, `apps/core-gateway`, `agents/axon`, `.github/workflows/ci.yml`) zur Identifikation konkreter Architektur-, Concurrency- und Sicherheits-Härtungspotenziale für den nächsten Release-Zyklus **`v2.4.0` (Phase 7: `M7.1`–`M7.6`)** sowie Synchronisation der Tool-Zählung (`42 Tools total: 38 Core/Node-Tools + 4 MCP-Meta-Tools`) in `architecture/03-ai-orchestrator-and-mcp-server.md` und `memory/PROJECT_STATE.md`.
+- **Durchgeführte Schritte:**
+  1. **Forensische Code-Inspektion (`v2.3.0` Ist-Stand):**
+     - `/api/mcp/route.ts` prüft aktuell `canExecute = scopes.includes("execute") || scopes.includes("admin")`, differenziert jedoch bei administrativen Sicherheits-Tools (`core_manage_auth_and_ai`, `core_manage_mcp_keys`, `core_manage_firewall`, `synapse_create_join_token`) noch nicht strikt zwischen `execute` und `admin`; `Audit.jsonl` speichert Einträge noch ohne kryptografische SHA-256-Hash-Chain (`prev_hash` $\rightarrow$ `entry_hash`).
+     - In `src/lib/vault.ts`, `lexiconGovernance.ts`, `auditChatAndMcp.ts`, `cartridges.ts` und `disasterRecoveryTools.ts` existieren neben `atomicWriteTextSync` noch direkte `fs.writeFileSync`-Aufrufe bei der Initialisierung und beim Backup-Schreiben; `getMasterKey()` nutzt derzeit einen einfachen SHA-256-Digest statt `PBKDF2-SHA256` (`100.000` Iterationen).
+     - Für lokale Stdio-basierte IDE-Clients fehlt ein dediziertes `packages/mcp-server/index.mjs` Bridge-Paket mit dynamischer 42-Tool-Parität zum Streamable-HTTP-Endpunkt `/api/mcp`.
+     - In `apps/core-gateway/internal/pki/pki.go` und `agents/axon/internal/tunnel/tunnel.go` können automatische mTLS-Client-Zertifikats-Rotation vor Ablauf, TLS-1.3-Kurven-Pinning und Jitter-basierter Reconnect-Backoff ergänzt werden.
+  2. **Spezifikation von Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) in [`memory/MILESTONES.md`](./MILESTONES.md) und [`memory/PROJECT_STATE.md`](./PROJECT_STATE.md):**
+     - `M7.1`: 3-Tier MCP Scope Enforcement (`read`/`execute`/`admin`), HMAC-SHA256 Request Signing & Tamper-Evident `Audit.jsonl` Hash-Chain.
+     - `M7.2`: Go `core-gateway` & `axon` mTLS 1.3 Auto-Rotation, Curve-Pinning, Reconnect Jitter & Symlink-Safe `TIER_2_WORKSPACE_JAIL`.
+     - `M7.3`: Standalone `packages/mcp-server` 42-Tool Stdio/HTTP Bridge mit Offline-Fallback.
+     - `M7.4`: Durchgängige Atomic Vault Writes (`.tmp` + `fs.renameSync`), Write-Mutex & `PBKDF2-SHA256` Key Derivation.
+     - `M7.5`: CI/CD `npm audit --audit-level=high` Gate & SBOM Generation in `.github/workflows/ci.yml`.
+     - `M7.6`: Ausbau der Test-Suite auf `>= 45` TypeScript-Tests und `>= 88 %` Go Coverage Gate.
+  3. **Dokumentations-Synchronisation:** `architecture/03-ai-orchestrator-and-mcp-server.md` und `memory/PROJECT_STATE.md` auf `42 Tools (38 Core/Node-Tools + 4 MCP-Meta-Tools)` harmonisiert.
+- **Verifikation:** Clean-Room Guard (`0` private IPs/Domains/Secrets), `npx tsc --noEmit` (`0 errors`), `npm test` (`33/33 passed`).
+
 ### [BB-011] 2026-11-02 13:45 (CET) – [MCP-SERVER / ARCH-LEXICON / v2.3.0] M8ven Verified Badge Claim (`solidstatenetwork-synapse-rv3on4`), Hardened MCP Sliding-Window Rate-Limiting, Centralized `process.env` Resolution & `PRIVACY.md` Directory Compliance
 - **Akteur:** Antigravity AI & Project Lead
 - **Typ:** `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
