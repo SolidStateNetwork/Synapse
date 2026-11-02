@@ -26,6 +26,29 @@ import { SYNAPSE_SEMVER } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
 
+const MCP_RATE_LIMIT_WINDOW_MS = 60_000;
+const MCP_RATE_LIMIT_MAX = 120;
+const mcpRateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function checkMcpRateLimit(req: NextRequest): { allowed: boolean; limit: number; remaining: number; retryAfterSec: number } {
+  const now = Date.now();
+  const customMax = Number(req.headers.get("x-synapse-rate-limit-max") || 0);
+  const limit = customMax > 0 && customMax <= MCP_RATE_LIMIT_MAX ? customMax : MCP_RATE_LIMIT_MAX;
+  const clientId =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    extractApiKey(req).slice(0, 16) ||
+    "local-mcp-client";
+  const bucketKey = `${clientId}:${limit}`;
+  const entry = mcpRateLimitBuckets.get(bucketKey);
+  if (!entry || now >= entry.resetAt) {
+    mcpRateLimitBuckets.set(bucketKey, { count: 1, resetAt: now + MCP_RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, limit, remaining: Math.max(0, limit - 1), retryAfterSec: 60 };
+  }
+  entry.count += 1;
+  const retryAfterSec = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+  return { allowed: entry.count <= limit, limit, remaining: Math.max(0, limit - entry.count), retryAfterSec };
+}
+
 function extractApiKey(req: NextRequest): string {
   const authHeader = req.headers.get("authorization") || "";
   if (authHeader.toLowerCase().startsWith("bearer ")) {
@@ -40,18 +63,21 @@ function extractApiKey(req: NextRequest): string {
 }
 
 function getMcpToolDefinitions() {
-  const baseTools = SYNAPSE_TOOL_SCHEMAS.map((s) => ({
-    name: s.function.name,
-    description: s.function.description,
-    inputSchema: s.function.parameters,
-    annotations: (s.function as { annotations?: Record<string, unknown> }).annotations ?? {
-      title: s.function.name,
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-  }));
+  const baseTools = SYNAPSE_TOOL_SCHEMAS.map((s) => {
+    const hints = (s.function as { annotations?: Record<string, unknown> }).annotations;
+    return {
+      name: s.function.name,
+      description: s.function.description,
+      inputSchema: s.function.parameters,
+      annotations: {
+        title: typeof hints?.title === "string" ? hints.title : s.function.name,
+        readOnlyHint: Boolean(hints?.readOnlyHint),
+        destructiveHint: Boolean(hints?.destructiveHint),
+        idempotentHint: typeof hints?.idempotentHint === "boolean" ? hints.idempotentHint : true,
+        openWorldHint: Boolean(hints?.openWorldHint),
+      },
+    };
+  });
 
   const extraTools = [
     {
@@ -334,6 +360,24 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const rateLimit = checkMcpRateLimit(req);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32005, message: "Too Many Requests: MCP rate limit exceeded." },
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimit.retryAfterSec),
+          "X-RateLimit-Limit": String(rateLimit.limit),
+          "X-RateLimit-Remaining": "0",
+        },
+      }
+    );
+  }
   const body = await safeParseRequestJson(req);
   const projectId = resolveActiveProjectId(
     String(

@@ -9,7 +9,7 @@
 
 [![CI Pipeline](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SolidStateNetwork/Synapse?label=Release&color=f68330&labelColor=181a1d)](https://github.com/SolidStateNetwork/Synapse/releases)
-[![M8ven Verified](https://m8ven.ai/badge/solidstatenetwork/synapse.svg)](https://m8ven.ai/mcp/solidstatenetwork/synapse)
+[![M8ven Verified](https://m8ven.ai/badge/mcp/solidstatenetwork-synapse-rv3on4?variant=verified)](https://m8ven.ai/mcp/solidstatenetwork-synapse-rv3on4?s=readme)
 [![MCP Server: 42 Tools](https://img.shields.io/badge/MCP_Server-42_Integrierte_Tools-31c48d?labelColor=181a1d)](#)
 [![Stack: Go 1.23 + Next.js 15](https://img.shields.io/badge/Stack-Go_1.23_%2B_Next.js_15-3b82f6?labelColor=181a1d)](#)
 [![Lizenz: Source-Available (Non-Commercial)](https://img.shields.io/badge/Lizenz-Source--Available_(Non--Commercial)-f68330?labelColor=181a1d)](./LICENSE)
@@ -163,10 +163,10 @@ npm --prefix apps/core-web run build
 - **Standard-Playbooks (SOPs):** [`playbooks/`](./playbooks/)
   - [`01-feature-and-milestone-sop.md`](./playbooks/01-feature-and-milestone-sop.md) – SOP für Feature-Entwicklung, Modularisierung & Coverage-Gates
   - [`02-container-lab-and-release-sop.md`](./playbooks/02-container-lab-and-release-sop.md) – SOP für das lokale 2-Container-Labor & GitHub-Releases
-- **Governance, Sicherheit & Changelog:** [`AGENTS.md`](./AGENTS.md) · [`CONTRIBUTING.md`](./CONTRIBUTING.md) · [`SECURITY.md`](./SECURITY.md) · [`CHANGELOG.md`](./CHANGELOG.md)
+- **Governance, Sicherheit, Datenschutz & Changelog:** [`AGENTS.md`](./AGENTS.md) · [`CONTRIBUTING.md`](./CONTRIBUTING.md) · [`SECURITY.md`](./SECURITY.md) · [`PRIVACY.md`](./PRIVACY.md) · [`CHANGELOG.md`](./CHANGELOG.md)
 
 ---
 
 ## 📄 Lizenz
 
-Veröffentlicht unter der [Synapse Source-Available Non-Commercial License](./LICENSE) (`Copyright (c) 2026 SolidStateNetwork — Alle Rechte vorbehalten`). Kostenlos für private Nutzung, Tests und nicht-kommerzielles Self-Hosting; kommerzieller Verkauf, Weiterverkauf oder das Anbieten als Managed-Cloud-/SaaS-Dienst ist ohne schriftliche Lizenz von SolidStateNetwork streng untersagt. Hinweise zur Sicherheit findest du in [SECURITY.md](./SECURITY.md).
+Veröffentlicht unter der [Synapse Source-Available Non-Commercial License](./LICENSE) (`Copyright (c) 2026 SolidStateNetwork — Alle Rechte vorbehalten`). Kostenlos für private Nutzung, Tests und nicht-kommerzielles Self-Hosting; kommerzieller Verkauf, Weiterverkauf oder das Anbieten als Managed-Cloud-/SaaS-Dienst ist ohne schriftliche Lizenz von SolidStateNetwork streng untersagt. Hinweise zu Sicherheit und Datenschutz findest du in [SECURITY.md](./SECURITY.md) und [PRIVACY.md](./PRIVACY.md).

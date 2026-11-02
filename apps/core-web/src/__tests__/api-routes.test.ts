@@ -395,6 +395,26 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     const mcpReadAgentsJson = await mcpReadAgents.json();
     assert.ok(String(mcpReadAgentsJson.result.contents[0].text || "").includes("AGENTS.md"));
 
+    // Verify MCP sliding-window rate limiting (429 Too Many Requests when window limit is exceeded)
+    const rlFirstRes = await postMcp(
+      makePostReq(
+        "/api/mcp",
+        { jsonrpc: "2.0", id: 46, project_id: projId, method: "ping" },
+        { authorization: `Bearer ${apiKey}`, "x-forwarded-for": "198.51.100.77", "x-synapse-rate-limit-max": "1" }
+      )
+    );
+    assert.equal(rlFirstRes.status, 200);
+    const rlSecondRes = await postMcp(
+      makePostReq(
+        "/api/mcp",
+        { jsonrpc: "2.0", id: 47, project_id: projId, method: "ping" },
+        { authorization: `Bearer ${apiKey}`, "x-forwarded-for": "198.51.100.77", "x-synapse-rate-limit-max": "1" }
+      )
+    );
+    assert.equal(rlSecondRes.status, 429);
+    assert.equal(rlSecondRes.headers.get("X-RateLimit-Limit"), "1");
+    assert.ok(Number(rlSecondRes.headers.get("Retry-After") || 0) >= 1);
+
     const syncLexRes = await postProjects(
       makePostReq("/api/projects", { action: "sync_lexicon_to_node", project_id: projId })
     );
@@ -462,6 +482,9 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
       fs.readFileSync(path.join(repoRoot, "apps/core-web/package.json"), "utf8")
     );
     const securityMd = fs.readFileSync(path.join(repoRoot, "SECURITY.md"), "utf8");
+    const privacyMd = fs.readFileSync(path.join(repoRoot, "PRIVACY.md"), "utf8");
+    const readmeEn = fs.readFileSync(path.join(repoRoot, "README.md"), "utf8");
+    const readmeDe = fs.readFileSync(path.join(repoRoot, "README.de.md"), "utf8");
     const changelogMd = fs.readFileSync(path.join(repoRoot, "CHANGELOG.md"), "utf8");
     const installAxonSh = fs.readFileSync(path.join(repoRoot, "scripts/install-axon.sh"), "utf8");
     const deployCoreSh = fs.readFileSync(path.join(repoRoot, "scripts/deploy-core.sh"), "utf8");
@@ -474,6 +497,15 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     assert.ok(axonMain.includes('version = "v2.3.0"'), "axon main.go must default to v2.3.0");
     assert.equal(pkgJson.version, "2.3.0", "core-web package.json must report 2.3.0");
     assert.ok(securityMd.includes("2.3.x"), "SECURITY.md must list 2.3.x");
+    assert.ok(privacyMd.includes("Zero-Telemetry"), "PRIVACY.md must document Zero-Telemetry policy");
+    assert.ok(
+      readmeEn.includes("https://m8ven.ai/badge/mcp/solidstatenetwork-synapse-rv3on4?variant=verified"),
+      "README.md must include verified M8ven badge slug"
+    );
+    assert.ok(
+      readmeDe.includes("https://m8ven.ai/badge/mcp/solidstatenetwork-synapse-rv3on4?variant=verified"),
+      "README.de.md must include verified M8ven badge slug"
+    );
     assert.ok(changelogMd.includes("## [v2.3.0]"), "CHANGELOG.md must document v2.3.0");
     assert.ok(versionTs.includes('SYNAPSE_SEMVER = "2.3.0"'), "version.ts must export SYNAPSE_SEMVER = 2.3.0");
 
