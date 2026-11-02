@@ -195,6 +195,7 @@ func (c *Collector) Collect(activePtySessions []string, sessionDetails ...[]tunn
 	}
 
 	loadAvg1, uptimeSec := readLinuxLoadAndUptime()
+	anomalyAlerts, openFDs, outboundConns := DetectProcfsAnomalies(cpuPct)
 
 	return tunnelv1.NodeHeartbeat{
 		NodeID:            c.NodeID,
@@ -216,6 +217,9 @@ func (c *Collector) Collect(activePtySessions []string, sessionDetails ...[]tunn
 		Services:          statuses,
 		ActivePtySessions: activePtySessions,
 		PtySessionDetails: details,
+		AnomalyAlerts:     anomalyAlerts,
+		OpenFDs:           openFDs,
+		OutboundConns:     outboundConns,
 	}
 }
 

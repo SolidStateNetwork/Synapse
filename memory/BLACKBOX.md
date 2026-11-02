@@ -35,6 +35,25 @@
 
 ## 📜 Chronologisches Logbuch (Neueste zuerst)
 
+### [BB-014] 2026-11-02 20:20 (CET) – [CORE-GATEWAY / AXON-AGENT / AI-ORCHESTRATOR / BRAIN-VAULT / MCP-SERVER / v2.5.0] Full Implementation & Verification of Phase 8 (`v2.5.0`, `M8.1`–`M8.6`): Real-Time X.509 CRL Revocation, Signed Topology Bundles & Drift Simulator, Multi-Stage DAG Playbooks, Procfs Anomaly Detector & OpenMetrics Exporter
+- **Akteur:** Antigravity AI & Project Lead
+- **Typ:** `RELEASE` | `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
+- **Betroffene Module:** `CORE-GATEWAY`, `AXON-AGENT`, `AI-ORCHESTRATOR`, `BRAIN-VAULT`, `MCP-SERVER`, `PROTO-WIRE`, `ARCH-LEXICON`
+- **Ziel / Hintergrund:** Vollständige End-to-End-Implementierung und Verifikation aller 6 Meilensteine der Phase 8 (`v2.5.0`, `M8.1`–`M8.6`) gemäß [`memory/MILESTONES.md`](./MILESTONES.md).
+- **Durchgeführte Schritte:**
+  1. **`M8.1` – Real-Time X.509 Certificate Revocation List (`CRL.json`) & Instant Session Eviction (`apps/core-gateway/internal/pki/crl.go`, `internal/hub/eviction.go`, `apps/core-gateway/main.go`):**
+     - Persistente X.509 Seriennummern-Sperrliste (`CRL.json` mit atomarem `.bak` Self-Healing) in `pki.Authority` (`RevokeCertSerial`, `IsCertRevoked`, `ListRevokedCerts`) implementiert und direkt in `ServerTLSConfig().VerifyPeerCertificate` sowie `RenewClientCert` verdrahtet.
+     - `EvictNode(nodeID, reason)` und `GetNodeCertSerial(nodeID)` im Yamux-Hub ergänzt sowie `POST /api/v1/nodes/revoke` und `GET /api/v1/pki/crl` in `core-gateway` bereitgestellt und mit `core_manage_node_enrollment` (`remove_node`) verknüpft.
+  2. **`M8.2` – Cryptographically Signed Topology Bundles (`HMAC-SHA256`) & Dry-Run Drift Simulator (`apps/core-web/src/lib/vault/v250Enterprise.ts`, `topologyAndCanaryTools.ts`):**
+     - `signTopologyBundle`, `verifyTopologyBundleSignature` und `simulateTopologyBundleDrift` (`simulate_apply`) implementiert; Export signiert kanonische Topologie-Payloads automatisch, Import verifiziert die Signatur vor jeder Mutation, und `simulate_apply` berechnet deterministisch hinzuzufügende/aktualisierende Services, Ports, Cartridges und Stacks ohne Seiteneffekte.
+  3. **`M8.3` – Multi-Stage DAG Playbooks & Event-Driven Webhook Triggers (`v250Enterprise.ts`, `playbookAndApprovalTools.ts`, `/api/playbooks/webhook/route.ts`):**
+     - Mehrstufige DAG-Playbooks (`steps` mit `on_success` / `on_failure` Verzweigung, Pre-Flight Time-Machine Checkpoint `chk-...` und automatischem Rollback bei Step-Fehlern) sowie `POST /api/playbooks/webhook` (`X-Synapse-Webhook-Token` / `HMAC-SHA256` Signaturprüfung) implementiert.
+  4. **`M8.4` – Lightweight Procfs/Socket Anomaly Detector & PTY Resource Quota Guard (`agents/axon/internal/health/anomaly.go`, `internal/pty/pty_discovery.go`, `pty.go`):**
+     - `CollectProcfsAndAnomalyTelemetry` (`open_fds`, `outbound_conns`, `AnomalyAlerts`: `ANOMALY_CPU_SPIKE`, `ANOMALY_FD_EXHAUSTION`, `ANOMALY_OUTBOUND_BURST`) im `axon` Health-Collector und `BuildQuotaWrappedCommand` (`ulimit -v` / `ulimit -t`) im PTY-Executor ergänzt.
+  5. **`M8.5` & `M8.6` – OpenMetrics Exporter (`/api/metrics` & `:8081/metrics`) & Full-Stack Test Matrix (`58/58` TS-Tests & `11/11 >= 90.0%` Go-Coverage):**
+     - Prometheus/OpenMetrics-Endpunkte in `apps/core-gateway/metrics.go` (`:8081/metrics`) und `apps/core-web/src/app/api/metrics/route.ts` (`/api/metrics`) mit optionalem Bearer-Token-Schutz (`SYNAPSE_METRICS_TOKEN`) sowie `src/__tests__/v250-enterprise.test.ts` (Tests `48`–`58`) erstellt.
+- **Verifikation:** `58/58` TypeScript-Tests grün (`0` Fehler), `npx tsc --noEmit` (`0` Fehler), `npm audit --audit-level=high` (`0` Vulnerabilities), alle `.go`-Dateien `< 500` Zeilen und alle `.ts`/`.tsx`-Dateien `< 600` Zeilen, alle 11 Go-Pakete `>= 90.0 %` Statement-Coverage (`100.0%`, `91.2%`, `90.8%`, `92.2%`, `95.9%`, `90.0%`, `91.2%`, `94.9%`, `91.1%`, `90.2%`, `90.2%`).
+
 ### [BB-013] 2026-11-02 15:40 (CET) – [MCP-SERVER / BRAIN-VAULT / CORE-GATEWAY / AXON-AGENT / v2.4.0 + Phase 8 v2.5.0 Roadmap] Full Implementation & Verification of Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) & Specification of Phase 8 (`v2.5.0`, `M8.1`–`M8.6`)
 - **Akteur:** Antigravity AI & Project Lead
 - **Typ:** `RELEASE` | `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`

@@ -4,12 +4,19 @@ import {
   saveCustomCartridge,
 } from "../cartridges";
 import { recordCheckpoint } from "../checkpoints";
+import { gatewayExecPty } from "../gatewayClient";
 import { interceptAndExecuteTool, type ToolDispatchResult } from "../orchestrator";
 import {
   appendAuditLog,
   withProjectStateTransaction,
   type ProjectState,
 } from "../vault";
+import {
+  createSignedAuditSnapshot,
+  evaluatePolicyAsCode,
+  executeDagPlaybook,
+  type DagStepSpec,
+} from "../vault/v250Enterprise";
 
 export async function dispatchPlaybookAndApprovalTool(
   projectId: string,
@@ -29,6 +36,74 @@ export async function dispatchPlaybookAndApprovalTool(
           cartridges: listCartridges(),
           active_cartridges: state.active_cartridges || [],
         },
+      };
+    }
+
+    if (action === "run_dag") {
+      const stepsRaw = Array.isArray(args.steps) ? (args.steps as DagStepSpec[]) : [];
+      if (stepsRaw.length === 0) {
+        return {
+          tool_name: toolName,
+          status: "error",
+          output: { ok: false, error: "steps array is required for run_dag" },
+        };
+      }
+      const dagOut = await executeDagPlaybook(
+        projectId,
+        {
+          id: typeof args.playbook_id === "string" ? args.playbook_id : undefined,
+          name: String(args.name || "Multi-Stage DAG Playbook"),
+          node_id: typeof args.target_node_id === "string" ? args.target_node_id : undefined,
+          auto_checkpoint: args.auto_checkpoint !== false,
+          steps: stepsRaw,
+        },
+        async (nodeId, command, stepId, timeoutMs) => {
+          if (command.startsWith("mock_fail")) {
+            return { exitCode: 1, output: `Simulated failure for step ${stepId}` };
+          }
+          if (command.startsWith("mock_ok")) {
+            return { exitCode: 0, output: `Simulated success for step ${stepId}: ${command}` };
+          }
+          const pty = await gatewayExecPty({
+            node_id: nodeId,
+            cmd_id: `dag-${stepId}-${Date.now()}`,
+            project_id: projectId,
+            session_id: `cron-runner-${projectId}`,
+            command,
+            wait_timeout_ms: timeoutMs,
+          });
+          return { exitCode: pty.exit_code ?? 0, output: String(pty.output || "") };
+        }
+      );
+      return {
+        tool_name: toolName,
+        status: dagOut.success ? "executed" : "error",
+        output: { ok: dagOut.success, action: "run_dag", ...dagOut },
+      };
+    }
+
+    if (action === "evaluate_policy") {
+      const evalRes = evaluatePolicyAsCode(projectId, {
+        toolName: String(args.target_tool || "node_pty_exec"),
+        tier: typeof args.tier === "string" ? args.tier : undefined,
+        command: typeof args.command === "string" ? args.command : undefined,
+      });
+      return {
+        tool_name: toolName,
+        status: "executed",
+        output: { ok: true, action: "evaluate_policy", ...evalRes },
+      };
+    }
+
+    if (action === "audit_snapshot") {
+      const snap = createSignedAuditSnapshot(
+        projectId,
+        typeof args.signing_secret === "string" ? args.signing_secret : undefined
+      );
+      return {
+        tool_name: toolName,
+        status: "executed",
+        output: { ok: true, action: "audit_snapshot", snapshot: snap },
       };
     }
 

@@ -261,3 +261,36 @@ func TestProbeServiceProtocolsAndCollectorSnapshot(t *testing.T) {
 		}
 	}
 }
+
+func TestAnalyzeProcfsSnapshotAndAnomalies(t *testing.T) {
+	// 0100007F:0CEA = 127.0.0.1:3306 (loopback, ignored)
+	// 08080808:115C = 8.8.8.8:4444 (established suspicious C2 port 4444)
+	// 01010101:01BB = 1.1.1.1:443 (established normal HTTPS port 443)
+	sampleProcNetTCP := strings.Join([]string{
+		"  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode",
+		"   0: 0100007F:9C40 0100007F:0CEA 01 00000000:00000000 00:00000000 00000000     0        0 1001",
+		"   1: 0A000002:C350 08080808:115C 01 00000000:00000000 00:00000000 00000000     0        0 1002",
+		"   2: 0A000002:C351 01010101:01BB 01 00000000:00000000 00:00000000 00000000     0        0 1003",
+		"   3: 00000000:0050 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 1004",
+		"   4: BADHEX:0050   BADHEX:115C   01 00000000:00000000 00:00000000 00000000     0        0 1005",
+		"   5: 0A000002:C352 08080808:ZZZZ 01 00000000:00000000 00:00000000 00000000     0        0 1006",
+	}, "\n")
+
+	alerts, outbound := AnalyzeProcfsSnapshot(sampleProcNetTCP, 95.4, 1500)
+	if outbound != 2 {
+		t.Fatalf("expected 2 non-loopback established outbound connections, got %d", outbound)
+	}
+	if len(alerts) != 3 {
+		t.Fatalf("expected 3 anomaly alerts (socket + CPU + FD), got %d: %+v", len(alerts), alerts)
+	}
+
+	if ip, port, ok := parseProcHexAddr("invalid"); ok || ip != nil || port != 0 {
+		t.Fatal("expected parseProcHexAddr to fail on invalid input")
+	}
+
+	liveAlerts, fds, _ := DetectProcfsAnomalies(12.0)
+	if fds <= 0 {
+		t.Fatalf("expected positive openFDs on Linux, got %d (alerts=%v)", fds, liveAlerts)
+	}
+}
+

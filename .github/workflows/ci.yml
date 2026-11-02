@@ -59,10 +59,10 @@ jobs:
           go vet -C apps/core-gateway ./...
           go vet -C agents/axon ./...
           CGO_ENABLED=0 go build -C apps/core-gateway -ldflags="-s -w" -o ../../bin/core-gateway .
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -C agents/axon -ldflags="-s -w -X main.version=v2.4.0" -o ../../bin/axon-linux-amd64 ./cmd/axon
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -C agents/axon -ldflags="-s -w -X main.version=v2.4.0" -o ../../bin/axon-linux-arm64 ./cmd/axon
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -C agents/axon -ldflags="-s -w -X main.version=v2.5.0" -o ../../bin/axon-linux-amd64 ./cmd/axon
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -C agents/axon -ldflags="-s -w -X main.version=v2.5.0" -o ../../bin/axon-linux-arm64 ./cmd/axon
 
-      - name: Run Go Unit Tests & Enforce >= 88% Statement Coverage Across All 11 Packages
+      - name: Run Go Unit Tests & Enforce >= 90% Statement Coverage Across All 11 Packages
         run: |
           FAILED=0
           for mod in proto apps/core-gateway agents/axon; do
@@ -75,7 +75,7 @@ jobs:
                 echo "::error::Missing coverage output for $pkg"
                 FAILED=1
               else
-                awk -v c="$cov" -v p="$pkg" 'BEGIN { if (c + 0.0 < 88.0) { printf "::error::Package %s coverage %.1f%% is below 88.0%%\n", p, c; exit 1 } }' || FAILED=1
+                awk -v c="$cov" -v p="$pkg" 'BEGIN { if (c + 0.0 < 90.0) { printf "::error::Package %s coverage %.1f%% is below 90.0%%\n", p, c; exit 1 } }' || FAILED=1
               fi
             done
           done
@@ -106,7 +106,8 @@ jobs:
             src/__tests__/api-routes.test.ts \
             src/__tests__/core-deep.test.ts \
             src/__tests__/llm-and-ota.test.ts \
-            src/__tests__/v240-security.test.ts
+            src/__tests__/v240-security.test.ts \
+            src/__tests__/v250-enterprise.test.ts
 
       - name: Build Production Next.js Bundle & Generate Supply-Chain SBOM
         working-directory: apps/core-web

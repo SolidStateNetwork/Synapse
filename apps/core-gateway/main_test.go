@@ -45,7 +45,7 @@ func TestGatewayHealthzAndDebugRoutes(t *testing.T) {
 		t.Fatalf("unexpected /healthz status/headers: %d", rec.Code)
 	}
 	var health map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &health); err != nil || health["version"] != "v2.4.0" || health["status"] != "ok" {
+	if err := json.Unmarshal(rec.Body.Bytes(), &health); err != nil || health["version"] != "v2.5.0" || health["status"] != "ok" {
 		t.Fatalf("unexpected /healthz response: %+v (%v)", health, err)
 	}
 	rec = httptest.NewRecorder()

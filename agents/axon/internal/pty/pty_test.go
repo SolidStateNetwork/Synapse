@@ -215,3 +215,31 @@ func TestPersistentPtySentinelAndState(t *testing.T) {
 		unsub2()
 	}
 }
+
+func TestResourceQuotaPrefixAndTimeoutBounds(t *testing.T) {
+	if NormalizeCommandTimeoutMs(0) != DefaultCommandTimeoutMs {
+		t.Fatalf("expected default timeout on 0")
+	}
+	if NormalizeCommandTimeoutMs(999999) != MaxAllowedTimeoutMs {
+		t.Fatalf("expected MaxAllowedTimeoutMs cap")
+	}
+	if NormalizeCommandTimeoutMs(4500) != 4500 {
+		t.Fatalf("expected exact timeout 4500")
+	}
+
+	prefix := BuildResourceQuotaPrefix(tunnelv1.PtyExecRequest{
+		MaxCpuSec:   15,
+		MaxMemoryMB: 256,
+	})
+	if !strings.Contains(prefix, "ulimit -t 15") || !strings.Contains(prefix, "ulimit -v 262144") {
+		t.Fatalf("unexpected quota prefix: %q", prefix)
+	}
+
+	t.Setenv("SYNAPSE_PTY_MAX_CPU_SEC", "30")
+	t.Setenv("SYNAPSE_PTY_MAX_MEM_MB", "512")
+	envPrefix := BuildResourceQuotaPrefix(tunnelv1.PtyExecRequest{})
+	if !strings.Contains(envPrefix, "ulimit -t 30") || !strings.Contains(envPrefix, "ulimit -v 524288") {
+		t.Fatalf("unexpected env quota prefix: %q", envPrefix)
+	}
+}
+

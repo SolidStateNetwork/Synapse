@@ -271,3 +271,75 @@ func TestRenewClientCert(t *testing.T) {
 		t.Fatal("expected error for tampered CSR signature")
 	}
 }
+
+func TestCRLRevocationAndPersistence(t *testing.T) {
+	dataDir := t.TempDir()
+	auth, err := NewAuthority(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := auth.RevokeCertSerial("", "", ""); err == nil {
+		t.Fatal("expected error when both serial_hex and node_id are empty")
+	}
+	if !auth.IsCertRevoked(nil) {
+		t.Fatal("expected nil cert to be treated as revoked")
+	}
+
+	tok := auth.CreateJoinToken("proj-crl", tunnelv1.Tier2WorkspaceJail, time.Minute)
+	csrPEM, _ := createValidCSRPEM(t, "node-crl-01")
+	certPEM, _, _, err := auth.SignNodeCSR(tunnelv1.CSRBootstrapRequest{
+		JoinToken: tok.Token,
+		NodeID:    "node-crl-01",
+		CSRPerm:   csrPEM,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(certPEM)
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if auth.IsCertRevoked(cert) || auth.IsNodeRevoked("node-crl-01") {
+		t.Fatal("expected newly issued cert not to be revoked")
+	}
+
+	serialHex := cert.SerialNumber.Text(16)
+	entry, err := auth.RevokeCertSerial(serialHex, "node-crl-01", "")
+	if err != nil || entry.Reason != "administrative_revocation" {
+		t.Fatalf("RevokeCertSerial failed: err=%v entry=%+v", err, entry)
+	}
+	if _, err := auth.RevokeNode("node-crl-02", "decommissioned"); err != nil {
+		t.Fatalf("RevokeNode failed: %v", err)
+	}
+
+	if !auth.IsCertRevoked(cert) || !auth.IsNodeRevoked("node-crl-01") || !auth.IsNodeRevoked("node-crl-02") {
+		t.Fatal("expected cert and nodes to be marked revoked")
+	}
+	if len(auth.ListRevokedCerts()) < 2 {
+		t.Fatalf("expected >= 2 CRL entries, got %d", len(auth.ListRevokedCerts()))
+	}
+
+	// Verify RenewClientCert rejects revoked cert
+	if _, _, err := auth.RenewClientCert(cert, csrPEM); err == nil || !strings.Contains(err.Error(), "revoked") {
+		t.Fatalf("expected RenewClientCert to reject revoked cert, got %v", err)
+	}
+
+	// Verify ServerTLSConfig VerifyPeerCertificate rejects revoked cert
+	tlsCfg := auth.ServerTLSConfig()
+	if err := tlsCfg.VerifyPeerCertificate(nil, [][]*x509.Certificate{{cert}}); err == nil {
+		t.Fatal("expected VerifyPeerCertificate to reject revoked cert")
+	}
+
+	// Reload Authority from disk and verify CRL.json persistence
+	reloaded, err := NewAuthority(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reloaded.IsCertRevoked(cert) || !reloaded.IsNodeRevoked("node-crl-02") {
+		t.Fatal("expected CRL entries to persist across Authority reload")
+	}
+}
+

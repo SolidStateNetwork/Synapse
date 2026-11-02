@@ -8,8 +8,49 @@ import (
 	"strings"
 	"syscall"
 
+	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
 	creackpty "github.com/creack/pty"
 )
+
+const MaxAllowedTimeoutMs uint32 = 300000 // 5 minutes hard ceiling
+
+// NormalizeCommandTimeoutMs bounds WaitTimeoutMs between DefaultCommandTimeoutMs (when 0) and MaxAllowedTimeoutMs.
+func NormalizeCommandTimeoutMs(waitTimeoutMs uint32) uint32 {
+	if waitTimeoutMs == 0 {
+		return DefaultCommandTimeoutMs
+	}
+	if waitTimeoutMs > MaxAllowedTimeoutMs {
+		return MaxAllowedTimeoutMs
+	}
+	return waitTimeoutMs
+}
+
+// BuildResourceQuotaPrefix generates optional POSIX ulimit prefixes (CPU seconds and virtual memory KB)
+// when requested in PtyExecRequest or configured via SYNAPSE_PTY_MAX_CPU_SEC / SYNAPSE_PTY_MAX_MEM_MB.
+func BuildResourceQuotaPrefix(req tunnelv1.PtyExecRequest) string {
+	cpuSec := req.MaxCpuSec
+	if cpuSec == 0 {
+		if envCPU, err := strconv.Atoi(strings.TrimSpace(os.Getenv("SYNAPSE_PTY_MAX_CPU_SEC"))); err == nil && envCPU > 0 {
+			cpuSec = uint32(envCPU)
+		}
+	}
+	memMB := req.MaxMemoryMB
+	if memMB == 0 {
+		if envMem, err := strconv.Atoi(strings.TrimSpace(os.Getenv("SYNAPSE_PTY_MAX_MEM_MB"))); err == nil && envMem > 0 {
+			memMB = uint32(envMem)
+		}
+	}
+
+	var b strings.Builder
+	if cpuSec > 0 {
+		fmt.Fprintf(&b, "ulimit -t %d 2>/dev/null; ", cpuSec)
+	}
+	if memMB > 0 {
+		memKB := uint64(memMB) * 1024
+		fmt.Fprintf(&b, "ulimit -v %d 2>/dev/null; ", memKB)
+	}
+	return b.String()
+}
 
 func (s *Session) isClosed() bool {
 	s.subMu.Lock()

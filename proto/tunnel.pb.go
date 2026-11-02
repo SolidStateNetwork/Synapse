@@ -85,6 +85,8 @@ type PtyExecRequest struct {
 	Cols          uint16            `json:"cols,omitempty"`
 	Rows          uint16            `json:"rows,omitempty"`
 	SendSignal    string            `json:"send_signal,omitempty"`
+	MaxMemoryMB   uint32            `json:"max_memory_mb,omitempty"`
+	MaxCpuSec     uint32            `json:"max_cpu_sec,omitempty"`
 }
 
 type PtyExecResponse struct {
@@ -151,6 +153,13 @@ type TelemetrySample struct {
 	AvgLatencyMs  int64   `json:"latency_ms"`
 }
 
+type AnomalyAlert struct {
+	Code          string `json:"code"`
+	Severity      string `json:"severity"`
+	Message       string `json:"message"`
+	TimestampUnix int64  `json:"timestamp_unix"`
+}
+
 type NodeHeartbeat struct {
 	NodeID            string                `json:"node_id"`
 	Hostname          string                `json:"hostname"`
@@ -175,6 +184,9 @@ type NodeHeartbeat struct {
 	PtySessionDetails []PtySessionMeta      `json:"pty_session_details,omitempty"`
 	ActiveCores       int                   `json:"active_cores,omitempty"`
 	ConnectedCores    []string              `json:"connected_cores,omitempty"`
+	AnomalyAlerts     []AnomalyAlert        `json:"anomaly_alerts,omitempty"`
+	OpenFDs           int                   `json:"open_fds,omitempty"`
+	OutboundConns     int                   `json:"outbound_conns,omitempty"`
 }
 
 type CSRBootstrapRequest struct {

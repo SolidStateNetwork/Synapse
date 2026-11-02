@@ -2,6 +2,24 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v2.5.0] — 2026-11-02 (X.509 CRL & Instant Session Eviction, Signed Topology Bundles & Drift Simulator, Multi-Stage DAG Playbooks, Procfs Anomaly Guard, Policy-as-Code & OpenMetrics)
+
+### Added & Improved
+- **X.509 Certificate Revocation List (`CRL.json`) & Instant Yamux Session Eviction (`pki/crl.go`, `pki.go`, `hub/eviction.go`, `metrics.go`)**:
+  - Added persistent `CRL.json` revocation tracking (`RevokeCertSerial`, `RevokeNode`, `IsCertRevoked`, `ListRevokedCerts`) wired into `VerifyPeerCertificate` in `ServerTLSConfig()` and `RenewClientCert`.
+  - Added `POST /api/v1/nodes/revoke` & `GET /api/v1/crl` on `core-gateway` and `revoke_node` / `remove_node` in `core_manage_cluster_nodes` to immediately sever active Yamux/mTLS sessions and mark revoked nodes offline across project vaults.
+- **Cryptographically Signed Topology Bundles, Dry-Run Drift Simulator (`simulate_apply`), Policy-as-Code (`.synapse/policies.json`) & Signed Audit Snapshots (`v250Enterprise.ts`, `topologyAndCanaryTools.ts`)**:
+  - Extended `core_manage_topology_bundle` with `sign`, `verify`, and `simulate_apply` (`bundle_signature`, `signed_at`, `signer_fingerprint`) plus tamper rejection on `import`/`apply`.
+  - Added `.synapse/policies.json` Policy-as-Code ruleset evaluation (`evaluatePolicyAsCode`) and cryptographically signed `Audit.jsonl` Chain-Tip-Hash snapshots (`createSignedAuditSnapshot` / `verifySignedAuditSnapshot`).
+- **Multi-Stage DAG Playbooks (`run_dag`) & Authenticated GitOps Webhook Receiver (`v250Enterprise.ts`, `playbookAndApprovalTools.ts`, `/api/playbooks/webhook/route.ts`)**:
+  - Added DAG playbook execution (`depends_on`, `on_success`, `on_failure`, automatic Pre-Flight Checkpoint `chk-...`) and `POST /api/playbooks/webhook` with `X-Synapse-Signature` (`HMAC-SHA256`) + `300s` replay protection.
+- **Axon Procfs/Socket Anomaly Detector & PTY `ulimit` Resource Quota Guard (`health/anomaly.go`, `health.go`, `pty_discovery.go`, `pty.go`)**:
+  - Added `/proc/net/tcp`, `/proc/self/fd`, and CPU spike inspection (`DetectProcfsAnomalies` / `AnalyzeProcfsSnapshot`) populating `AnomalyAlerts`, `OpenFDs`, and `OutboundConns` in `NodeHeartbeat`, plus configurable `ulimit -t` / `ulimit -v` and bounded `WaitTimeoutMs` quotas in `pty`.
+- **OpenTelemetry / Prometheus Metrics Exporter (`/api/metrics` & `:8081/metrics`)**:
+  - Added OpenMetrics text and JSON summary exporters on both `core-web` (`/api/metrics`) and `core-gateway` (`:8081/metrics`) with optional `SYNAPSE_METRICS_TOKEN` Bearer authentication.
+
+---
+
 ## [v2.4.0] — 2026-11-02 (Zero-Trust MCP Hardening, Tamper-Evident Audit Hash-Chain, PBKDF2-SHA256 Secret Vault, mTLS Auto-Rotation & Standalone MCP Server)
 
 ### Added & Improved

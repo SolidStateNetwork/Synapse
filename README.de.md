@@ -27,7 +27,7 @@ Verwalte, überwache und repariere deine Linux-Server gemeinsam mit einer KI –
 
 Wer einen oder mehrere Linux-Server betreibt, kennt den Alltag: Man verbindet sich per SSH, sucht in langen Log-Dateien nach Fehlern, passt Konfigurationsdateien von Hand an, spielt Updates ein und prüft danach mühsam, ob noch alle Dienste laufen.
 
-**Synapse ist ein KI-gesteuertes Infrastruktur-Control-Center (`v2.4.0`), das dir diese Arbeit abnimmt.**
+**Synapse ist ein KI-gesteuertes Infrastruktur-Control-Center (`v2.5.0`), das dir diese Arbeit abnimmt.**
 
 Statt selbst Befehle im Terminal einzutippen, arbeitest du in einer visuellen Oberfläche (jederzeit per Klick zwischen **Deutsch** und **Englisch** umschaltbar) mit einem integrierten KI-Systemadministrator zusammen – oder verbindest externe KI-Clients wie **Claude Desktop, Cursor oder Windsurf** direkt über den eingebauten **MCP-Server (`/api/mcp`)**. Die KI ist über einen ausgehenden `mTLS 1.3`-Tunnel mit deinen Servern verbunden: Sie prüft den Systemzustand, richtet Dienste ein, legt vor Änderungen automatisch **Pre-Flight Time-Machine Checkpoints** an und heilt ausgefallene Dienste selbstständig – während du jederzeit die volle Übersicht und das letzte Wort behältst.
 
@@ -66,7 +66,7 @@ Verbinde **Claude Desktop, Cursor, Windsurf oder jeden anderen MCP-fähigen KI-C
 - **Gehashte SHA-256 API-Keys (`syn_mcp_...`):** Vergib feingranulare `read`-, `execute`- oder `admin`-Berechtigungen und widerrufe Schlüssel jederzeit per 1-Klick.
 
 ### 5. Versionsanzeige & 1-Klick OTA-Updates (Bare-Metal & Container-Native)
-Unten links in der Seitenleiste siehst du jederzeit die aktuell installierte Version (`v2.4.0`) und den Commit-Stand:
+Unten links in der Seitenleiste siehst du jederzeit die aktuell installierte Version (`v2.5.0`) und den Commit-Stand:
 - **1-Klick Rollout mit Pre-Flight Checkpoint:** Sobald für **Core** oder deine verbundenen **Muscle**-Server ein Update bereitsteht, legt der **`Update`**-Button automatisch einen Pre-Flight Time-Machine Checkpoint an und aktualisiert sowohl klassische Systemd-Dienste als auch Container-Umgebungen.
 
 ### 6. Projekt-Gedächtnis (`Brain Vault`) & Modulare KI-Regeln (`Regeln`)
@@ -157,7 +157,7 @@ npm --prefix apps/core-web run build
   - [`03-ai-orchestrator-and-mcp-server.md`](./architecture/03-ai-orchestrator-and-mcp-server.md) – 42 AI/MCP-Tools, Prompt-Caching & Streamable HTTP JSON-RPC 2.0 MCP-Server
   - [`04-resilience-security-and-ota.md`](./architecture/04-resilience-security-and-ota.md) – `AES-256-GCM` Secret Vault, Pre-Flight Time-Machine Checkpoints, Self-Healing & OTA
 - **Projekt-Gedächtnis & Roadmap:** [`memory/`](./memory/)
-  - [`PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Echtzeit-Statusmatrix aller Subsysteme (`v2.4.0`)
+  - [`PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Echtzeit-Statusmatrix aller Subsysteme (`v2.5.0`)
   - [`MILESTONES.md`](./memory/MILESTONES.md) – End-to-End Entwicklungs-Fahrplan (`Phase 1`–`Phase 6`)
   - [`BLACKBOX.md`](./memory/BLACKBOX.md) – Chronologisches Entwicklungs-Logbuch & Architecture Decision Records (`ADR-001`–`ADR-006`)
 - **Standard-Playbooks (SOPs):** [`playbooks/`](./playbooks/)

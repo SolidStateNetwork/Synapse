@@ -1,12 +1,24 @@
 package proxy
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/SolidStateNetwork/Synapse/apps/core-gateway/internal/hub"
+	"github.com/SolidStateNetwork/Synapse/apps/core-gateway/internal/pki"
+	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
+	"github.com/hashicorp/yamux"
 )
 
 func TestLivePreviewHandlerValidationAndErrorModes(t *testing.T) {
@@ -52,4 +64,67 @@ func TestLivePreviewHandlerValidationAndErrorModes(t *testing.T) {
 	if !strings.Contains(recHTML.Body.String(), "Synapse Live-Preview Tunnel Unavailable") {
 		t.Fatalf("expected HTML fallback card in body")
 	}
+
+	// 5. Connected node round-trip exercising ModifyResponse
+	auth, err := pki.NewAuthority(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tlsLis, err := tls.Listen("tcp", "127.0.0.1:0", auth.ServerTLSConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tlsLis.Close()
+	go func() { _ = h.ServeMTLS(tlsLis) }()
+
+	tok := auth.CreateJoinToken("proj-1", tunnelv1.Tier1Unleashed, time.Minute)
+	priv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: "proxy-node"}}, priv)
+	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})
+	certPEM, _, _, _ := auth.SignNodeCSR(tunnelv1.CSRBootstrapRequest{JoinToken: tok.Token, NodeID: "proxy-node", CSRPerm: csrPEM})
+	keyDER, _ := x509.MarshalECPrivateKey(priv)
+	cliCert, _ := tls.X509KeyPair(certPEM, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}))
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(auth.CACertPEM)
+
+	cliConn, err := tls.Dial("tcp", tlsLis.Addr().String(), &tls.Config{
+		Certificates: []tls.Certificate{cliCert},
+		RootCAs:      pool,
+		MinVersion:   tls.VersionTLS13,
+		ServerName:   "synapse-core-gateway",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cliConn.Close()
+	ymSrv, _ := yamux.Server(cliConn, yamux.DefaultConfig())
+	defer ymSrv.Close()
+
+	go func() {
+		for {
+			s, err := ymSrv.AcceptStream()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				var hdr tunnelv1.StreamHeader
+				_ = tunnelv1.ReadFrame(c, &hdr)
+				buf := make([]byte, 1024)
+				_, _ = c.Read(buf)
+				_, _ = c.Write([]byte("HTTP/1.1 200 OK\r\nX-Frame-Options: DENY\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: 7\r\n\r\nPROXIED"))
+			}(s)
+		}
+	}()
+
+	for i := 0; i < 30 && len(h.ListNodes()) == 0; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	reqLive := httptest.NewRequest(http.MethodGet, "/preview/proj-1/proxy-node/4050/hello", nil)
+	recLive := httptest.NewRecorder()
+	handler.ServeHTTP(recLive, reqLive)
+	if recLive.Code != http.StatusOK || recLive.Header().Get("X-Frame-Options") != "" || recLive.Body.String() != "PROXIED" {
+		t.Fatalf("unexpected live preview response: code=%d body=%q", recLive.Code, recLive.Body.String())
+	}
 }
+

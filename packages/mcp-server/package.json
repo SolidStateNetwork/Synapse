@@ -1,7 +1,7 @@
 {
   "name": "@solidstatenetwork/synapse-mcp-server",
-  "version": "2.4.0",
-  "description": "Standalone Stdio & Streamable HTTP Model Context Protocol (MCP) Server for Synapse v2.4.0 (42 Tools + 4-Doc AI Lexicon Resources)",
+  "version": "2.5.0",
+  "description": "Standalone Stdio & Streamable HTTP Model Context Protocol (MCP) Server for Synapse v2.5.0 (42 Tools + 4-Doc AI Lexicon Resources)",
   "type": "module",
   "main": "index.mjs",
   "bin": {

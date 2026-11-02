@@ -60,6 +60,8 @@ export interface PtyExecRequest {
   cols?: number;
   rows?: number;
   send_signal?: "NONE" | "SIGINT" | "SIGTERM" | "SIGKILL";
+  max_memory_mb?: number;
+  max_cpu_sec?: number;
 }
 
 export interface PtyExecResponse {
@@ -103,6 +105,13 @@ export interface TelemetrySample {
   latency_ms: number;
 }
 
+export interface AnomalyAlert {
+  code: string;
+  severity: string;
+  message: string;
+  timestamp_unix: number;
+}
+
 export interface NodeHeartbeat {
   node_id: string;
   hostname: string;
@@ -127,4 +136,7 @@ export interface NodeHeartbeat {
   pty_session_details?: PtySessionMeta[];
   active_cores?: number;
   connected_cores?: string[];
+  anomaly_alerts?: AnomalyAlert[];
+  open_fds?: number;
+  outbound_conns?: number;
 }

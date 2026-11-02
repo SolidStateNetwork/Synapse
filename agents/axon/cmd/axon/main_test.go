@@ -12,6 +12,8 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -122,6 +124,15 @@ func TestMultiCoreProfileLifecycleAndCLICommands(t *testing.T) {
 		"--config-dir", tmpDir,
 		"--core", bootSrv.URL,
 		"--workspace-root", wsDir,
+		"--node-id", "cli-node-1",
+		"--gateway", "127.0.0.1:8443",
+		"--token", "tok-join-3",
+	})
+
+	runJoin([]string{
+		"--config-dir", tmpDir,
+		"--core", bootSrv.URL,
+		"--workspace-root", wsDir,
 		"--add",
 		"--gateway", "127.0.0.1:9443",
 		"tok-join-add",
@@ -154,13 +165,14 @@ func TestMultiCoreProfileLifecycleAndCLICommands(t *testing.T) {
 		t.Fatalf("expected MultiCore active targets >= 2, got %d", len(loaded.ActiveCoreTargets()))
 	}
 
-	// 3. List profiles via runProfiles
+	// 3. List profiles via runProfiles (including non-dir entry and empty profile dir)
+	_ = os.WriteFile(filepath.Join(tmpDir, "profiles", "ignore-file.txt"), []byte("x"), 0o600)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "profiles", "empty-prof"), 0o700)
 	runProfiles([]string{"--config-dir", tmpDir})
 
 	// 4. Switch primary core via token rebind, saved profile activation, and --multi alias
 	runSwitchCore([]string{
 		"--config-dir", tmpDir,
-		"--workspace-root", wsDir,
 		"--gateway", "127.0.0.1:8445",
 		"--restart=false",
 		bootSrv.URL,
@@ -191,6 +203,7 @@ func TestMultiCoreProfileLifecycleAndCLICommands(t *testing.T) {
 	}
 
 	// 6. Verify runDebugDoctor (--enable and --disable) and runStatus
+	tunnel.DebugEnabled = false
 	enableDebugLogging(false)
 	runDebugDoctor([]string{"--config-dir", tmpDir, "--enable"})
 	runDebugDoctor([]string{"--config-dir", tmpDir, "--disable"})
@@ -201,12 +214,31 @@ func TestMultiCoreProfileLifecycleAndCLICommands(t *testing.T) {
 	if _, err := activateSavedProfile(tmpDir, "nonexistent-profile"); err == nil {
 		t.Fatal("expected error for nonexistent saved profile")
 	}
+	// Verify activateSavedProfile preserves previous primary Core when MultiCore is true and CoreGateway differs
+	if curCfg, err := tunnel.LoadIdentity(tmpDir); err == nil && curCfg != nil {
+		curCfg.MultiCore = true
+		curCfg.CoreGateway = "127.0.0.1:7777"
+		curCfg.CoreHTTP = "http://127.0.0.1:7070"
+		b, _ := json.MarshalIndent(curCfg, "", "  ")
+		_ = os.WriteFile(filepath.Join(tmpDir, "config.json"), b, 0o600)
+		_, _ = activateSavedProfile(tmpDir, "core-a")
+	}
 
 	// 7. Test runDaemon (both inline --token bootstrap and saved identity reload) & dispatchCLI
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	agentLoopTestCtx = ctx
 	defer func() { agentLoopTestCtx = nil }()
+
+	runJoin([]string{
+		"--config-dir", tmpDir,
+		"--core", bootSrv.URL,
+		"--workspace-root", wsDir,
+		"--add",
+		"--run",
+		"--gateway", "127.0.0.1:9449",
+		"tok-join-add-run",
+	})
 
 	runDaemon([]string{
 		"--config-dir", tmpDir,
@@ -226,6 +258,7 @@ func TestMultiCoreProfileLifecycleAndCLICommands(t *testing.T) {
 		{"axon", "doctor", "--config-dir", tmpDir},
 		{"axon", "join", "--config-dir", tmpDir, "--core", bootSrv.URL, "--workspace-root", wsDir, "--profile", "core-b", "--run", "tok-disp-join"},
 		{"axon", "add-core", "--config-dir", tmpDir, "--profile", "core-a", "--restart=false"},
+		{"axon", "add-core", "--config-dir", tmpDir, "--profile", "core-a", "--gateway", "127.0.0.1:9448", "--restart=false"},
 		{"axon", "remove-core", "--config-dir", tmpDir, "--restart=false", "--profile", "core-a"},
 		{"axon", "switch", "--config-dir", tmpDir, "--profile", "core-a", "--restart=false", "--run"},
 		{"axon", "run", "--config-dir", tmpDir},
@@ -245,3 +278,4 @@ func TestMultiCoreProfileLifecycleAndCLICommands(t *testing.T) {
 		}
 	}
 }
+

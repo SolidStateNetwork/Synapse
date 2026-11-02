@@ -39,8 +39,10 @@ type Authority struct {
 	ServerCert    tls.Certificate
 	ServerCertPEM []byte
 
-	mu     sync.Mutex
-	tokens map[string]*JoinTokenEntry
+	mu             sync.Mutex
+	tokens         map[string]*JoinTokenEntry
+	revokedSerials map[string]*RevokedCertEntry
+	revokedNodes   map[string]*RevokedCertEntry
 }
 
 // NewAuthority loads or initializes the Root CA and Core Gateway server certificate inside dataDir.
@@ -82,15 +84,19 @@ func NewAuthority(dataDir string) (*Authority, error) {
 		return nil, err
 	}
 
-	return &Authority{
-		DataDir:       dataDir,
-		CACert:        caCert,
-		CAKey:         caKey,
-		CACertPEM:     caCertPEM,
-		ServerCert:    srvCert,
-		ServerCertPEM: srvPEM,
-		tokens:        make(map[string]*JoinTokenEntry),
-	}, nil
+	auth := &Authority{
+		DataDir:        dataDir,
+		CACert:         caCert,
+		CAKey:          caKey,
+		CACertPEM:      caCertPEM,
+		ServerCert:     srvCert,
+		ServerCertPEM:  srvPEM,
+		tokens:         make(map[string]*JoinTokenEntry),
+		revokedSerials: make(map[string]*RevokedCertEntry),
+		revokedNodes:   make(map[string]*RevokedCertEntry),
+	}
+	auth.loadCRL()
+	return auth, nil
 }
 
 func generateRootCA(certPath, keyPath string) (*x509.Certificate, *ecdsa.PrivateKey, []byte, error) {
@@ -261,17 +267,26 @@ func (a *Authority) SignNodeCSR(req tunnelv1.CSRBootstrapRequest) (certPEM []byt
 	return certPEM, assignedTier, projectID, nil
 }
 
-// ServerTLSConfig returns the strict mTLS configuration requiring a valid client certificate signed by the Synapse Root CA.
+// ServerTLSConfig returns the strict mTLS configuration requiring a valid client certificate signed by the Synapse Root CA
+// and not present on the Certificate Revocation List (CRL.json).
 func (a *Authority) ServerTLSConfig() *tls.Config {
 	pool := x509.NewCertPool()
 	pool.AppendCertsFromPEM(a.CACertPEM)
 	return &tls.Config{
-		Certificates: []tls.Certificate{a.ServerCert},
-		ClientCAs:    pool,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
+		Certificates:     []tls.Certificate{a.ServerCert},
+		ClientCAs:        pool,
+		ClientAuth:       tls.RequireAndVerifyClientCert,
 		MinVersion:       tls.VersionTLS13,
 		MaxVersion:       tls.VersionTLS13,
 		CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
+		VerifyPeerCertificate: func(_ [][]byte, verifiedChains [][]*x509.Certificate) error {
+			for _, chain := range verifiedChains {
+				if len(chain) > 0 && a.IsCertRevoked(chain[0]) {
+					return fmt.Errorf("client certificate for node %q (serial %x) is revoked", chain[0].Subject.CommonName, chain[0].SerialNumber)
+				}
+			}
+			return nil
+		},
 	}
 }
 
@@ -280,6 +295,9 @@ func (a *Authority) ServerTLSConfig() *tls.Config {
 func (a *Authority) RenewClientCert(existingCert *x509.Certificate, csrPEM []byte) ([]byte, time.Time, error) {
 	if existingCert == nil {
 		return nil, time.Time{}, fmt.Errorf("missing existing client certificate")
+	}
+	if a.IsCertRevoked(existingCert) {
+		return nil, time.Time{}, fmt.Errorf("certificate for node %q has been revoked", existingCert.Subject.CommonName)
 	}
 	if err := existingCert.CheckSignatureFrom(a.CACert); err != nil {
 		return nil, time.Time{}, fmt.Errorf("existing certificate not signed by Synapse CA: %w", err)

@@ -21,6 +21,7 @@ import (
 
 	"github.com/SolidStateNetwork/Synapse/agents/axon/internal/health"
 	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
+	"github.com/hashicorp/yamux"
 )
 
 func createTestPKIAndTLSListener(t *testing.T) ([]byte, *x509.Certificate, *ecdsa.PrivateKey, net.Listener, int) {
@@ -401,4 +402,92 @@ func TestMultiCoreSharedHealthCollectorMergesTargets(t *testing.T) {
 			t.Fatalf("expected merged heartbeat services to include %q, got %+v", id, beat.Services)
 		}
 	}
+
+	// Test RotateTargetCertificate EOF & invalid target path error branches
+	c1, c2 := net.Pipe()
+	defer c1.Close()
+	defer c2.Close()
+	sSess, _ := yamux.Server(c1, yamux.DefaultConfig())
+	cSess, _ := yamux.Client(c2, yamux.DefaultConfig())
+	defer sSess.Close()
+	defer cSess.Close()
+
+	go func() {
+		// Stream 1: immediately close on accept -> EOF on ReadFrame
+		if st1, err := cSess.AcceptStream(); err == nil {
+			var hdr tunnelv1.StreamHeader
+			_ = tunnelv1.ReadFrame(st1, &hdr)
+			var req tunnelv1.CertRenewRequest
+			_ = tunnelv1.ReadFrame(st1, &req)
+			_ = st1.Close()
+		}
+		// Stream 2: return valid cert but KeyFile is in unwritable path
+		if st2, err := cSess.AcceptStream(); err == nil {
+			var hdr tunnelv1.StreamHeader
+			_ = tunnelv1.ReadFrame(st2, &hdr)
+			var req tunnelv1.CertRenewRequest
+			_ = tunnelv1.ReadFrame(st2, &req)
+			_ = tunnelv1.WriteFrame(st2, tunnelv1.CertRenewResponse{Success: true, CertPEM: []byte("cert"), NotAfterUnix: time.Now().Unix()})
+			_ = st2.Close()
+		}
+		// Stream 3: return valid cert, KeyFile valid, CertFile in unwritable path
+		if st3, err := cSess.AcceptStream(); err == nil {
+			var hdr tunnelv1.StreamHeader
+			_ = tunnelv1.ReadFrame(st3, &hdr)
+			var req tunnelv1.CertRenewRequest
+			_ = tunnelv1.ReadFrame(st3, &req)
+			_ = tunnelv1.WriteFrame(st3, tunnelv1.CertRenewResponse{Success: true, CertPEM: []byte("cert"), NotAfterUnix: time.Now().Unix()})
+			_ = st3.Close()
+		}
+	}()
+
+	if _, err := RotateTargetCertificate(sSess, CoreTarget{Name: "r1", NodeID: "n1", CertFile: filepath.Join(t.TempDir(), "c.crt"), KeyFile: filepath.Join(t.TempDir(), "c.key")}); err == nil {
+		t.Fatal("expected error on closed renew response stream")
+	}
+	if _, err := RotateTargetCertificate(sSess, CoreTarget{Name: "r2", NodeID: "n1", CertFile: "/nonexistent-dir/c.crt", KeyFile: "/nonexistent-dir/c.key"}); err == nil {
+		t.Fatal("expected error when temp key cannot be written")
+	}
+	if _, err := RotateTargetCertificate(sSess, CoreTarget{Name: "r3", NodeID: "n1", CertFile: "/nonexistent-dir/c.crt", KeyFile: filepath.Join(t.TempDir(), "valid.key")}); err == nil {
+		t.Fatal("expected error when temp cert cannot be written")
+	}
+
+	// Exercise setTargetConnected nil map, runSingleTelemetryStream closed session & handleFsStream / handlePtyStream edge branches
+	badWsFile := filepath.Join(t.TempDir(), "ws-file")
+	_ = os.WriteFile(badWsFile, []byte("x"), 0o600)
+	rawAg := NewAgent(&IdentityConfig{NodeID: "n1", CoreGateway: "invalid-host-no-port", Tier: tunnelv1.Tier2WorkspaceJail, WorkspaceRoot: filepath.Join(badWsFile, "sub")})
+	rawAg.connectedTargets = nil
+	rawAg.setTargetConnected("127.0.0.1:8443", true)
+	_ = sSess.Close()
+	_ = rawAg.runSingleTelemetryStream(t.Context(), sSess, CoreTarget{Name: "closed"}, rawAg.HealthCol)
+	p1, p2 := net.Pipe()
+	_ = p1.Close()
+	rawAg.handleFsStream(p2, "")
+	rawAg.handlePtyStream(p2, tunnelv1.StreamHeader{SessionID: "s1"}, "")
+	rawAg.handlePtyStream(p2, tunnelv1.StreamHeader{SessionID: "input:s1"}, "")
+	rawAg.handlePtyStream(p2, tunnelv1.StreamHeader{SessionID: "live:s1"}, "")
+	rawAg.PtyMgr.CloseAll()
+
+	// Exercise LoadIdentity non-dir and invalid profile config branches
+	profIgnoreDir := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(profIgnoreDir, "profiles", "bad-prof"), 0o700)
+	_ = os.WriteFile(filepath.Join(profIgnoreDir, "profiles", "file.txt"), []byte("x"), 0o600)
+	for _, fn := range []string{"node.crt", "node.key", "ca.crt"} {
+		_ = os.WriteFile(filepath.Join(profIgnoreDir, "profiles", "bad-prof", fn), []byte("pem"), 0o600)
+	}
+	_ = os.WriteFile(filepath.Join(profIgnoreDir, "profiles", "bad-prof", "config.json"), []byte(`{"core_gateway":"10.99.99.99:8443"}`), 0o600)
+	_ = writeConfigWithBackup(filepath.Join(profIgnoreDir, "config.json"), &IdentityConfig{
+		NodeID:      "n1",
+		CoreGateway: "127.0.0.1:8443",
+		MultiCore:   true,
+	})
+	_, _ = LoadIdentity(profIgnoreDir)
+
+	corruptDir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(corruptDir, "config.json"), []byte("{bad"), 0o600)
+	_, _ = LoadIdentity(corruptDir)
+	_ = os.WriteFile(filepath.Join(corruptDir, "config.json.bak"), []byte("{bad-bak"), 0o600)
+	_, _ = LoadIdentity(corruptDir)
 }
+
+
+

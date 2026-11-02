@@ -339,6 +339,9 @@ func (m *Manager) Execute(req tunnelv1.PtyExecRequest) tunnelv1.PtyExecResponse 
 			envExports.WriteString(fmt.Sprintf("cd %q; ", sess.WorkspaceRoot))
 		}
 	}
+	if quotaPrefix := BuildResourceQuotaPrefix(req); quotaPrefix != "" {
+		envExports.WriteString(quotaPrefix)
+	}
 
 	// Deterministic Sentinel Framing as required by the Synapse specification:
 	// command; printf "\n__SYNAPSE_"EOF"_<cmd_id>:%d__\n" "$?"
@@ -357,10 +360,7 @@ func (m *Manager) Execute(req tunnelv1.PtyExecRequest) tunnelv1.PtyExecResponse 
 		}
 	}
 
-	timeoutMs := req.WaitTimeoutMs
-	if timeoutMs == 0 {
-		timeoutMs = DefaultCommandTimeoutMs
-	}
+	timeoutMs := NormalizeCommandTimeoutMs(req.WaitTimeoutMs)
 	timer := time.NewTimer(time.Duration(timeoutMs) * time.Millisecond)
 	defer timer.Stop()
 

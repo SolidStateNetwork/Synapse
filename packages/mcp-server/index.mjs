@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 
-export const MCP_SERVER_VERSION = "2.4.0";
+export const MCP_SERVER_VERSION = "2.5.0";
 
 const TOOL_SPECS = [
   ["core_update_brain_doc", "Update Brain Lexicon Document", false, false, true, false, ["mode"], { document: { type: "string", enum: ["Architecture.md", "Memory.md", "Milestones.md", "AGENTS.md"] }, mode: { type: "string", enum: ["replace_section", "append", "overwrite_full", "overwrite", "sync_lexicon_to_node"] }, content: { type: "string" } }],

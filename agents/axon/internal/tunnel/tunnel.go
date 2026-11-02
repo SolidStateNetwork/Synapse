@@ -426,6 +426,7 @@ func (a *Agent) handlePtyStream(stream net.Conn, hdr tunnelv1.StreamHeader, defa
 			}
 		}
 		_ = stream.Close()
+		unsubscribe()
 		wg.Wait()
 		return
 	}

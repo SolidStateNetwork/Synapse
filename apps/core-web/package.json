@@ -1,6 +1,6 @@
 {
   "name": "@synapse/core-web",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "private": true,
   "description": "Synapse Core Control Center & Model Context Protocol (MCP) Server",
   "license": "MIT",
@@ -16,7 +16,7 @@
     "build": "next build && node -e \"const fs=require('fs');if(fs.existsSync('.next/standalone')&&fs.existsSync('.next/static')){fs.mkdirSync('.next/standalone/.next',{recursive:true});fs.cpSync('.next/static','.next/standalone/.next/static',{recursive:true});}\"",
     "start": "next start -p 3000",
     "lint": "next lint",
-    "test": "node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON --import ./src/__tests__/register-hooks.mjs --test src/__tests__/synapse.test.ts src/__tests__/fault-injection.test.ts src/__tests__/api-routes.test.ts src/__tests__/core-deep.test.ts src/__tests__/llm-and-ota.test.ts src/__tests__/v240-security.test.ts"
+    "test": "node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON --import ./src/__tests__/register-hooks.mjs --test src/__tests__/synapse.test.ts src/__tests__/fault-injection.test.ts src/__tests__/api-routes.test.ts src/__tests__/core-deep.test.ts src/__tests__/llm-and-ota.test.ts src/__tests__/v240-security.test.ts src/__tests__/v250-enterprise.test.ts"
   },
   "dependencies": {
     "lucide-react": "^0.475.0",

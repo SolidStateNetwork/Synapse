@@ -393,7 +393,7 @@ describe("Synapse v2.4.0 — Phase 7 Zero-Trust Security, Hash-Chained Audit, PB
     const mcpPkgJson = JSON.parse(
       fs.readFileSync(path.join(repoRoot, "packages/mcp-server/package.json"), "utf8")
     );
-    assert.equal(mcpPkgJson.version, "2.4.0");
+    assert.equal(mcpPkgJson.version, "2.5.0");
 
     const mod = await import(`file://${mcpServerPath.replace(/\\/g, "/")}`);
     const standaloneTools = mod.getStandaloneMcpToolDefinitions();
@@ -415,7 +415,7 @@ describe("Synapse v2.4.0 — Phase 7 Zero-Trust Security, Hash-Chained Audit, PB
     }
 
     const initRes = await mod.handleMcpRpcRequest({ jsonrpc: "2.0", id: 1, method: "initialize" });
-    assert.equal(initRes.result.serverInfo.version, "2.4.0");
+    assert.equal(initRes.result.serverInfo.version, "2.5.0");
 
     const resList = await mod.handleMcpRpcRequest(
       { jsonrpc: "2.0", id: 2, method: "resources/list" },

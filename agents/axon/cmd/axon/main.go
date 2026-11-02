@@ -23,7 +23,7 @@ import (
 const defaultConfigDir = "/etc/axon"
 
 var (
-	version = "v2.4.0"
+	version = "v2.5.0"
 	commit  = "HEAD"
 )
 

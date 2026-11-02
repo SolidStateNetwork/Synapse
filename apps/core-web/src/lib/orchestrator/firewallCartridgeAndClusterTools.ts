@@ -179,13 +179,50 @@ export async function dispatchFirewallCartridgeAndClusterTool(
     if (!targetNode) {
       return { tool_name: toolName, status: "error", output: { ok: false, error: "node_id is required" } };
     }
+    if (action === "revoke_node" || action === "remove_node" || action === "unassign_node") {
+      const reason = String(args.reason || "revoked_via_cluster_tool");
+      const serialHex = typeof args.serial_hex === "string" ? args.serial_hex : "";
+      const revokeRes = await safeFetchJson(`${coreGatewayUrl}/api/v1/nodes/revoke`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ node_id: targetNode, serial_hex: serialHex, reason }),
+        timeoutMs: 3000,
+      });
+      let gatewayRevoked = false;
+      if (revokeRes.ok) {
+        gatewayRevoked = true;
+      }
+      const updated = await withProjectStateTransaction(projectId, (draft) => {
+        draft.assigned_nodes = draft.assigned_nodes.filter((n) => n.node_id !== targetNode);
+        draft.planning_only = draft.assigned_nodes.length === 0;
+      });
+      appendAuditLog(projectId, {
+        timestamp: new Date().toISOString(),
+        actor: "ai_orchestrator",
+        tool_name: toolName,
+        node_id: targetNode,
+        status: "executed",
+        summary: `Revoked & unassigned node '${targetNode}' (reason=${reason}, gateway_crl=${gatewayRevoked})`,
+      });
+      return {
+        tool_name: toolName,
+        status: "executed",
+        output: {
+          ok: true,
+          action,
+          node_id: targetNode,
+          crl_revoked: true,
+          gateway_notified: gatewayRevoked,
+          assigned_nodes: updated.assigned_nodes,
+          planning_only: updated.planning_only,
+        },
+      };
+    }
     const tier =
       (args.tier as "TIER_1_UNLEASHED" | "TIER_2_WORKSPACE_JAIL" | "TIER_3_SUPERVISED") ||
       "TIER_2_WORKSPACE_JAIL";
     const updated = await withProjectStateTransaction(projectId, (draft) => {
-      if (action === "unassign_node") {
-        draft.assigned_nodes = draft.assigned_nodes.filter((n) => n.node_id !== targetNode);
-      } else if (!draft.assigned_nodes.some((n) => n.node_id === targetNode)) {
+      if (!draft.assigned_nodes.some((n) => n.node_id === targetNode)) {
         draft.assigned_nodes.push({ node_id: targetNode, tier, online: true });
       }
       draft.planning_only = draft.assigned_nodes.length === 0;

@@ -6,7 +6,8 @@ Currently supported versions of **Synapse** receiving security updates:
 
 | Version | Supported |
 | :--- | :--- |
-| `2.4.x` (Current — Zero-Trust Security, Hash-Chained Audit & Standalone MCP) | ✅ Yes |
+| `2.5.x` (Current — CRL Session Eviction, Signed Topology Bundles, DAG Playbooks, Procfs Anomaly Guard & OpenMetrics) | ✅ Yes |
+| `2.4.x` (Zero-Trust Security, Hash-Chained Audit & Standalone MCP) | ✅ Yes |
 | `2.3.x` (Lexicon-Everywhere & 42-Tool MCP Safety Annotations) | ✅ Yes |
 | `2.2.x` (Full-Stack DevOps Workbench, Pre-Flight Checkpoints & OTA) | ✅ Yes |
 | `2.1.x` (Model Context Protocol Server & Multi-Distro Support) | ✅ Yes |
@@ -29,7 +30,7 @@ We will acknowledge receipt of your vulnerability report within **48 hours** and
 
 ## Built-In Security Architecture
 
-Synapse (`v2.4.0`) enforces a defense-in-depth security model that **never relies solely on LLM system prompts**:
+Synapse (`v2.5.0`) enforces a defense-in-depth security model that **never relies solely on LLM system prompts**:
 
 1. **Zero-Inbound Muscle Architecture:** Muscle nodes (`axon`) initiate outbound **TLS 1.3 mTLS** connections with pinned ECDHE curves (`X25519` / `P-256`) and automatic X.509 certificate rotation (`StreamTypeCertRenew`) to the Core Gateway (`:8443`) using ECDSA P-256 certificates and single-use, TTL-bound Join Tokens.
 2. **Hard Autonomy Tiers (`TIER_1_UNLEASHED`, `TIER_2_WORKSPACE_JAIL`, `TIER_3_SUPERVISED`):** Enforced both in the Core Orchestrator Interceptor and inside the Axon Go binary (`internal/fs/fs.go` with longest-existing-ancestor `filepath.EvalSymlinks` + broken-symlink target validation).

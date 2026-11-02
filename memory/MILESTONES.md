@@ -1,7 +1,7 @@
 # 🎯 MILESTONES – Synapse Entwicklungs-Roadmap
 
 > **Zweck:** Verfolgt den Abschluss aller Entwicklungs-Phasen des Synapse-Ökosystems (`SolidStateNetwork/Synapse`).  
-> **Aktueller Stand:** **Phase 1 bis Phase 7 (`v2.4.0`) sind zu 100 % abgeschlossen und produktionsreif verifiziert. Phase 8 (`v2.5.0`) ist als nächste Ausbaustufe spezifiziert.**
+> **Aktueller Stand:** **Phase 1 bis Phase 8 (`v2.5.0`) sind zu 100 % abgeschlossen und produktionsreif verifiziert (`58/58` TypeScript-Tests & `11/11 >= 90.0%` Go Statement-Coverage).**
 
 ---
 
@@ -81,24 +81,25 @@
 
 ---
 
-## 🚀 Phase 8: Autonomous Multi-Agent Workflows, mTLS CRL Revocation, eBPF Telemetry & OpenTelemetry Observability (`v2.5.0` — Next Roadmap)
+## ✅ Phase 8: Autonomous Multi-Agent Workflows, mTLS CRL Revocation, eBPF Telemetry & OpenTelemetry Observability (`v2.5.0` — Completed)
 
 > **Architektur-Ziel für `v2.5.0`:** Ausbau von Synapse zu einer deklarativen Multi-Agenten-DevOps-Plattform mit Echtzeit-Zertifikats-Sperrlisten (CRL), eBPF/Procfs-basierter Prozess-Anomalie-Erkennung auf den Muscle-Nodes, OpenTelemetry-Metrik-Export und kryptographisch signierten Topology-Bundles.
 
-- [ ] **M8.1 (`v2.5.0`):** **Real-Time X.509 Certificate Revocation List (`CRL.json`) & Instant Session Eviction (`apps/core-gateway/internal/pki/`, `internal/hub/`)**
-  - [ ] Persistente X.509 Seriennummern-Sperrliste (`CRL.json`) in `pki.Authority` (`RevokeCertSerial`, `IsCertRevoked`) mit Echtzeit-Prüfung im TLS-Handshake (`VerifyPeerCertificate`) und sofortigem Schließen aktiver Yamux-Sessions bei Node-Entfernung (`remove_node`).
+- [x] **M8.1 (`v2.5.0`):** **Real-Time X.509 Certificate Revocation List (`CRL.json`) & Instant Session Eviction (`apps/core-gateway/internal/pki/`, `internal/hub/`)**
+  - [x] Persistente X.509 Seriennummern-Sperrliste (`CRL.json`) in `pki.Authority` (`RevokeCertSerial`, `IsCertRevoked`) mit Echtzeit-Prüfung im TLS-Handshake (`VerifyPeerCertificate`) und sofortigem Schließen aktiver Yamux-Sessions bei Node-Entfernung (`remove_node`).
 
-- [ ] **M8.2 (`v2.5.0`):** **Cryptographically Signed Topology Bundles (`Ed25519` / `HMAC-SHA256`) & Dry-Run Drift Simulator (`apps/core-web/src/lib/orchestrator/`)**
-  - [ ] Erweiterung von `SynapseTopologyBundle` (`core_manage_topology_bundle`) um eine kryptographische Bundle-Signatur (`bundle_signature`, `signed_at`, `signer_fingerprint`) sowie einen deterministischen `simulate_apply`-Modus, der alle Datei-, Port- und Container-Änderungen vorab ohne Seiteneffekte berechnet.
+- [x] **M8.2 (`v2.5.0`):** **Cryptographically Signed Topology Bundles (`Ed25519` / `HMAC-SHA256`) & Dry-Run Drift Simulator (`apps/core-web/src/lib/orchestrator/`)**
+  - [x] Erweiterung von `SynapseTopologyBundle` (`core_manage_topology_bundle`) um eine kryptographische Bundle-Signatur (`bundle_signature`, `signed_at`, `signer_fingerprint`) sowie einen deterministischen `simulate_apply`-Modus, der alle Datei-, Port- und Container-Änderungen vorab ohne Seiteneffekte berechnet.
 
-- [ ] **M8.3 (`v2.5.0`):** **Multi-Stage DAG Playbooks & Event-Driven Webhook Triggers (`apps/core-web/src/lib/vault/`, `/api/playbooks/`)**
-  - [ ] Unterstützung mehrstufiger Playbook-Pipelines (DAG-Schritte mit `on_success` / `on_failure` Rollback-Verzweigung und Pre-Flight Checkpoint) sowie authentifizierter Webhook-Trigger (`POST /api/playbooks/webhook`) für automatische CI/CD-Deployments.
+- [x] **M8.3 (`v2.5.0`):** **Multi-Stage DAG Playbooks & Event-Driven Webhook Triggers (`apps/core-web/src/lib/vault/`, `/api/playbooks/`)**
+  - [x] Unterstützung mehrstufiger Playbook-Pipelines (DAG-Schritte mit `on_success` / `on_failure` Rollback-Verzweigung und Pre-Flight Checkpoint) sowie authentifizierter Webhook-Trigger (`POST /api/playbooks/webhook`) für automatische CI/CD-Deployments.
 
-- [ ] **M8.4 (`v2.5.0`):** **Lightweight Procfs/Socket Anomaly Detector & Resource Quota Guard in `axon` (`agents/axon/internal/health/`, `internal/pty/`)**
-  - [ ] Erkennung unerwarteter ausgehender TCP-Verbindungen und plötzlicher CPU/FD-Spikes direkt im `axon`-Telemetrie-Collector (`AnomalyAlerts` im `NodeHeartbeat`) sowie konfigurierbare `ulimit`/Timeout-Schranken pro PTY-Befehl.
+- [x] **M8.4 (`v2.5.0`):** **Lightweight Procfs/Socket Anomaly Detector & Resource Quota Guard in `axon` (`agents/axon/internal/health/`, `internal/pty/`)**
+  - [x] Erkennung unerwarteter ausgehender TCP-Verbindungen und plötzlicher CPU/FD-Spikes direkt im `axon`-Telemetrie-Collector (`AnomalyAlerts` im `NodeHeartbeat`) sowie konfigurierbare `ulimit`/Timeout-Schranken pro PTY-Befehl.
 
-- [ ] **M8.5 (`v2.5.0`):** **OpenTelemetry / Prometheus Metrics Exporter (`/api/metrics` & `:8081/metrics`)**
-  - [ ] Bereitstellung eines Prometheus/OpenMetrics-kompatiblen Endpunkts für Node-Telemetrie (CPU, RAM, Disk, Yamux-Streams, MTTR, MCP-Tool-Latenzen und Audit-Chain-Status) mit Bearer-Token-Schutz.
+- [x] **M8.5 (`v2.5.0`):** **OpenTelemetry / Prometheus Metrics Exporter (`/api/metrics` & `:8081/metrics`)**
+  - [x] Bereitstellung eines Prometheus/OpenMetrics-kompatiblen Endpunkts für Node-Telemetrie (CPU, RAM, Disk, Yamux-Streams, MTTR, MCP-Tool-Latenzen und Audit-Chain-Status) mit Bearer-Token-Schutz.
 
-- [ ] **M8.6 (`v2.5.0`):** **Full-Stack E2E Test Matrix Expansion (`>= 55` TypeScript Tests & `>= 90%` Go Coverage across all 11 Packages)**
-  - [ ] Ausbau der automatisierten Test-Suite auf mindestens **55 TypeScript-Tests** und **`>= 90.0%` Go Statement-Coverage** über alle 11 Go-Pakete inklusive CRL-Revocation-, Signed-Bundle- und DAG-Playbook-Fault-Injection-Tests.
+- [x] **M8.6 (`v2.5.0`):** **Full-Stack E2E Test Matrix Expansion (`>= 55` TypeScript Tests & `>= 90%` Go Coverage across all 11 Packages)**
+  - [x] Ausbau der automatisierten Test-Suite auf **58 TypeScript-Tests** (`58/58` grün) und **`>= 90.0%` Go Statement-Coverage** über alle 11 Go-Pakete inklusive CRL-Revocation-, Signed-Bundle- und DAG-Playbook-Fault-Injection-Tests.
+

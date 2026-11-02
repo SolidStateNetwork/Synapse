@@ -10,7 +10,7 @@
 
 ### Schritt 1: Kontext laden (Read First)
 Bevor du neuen Code schreibst oder bestehende Module änderst, lies **zwingend**:
-1. [`memory/PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Welche Subsysteme und Versionen (`v2.4.0`) sind aktiv?
+1. [`memory/PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Welche Subsysteme und Versionen (`v2.5.0`) sind aktiv?
 2. [`memory/BLACKBOX.md`](./memory/BLACKBOX.md) – Was waren die letzten Entwicklungs-Schritte (`[BB-XXX]`) und welche Architecture Decision Records (`ADR-001` bis `ADR-006`) gelten?
 3. [`memory/MILESTONES.md`](./memory/MILESTONES.md) – Welche Phasen sind abgeschlossen und welche Ziele stehen an?
 
@@ -25,7 +25,7 @@ Jede Implementierung muss exakt den Spezifikationen unter [`architecture/`](./ar
 ### Schritt 3: Unverhandelbare Code-, Coverage- & Modularisierungs-Gates
 - **Dateigrößen-Limit:** Jede Go-Datei (`*.go`) muss **`< 500` Zeilen** bleiben; jede TypeScript-/React-Datei (`*.ts`, `*.tsx`) muss **`< 600` Zeilen** bleiben.
 - **Strikte Typisierung:** **`0` `any`-Typen** (`npx tsc --noEmit` muss fehlerfrei sein).
-- **Test-Coverage-Gates:** Mindestens **`85.0 %` Statement-Coverage** in jedem der 11 Go-Pakete (`go test -race -cover`) und mindestens **`90.0 %` Line-Coverage** in TypeScript (`npm test -- --experimental-test-coverage`).
+- **Test-Coverage-Gates:** Mindestens **`90.0 %` Statement-Coverage** in jedem der 11 Go-Pakete (`go test -race -cover`) und mindestens **`90.0 %` Line-Coverage** in TypeScript (`npm test -- --experimental-test-coverage`).
 - **Lokales 2-Container-Labor (`containers/`):** Lokale Live-Tests und Rollouts laufen isoliert in den beiden lokalen Containern (`bash containers/manage.sh restart`).
 
 ### Schritt 4: Public-Repository Sicherheits-Guardrails (Clean-Room Policy)

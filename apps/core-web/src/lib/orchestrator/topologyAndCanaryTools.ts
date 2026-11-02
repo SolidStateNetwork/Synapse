@@ -20,9 +20,15 @@ import {
 } from "../vault";
 import { loadCustomDomains, saveCustomDomains, type CustomDomainBinding } from "./blueprintDomainAndOtaTools";
 import type { ToolDispatchResult } from "../orchestrator";
+import {
+  signTopologyBundle,
+  simulateTopologyBundleApply,
+  verifyTopologyBundleSignature,
+  type SignedTopologyBundlePayload,
+} from "../vault/v250Enterprise";
 
 export interface SynapseTopologyBundle {
-  schema_version: "synapse-stack/v2.0";
+  schema_version: "synapse-stack/v2.0" | "synapse-stack/v2.5";
   exported_at: string;
   project_id: string;
   visibility?: ProjectVisibility;
@@ -41,6 +47,9 @@ export interface SynapseTopologyBundle {
   custom_domains: Record<string, CustomDomainBinding>;
   git_stacks_count: number;
   secret_key_names: string[];
+  signed_at?: string;
+  signer_fingerprint?: string;
+  bundle_signature?: string;
 }
 
 export async function dispatchTopologyAndCanaryTool(
@@ -56,7 +65,7 @@ export async function dispatchTopologyAndCanaryTool(
     if (action === "export") {
       const visibility: ProjectVisibility = state.visibility === "public" ? "public" : "private";
       const knownIps = collectProjectPublicIps(state);
-      const bundle: SynapseTopologyBundle = {
+      const rawBundle: SynapseTopologyBundle = {
         schema_version: "synapse-stack/v2.0",
         exported_at: new Date().toISOString(),
         project_id: projectId,
@@ -77,20 +86,74 @@ export async function dispatchTopologyAndCanaryTool(
         git_stacks_count: loadGitStacks(projectId).length,
         secret_key_names: listSecretKeys(projectId),
       };
-      return { tool_name: toolName, status: "executed", output: { ok: true, action: "export", bundle } };
+      const signedBundle = signTopologyBundle(
+        projectId,
+        rawBundle as unknown as SignedTopologyBundlePayload,
+        typeof args.signing_secret === "string" ? args.signing_secret : undefined
+      );
+      return { tool_name: toolName, status: "executed", output: { ok: true, action: "export", bundle: signedBundle } };
     }
 
-    if (action === "import") {
-      let rawBundle = args.bundle;
-      if (typeof rawBundle === "string" && rawBundle.trim()) {
-        try {
-          rawBundle = JSON.parse(rawBundle);
-        } catch {
-          return { tool_name: toolName, status: "error", output: { ok: false, error: "Invalid JSON topology bundle string" } };
-        }
+    let rawBundle = args.bundle;
+    if (typeof rawBundle === "string" && rawBundle.trim()) {
+      try {
+        rawBundle = JSON.parse(rawBundle);
+      } catch {
+        return { tool_name: toolName, status: "error", output: { ok: false, error: "Invalid JSON topology bundle string" } };
       }
-      if (!rawBundle || typeof rawBundle !== "object") {
-        return { tool_name: toolName, status: "error", output: { ok: false, error: "bundle object is required for import" } };
+    }
+    if (!rawBundle || typeof rawBundle !== "object") {
+      return { tool_name: toolName, status: "error", output: { ok: false, error: "bundle object is required" } };
+    }
+    const payloadObj = rawBundle as SignedTopologyBundlePayload;
+    const customSecret = typeof args.signing_secret === "string" ? args.signing_secret : undefined;
+
+    if (action === "sign") {
+      const signed = signTopologyBundle(projectId, payloadObj, customSecret);
+      return { tool_name: toolName, status: "executed", output: { ok: true, action: "sign", bundle: signed } };
+    }
+
+    if (action === "verify") {
+      const ver = verifyTopologyBundleSignature(projectId, payloadObj, customSecret);
+      return {
+        tool_name: toolName,
+        status: ver.valid ? "executed" : "error",
+        output: { ok: ver.valid, action: "verify", ...ver },
+      };
+    }
+
+    if (action === "simulate_apply") {
+      const requireSig = Boolean(args.require_signature);
+      const driftPlan = simulateTopologyBundleApply(projectId, payloadObj, requireSig, customSecret);
+      if (!driftPlan.valid_signature) {
+        return {
+          tool_name: toolName,
+          status: "error",
+          output: {
+            ok: false,
+            action: "simulate_apply",
+            error: driftPlan.signature_error || "Invalid bundle signature",
+            drift_plan: driftPlan,
+          },
+        };
+      }
+      return {
+        tool_name: toolName,
+        status: "executed",
+        output: { ok: true, action: "simulate_apply", drift_plan: driftPlan },
+      };
+    }
+
+    if (action === "import" || action === "apply") {
+      if (typeof payloadObj.bundle_signature === "string" || args.require_signature === true) {
+        const sigCheck = verifyTopologyBundleSignature(projectId, payloadObj, customSecret);
+        if (!sigCheck.valid) {
+          return {
+            tool_name: toolName,
+            status: "error",
+            output: { ok: false, error: sigCheck.reason || "Bundle signature verification failed" },
+          };
+        }
       }
       const b = rawBundle as Partial<SynapseTopologyBundle>;
       const preFlightCp = recordCheckpoint(projectId, {
@@ -145,7 +208,7 @@ export async function dispatchTopologyAndCanaryTool(
         status: "executed",
         output: {
           ok: true,
-          action: "import",
+          action,
           checkpoint_id: preFlightCp.id,
           visibility: importedVisibility || state.visibility || "private",
           imported_lexicon_docs: Boolean(b.lexicon_docs),

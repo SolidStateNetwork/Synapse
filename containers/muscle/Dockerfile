@@ -5,7 +5,7 @@ COPY go.work ./go.work
 COPY proto ./proto
 COPY agents/axon ./agents/axon
 COPY apps/core-gateway ./apps/core-gateway
-RUN CGO_ENABLED=0 GOOS=linux go build -C agents/axon -ldflags="-s -w -X main.version=v2.4.0" -o /out/axon ./cmd/axon
+RUN CGO_ENABLED=0 GOOS=linux go build -C agents/axon -ldflags="-s -w -X main.version=v2.5.0" -o /out/axon ./cmd/axon
 
 # Stage 2: Synapse Muscle Runtime Container
 FROM alpine:3.20

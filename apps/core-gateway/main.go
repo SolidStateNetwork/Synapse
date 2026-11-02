@@ -107,7 +107,7 @@ func buildGatewayMux(authority *pki.Authority, nodeHub *hub.Hub, dataDir, vaultR
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status":          "ok",
 			"service":         "synapse-core-gateway",
-			"version":         "v2.4.0",
+			"version":         "v2.5.0",
 			"uptime_sec":      int64(time.Since(startedAt).Seconds()),
 			"tunnel_port":     tunnelPort,
 			"debug_enabled":   nodeHub.IsDebugEnabled(),
@@ -330,6 +330,8 @@ func buildGatewayMux(authority *pki.Authority, nodeHub *hub.Hub, dataDir, vaultR
 			Cols          uint16                `json:"cols"`
 			Rows          uint16                `json:"rows"`
 			SendSignal    string                `json:"send_signal"`
+			MaxMemoryMB   uint32                `json:"max_memory_mb"`
+			MaxCpuSec     uint32                `json:"max_cpu_sec"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
@@ -347,6 +349,8 @@ func buildGatewayMux(authority *pki.Authority, nodeHub *hub.Hub, dataDir, vaultR
 			Cols:          payload.Cols,
 			Rows:          payload.Rows,
 			SendSignal:    payload.SendSignal,
+			MaxMemoryMB:   payload.MaxMemoryMB,
+			MaxCpuSec:     payload.MaxCpuSec,
 		})
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]any{
@@ -468,6 +472,9 @@ func buildGatewayMux(authority *pki.Authority, nodeHub *hub.Hub, dataDir, vaultR
 
 	// 10. One-Liner Axon Node Enrollment & Systemd Installer Script (/install.sh)
 	mux.HandleFunc("/install.sh", handleInstallScript)
+
+	// 11. Enterprise v2.5.0 CRL Revocation & Prometheus/OpenMetrics Endpoints
+	registerEnterpriseRoutes(mux, authority, nodeHub, startedAt)
 
 	return corsMiddleware(mux)
 }
