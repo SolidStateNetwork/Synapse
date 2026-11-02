@@ -68,21 +68,14 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 		block, _ := pem.Decode(req.CSRPerm)
 		csr, _ := x509.ParseCertificateRequest(block.Bytes)
 		cliTmpl := &x509.Certificate{
-			SerialNumber: big.NewInt(3),
-			Subject:      pkix.Name{CommonName: req.NodeID},
-			NotBefore:    time.Now().Add(-time.Hour),
-			NotAfter:     time.Now().Add(time.Hour),
-			KeyUsage:     x509.KeyUsageDigitalSignature,
-			ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+			SerialNumber: big.NewInt(3), Subject: pkix.Name{CommonName: req.NodeID},
+			NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(60 * 24 * time.Hour),
+			KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		}
 		cliDER, _ := x509.CreateCertificate(rand.Reader, cliTmpl, caCert, csr.PublicKey, caPriv)
 		cliPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cliDER})
 		_ = json.NewEncoder(w).Encode(tunnelv1.CSRBootstrapResponse{
-			Success:    true,
-			NodeID:     req.NodeID,
-			CertPEM:    cliPEM,
-			CACertPEM:  caPEM,
-			TunnelPort: tunnelPort,
+			Success: true, NodeID: req.NodeID, CertPEM: cliPEM, CACertPEM: caPEM, TunnelPort: tunnelPort,
 		})
 	}))
 	defer bootSrv.Close()
@@ -91,13 +84,10 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BootstrapCSR failed: %v", err)
 	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	agent := NewAgent(idCfg)
-	go func() {
-		_ = agent.RunForever(ctx)
-	}()
+	go func() { _ = agent.RunForever(ctx) }()
 
 	var ymSess *yamux.Session
 	select {
@@ -105,7 +95,6 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for Axon mTLS Yamux connection")
 	}
-
 	select {
 	case beat := <-heartbeatCh:
 		if beat.NodeID != "node-muscle-1" {
@@ -115,18 +104,13 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 		t.Fatal("timed out waiting for Axon telemetry heartbeat")
 	}
 
-	// Verify Stream Type 1: Atomic FS Operation
 	fsStream, err := ymSess.OpenStream()
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = tunnelv1.WriteFrame(fsStream, tunnelv1.StreamHeader{StreamType: tunnelv1.StreamTypeRpcFs, ProjectID: "proj-1"})
 	_ = tunnelv1.WriteFrame(fsStream, tunnelv1.FsRequest{
-		RequestID: "req-fs-1",
-		ProjectID: "proj-1",
-		Operation: tunnelv1.FsOpWriteFile,
-		Path:      "app.txt",
-		Content:   []byte("synapse-muscle-verified"),
+		RequestID: "req-fs-1", ProjectID: "proj-1", Operation: tunnelv1.FsOpWriteFile, Path: "app.txt", Content: []byte("synapse-muscle-verified"),
 	})
 	var fsResp tunnelv1.FsResponse
 	if err := tunnelv1.ReadFrame(fsStream, &fsResp); err != nil || !fsResp.Success {
@@ -134,19 +118,14 @@ func TestEndToEndAxonMTLSYamuxFourStreams(t *testing.T) {
 	}
 	_ = fsStream.Close()
 
-	// Verify Stream Type 2: Persistent Stateful PTY with Sentinel Framing & Secret Scrubbing
 	ptyStream, err := ymSess.OpenStream()
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = tunnelv1.WriteFrame(ptyStream, tunnelv1.StreamHeader{StreamType: tunnelv1.StreamTypePty, ProjectID: "proj-1"})
 	_ = tunnelv1.WriteFrame(ptyStream, tunnelv1.PtyExecRequest{
-		CmdID:         "cmd-pty-1",
-		SessionID:     "sess-1",
-		ProjectID:     "proj-1",
-		Command:       "cat app.txt && echo \" key=$API_SECRET\"",
-		WaitTimeoutMs: 5000,
-		Secrets:       map[string]string{"API_SECRET": "super_sensitive_98765"},
+		CmdID: "cmd-pty-1", SessionID: "sess-1", ProjectID: "proj-1", Command: "cat app.txt && echo \" key=$API_SECRET\"", WaitTimeoutMs: 5000,
+		Secrets: map[string]string{"API_SECRET": "super_sensitive_98765"},
 	})
 	var ptyResp tunnelv1.PtyExecResponse
 	if err := tunnelv1.ReadFrame(ptyStream, &ptyResp); err != nil {
@@ -482,5 +461,27 @@ func TestComputeReconnectBackoffAndCertRotation(t *testing.T) {
 	}
 	if _, err := RotateTargetCertificate(srvSess, target); err == nil {
 		t.Fatal("expected error when gateway rejects cert renewal")
+	}
+
+	// Verify AddSecondaryCore (fresh dir + existing config update) & LoadIdentity .bak self-healing
+	DebugEnabled = true
+	var nilCfg *IdentityConfig
+	if nilCfg.ActiveCoreTargets() != nil {
+		t.Fatal("expected nil ActiveCoreTargets on nil receiver")
+	}
+	bootSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(tunnelv1.CSRBootstrapResponse{Success: true, NodeID: "sec-n", CertPEM: cliCertPEM, CACertPEM: cliCertPEM, TunnelPort: 0})
+	}))
+	defer bootSrv.Close()
+	secDir := t.TempDir()
+	if _, _, err := AddSecondaryCore(secDir, "", bootSrv.URL, "tok", "", "", "", "9443"); err != nil {
+		t.Fatalf("AddSecondaryCore fresh failed: %v", err)
+	}
+	if _, _, err := AddSecondaryCore(secDir, "p2", bootSrv.URL, "tok", "", "", "", "127.0.0.1:9444"); err != nil {
+		t.Fatalf("AddSecondaryCore second failed: %v", err)
+	}
+	_ = os.WriteFile(filepath.Join(secDir, "config.json"), []byte("{bad"), 0o600)
+	if loaded, err := LoadIdentity(secDir); err != nil || len(loaded.ActiveCoreTargets()) < 2 {
+		t.Fatalf("LoadIdentity .bak recovery failed: %v", err)
 	}
 }

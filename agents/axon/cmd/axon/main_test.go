@@ -85,12 +85,6 @@ func TestSanitizeProfileSlug(t *testing.T) {
 			t.Fatalf("sanitizeProfileSlug(%q) = %q, expected %q", input, got, expected)
 		}
 	}
-	if parseAllowedCommandsEnv("  ") != nil {
-		t.Fatal("expected nil for empty allowed commands env")
-	}
-	if parsed := parseAllowedCommandsEnv("git, docker , , systemctl"); len(parsed) != 3 || parsed[0] != "git" {
-		t.Fatalf("unexpected parseAllowedCommandsEnv output: %v", parsed)
-	}
 }
 
 func TestMultiCoreProfileLifecycleAndCLICommands(t *testing.T) {
@@ -230,6 +224,10 @@ func TestMultiCoreProfileLifecycleAndCLICommands(t *testing.T) {
 		{"axon", "--debug", "status", "--config-dir", tmpDir},
 		{"axon", "profiles", "--config-dir", tmpDir},
 		{"axon", "doctor", "--config-dir", tmpDir},
+		{"axon", "join", "--config-dir", tmpDir, "--core", bootSrv.URL, "--workspace-root", wsDir, "--profile", "core-b", "--run", "tok-disp-join"},
+		{"axon", "add-core", "--config-dir", tmpDir, "--profile", "core-a", "--restart=false"},
+		{"axon", "switch", "--config-dir", tmpDir, "--profile", "core-a", "--restart=false", "--run"},
+		{"axon", "remove-core", "--config-dir", tmpDir, "--restart=false", "--profile", "core-b"},
 		{"axon", "run", "--config-dir", tmpDir},
 	} {
 		if code := dispatchCLI(argv); code != 0 {

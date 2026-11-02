@@ -280,6 +280,21 @@ func TestHubServeMTLSLiveSessionReplacementAndVaultTargetSync(t *testing.T) {
 	_ = c1.Close()
 	h.handleConnection(c2)
 
+	// Exercise EnsureNodeAssignedToProject (empty guard + new State.json creation + existing node update + .bak recovery)
+	h.EnsureNodeAssignedToProject("", "", "")
+	h.EnsureNodeAssignedToProject("proj-auto", "node-auto", tunnelv1.Tier2WorkspaceJail)
+	h.EnsureNodeAssignedToProject("proj-auto", "node-auto", tunnelv1.Tier1Unleashed)
+	autoStatePath := filepath.Join(vaultDir, "proj-auto", "State.json")
+	_ = os.WriteFile(autoStatePath, []byte("{corrupted"), 0o644)
+	if recovered := readStateJsonWithBackup(autoStatePath); recovered == nil {
+		t.Fatal("expected readStateJsonWithBackup to recover from .bak")
+	}
+	t.Setenv("SYNAPSE_DEFAULT_PROJECT", "proj-mtls")
+	if h.ResolveDefaultProjectID() != "proj-mtls" {
+		t.Fatal("expected SYNAPSE_DEFAULT_PROJECT override")
+	}
+	t.Setenv("SYNAPSE_DEFAULT_PROJECT", "")
+
 	// Pre-populate project vault State.json with registered_services and dismissed_services
 	projDir := filepath.Join(vaultDir, "proj-mtls")
 	_ = os.MkdirAll(projDir, 0o755)
