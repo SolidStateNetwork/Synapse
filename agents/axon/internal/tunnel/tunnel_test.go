@@ -261,30 +261,15 @@ func TestCoreTelemetrySummary_MultiCoreLiveAndStandby(t *testing.T) {
 	}
 
 	cfg := &IdentityConfig{
-		NodeID:      "edge-node-01",
-		CoreGateway: "127.0.0.1:8443",
-		CoreHTTP:    "http://127.0.0.1:8081",
-		Tier:        tunnelv1.Tier1Unleashed,
-		MultiCore:   true,
+		NodeID: "edge-node-01", CoreGateway: "127.0.0.1:8443", CoreHTTP: "http://127.0.0.1:8081",
+		Tier: tunnelv1.Tier1Unleashed, MultiCore: true,
 		Cores: []CoreTarget{
-			{
-				Name:        "primary-core",
-				CoreGateway: "127.0.0.1:8443",
-				CoreHTTP:    "http://127.0.0.1:8081",
-				Enabled:     true,
-			},
-			{
-				Name:        "secondary-core",
-				CoreGateway: "127.0.0.1:9443",
-				CoreHTTP:    "http://127.0.0.1:9081",
-				Enabled:     true,
-			},
+			{Name: "primary-core", CoreGateway: "127.0.0.1:8443", CoreHTTP: "http://127.0.0.1:8081", Enabled: true},
+			{Name: "secondary-core", CoreGateway: "127.0.0.1:9443", CoreHTTP: "http://127.0.0.1:9081", Enabled: true},
 		},
 	}
-
 	agent := NewAgent(cfg)
 	agent.setTargetConnected("127.0.0.1:8443", true)
-
 	activeCount, summaries := agent.CoreTelemetrySummary()
 	if activeCount != 2 || len(summaries) != 2 {
 		t.Fatalf("expected 2 summaries, got count=%d (%v)", activeCount, summaries)
@@ -430,7 +415,17 @@ func TestComputeReconnectBackoffAndCertRotation(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	_, _, cliCertPEM, cliKeyPEM := generateTestCerts(t, "rot-node", tunnelv1.Tier2WorkspaceJail)
+	_, caCert, caPriv, tlsLis, _ := createTestPKIAndTLSListener(t)
+	_ = tlsLis.Close()
+	cliDER, _ := x509.CreateCertificate(rand.Reader, &x509.Certificate{
+		SerialNumber: big.NewInt(99),
+		Subject:      pkix.Name{CommonName: "rot-node"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+	}, caCert, caCert.PublicKey, caPriv)
+	cliCertPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cliDER})
+	keyDER, _ := x509.MarshalECPrivateKey(caPriv)
+	cliKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 	certFile := filepath.Join(tmpDir, "axon.crt")
 	keyFile := filepath.Join(tmpDir, "axon.key")
 	_ = os.WriteFile(certFile, cliCertPEM, 0o644)

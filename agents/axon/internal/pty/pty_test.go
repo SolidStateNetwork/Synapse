@@ -195,5 +195,23 @@ func TestPersistentPtySentinelAndState(t *testing.T) {
 	if reaped == 0 {
 		t.Fatalf("expected PruneClosedAndExcessSessions(2) to reap excess sessions")
 	}
+	_ = mgr.PruneClosedAndExcessSessions(0)
+	sess.broadcastLive(nil)
 	mgr.CloseSession("sess-timeout")
+	if closedCh, unsubClosed := sess.SubscribeLive(); closedCh == nil {
+		t.Fatal("expected non-nil channel")
+	} else {
+		unsubClosed()
+	}
+	defMgr := NewManager("", guardCfg)
+	defMgr.workspaceRoot = wsRoot
+	if defSess, err := defMgr.GetOrCreateSession("", "", tunnelv1.Tier2WorkspaceJail); err != nil || defSess.ID != "default" {
+		t.Fatalf("expected default session, got %v %v", defSess, err)
+	}
+	defMgr.CloseAll()
+	if closedCh2, unsub2 := sess.SubscribeLive(); closedCh2 == nil {
+		t.Fatal("expected closed channel")
+	} else {
+		unsub2()
+	}
 }

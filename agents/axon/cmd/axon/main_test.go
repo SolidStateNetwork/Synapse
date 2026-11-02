@@ -85,6 +85,12 @@ func TestSanitizeProfileSlug(t *testing.T) {
 			t.Fatalf("sanitizeProfileSlug(%q) = %q, expected %q", input, got, expected)
 		}
 	}
+	if parseAllowedCommandsEnv("  ") != nil {
+		t.Fatal("expected nil for empty allowed commands env")
+	}
+	if parsed := parseAllowedCommandsEnv("git, docker , , systemctl"); len(parsed) != 3 || parsed[0] != "git" {
+		t.Fatalf("unexpected parseAllowedCommandsEnv output: %v", parsed)
+	}
 }
 
 func TestMultiCoreProfileLifecycleAndCLICommands(t *testing.T) {

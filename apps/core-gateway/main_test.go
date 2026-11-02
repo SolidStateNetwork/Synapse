@@ -30,49 +30,33 @@ func setupTestGateway(t *testing.T) (http.Handler, *pki.Authority, *hub.Hub, str
 	tmpDir := t.TempDir()
 	t.Setenv("SYNAPSE_DATA_DIR", tmpDir)
 	t.Setenv("SYNAPSE_TUNNEL_PORT", "invalid-port-fallback")
-	authority, nodeHub, dataDir, vaultRoot, httpAddr, tunnelPort, err := initGatewayRuntime(false)
+	authority, nodeHub, dataDir, vaultRoot, httpAddr, tunnelPort, err := initGatewayRuntime(true)
 	if err != nil {
 		t.Fatalf("initGatewayRuntime: %v", err)
 	}
-	handler := buildGatewayMux(authority, nodeHub, dataDir, vaultRoot, httpAddr, tunnelPort)
-	return handler, authority, nodeHub, tmpDir
+	return buildGatewayMux(authority, nodeHub, dataDir, vaultRoot, httpAddr, tunnelPort), authority, nodeHub, tmpDir
 }
 
 func TestGatewayHealthzAndDebugRoutes(t *testing.T) {
 	handler, _, nodeHub, _ := setupTestGateway(t)
-
-	// 1. GET /healthz
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 on /healthz, got %d", rec.Code)
-	}
-	if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
-		t.Fatalf("expected X-Content-Type-Options: nosniff header")
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if rec.Code != http.StatusOK || rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("unexpected /healthz status/headers: %d", rec.Code)
 	}
 	var health map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &health); err != nil {
-		t.Fatalf("unmarshal /healthz: %v", err)
+	if err := json.Unmarshal(rec.Body.Bytes(), &health); err != nil || health["version"] != "v2.4.0" || health["status"] != "ok" {
+		t.Fatalf("unexpected /healthz response: %+v (%v)", health, err)
 	}
-	if health["version"] != "v2.4.0" || health["status"] != "ok" {
-		t.Fatalf("unexpected /healthz response: %+v", health)
-	}
-
-	// 2. GET /api/v1/debug
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/debug", nil)
 	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/debug", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 on GET /api/v1/debug, got %d", rec.Code)
 	}
-
-	// 3. POST /api/v1/debug (toggle, clear_events, ping_nodes)
-	for _, action := range []string{"toggle", "clear_events", "ping_nodes"} {
+	for _, action := range []string{"clear_events", "ping_nodes", "toggle", "toggle"} {
 		body, _ := json.Marshal(map[string]any{"action": action})
-		req = httptest.NewRequest(http.MethodPost, "/api/v1/debug", bytes.NewReader(body))
 		rec = httptest.NewRecorder()
-		handler.ServeHTTP(rec, req)
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/debug", bytes.NewReader(body)))
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected 200 on POST /api/v1/debug (%s), got %d", action, rec.Code)
 		}
@@ -84,18 +68,13 @@ func TestGatewayHealthzAndDebugRoutes(t *testing.T) {
 
 func TestGatewayTokensAndCSRBootstrap(t *testing.T) {
 	handler, _, _, _ := setupTestGateway(t)
-
-	// 1. Method not allowed on /api/v1/tokens
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/tokens", nil)
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/api/v1/tokens", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected 405 on DELETE /api/v1/tokens, got %d", rec.Code)
 	}
-
-	// 2. POST /api/v1/tokens to create a join token
 	tokReqBody, _ := json.Marshal(map[string]any{"project_id": "proj-alpha", "tier": tunnelv1.Tier2WorkspaceJail, "ttl_minutes": 15})
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/tokens", bytes.NewReader(tokReqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tokens", bytes.NewReader(tokReqBody))
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
@@ -187,11 +166,13 @@ func TestGatewayNodeAndRPCEndpoints(t *testing.T) {
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected 405 on GET /api/v1/rpc/pty, got %d", rec.Code)
 	}
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/rpc/pty", strings.NewReader("{bad")))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 on bad JSON /api/v1/rpc/pty, got %d", rec.Code)
+	}
 
-	ptyBody, _ := json.Marshal(map[string]any{
-		"node_id": "offline-node",
-		"command": "whoami",
-	})
+	ptyBody, _ := json.Marshal(map[string]any{"node_id": "offline-node", "command": "whoami"})
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/rpc/pty", bytes.NewReader(ptyBody))
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -200,6 +181,16 @@ func TestGatewayNodeAndRPCEndpoints(t *testing.T) {
 	}
 
 	// 4. /api/v1/pty/stream & /api/v1/nodes/health-targets
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/pty/stream?node_id=offline-node", strings.NewReader("{bad")))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 on bad JSON POST /api/v1/pty/stream, got %d", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/pty/stream?node_id=offline-node", strings.NewReader(`{"type":"input"}`)))
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502 on offline POST /api/v1/pty/stream, got %d", rec.Code)
+	}
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/pty/stream?node_id=offline-node&project_id=p1", nil)
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -207,6 +198,16 @@ func TestGatewayNodeAndRPCEndpoints(t *testing.T) {
 		t.Fatalf("expected 502 on offline node /api/v1/pty/stream, got %d", rec.Code)
 	}
 
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/nodes/health-targets", nil))
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405 on GET /api/v1/nodes/health-targets, got %d", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/nodes/health-targets", strings.NewReader("{bad")))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 on bad JSON /api/v1/nodes/health-targets, got %d", rec.Code)
+	}
 	htBody, _ := json.Marshal(map[string]any{"node_id": "offline-node", "targets": []any{}})
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/nodes/health-targets", bytes.NewReader(htBody))
 	rec = httptest.NewRecorder()

@@ -414,6 +414,15 @@ func TestHubServeMTLSLiveSessionReplacementAndVaultTargetSync(t *testing.T) {
 		}
 	}()
 
+	select {
+	case synced := <-targetCh:
+		if len(synced) != 1 || synced[0].ServiceID != "svc-existing" {
+			t.Fatalf("expected 1 non-dismissed synced target (svc-existing), got %+v", synced)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for syncHealthTargetsFromVaultsToNode")
+	}
+
 	// Send 62 heartbeats to exercise 60-sample rolling history & category inference (database/webui/existing)
 	for i := 0; i < 62; i++ {
 		_ = tunnelv1.WriteFrame(telStream, tunnelv1.NodeHeartbeat{
@@ -429,15 +438,6 @@ func TestHubServeMTLSLiveSessionReplacementAndVaultTargetSync(t *testing.T) {
 				{ServiceID: "svc-dismissed", Name: "Dismissed", Port: 9999, Healthy: true},
 			},
 		})
-	}
-
-	select {
-	case synced := <-targetCh:
-		if len(synced) != 1 || synced[0].ServiceID != "svc-existing" {
-			t.Fatalf("expected 1 non-dismissed synced target (svc-existing), got %+v", synced)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("timed out waiting for syncHealthTargetsFromVaultsToNode")
 	}
 
 	// Wait until all 62 heartbeats are processed (last CPU == 61.0)
