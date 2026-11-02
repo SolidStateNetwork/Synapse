@@ -32,10 +32,10 @@ jobs:
 
       - name: Verify Zero-Secret & Clean-Room Guardrails
         run: |
-          if grep -rnE "BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY|MTI-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}" \
+          if grep -rnE "BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY|MTI-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|10\.[2]0\.20\.[0-9]+|10\.1[0]\.[12]\.[0-9]+|\.[s]sn\b|\bvp[s][12]\b|217\.1[56][04]\.[0-9]+\.[0-9]+" \
             --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.next \
             --exclude="pre-commit" --exclude="ci.yml" --exclude="01-mtls-and-security-guardrails.md" --exclude="lexiconGovernance.ts" --exclude="synapse.test.ts" --exclude="v240-security.test.ts" .; then
-            echo "::error::Secret leak detected in repository!"
+            echo "::error::Secret or private infrastructure leak detected in repository!"
             exit 1
           fi
 

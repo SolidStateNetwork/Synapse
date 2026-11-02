@@ -194,20 +194,16 @@ export function verifyAuditChain(projectId: string): {
       const actualPrev = parsed.prev_hash || "GENESIS";
       const recomputed = computeAuditEntryHash(parsed, actualPrev);
       if (
+        (chainedCount === 0 && idx === 0 && actualPrev !== "GENESIS") ||
         (chainedCount > 0 && actualPrev !== expectedPrev) ||
         recomputed !== parsed.entry_hash
       ) {
-        return {
-          valid: false,
-          total_entries: lines.length,
-          chained_entries: chainedCount,
-          head_hash: expectedPrev,
-          last_hash: expectedPrev,
-          broken_at_index: idx,
-        };
+        return { valid: false, total_entries: lines.length, chained_entries: chainedCount, head_hash: expectedPrev, last_hash: expectedPrev, broken_at_index: idx };
       }
       expectedPrev = parsed.entry_hash;
       chainedCount += 1;
+    } else if (chainedCount > 0) {
+      return { valid: false, total_entries: lines.length, chained_entries: chainedCount, head_hash: expectedPrev, last_hash: expectedPrev, broken_at_index: idx };
     }
   }
   return {

@@ -75,14 +75,12 @@ function getLegacyMasterKey(): Buffer {
   return crypto.createHash("sha256").update(getRawMasterSecret()).digest();
 }
 
+export function getMasterKey(salt: Buffer = Buffer.alloc(16, 0), iterations = PBKDF2_ITERATIONS): Buffer {
+  return crypto.pbkdf2Sync(getRawMasterSecret(), salt, iterations, 32, "sha256");
+}
+
 function derivePbkdf2MasterKey(salt: Buffer, iterations = PBKDF2_ITERATIONS): Buffer {
-  return crypto.pbkdf2Sync(
-    getRawMasterSecret(),
-    salt,
-    iterations,
-    32,
-    "sha256"
-  );
+  return getMasterKey(salt, iterations);
 }
 
 export function encryptSecretsMap(secrets: Record<string, string>): string {

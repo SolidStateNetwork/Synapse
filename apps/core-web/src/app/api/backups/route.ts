@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   appendAuditLog,
   atomicWriteJsonSync,
+  atomicWriteTextSync,
   decryptSecretsMap,
   encryptSecretsMap,
   ensureProjectVault,
@@ -116,7 +117,8 @@ export async function POST(req: NextRequest) {
       const backupsDir = path.join(projDir, "Backups");
       fs.mkdirSync(backupsDir, { recursive: true });
       const bkpFile = path.join(backupsDir, `${backupId}.enc`);
-      fs.writeFileSync(bkpFile, encryptedPayload, { mode: 0o600 });
+      atomicWriteTextSync(bkpFile, encryptedPayload);
+      try { fs.chmodSync(bkpFile, 0o600); } catch { /* ignore on win32 */ }
 
       const sha256 = crypto
         .createHash("sha256")

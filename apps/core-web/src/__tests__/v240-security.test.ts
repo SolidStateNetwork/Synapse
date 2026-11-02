@@ -302,7 +302,8 @@ describe("Synapse v2.4.0 — Phase 7 Zero-Trust Security, Hash-Chained Audit, PB
 
     // Tamper with line 2 in Audit.jsonl and verify tamper detection
     const auditFile = path.join(getProjectDir(projId), "Audit.jsonl");
-    const lines = fs.readFileSync(auditFile, "utf8").trim().split("\n");
+    const origLines = fs.readFileSync(auditFile, "utf8").trim().split("\n");
+    const lines = [...origLines];
     const middle = JSON.parse(lines[1]);
     middle.summary = "TAMPERED BY ATTACKER";
     lines[1] = JSON.stringify(middle);
@@ -311,9 +312,21 @@ describe("Synapse v2.4.0 — Phase 7 Zero-Trust Security, Hash-Chained Audit, PB
     const brokenCheck = verifyAuditChain(projId);
     assert.equal(brokenCheck.valid, false);
     assert.equal(brokenCheck.broken_at_index, 1);
+
+    // Stripping entry_hash from a post-genesis entry must also invalidate the chain
+    const strippedLines = [...origLines];
+    const tail = JSON.parse(strippedLines[2]);
+    delete tail.entry_hash;
+    strippedLines[2] = JSON.stringify(tail);
+    fs.writeFileSync(auditFile, strippedLines.join("\n") + "\n", "utf8");
+    const strippedCheck = verifyAuditChain(projId);
+    assert.equal(strippedCheck.valid, false);
+    assert.equal(strippedCheck.broken_at_index, 2);
   });
 
-  it("39. M7.4: Secrets.enc uses PBKDF2-SHA256 (100,000 iterations + random 16-byte salt) while remaining backward-compatible with legacy SHA-256 AES-256-GCM", () => {
+  it("39. M7.4: Secrets.enc uses PBKDF2-SHA256 (100,000 iterations + random 16-byte salt) while remaining backward-compatible with legacy SHA-256 AES-256-GCM", async () => {
+    const { getMasterKey } = await import("../lib/vault.ts");
+    assert.equal(getMasterKey(Buffer.alloc(16, 1)).length, 32);
     const rawEnc = encryptSecretsMap({ DB_PASSWORD: "super-secret-value-2026" });
     const parsed = JSON.parse(rawEnc);
     assert.equal(parsed.alg, "AES-256-GCM");

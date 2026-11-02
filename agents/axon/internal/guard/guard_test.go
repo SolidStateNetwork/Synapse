@@ -115,7 +115,7 @@ func TestSanitizeAndTruncate(t *testing.T) {
 }
 
 func TestValidateCommandWithAllowlistAndFlagReorderedSystemctl(t *testing.T) {
-	cfg := NewDefaultConfig("10.20.20.2", "8443")
+	cfg := NewDefaultConfig("198.51.100.10", "8443")
 
 	// Flag-reordered systemctl and tunnel interface down must be blocked
 	for _, cmd := range []string{

@@ -18,11 +18,15 @@ if echo "$STAGED_DIFF" | grep -E "^\+.*(MTI-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{3
   exit 1
 fi
 
-# 3. Block hardcoded local Linux user home paths (/home/$USER/) in public repo
+# 3. Block hardcoded local Linux user home paths (/home/$USER/) and private infra IPs/domains in public repo
 CURRENT_USER=$(id -un 2>/dev/null || echo "")
 if [ -n "$CURRENT_USER" ] && echo "$STAGED_DIFF" | grep -E "^\+.*/home/${CURRENT_USER}(/|\"|'|[[:space:]]|$)" >/dev/null 2>&1; then
   echo "❌ [PRE-COMMIT BLOCKED] Public Privacy Violation: Hardcoded local user path (/home/${CURRENT_USER}) found in staged diff!" >&2
   echo "   Please use relative paths or generic placeholders (<user>) in public repositories." >&2
+  exit 1
+fi
+if echo "$STAGED_DIFF" | grep -E "^\+.*(10\.[2]0\.20\.[0-9]+|10\.1[0]\.[12]\.[0-9]+|\.[s]sn\b|\bvp[s][12]\b|217\.1[56][04]\.[0-9]+\.[0-9]+)" >/dev/null 2>&1; then
+  echo "❌ [PRE-COMMIT BLOCKED] Clean-Room Violation: Private infrastructure IP/domain/hostname found in staged diff!" >&2
   exit 1
 fi
 

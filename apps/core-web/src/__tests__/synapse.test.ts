@@ -561,7 +561,9 @@ describe("Synapse Core TypeScript Unit Test Suite", () => {
 
     const repoRoot = path.resolve(import.meta.dirname, "../../../..");
     const forbiddenTokens = [
-      ["217", "154", "20", "24"].join("\\."), ["/home", "denis"].join("/"), ["vps", "2"].join(""),
+      ["217", "154", "20", "24"].join("\\."), ["217", "160", "194", "38"].join("\\."),
+      ["10", "20", "20", "[0-9]+"].join("\\."), ["10", "10", "[12]", "[0-9]+"].join("\\."),
+      ["\\.", "ssn\\b"].join(""), ["\\bvps", "[12]\\b"].join(""), ["/home", "denis"].join("/"),
       ["cachy", "os"].join(""), ["synapse-cloud", "demo"].join("-"), ["pulse", "webui"].join("-"),
       ["pulse", "analytics"].join("-"), ["pulse", "sqlite"].join("-"), ["uptime-beacon", "4060"].join("-"), ["json", "telemetrie"].join("-"),
     ];

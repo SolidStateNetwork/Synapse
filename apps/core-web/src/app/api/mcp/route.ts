@@ -234,6 +234,7 @@ async function executeMcpTool(
     } catch {
       // fallback local token preview if gateway offline
     }
+    appendAuditLog(projectId, { timestamp: new Date().toISOString(), actor: "ai_orchestrator", tool_name: `mcp:${toolName}`, status: "executed", summary: `External MCP AI invoked ${toolName} (${tier})` });
     return {
       isError: false,
       result: {
@@ -249,10 +250,7 @@ async function executeMcpTool(
     const snapId = String(args.snapshot_id || "");
     const snap = getRollbackSnapshot(projectId, snapId);
     if (!snap) {
-      return {
-        isError: true,
-        result: { error: `Snapshot '${snapId}' not found` },
-      };
+      return { isError: true, result: { error: `Snapshot '${snapId}' not found` } };
     }
     const execRes = await interceptAndExecuteTool(
       projectId,
@@ -266,13 +264,10 @@ async function executeMcpTool(
       },
       true
     );
+    appendAuditLog(projectId, { timestamp: new Date().toISOString(), actor: "ai_orchestrator", tool_name: `mcp:${toolName}`, node_id: snap.node_id, status: execRes.status === "executed" ? "executed" : "error", summary: `External MCP AI invoked ${toolName} (${snapId}) -> ${execRes.status}` });
     return {
       isError: execRes.status === "error",
-      result: {
-        ...execRes,
-        success: execRes.status === "executed",
-        snapshot: snap,
-      },
+      result: { ...execRes, success: execRes.status === "executed", snapshot: snap },
     };
   }
 
