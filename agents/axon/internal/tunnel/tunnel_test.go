@@ -437,10 +437,14 @@ func TestComputeReconnectBackoffAndCertRotation(t *testing.T) {
 	defer cliSess.Close()
 
 	go func() {
-		for idx := 0; idx < 2; idx++ {
+		for idx := 0; idx < 4; idx++ {
 			st, err := cliSess.AcceptStream()
 			if err != nil {
 				return
+			}
+			if idx >= 2 {
+				_ = st.Close()
+				continue
 			}
 			var hdr tunnelv1.StreamHeader
 			_ = tunnelv1.ReadFrame(st, &hdr)
@@ -455,13 +459,17 @@ func TestComputeReconnectBackoffAndCertRotation(t *testing.T) {
 		}
 	}()
 
-	target := CoreTarget{NodeID: "rot-node", CertFile: certFile, KeyFile: keyFile}
+	target := CoreTarget{Name: "rot", NodeID: "rot-node", CertFile: certFile, KeyFile: keyFile}
 	if _, err := RotateTargetCertificate(srvSess, target); err != nil {
 		t.Fatalf("RotateTargetCertificate failed: %v", err)
 	}
 	if _, err := RotateTargetCertificate(srvSess, target); err == nil {
 		t.Fatal("expected error when gateway rejects cert renewal")
 	}
+	if _, err := RotateTargetCertificate(nil, target); err == nil {
+		t.Fatal("expected error on nil yamux session")
+	}
+	ag.telemetryLoopForTarget(context.Background(), srvSess, target, nil)
 
 	// Verify AddSecondaryCore (fresh dir + existing config update) & LoadIdentity .bak self-healing
 	DebugEnabled = true
@@ -474,10 +482,10 @@ func TestComputeReconnectBackoffAndCertRotation(t *testing.T) {
 	}))
 	defer bootSrv.Close()
 	secDir := t.TempDir()
-	if _, _, err := AddSecondaryCore(secDir, "", bootSrv.URL, "tok", "", "", "", "9443"); err != nil {
+	if _, _, err := AddSecondaryCore(secDir, "", bootSrv.URL, "tok", "", "", "", ""); err != nil {
 		t.Fatalf("AddSecondaryCore fresh failed: %v", err)
 	}
-	if _, _, err := AddSecondaryCore(secDir, "p2", bootSrv.URL, "tok", "", "", "", "127.0.0.1:9444"); err != nil {
+	if _, _, err := AddSecondaryCore(secDir, "p2", bootSrv.URL, "tok", "", "", "", "9444"); err != nil {
 		t.Fatalf("AddSecondaryCore second failed: %v", err)
 	}
 	_ = os.WriteFile(filepath.Join(secDir, "config.json"), []byte("{bad"), 0o600)

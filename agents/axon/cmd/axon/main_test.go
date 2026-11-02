@@ -226,8 +226,8 @@ func TestMultiCoreProfileLifecycleAndCLICommands(t *testing.T) {
 		{"axon", "doctor", "--config-dir", tmpDir},
 		{"axon", "join", "--config-dir", tmpDir, "--core", bootSrv.URL, "--workspace-root", wsDir, "--profile", "core-b", "--run", "tok-disp-join"},
 		{"axon", "add-core", "--config-dir", tmpDir, "--profile", "core-a", "--restart=false"},
+		{"axon", "remove-core", "--config-dir", tmpDir, "--restart=false", "--profile", "core-a"},
 		{"axon", "switch", "--config-dir", tmpDir, "--profile", "core-a", "--restart=false", "--run"},
-		{"axon", "remove-core", "--config-dir", tmpDir, "--restart=false", "--profile", "core-b"},
 		{"axon", "run", "--config-dir", tmpDir},
 	} {
 		if code := dispatchCLI(argv); code != 0 {

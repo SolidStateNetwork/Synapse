@@ -307,7 +307,25 @@ func TestBootstrapCSRWithOptions_And_AddSecondaryCore(t *testing.T) {
 		t.Fatalf("expected in-place update of prod-core-2 (len=2), got %d", len(cfg3.Cores))
 	}
 
-	// 3. Verify rejection path & error paths
+	// 3. Reconcile MultiCore profiles from disk when Cores slice in config.json is empty
+	cfg3.Cores = nil
+	cfg3.Debug = true
+	_ = writeConfigWithBackup(filepath.Join(baseDir, "config.json"), cfg3)
+	reconciled, err := LoadIdentity(baseDir)
+	if err != nil || len(reconciled.Cores) == 0 {
+		t.Fatalf("expected LoadIdentity to reconcile profiles from disk, got %+v (err=%v)", reconciled, err)
+	}
+	ag := NewAgent(reconciled)
+	if _, err := ag.buildTLSConfig(); err != nil {
+		t.Fatalf("expected buildTLSConfig to succeed, got %v", err)
+	}
+	badPEM := filepath.Join(t.TempDir(), "bad.pem")
+	_ = os.WriteFile(badPEM, []byte("not-a-pem"), 0o600)
+	if _, _, err := NeedsCertRotation(badPEM, 0); err == nil {
+		t.Fatal("expected error on invalid PEM in NeedsCertRotation")
+	}
+
+	// 4. Verify rejection path & error paths
 	rejectNext = true
 	if _, err := BootstrapCSR(t.TempDir(), bootSrv.URL, "bad-tok", "n1", tunnelv1.Tier2WorkspaceJail, t.TempDir()); err == nil {
 		t.Fatalf("expected BootstrapCSR to fail when server rejects token")

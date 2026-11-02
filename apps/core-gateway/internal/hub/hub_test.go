@@ -463,6 +463,9 @@ func TestHubServeMTLSLiveSessionReplacementAndVaultTargetSync(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+	if defProj := h.ResolveDefaultProjectID(); defProj != "proj-mtls" {
+		t.Fatalf("expected ResolveDefaultProjectID == proj-mtls, got %q", defProj)
+	}
 
 	_ = telStream.Close()
 	_ = sess2.Close()
