@@ -60,15 +60,34 @@ export function resolveVaultBaseDir(): string {
   }
 }
 
-function getMasterKey(): Buffer {
-  const rawKey =
+import { computeAuditEntryHash } from "./vault/auditChatAndMcp";
+
+const PBKDF2_ITERATIONS = 100_000;
+
+function getRawMasterSecret(): string {
+  return (
     process.env.SYNAPSE_MASTER_KEY ||
-    "synapse-default-aes-256-gcm-master-secret-key-2026";
-  return crypto.createHash("sha256").update(rawKey).digest();
+    "synapse-default-aes-256-gcm-master-secret-key-2026"
+  );
+}
+
+function getLegacyMasterKey(): Buffer {
+  return crypto.createHash("sha256").update(getRawMasterSecret()).digest();
+}
+
+function derivePbkdf2MasterKey(salt: Buffer, iterations = PBKDF2_ITERATIONS): Buffer {
+  return crypto.pbkdf2Sync(
+    getRawMasterSecret(),
+    salt,
+    iterations,
+    32,
+    "sha256"
+  );
 }
 
 export function encryptSecretsMap(secrets: Record<string, string>): string {
-  const key = getMasterKey();
+  const salt = crypto.randomBytes(16);
+  const key = derivePbkdf2MasterKey(salt, PBKDF2_ITERATIONS);
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
   const plaintext = Buffer.from(JSON.stringify(secrets), "utf8");
@@ -76,6 +95,9 @@ export function encryptSecretsMap(secrets: Record<string, string>): string {
   const authTag = cipher.getAuthTag();
   return JSON.stringify({
     alg: "AES-256-GCM",
+    kdf: "PBKDF2-SHA256",
+    iterations: PBKDF2_ITERATIONS,
+    salt: salt.toString("hex"),
     iv: iv.toString("hex"),
     tag: authTag.toString("hex"),
     ciphertext: encrypted.toString("base64"),
@@ -88,7 +110,13 @@ export function decryptSecretsMap(rawEnc: string): Record<string, string> {
   }
   try {
     const parsed = JSON.parse(rawEnc);
-    const key = getMasterKey();
+    const key =
+      parsed.kdf === "PBKDF2-SHA256" && typeof parsed.salt === "string"
+        ? derivePbkdf2MasterKey(
+            Buffer.from(parsed.salt, "hex"),
+            Math.max(10_000, Number(parsed.iterations) || PBKDF2_ITERATIONS)
+          )
+        : getLegacyMasterKey();
     const iv = Buffer.from(parsed.iv, "hex");
     const tag = Buffer.from(parsed.tag, "hex");
     const ciphertext = Buffer.from(parsed.ciphertext, "base64");
@@ -213,7 +241,7 @@ flowchart LR
 ## Remote File Layout
 - \`/opt/axon/workspaces/${cleanId}/\` — Primary project workspace on assigned Axon Muscle Node(s).
 `;
-    fs.writeFileSync(archPath, defaultArch, "utf8");
+    atomicWriteTextSync(archPath, defaultArch);
   }
 
   if (!fs.existsSync(memPath)) {
@@ -221,27 +249,29 @@ flowchart LR
 
 - **[BB-001] [${new Date().toISOString()}]** Project Brain Vault & SolidState 4-Document Lexicon initialized on Synapse Core.
 `;
-    fs.writeFileSync(memPath, defaultMem, "utf8");
+    atomicWriteTextSync(memPath, defaultMem);
   }
 
   ensureLexiconDocsExist(dir, cleanId, name, "private");
 
   if (!fs.existsSync(secPath)) {
-    fs.writeFileSync(secPath, encryptSecretsMap({}), {
-      encoding: "utf8",
-      mode: 0o600,
-    });
+    atomicWriteTextSync(secPath, encryptSecretsMap({}), 0o600);
   }
 
   if (!fs.existsSync(auditPath)) {
-    const initAudit: AuditEntry = {
+    const baseInitAudit: AuditEntry = {
       timestamp: new Date().toISOString(),
       actor: "user",
       tool_name: "vault_init",
       status: "executed",
       summary: `Initialized Project Brain Vault for ${cleanId}`,
     };
-    fs.writeFileSync(auditPath, JSON.stringify(initAudit) + "\n", "utf8");
+    const initAudit: AuditEntry = {
+      ...baseInitAudit,
+      prev_hash: "GENESIS",
+      entry_hash: computeAuditEntryHash(baseInitAudit, "GENESIS"),
+    };
+    atomicWriteTextSync(auditPath, JSON.stringify(initAudit) + "\n");
   }
 
   const existing = safeReadJsonWithBackupSync<ProjectState | null>(
@@ -488,6 +518,8 @@ export function deleteSecret(projectId: string, key: string): string[] {
 
 export {
   appendAuditLog,
+  computeAuditEntryHash,
+  verifyAuditChain,
   readAuditLogs,
   readChatHistory,
   appendChatMessage,
@@ -495,6 +527,8 @@ export {
   createMcpApiKey,
   revokeMcpApiKey,
   verifyMcpApiKey,
+  verifyMcpRequestSignature,
   isReadOnlyMcpToolCall,
+  isAdminOnlyMcpToolCall,
   type PersistedChatMessage,
 } from "./vault/auditChatAndMcp";

@@ -84,6 +84,38 @@ function readTailLinesSync(filePath: string, maxLines: number): string[] {
   }
 }
 
+export function computeAuditEntryHash(
+  entry: AuditEntry,
+  prevHash: string
+): string {
+  const canonical = JSON.stringify({
+    timestamp: entry.timestamp,
+    actor: entry.actor,
+    tool_name: entry.tool_name,
+    node_id: entry.node_id || null,
+    status: entry.status,
+    summary: entry.summary,
+    args: entry.args || null,
+    prev_hash: prevHash,
+  });
+  return crypto.createHash("sha256").update(canonical).digest("hex");
+}
+
+function resolveLastAuditHashSync(auditPath: string): string {
+  const tail = readTailLinesSync(auditPath, 5);
+  for (let i = tail.length - 1; i >= 0; i--) {
+    try {
+      const parsed = JSON.parse(tail[i]) as AuditEntry;
+      if (parsed && typeof parsed.entry_hash === "string" && parsed.entry_hash) {
+        return parsed.entry_hash;
+      }
+    } catch {
+      // ignore malformed tail line
+    }
+  }
+  return "GENESIS";
+}
+
 export function appendAuditLog(projectId: string, entry: AuditEntry): void {
   ensureProjectVault(projectId);
   const dir = getProjectDir(projectId);
@@ -105,6 +137,7 @@ export function appendAuditLog(projectId: string, entry: AuditEntry): void {
   } catch {
     // Non-fatal rotation check
   }
+  const prevHash = resolveLastAuditHashSync(auditPath);
   const safeEntry: AuditEntry = {
     ...entry,
     summary:
@@ -112,8 +145,78 @@ export function appendAuditLog(projectId: string, entry: AuditEntry): void {
         ? redactInlineStringSecrets(entry.summary)
         : entry.summary,
     args: entry.args ? redactSensitiveArgs(entry.args) : undefined,
+    prev_hash: prevHash,
   };
+  safeEntry.entry_hash = computeAuditEntryHash(safeEntry, prevHash);
   fs.appendFileSync(auditPath, JSON.stringify(safeEntry) + "\n", "utf8");
+}
+
+export function verifyAuditChain(projectId: string): {
+  valid: boolean;
+  total_entries: number;
+  chained_entries: number;
+  head_hash: string;
+  last_hash: string;
+  broken_at_index?: number;
+} {
+  ensureProjectVault(projectId);
+  const auditPath = path.join(getProjectDir(projectId), "Audit.jsonl");
+  if (!fs.existsSync(auditPath)) {
+    return {
+      valid: true,
+      total_entries: 0,
+      chained_entries: 0,
+      head_hash: "GENESIS",
+      last_hash: "GENESIS",
+    };
+  }
+  const lines = fs
+    .readFileSync(auditPath, "utf8")
+    .split("\n")
+    .filter((l) => l.trim().length > 0);
+  let expectedPrev = "GENESIS";
+  let chainedCount = 0;
+  for (let idx = 0; idx < lines.length; idx++) {
+    let parsed: AuditEntry;
+    try {
+      parsed = JSON.parse(lines[idx]) as AuditEntry;
+    } catch {
+      return {
+        valid: false,
+        total_entries: lines.length,
+        chained_entries: chainedCount,
+        head_hash: expectedPrev,
+        last_hash: expectedPrev,
+        broken_at_index: idx,
+      };
+    }
+    if (typeof parsed.entry_hash === "string" && parsed.entry_hash.length > 0) {
+      const actualPrev = parsed.prev_hash || "GENESIS";
+      const recomputed = computeAuditEntryHash(parsed, actualPrev);
+      if (
+        (chainedCount > 0 && actualPrev !== expectedPrev) ||
+        recomputed !== parsed.entry_hash
+      ) {
+        return {
+          valid: false,
+          total_entries: lines.length,
+          chained_entries: chainedCount,
+          head_hash: expectedPrev,
+          last_hash: expectedPrev,
+          broken_at_index: idx,
+        };
+      }
+      expectedPrev = parsed.entry_hash;
+      chainedCount += 1;
+    }
+  }
+  return {
+    valid: true,
+    total_entries: lines.length,
+    chained_entries: chainedCount,
+    head_hash: expectedPrev,
+    last_hash: expectedPrev,
+  };
 }
 
 export function readAuditLogs(projectId: string, limit = 100): AuditEntry[] {
@@ -164,7 +267,7 @@ export function readChatHistory(
       content: DEFAULT_CONTROL_CENTER_WELCOME,
       timestamp: new Date().toISOString(),
     };
-    fs.writeFileSync(chatPath, JSON.stringify(welcome) + "\n", "utf8");
+    atomicWriteTextSync(chatPath, JSON.stringify(welcome) + "\n");
     return [welcome];
   }
   const lines = fs
@@ -241,7 +344,8 @@ export function clearChatHistory(projectId: string): PersistedChatMessage[] {
 export function createMcpApiKey(
   projectId: string,
   name: string,
-  scopes: Array<"read" | "execute" | "admin"> = ["read", "execute"]
+  scopes: Array<"read" | "execute" | "admin"> = ["read", "execute"],
+  rateLimitPerMin?: number
 ): { key: McpApiKey; plaintext_token: string } {
   const randomSecret = crypto.randomBytes(24).toString("base64url");
   const plaintextToken = `syn_mcp_${randomSecret}`;
@@ -250,12 +354,21 @@ export function createMcpApiKey(
     .update(plaintextToken)
     .digest("hex");
 
+  const cleanLimit =
+    typeof rateLimitPerMin === "number" &&
+    Number.isFinite(rateLimitPerMin) &&
+    rateLimitPerMin >= 1 &&
+    rateLimitPerMin <= 1200
+      ? Math.floor(rateLimitPerMin)
+      : undefined;
+
   const entry: McpApiKey = {
     key_id: `mcp-${Date.now().toString(36)}`,
     name: name.trim() || "External AI / MCP Client",
     token_prefix: `${plaintextToken.slice(0, 14)}...`,
     token_sha256: tokenSha256,
     scopes: scopes.length > 0 ? scopes : ["read", "execute"],
+    ...(cleanLimit !== undefined ? { rate_limit_per_min: cleanLimit } : {}),
     created_at: new Date().toISOString(),
   };
 
@@ -326,6 +439,53 @@ export function verifyMcpApiKey(
   return verifiedKey;
 }
 
+export function verifyMcpRequestSignature(
+  secret: string,
+  rawBody: string,
+  signatureHeader?: string | null,
+  timestampHeader?: string | null
+): { valid: boolean; reason?: string; error?: string } {
+  const requireSig = process.env.SYNAPSE_MCP_REQUIRE_SIGNATURE === "1";
+  const hasSig = Boolean(signatureHeader && signatureHeader.trim());
+  const hasTs = Boolean(timestampHeader && timestampHeader.trim());
+  if (!hasSig && !hasTs) {
+    if (requireSig) {
+      const msg = "Missing required X-Synapse-Signature header";
+      return { valid: false, reason: msg, error: msg };
+    }
+    return { valid: true };
+  }
+  if (!hasSig || !hasTs) {
+    const msg = "Missing companion X-Synapse-Signature or X-Synapse-Timestamp header";
+    return { valid: false, reason: msg, error: msg };
+  }
+  const rawTs = Number(timestampHeader!.trim());
+  const tsMs = rawTs < 1e11 ? rawTs * 1000 : rawTs;
+  if (!Number.isFinite(tsMs) || Math.abs(Date.now() - tsMs) > 300_000) {
+    const msg = "Replay guard: X-Synapse-Timestamp outside 300s replay window";
+    return { valid: false, reason: msg, error: msg };
+  }
+  const effectiveSecret =
+    process.env.SYNAPSE_MCP_HMAC_SECRET || secret || "synapse-mcp-hmac";
+  const payload = `${timestampHeader!.trim()}.${rawBody}`;
+  const expectedHex = crypto
+    .createHmac("sha256", effectiveSecret)
+    .update(payload)
+    .digest("hex");
+  const cleanSig = signatureHeader!.trim().replace(/^sha256=/i, "");
+  try {
+    const sigBuf = Buffer.from(cleanSig, "hex");
+    const expBuf = Buffer.from(expectedHex, "hex");
+    if (sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf)) {
+      return { valid: true };
+    }
+  } catch {
+    // invalid hex
+  }
+  const errMsg = "Invalid X-Synapse-Signature HMAC-SHA256 digest";
+  return { valid: false, reason: errMsg, error: errMsg };
+}
+
 export function isReadOnlyMcpToolCall(
   toolName: string,
   args: Record<string, unknown>
@@ -338,14 +498,21 @@ export function isReadOnlyMcpToolCall(
     toolName === "core_tail_service_logs" ||
     toolName === "core_get_node_telemetry_history" ||
     toolName === "node_deep_search" ||
-    toolName === "core_system_ota_status" ||
+    (toolName === "core_system_ota_status" &&
+      (!act || act === "status" || act === "check")) ||
     (toolName === "node_fs_operation" &&
       ["read_file", "list_dir", "stat"].includes(String(args.operation || ""))) ||
-    (toolName === "core_manage_secret" && (act === "list_keys" || act === "list")) ||
+    ((toolName === "core_manage_secret" || toolName === "core_manage_secrets") &&
+      (!act || act === "list_keys" || act === "list")) ||
     ((toolName === "node_firewall_control" || toolName === "core_manage_firewall") &&
       (!act || act === "inspect")) ||
-    ((toolName === "core_manage_backup" || toolName === "core_manage_checkpoint") &&
-      (!act || act === "list")) ||
+    ((toolName === "core_manage_backup" ||
+      toolName === "core_disaster_RecoveryVault" ||
+      toolName === "core_manage_checkpoint") &&
+      (!act ||
+        act === "list" ||
+        act === "list_backups" ||
+        act === "verify_backup_integrity")) ||
     (toolName === "core_manage_alerts" && (!act || act === "inspect")) ||
     (toolName === "core_intrusion_scan" && (!act || act === "scan")) ||
     (toolName === "core_hot_reload_service_code" && (!act || act === "inspect")) ||
@@ -357,7 +524,9 @@ export function isReadOnlyMcpToolCall(
     (toolName === "core_manage_blueprint" && (!act || act === "list")) ||
     (toolName === "core_manage_domain_tls" && (!act || act === "list")) ||
     (toolName === "core_manage_cartridges" && (!act || act === "list")) ||
-    (toolName === "core_manage_cluster_nodes" && (!act || act === "list")) ||
+    ((toolName === "core_manage_cluster_nodes" ||
+      toolName === "core_manage_node_enrollment") &&
+      (!act || act === "list" || act === "list_nodes")) ||
     (toolName === "core_manage_projects" &&
       (!act || act === "list" || act === "audit_trail")) ||
     (toolName === "core_run_platform_self_test" && (!act || act === "self_test")) ||
@@ -365,11 +534,43 @@ export function isReadOnlyMcpToolCall(
     (toolName === "core_manage_approvals" && (!act || act === "list")) ||
     (toolName === "core_invoke_service_action" &&
       (!args.method || String(args.method).toUpperCase() === "GET")) ||
-    (toolName === "core_manage_auth_and_ai" && (!act || act === "inspect_auth")) ||
+    ((toolName === "core_manage_auth_and_ai" ||
+      toolName === "core_configure_ai_engine") &&
+      (!act || act === "inspect_auth" || act === "get")) ||
     (toolName === "core_manage_topology_bundle" && (!act || act === "export")) ||
     (toolName === "core_cluster_canary_exec" &&
       (!act || act === "verify_fleet_health")) ||
     (toolName === "core_manage_mcp_keys" && (!act || act === "list"))
   );
 }
+
+export function isAdminOnlyMcpToolCall(
+  toolName: string,
+  args: Record<string, unknown>
+): boolean {
+  if (isReadOnlyMcpToolCall(toolName, args)) {
+    return false;
+  }
+  const act = String(args.action || "");
+  return (
+    toolName === "synapse_create_join_token" ||
+    toolName === "core_manage_mcp_keys" ||
+    toolName === "core_manage_secret" ||
+    toolName === "core_manage_secrets" ||
+    toolName === "core_manage_auth_and_ai" ||
+    toolName === "core_configure_ai_engine" ||
+    toolName === "core_manage_firewall" ||
+    toolName === "node_firewall_control" ||
+    toolName === "core_manage_cluster_nodes" ||
+    toolName === "core_manage_node_enrollment" ||
+    ((toolName === "core_manage_backup" ||
+      toolName === "core_disaster_RecoveryVault") &&
+      ["restore", "restore_backup", "delete"].includes(act)) ||
+    (toolName === "core_manage_approvals" &&
+      ["approve", "reject"].includes(act)) ||
+    (toolName === "core_system_ota_status" &&
+      ["apply_update", "update", "upgrade", "rollback_update"].includes(act))
+  );
+}
+
 

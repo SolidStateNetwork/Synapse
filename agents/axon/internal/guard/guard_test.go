@@ -113,3 +113,35 @@ func TestSanitizeAndTruncate(t *testing.T) {
 		t.Fatalf("expected truncated output to end with 12KB tail")
 	}
 }
+
+func TestValidateCommandWithAllowlistAndFlagReorderedSystemctl(t *testing.T) {
+	cfg := NewDefaultConfig("10.20.20.2", "8443")
+
+	// Flag-reordered systemctl and tunnel interface down must be blocked
+	for _, cmd := range []string{
+		"systemctl --now disable axon",
+		"systemctl -f stop ssh.service",
+		"ip link set dev wg0 down",
+		"ip link set eth0 down",
+		"nmcli networking off",
+	} {
+		if ok, _ := ValidateCommand(cfg, cmd); ok {
+			t.Fatalf("expected %q to be blocked by self-lockout guardrail", cmd)
+		}
+	}
+
+	// Deterministic AllowedCommands allowlist
+	allowlist := []string{"git", "ls", "docker compose"}
+	if ok, reason := ValidateCommandWithAllowlist(cfg, "git status && ls -la && docker compose ps", allowlist); !ok {
+		t.Fatalf("expected allowed chained commands to pass, got %s", reason)
+	}
+	if ok, _ := ValidateCommandWithAllowlist(cfg, "git status && curl https://evil.example", allowlist); ok {
+		t.Fatal("expected unallowed executable in chain to be rejected")
+	}
+	if ok, _ := ValidateCommandWithAllowlist(cfg, "git status $(whoami)", allowlist); ok {
+		t.Fatal("expected subshell substitution under allowlist to be rejected")
+	}
+	if ok, _ := ValidateCommandWithAllowlist(cfg, "", allowlist); !ok {
+		t.Fatal("expected empty command to pass allowlist check")
+	}
+}

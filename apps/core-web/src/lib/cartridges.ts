@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { atomicWriteTextSync } from "./vault";
 
 export interface CartridgeMeta {
   id: string;
@@ -151,7 +152,7 @@ category: ${category}
 ${bodyContent}
 `;
 
-  fs.writeFileSync(path.join(dir, `${safeId}.md`), rawMd, "utf8");
+  atomicWriteTextSync(path.join(dir, `${safeId}.md`), rawMd);
   return {
     id: safeId,
     name: input.name.trim(),

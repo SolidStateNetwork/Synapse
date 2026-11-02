@@ -4,12 +4,15 @@ import {
   createMcpApiKey,
   ensureProjectVault,
   getRollbackSnapshot,
+  isAdminOnlyMcpToolCall,
   isReadOnlyMcpToolCall,
   listSecretKeys,
   readAuditLogs,
   readBrainDoc,
   revokeMcpApiKey,
+  verifyAuditChain,
   verifyMcpApiKey,
+  verifyMcpRequestSignature,
 } from "@/lib/vault";
 import { listCartridges, OFFICIAL_STACK_BLUEPRINTS } from "@/lib/cartridges";
 import {
@@ -32,14 +35,19 @@ const MCP_RATE_LIMIT_MAX = 120;
 const MCP_RATE_LIMIT_MAX_BUCKETS = 512;
 const mcpRateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 
-function checkMcpRateLimit(req: NextRequest): { allowed: boolean; limit: number; remaining: number; retryAfterSec: number } {
+function checkMcpRateLimit(
+  req: NextRequest,
+  keyLimitPerMin?: number
+): { allowed: boolean; limit: number; remaining: number; retryAfterSec: number } {
   const now = Date.now();
-  const parsedMax = Math.floor(Number(req.headers.get("x-synapse-rate-limit-max") || 0));
-  const limit = parsedMax > 0 && parsedMax <= MCP_RATE_LIMIT_MAX ? parsedMax : MCP_RATE_LIMIT_MAX;
-  const clientId =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    extractApiKey(req).slice(0, 16) ||
-    "local-mcp-client";
+  const parsedMax = Math.floor(
+    Number(req.headers.get("x-synapse-rate-limit-max") || keyLimitPerMin || 0)
+  );
+  const limit =
+    parsedMax > 0 && parsedMax <= 1200 ? parsedMax : MCP_RATE_LIMIT_MAX;
+  const forwardedIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const keyPrefix = extractApiKey(req).slice(0, 20) || "anon";
+  const clientId = `${forwardedIp}:${keyPrefix}`;
   if (mcpRateLimitBuckets.size >= MCP_RATE_LIMIT_MAX_BUCKETS) {
     for (const [k, v] of mcpRateLimitBuckets) {
       if (now >= v.resetAt) mcpRateLimitBuckets.delete(k);
@@ -145,7 +153,18 @@ async function executeMcpTool(
   scopes: Array<"read" | "execute" | "admin">
 ): Promise<{ isError: boolean; result: unknown }> {
   const canExecute = scopes.includes("execute") || scopes.includes("admin");
+  const isAdmin = scopes.includes("admin");
   const isReadOnlyTool = isReadOnlyMcpToolCall(toolName, args);
+  const isAdminTool = isAdminOnlyMcpToolCall(toolName, args);
+
+  if (isAdminTool && !isAdmin) {
+    return {
+      isError: true,
+      result: {
+        error: `MCP API Key lacks 'admin' scope required for tool '${toolName}'.`,
+      },
+    };
+  }
 
   if (!isReadOnlyTool && !canExecute) {
     return {
@@ -183,6 +202,7 @@ async function executeMcpTool(
         milestones_md: readBrainDoc(projectId, "Milestones.md"),
         agents_md: readBrainDoc(projectId, "AGENTS.md"),
         secret_keys: listSecretKeys(projectId),
+        audit_chain: verifyAuditChain(projectId),
         available_cartridges: listCartridges().map((c) => ({
           id: c.id,
           name: c.name,
@@ -291,12 +311,14 @@ export async function GET(req: NextRequest) {
     },
     endpoint: "/api/mcp",
     project_id: projectId,
+    audit_chain: verifyAuditChain(projectId),
     active_keys_count: (state.mcp_api_keys || []).length,
     keys: (state.mcp_api_keys || []).map((k) => ({
       key_id: k.key_id,
       name: k.name,
       token_prefix: k.token_prefix,
       scopes: k.scopes,
+      rate_limit_per_min: k.rate_limit_per_min || 120,
       created_at: k.created_at,
       last_used_at: k.last_used_at,
     })),
@@ -305,24 +327,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const rateLimit = checkMcpRateLimit(req);
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      {
-        jsonrpc: "2.0",
-        id: null,
-        error: { code: -32005, message: "Too Many Requests: MCP rate limit exceeded." },
-      },
-      {
-        status: 429,
-        headers: {
-          "Retry-After": String(rateLimit.retryAfterSec),
-          "X-RateLimit-Limit": String(rateLimit.limit),
-          "X-RateLimit-Remaining": "0",
-        },
-      }
-    );
-  }
+  const rawBodyText = await req.clone().text().catch(() => "");
   const body = await safeParseRequestJson(req);
   const projectId = resolveActiveProjectId(
     String(
@@ -334,6 +339,10 @@ export async function POST(req: NextRequest) {
   );
   ensureProjectVault(projectId);
 
+  if (body.action === "verify_audit_chain") {
+    return NextResponse.json(verifyAuditChain(projectId));
+  }
+
   if (body.action === "create_key") {
     const scopes = Array.isArray(body.scopes)
       ? (body.scopes as Array<"read" | "execute" | "admin">)
@@ -341,9 +350,10 @@ export async function POST(req: NextRequest) {
     const created = createMcpApiKey(
       projectId,
       String(body.name || "External AI / MCP Client"),
-      scopes
+      scopes,
+      Number(body.rate_limit_per_min || 120)
     );
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json({ ...created.key, ...created }, { status: 201 });
   }
 
   if (body.action === "revoke_key") {
@@ -353,6 +363,7 @@ export async function POST(req: NextRequest) {
 
   const rawToken = extractApiKey(req);
   let activeScopes: Array<"read" | "execute" | "admin"> = ["read", "execute"];
+  let keyLimitPerMin: number | undefined;
 
   if (!body.internal_ui_test) {
     const verified = verifyMcpApiKey(projectId, rawToken);
@@ -370,7 +381,46 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
+    const sigCheck = verifyMcpRequestSignature(
+      rawToken,
+      rawBodyText || JSON.stringify(body),
+      req.headers.get("x-synapse-signature"),
+      req.headers.get("x-synapse-timestamp")
+    );
+    if (!sigCheck.valid) {
+      return NextResponse.json(
+        {
+          jsonrpc: "2.0",
+          id: body.id ?? null,
+          error: {
+            code: -32002,
+            message: `Unauthorized: ${sigCheck.reason || "Invalid HMAC signature"}`,
+          },
+        },
+        { status: 401 }
+      );
+    }
     activeScopes = verified.scopes;
+    keyLimitPerMin = verified.rate_limit_per_min;
+  }
+
+  const rateLimit = checkMcpRateLimit(req, keyLimitPerMin);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32005, message: "Too Many Requests: MCP rate limit exceeded." },
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimit.retryAfterSec),
+          "X-RateLimit-Limit": String(rateLimit.limit),
+          "X-RateLimit-Remaining": "0",
+        },
+      }
+    );
   }
 
   if (body.jsonrpc === "2.0" || typeof body.method === "string") {

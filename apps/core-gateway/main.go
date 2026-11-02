@@ -49,6 +49,7 @@ func initGatewayRuntime(debugFlag bool) (*pki.Authority, *hub.Hub, string, strin
 	}
 
 	nodeHub := hub.NewHub(vaultRoot)
+	nodeHub.SetCertRenewer(authority.CACertPEM, authority.RenewClientCert)
 	if debugMode {
 		nodeHub.SetDebugEnabled(true)
 	}
@@ -96,6 +97,9 @@ func main() {
 
 func buildGatewayMux(authority *pki.Authority, nodeHub *hub.Hub, dataDir, vaultRoot, httpAddr string, tunnelPort int) http.Handler {
 	mux := http.NewServeMux()
+	if authority != nil && nodeHub != nil {
+		nodeHub.SetCertRenewer(authority.CACertPEM, authority.RenewClientCert)
+	}
 	startedAt := time.Now()
 
 	// Health check
@@ -103,7 +107,7 @@ func buildGatewayMux(authority *pki.Authority, nodeHub *hub.Hub, dataDir, vaultR
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status":          "ok",
 			"service":         "synapse-core-gateway",
-			"version":         "v2.3.0",
+			"version":         "v2.4.0",
 			"uptime_sec":      int64(time.Since(startedAt).Seconds()),
 			"tunnel_port":     tunnelPort,
 			"debug_enabled":   nodeHub.IsDebugEnabled(),

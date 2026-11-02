@@ -269,6 +269,56 @@ func (a *Authority) ServerTLSConfig() *tls.Config {
 		Certificates: []tls.Certificate{a.ServerCert},
 		ClientCAs:    pool,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
-		MinVersion:   tls.VersionTLS13,
+		MinVersion:       tls.VersionTLS13,
+		MaxVersion:       tls.VersionTLS13,
+		CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
 	}
+}
+
+// RenewClientCert signs a fresh 365-day client certificate for an already-authenticated Muscle node
+// preserving its existing Subject (NodeID, AutonomyTier, ProjectID) without requiring a join token.
+func (a *Authority) RenewClientCert(existingCert *x509.Certificate, csrPEM []byte) ([]byte, time.Time, error) {
+	if existingCert == nil {
+		return nil, time.Time{}, fmt.Errorf("missing existing client certificate")
+	}
+	if err := existingCert.CheckSignatureFrom(a.CACert); err != nil {
+		return nil, time.Time{}, fmt.Errorf("existing certificate not signed by Synapse CA: %w", err)
+	}
+	if time.Now().After(existingCert.NotAfter) {
+		return nil, time.Time{}, fmt.Errorf("existing certificate has already expired")
+	}
+	block, _ := pem.Decode(csrPEM)
+	if block == nil {
+		return nil, time.Time{}, fmt.Errorf("invalid CSR PEM payload")
+	}
+	csr, err := x509.ParseCertificateRequest(block.Bytes)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("parse CSR: %w", err)
+	}
+	if err := csr.CheckSignature(); err != nil {
+		return nil, time.Time{}, fmt.Errorf("CSR signature verification failed: %w", err)
+	}
+
+	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	notAfter := time.Now().Add(365 * 24 * time.Hour)
+	clientTmpl := &x509.Certificate{
+		SerialNumber: serial,
+		Subject: pkix.Name{
+			CommonName:         existingCert.Subject.CommonName,
+			Organization:       existingCert.Subject.Organization,
+			OrganizationalUnit: existingCert.Subject.OrganizationalUnit,
+			Locality:           existingCert.Subject.Locality,
+		},
+		DNSNames:    csr.DNSNames,
+		NotBefore:   time.Now().Add(-5 * time.Minute),
+		NotAfter:    notAfter,
+		KeyUsage:    x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, clientTmpl, a.CACert, csr.PublicKey, a.CAKey)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("sign renewed client certificate: %w", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), notAfter, nil
 }

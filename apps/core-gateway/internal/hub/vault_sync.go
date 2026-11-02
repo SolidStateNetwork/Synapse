@@ -1,8 +1,10 @@
 package hub
 
 import (
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -421,4 +423,47 @@ func (h *Hub) syncHealthTargetsFromVaultsToNode(nodeID string) {
 	if len(targets) > 0 {
 		_ = h.PushHealthTargets(nodeID, targets)
 	}
+}
+
+// SetCertRenewer registers the PKI Authority certificate renewal callback on the Hub.
+func (h *Hub) SetCertRenewer(caCertPEM []byte, fn func(*x509.Certificate, []byte) ([]byte, time.Time, error)) {
+	h.mu.Lock()
+	h.caCertPEM = caCertPEM
+	h.certRenewer = fn
+	h.mu.Unlock()
+}
+
+func (h *Hub) handleCertRenewStream(node *ConnectedNode, stream net.Conn) {
+	_ = stream.SetDeadline(time.Now().Add(15 * time.Second))
+	var req tunnelv1.CertRenewRequest
+	if err := tunnelv1.ReadFrame(stream, &req); err != nil {
+		return
+	}
+	h.mu.RLock()
+	renewFn := h.certRenewer
+	caPEM := h.caCertPEM
+	h.mu.RUnlock()
+	if renewFn == nil {
+		_ = tunnelv1.WriteFrame(stream, tunnelv1.CertRenewResponse{
+			Success: false,
+			Error:   "certificate renewal is not configured on Core Gateway",
+		})
+		return
+	}
+	certPEM, notAfter, err := renewFn(node.clientCert, req.CSRPEM)
+	if err != nil {
+		h.RecordEvent("mtls", node.NodeID, fmt.Sprintf("Certificate renewal rejected: %v", err), 0, nil)
+		_ = tunnelv1.WriteFrame(stream, tunnelv1.CertRenewResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+	h.RecordEvent("mtls", node.NodeID, fmt.Sprintf("Issued rotated mTLS client certificate (valid until %s)", notAfter.UTC().Format(time.RFC3339)), 0, nil)
+	_ = tunnelv1.WriteFrame(stream, tunnelv1.CertRenewResponse{
+		Success:      true,
+		CertPEM:      certPEM,
+		CACertPEM:    caPEM,
+		NotAfterUnix: notAfter.Unix(),
+	})
 }

@@ -47,8 +47,8 @@ start_local_containers() {
   echo "[1/3] Building Core & Muscle binaries into ${CONTAINERS_DIR}/{core,muscle}/runtime..."
   (
     cd "$REPO_ROOT"
-    CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=v2.3.0" -o "${CORE_DIR}/runtime/bin/core-gateway" ./apps/core-gateway
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=v2.3.0" -o "${MUSCLE_DIR}/runtime/bin/axon" ./agents/axon/cmd/axon
+    CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=v2.4.0" -o "${CORE_DIR}/runtime/bin/core-gateway" ./apps/core-gateway
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=v2.4.0" -o "${MUSCLE_DIR}/runtime/bin/axon" ./agents/axon/cmd/axon
     cp -f "${MUSCLE_DIR}/runtime/bin/axon" "${CORE_DIR}/runtime/bin/axon"
     cp -f "${MUSCLE_DIR}/runtime/bin/axon" "${CORE_DIR}/runtime/bin/axon-linux-amd64"
     cp -f "${MUSCLE_DIR}/runtime/bin/axon" "${MUSCLE_DIR}/runtime/usr-local-bin/axon"

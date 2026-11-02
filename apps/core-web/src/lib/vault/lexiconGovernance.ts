@@ -71,18 +71,16 @@ export function ensureLexiconDocsExist(
 ): void {
   const milestonesPath = path.join(dir, "Milestones.md");
   if (!fs.existsSync(milestonesPath)) {
-    fs.writeFileSync(
+    atomicWriteTextSync(
       milestonesPath,
-      buildDefaultMilestonesDoc(name || cleanId),
-      "utf8"
+      buildDefaultMilestonesDoc(name || cleanId)
     );
   }
   const agentsPath = path.join(dir, "AGENTS.md");
   if (!fs.existsSync(agentsPath)) {
-    fs.writeFileSync(
+    atomicWriteTextSync(
       agentsPath,
-      buildDefaultAgentsDoc(name || cleanId, visibility),
-      "utf8"
+      buildDefaultAgentsDoc(name || cleanId, visibility)
     );
   }
 }

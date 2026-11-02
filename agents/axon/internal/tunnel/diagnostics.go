@@ -1,17 +1,25 @@
 package tunnel
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	tunnelv1 "github.com/SolidStateNetwork/Synapse/proto"
+	"github.com/hashicorp/yamux"
 )
 
 // DiagnosticReport summarizes the 5-step Muscle self-test (`axon debug` / `axon doctor`).
@@ -220,8 +228,137 @@ func (a *Agent) buildTLSConfigForTarget(target CoreTarget) (*tls.Config, error) 
 	return &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      caPool,
-		MinVersion:   tls.VersionTLS13,
-		ServerName:   "synapse-core-gateway",
+		MinVersion:       tls.VersionTLS13,
+		MaxVersion:       tls.VersionTLS13,
+		CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
+		ServerName:       "synapse-core-gateway",
 	}, nil
+}
+
+// ComputeReconnectBackoff calculates an exponential reconnect delay (1s -> 30s) with +/-25% crypto/rand jitter.
+func ComputeReconnectBackoff(attempt int) time.Duration {
+	if attempt < 0 {
+		attempt = 0
+	}
+	if attempt > 5 {
+		attempt = 5
+	}
+	baseMs := int64(1000) << uint(attempt)
+	if baseMs > 30000 {
+		baseMs = 30000
+	}
+	jitterWindow := baseMs / 2
+	jitterOffset := int64(0)
+	if jitterWindow > 0 {
+		if n, err := rand.Int(rand.Reader, big.NewInt(jitterWindow+1)); err == nil {
+			jitterOffset = n.Int64() - (jitterWindow / 2)
+		}
+	}
+	finalMs := baseMs + jitterOffset
+	if finalMs < 750 {
+		finalMs = 750
+	}
+	if finalMs > 37500 {
+		finalMs = 37500
+	}
+	return time.Duration(finalMs) * time.Millisecond
+}
+
+// NeedsCertRotation checks whether the X.509 certificate at certFile expires within renewWindow (e.g., 30 days).
+func NeedsCertRotation(certFile string, renewWindow time.Duration) (bool, time.Time, error) {
+	if renewWindow <= 0 {
+		renewWindow = 30 * 24 * time.Hour
+	}
+	certBytes, err := os.ReadFile(certFile)
+	if err != nil {
+		return false, time.Time{}, err
+	}
+	block, _ := pem.Decode(certBytes)
+	if block == nil {
+		return false, time.Time{}, fmt.Errorf("invalid PEM block in %s", certFile)
+	}
+	parsed, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return false, time.Time{}, err
+	}
+	needs := time.Until(parsed.NotAfter) <= renewWindow
+	return needs, parsed.NotAfter, nil
+}
+
+// RotateTargetCertificate generates a fresh ECDSA P-256 keypair + CSR, requests a renewed certificate
+// over the active Yamux session (StreamTypeCertRenew), and atomically updates CertFile and KeyFile.
+func RotateTargetCertificate(session *yamux.Session, target CoreTarget) (time.Time, error) {
+	if session == nil || session.IsClosed() {
+		return time.Time{}, fmt.Errorf("yamux session is not open")
+	}
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("generate P-256 key: %w", err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(privKey)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("marshal EC key: %w", err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+	hostname, _ := os.Hostname()
+	if hostname == "" {
+		hostname = target.NodeID
+	}
+	csrTmpl := &x509.CertificateRequest{
+		Subject: pkix.Name{
+			CommonName:   target.NodeID,
+			Organization: []string{"Synapse Muscle Node"},
+		},
+		DNSNames: []string{hostname, target.NodeID},
+	}
+	csrDER, err := x509.CreateCertificateRequest(rand.Reader, csrTmpl, privKey)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("create CSR: %w", err)
+	}
+	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})
+
+	stream, err := session.OpenStream()
+	if err != nil {
+		return time.Time{}, fmt.Errorf("open cert renew stream: %w", err)
+	}
+	defer stream.Close()
+	_ = stream.SetDeadline(time.Now().Add(15 * time.Second))
+
+	if err := tunnelv1.WriteFrame(stream, tunnelv1.StreamHeader{
+		StreamType: tunnelv1.StreamTypeCertRenew,
+	}); err != nil {
+		return time.Time{}, fmt.Errorf("write renew header: %w", err)
+	}
+	if err := tunnelv1.WriteFrame(stream, tunnelv1.CertRenewRequest{
+		NodeID: target.NodeID,
+		CSRPEM: csrPEM,
+	}); err != nil {
+		return time.Time{}, fmt.Errorf("write renew request: %w", err)
+	}
+	var resp tunnelv1.CertRenewResponse
+	if err := tunnelv1.ReadFrame(stream, &resp); err != nil {
+		return time.Time{}, fmt.Errorf("read renew response: %w", err)
+	}
+	if !resp.Success || len(resp.CertPEM) == 0 {
+		return time.Time{}, fmt.Errorf("gateway rejected cert renewal: %s", resp.Error)
+	}
+
+	tmpKey := target.KeyFile + ".tmp"
+	tmpCert := target.CertFile + ".tmp"
+	if err := os.WriteFile(tmpKey, keyPEM, 0o600); err != nil {
+		return time.Time{}, fmt.Errorf("write temp key: %w", err)
+	}
+	if err := os.WriteFile(tmpCert, resp.CertPEM, 0o644); err != nil {
+		_ = os.Remove(tmpKey)
+		return time.Time{}, fmt.Errorf("write temp cert: %w", err)
+	}
+	if err := os.Rename(tmpKey, target.KeyFile); err != nil {
+		return time.Time{}, fmt.Errorf("rename key: %w", err)
+	}
+	if err := os.Rename(tmpCert, target.CertFile); err != nil {
+		return time.Time{}, fmt.Errorf("rename cert: %w", err)
+	}
+	return time.Unix(resp.NotAfterUnix, 0).UTC(), nil
 }
 

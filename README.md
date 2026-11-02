@@ -27,7 +27,7 @@ Manage, monitor, and repair your Linux servers together with an AI — through a
 
 Anyone running one or more Linux servers knows the routine: connecting via SSH, digging through endless log files for errors, editing configuration files by hand, applying updates, and manually checking whether every service is still healthy afterward.
 
-**Synapse is an AI-Managed Infrastructure Control Center (`v2.3.0`) designed to take that routine work off your shoulders.**
+**Synapse is an AI-Managed Infrastructure Control Center (`v2.4.0`) designed to take that routine work off your shoulders.**
 
 Instead of typing shell commands yourself, you work inside a visual dashboard (available in **English** and **German**) alongside an integrated AI system administrator — or connect external AI clients like **Claude Desktop, Cursor, or Windsurf** via the built-in **MCP Server (`/api/mcp`)**. The AI is connected directly to your servers over an outbound `mTLS 1.3` tunnel: it can inspect system health, deploy services, audit security, create automatic **Pre-Flight Time-Machine Checkpoints**, and self-heal crashes — while you stay in full visual control and keep the final say on every change.
 
@@ -66,7 +66,7 @@ Connect **Claude Desktop, Cursor, Windsurf, or any MCP-compatible AI agent** dir
 - **Scoped SHA-256 API Keys (`syn_mcp_...`):** Issue granular `read`, `execute`, or `admin` MCP tokens and revoke them at any time with 1 click.
 
 ### 5. Effortless 1-Click OTA Updates (Bare-Metal & Container-Native)
-Just like NetBird, Synapse displays your current version (`v2.3.0`) and commit status right in the **bottom-left corner of the sidebar**:
+Just like NetBird, Synapse displays your current version (`v2.4.0`) and commit status right in the **bottom-left corner of the sidebar**:
 - **Instant Update Notification & Pre-Flight Rollout:** Whenever a new update is available for **Core** or your connected **Muscle** nodes, a 1-click **`Update`** button creates a Pre-Flight Time-Machine Checkpoint and updates both bare-metal systemd services and container deployments seamlessly.
 
 ### 6. Project Memory (`Brain Vault`) & Modular AI Rule Cartridges (`Rules`)
@@ -157,7 +157,7 @@ npm --prefix apps/core-web run build
   - [`03-ai-orchestrator-and-mcp-server.md`](./architecture/03-ai-orchestrator-and-mcp-server.md) – 42 AI/MCP tools, Prompt Caching & Streamable HTTP JSON-RPC 2.0 MCP Server
   - [`04-resilience-security-and-ota.md`](./architecture/04-resilience-security-and-ota.md) – `AES-256-GCM` Secret Vault, Pre-Flight Time-Machine Checkpoints, Self-Healing & OTA
 - **Project Memory & Roadmap:** [`memory/`](./memory/)
-  - [`PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Live subsystem status matrix (`v2.3.0`)
+  - [`PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Live subsystem status matrix (`v2.4.0`)
   - [`MILESTONES.md`](./memory/MILESTONES.md) – End-to-end engineering roadmap (`Phase 1`–`Phase 6`)
   - [`BLACKBOX.md`](./memory/BLACKBOX.md) – Chronological engineering log & Architecture Decision Records (`ADR-001`–`ADR-006`)
 - **Standard Operating Procedures:** [`playbooks/`](./playbooks/)

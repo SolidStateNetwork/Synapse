@@ -16,6 +16,7 @@ const (
 	StreamTypePty         StreamType = 2
 	StreamTypePortForward StreamType = 3
 	StreamTypeTelemetry   StreamType = 4
+	StreamTypeCertRenew   StreamType = 5
 )
 
 type AutonomyTier string
@@ -191,6 +192,19 @@ type CSRBootstrapResponse struct {
 	CertPEM    []byte `json:"cert_pem"`
 	CACertPEM  []byte `json:"ca_cert_pem"`
 	TunnelPort int    `json:"tunnel_port"`
+}
+
+type CertRenewRequest struct {
+	NodeID string `json:"node_id"`
+	CSRPEM []byte `json:"csr_pem"`
+}
+
+type CertRenewResponse struct {
+	Success      bool   `json:"success"`
+	Error        string `json:"error,omitempty"`
+	CertPEM      []byte `json:"cert_pem"`
+	CACertPEM    []byte `json:"ca_cert_pem"`
+	NotAfterUnix int64  `json:"not_after_unix"`
 }
 
 const MaxFrameSize = 32 * 1024 * 1024 // 32 MB

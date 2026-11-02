@@ -139,6 +139,7 @@ export interface McpApiKey {
   token_prefix: string;
   token_sha256: string;
   scopes: Array<"read" | "execute" | "admin">;
+  rate_limit_per_min?: number;
   created_at: string;
   last_used_at?: string;
 }
@@ -218,4 +219,7 @@ export interface AuditEntry {
     | "error";
   summary: string;
   args?: Record<string, unknown>;
+  prev_hash?: string;
+  entry_hash?: string;
 }
+

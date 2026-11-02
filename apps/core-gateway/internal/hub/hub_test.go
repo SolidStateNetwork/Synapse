@@ -377,6 +377,28 @@ func TestHubServeMTLSLiveSessionReplacementAndVaultTargetSync(t *testing.T) {
 	_ = tunnelv1.WriteFrame(nonTel, tunnelv1.StreamHeader{StreamType: tunnelv1.StreamTypeRpcFs})
 	_ = nonTel.Close()
 
+	// Exercise StreamTypeCertRenew (unconfigured -> invalid CSR -> valid renewal)
+	for idx, configure := range []bool{false, true, true} {
+		if configure {
+			h.SetCertRenewer(auth.CACertPEM, auth.RenewClientCert)
+		}
+		rs, _ := sess2.OpenStream()
+		_ = tunnelv1.WriteFrame(rs, tunnelv1.StreamHeader{StreamType: tunnelv1.StreamTypeCertRenew})
+		csrBytes := []byte("invalid")
+		if idx == 2 {
+			priv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			der, _ := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: "mtls-node-1"}}, priv)
+			csrBytes = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: der})
+		}
+		_ = tunnelv1.WriteFrame(rs, tunnelv1.CertRenewRequest{NodeID: "mtls-node-1", CSRPEM: csrBytes})
+		var rResp tunnelv1.CertRenewResponse
+		_ = tunnelv1.ReadFrame(rs, &rResp)
+		if idx == 2 && (!rResp.Success || len(rResp.CertPEM) == 0) {
+			t.Fatalf("expected valid CertRenewResponse, got %+v", rResp)
+		}
+		_ = rs.Close()
+	}
+
 	// Open telemetry stream and receive synced health targets from State.json
 	telStream, err := sess2.OpenStream()
 	if err != nil {

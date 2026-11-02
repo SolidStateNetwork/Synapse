@@ -200,3 +200,74 @@ func TestPKIAuthority_EdgeCases_ExpiredTokenAndInvalidCSRs(t *testing.T) {
 		t.Fatalf("expected Tier1Unleashed override, got tier=%s err=%v", assignedTier, err)
 	}
 }
+
+func TestRenewClientCert(t *testing.T) {
+	auth, err := NewAuthority(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherAuth, err := NewAuthority(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tok := auth.CreateJoinToken("proj-renew", tunnelv1.Tier1Unleashed, time.Minute)
+	csrPEM, csrDER := createValidCSRPEM(t, "node-renew-01")
+	certPEM, _, _, err := auth.SignNodeCSR(tunnelv1.CSRBootstrapRequest{
+		JoinToken: tok.Token,
+		NodeID:    "node-renew-01",
+		CSRPerm:   csrPEM,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(certPEM)
+	existingCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Valid renewal preserves Subject and extends NotAfter
+	newCSRPEM, _ := createValidCSRPEM(t, "node-renew-01")
+	renewedPEM, notAfter, err := auth.RenewClientCert(existingCert, newCSRPEM)
+	if err != nil || len(renewedPEM) == 0 || time.Until(notAfter) < 360*24*time.Hour {
+		t.Fatalf("RenewClientCert failed: err=%v notAfter=%v", err, notAfter)
+	}
+	rBlock, _ := pem.Decode(renewedPEM)
+	rCert, err := x509.ParseCertificate(rBlock.Bytes)
+	if err != nil || rCert.Subject.CommonName != "node-renew-01" {
+		t.Fatalf("unexpected renewed cert subject: %+v err=%v", rCert, err)
+	}
+
+	// 2. Nil cert
+	if _, _, err := auth.RenewClientCert(nil, newCSRPEM); err == nil {
+		t.Fatal("expected error for nil existingCert")
+	}
+
+	// 3. Untrusted CA signature
+	if _, _, err := otherAuth.RenewClientCert(existingCert, newCSRPEM); err == nil {
+		t.Fatal("expected error for cert signed by different CA")
+	}
+
+	// 4. Expired existing cert
+	expiredCert := *existingCert
+	expiredCert.NotAfter = time.Now().Add(-time.Hour)
+	if _, _, err := auth.RenewClientCert(&expiredCert, newCSRPEM); err == nil {
+		t.Fatal("expected error for expired existingCert")
+	}
+
+	// 5. Invalid CSR PEM, invalid DER, and tampered CSR signature
+	if _, _, err := auth.RenewClientCert(existingCert, []byte("invalid-pem")); err == nil {
+		t.Fatal("expected error for invalid CSR PEM")
+	}
+	badDER := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: []byte("bad")})
+	if _, _, err := auth.RenewClientCert(existingCert, badDER); err == nil {
+		t.Fatal("expected error for invalid CSR DER")
+	}
+	tamperedDER := append([]byte(nil), csrDER...)
+	tamperedDER[len(tamperedDER)-2] ^= 0xFF
+	tamperedPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: tamperedDER})
+	if _, _, err := auth.RenewClientCert(existingCert, tamperedPEM); err == nil {
+		t.Fatal("expected error for tampered CSR signature")
+	}
+}

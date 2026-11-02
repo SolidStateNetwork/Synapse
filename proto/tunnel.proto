@@ -10,6 +10,7 @@ enum StreamType {
   STREAM_TYPE_PTY = 2;
   STREAM_TYPE_PORT_FORWARD = 3;
   STREAM_TYPE_TELEMETRY = 4;
+  STREAM_TYPE_CERT_RENEW = 5;
 }
 
 enum AutonomyTier {
@@ -125,4 +126,17 @@ message NodeHeartbeat {
   string private_ipv4 = 16;
   string public_ipv4 = 17;
   repeated PtySessionMeta pty_session_details = 18;
+}
+
+message CertRenewRequest {
+  string node_id = 1;
+  bytes csr_pem = 2;
+}
+
+message CertRenewResponse {
+  bool success = 1;
+  string error = 2;
+  bytes cert_pem = 3;
+  bytes ca_cert_pem = 4;
+  int64 not_after_unix = 5;
 }

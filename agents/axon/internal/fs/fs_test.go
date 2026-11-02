@@ -223,3 +223,37 @@ func TestApplyUnifiedDiff_ErrorAndFuzzyCases(t *testing.T) {
 		t.Fatalf("expected fallback 0644, got %v", mode)
 	}
 }
+
+func TestResolvePath_DeepAncestorAndBrokenSymlinks(t *testing.T) {
+	wsRoot := t.TempDir()
+	outsideDir := t.TempDir()
+	eng := NewEngine(wsRoot)
+	jailDir := filepath.Join(wsRoot, "proj-sym")
+	_ = os.MkdirAll(jailDir, 0o755)
+
+	// 1. Symlinked directory pointing to outsideDir, accessed via non-existent nested child path
+	escapeLink := filepath.Join(jailDir, "escape-dir")
+	if err := os.Symlink(outsideDir, escapeLink); err == nil {
+		if _, err := eng.ResolvePath("proj-sym", tunnelv1.Tier2WorkspaceJail, "escape-dir/deep/nested/newfile.txt"); err == nil {
+			t.Fatal("expected deep non-existent child under escaping symlink ancestor to be rejected")
+		}
+	}
+
+	// 2. Broken symlink pointing outside jail (/etc/nonexistent-target)
+	brokenOutside := filepath.Join(jailDir, "broken-escape.txt")
+	if err := os.Symlink(filepath.Join(outsideDir, "does-not-exist.txt"), brokenOutside); err == nil {
+		if _, err := eng.ResolvePath("proj-sym", tunnelv1.Tier2WorkspaceJail, "broken-escape.txt"); err == nil {
+			t.Fatal("expected broken symlink pointing outside jail to be rejected")
+		}
+	}
+
+	// 3. Relative symlink inside jail pointing to valid file inside jail must succeed
+	safeSub := filepath.Join(jailDir, "subdir")
+	_ = os.MkdirAll(safeSub, 0o755)
+	safeLink := filepath.Join(jailDir, "safe-link")
+	if err := os.Symlink("subdir", safeLink); err == nil {
+		if _, err := eng.ResolvePath("proj-sym", tunnelv1.Tier2WorkspaceJail, "safe-link/future.txt"); err != nil {
+			t.Fatalf("expected internal symlink inside jail to succeed, got %v", err)
+		}
+	}
+}

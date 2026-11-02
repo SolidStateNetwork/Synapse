@@ -2,6 +2,7 @@ package hub
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"net"
@@ -34,6 +35,7 @@ type ConnectedNode struct {
 
 	session       *yamux.Session
 	telemetryConn net.Conn
+	clientCert    *x509.Certificate
 	mu            sync.RWMutex
 }
 
@@ -57,6 +59,8 @@ type Hub struct {
 	historyByNode map[string][]tunnelv1.TelemetrySample
 	debugEnabled  bool
 	debugEvents   []DebugEvent
+	caCertPEM     []byte
+	certRenewer   func(*x509.Certificate, []byte) ([]byte, time.Time, error)
 }
 
 // NewHub creates a Yamux Hub backed by the given VaultRoot (/var/lib/synapse/projects).
@@ -207,6 +211,7 @@ func (h *Hub) handleConnection(rawConn net.Conn) {
 		RemoteAddr:  rawConn.RemoteAddr().String(),
 		ConnectedAt: time.Now().UTC(),
 		session:     session,
+		clientCert:  clientCert,
 	}
 
 	h.mu.Lock()
@@ -258,6 +263,10 @@ func (h *Hub) handleNodeInitiatedStream(node *ConnectedNode, stream net.Conn) {
 	}
 	_ = stream.SetReadDeadline(time.Time{})
 
+	if hdr.StreamType == tunnelv1.StreamTypeCertRenew {
+		h.handleCertRenewStream(node, stream)
+		return
+	}
 	if hdr.StreamType != tunnelv1.StreamTypeTelemetry {
 		return
 	}

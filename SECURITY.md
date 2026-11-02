@@ -2,51 +2,37 @@
 
 ## Supported Versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 2.3.x   | :white_check_mark: |
-| 2.2.x   | :white_check_mark: |
-| 2.1.x   | :white_check_mark: |
-| 2.0.x   | :white_check_mark: |
-| 1.9.x   | :white_check_mark: |
-| 1.8.x   | :white_check_mark: |
-| 1.7.x   | :white_check_mark: |
-| 1.6.x   | :white_check_mark: |
-| 1.5.x   | :white_check_mark: |
-| 1.4.x   | :white_check_mark: |
-| 1.3.x   | :white_check_mark: |
-| 1.2.x   | :white_check_mark: |
-| 1.1.x   | :white_check_mark: |
-| 1.0.x   | :white_check_mark: |
-| 0.9.x   | :white_check_mark: |
-| 0.8.x   | :white_check_mark: |
-| 0.7.x   | :white_check_mark: |
-| 0.6.x   | :white_check_mark: |
-| 0.5.x   | :white_check_mark: |
-| < 0.5.0 | :x:                |
+Currently supported versions of **Synapse** receiving security updates:
 
-## Security Architecture Overview
-
-Synapse (`v2.3.0`) enforces a defense-in-depth security model that **never relies solely on LLM system prompts**:
-
-1. **Mutual TLS 1.3 (mTLS) + One-Time CSR Enrollment**:
-   - Every `axon` Muscle Node generates an ECDSA P-256 keypair locally and exchanges a short-lived (15-minute) single-use token for a client certificate signed by the Core Gateway Root CA.
-   - All `hashicorp/yamux` streams require strict `tls.RequireAndVerifyClientCert`.
-   - Binary downloads via `/install.sh` and `scripts/install-axon.sh` verify SHA-256 checksums prior to execution.
-2. **Deterministic Self-Lockout Guardrails (`agents/axon/internal/guard`)**:
-   - `axon` inspects every shell command prior to execution and blocks any command that would terminate its own PID, stop/mask `axon.service`, or drop firewall traffic (`ufw`, `iptables`, `nftables`) to the Core Gateway (`ERR_SELF_PROTECTION_VIOLATION`).
-3. **Zero-Leak Secret Vault (`Secrets.enc`) & RBAC / MCP Key Hashing**:
-   - Project secrets are stored encrypted on disk using **AES-256-GCM** (PBKDF2-SHA256 derived master key).
-   - The LLM only sees secret key names (`inject_secret_keys`). Secret values are injected directly into the remote PTY environment and scrubbed from `stdout`/`stderr` streams (`[REDACTED_SECRET:KEY]`) before returning to the Control Plane.
-   - Admin/Operator RBAC passwords and 2FA PINs (`auth.ts`) as well as Model Context Protocol (`MCP`) API keys (`syn_mcp_...`) are hashed and never stored in plaintext.
-4. **Enforced Autonomy Tiers**:
-   - `TIER_1_UNLEASHED`: Full system administration autonomy.
-   - `TIER_2_WORKSPACE_JAIL`: Strict canonical path containment (`filepath.Clean` + `filepath.EvalSymlinks`) inside `/opt/axon/workspaces/<project_id>`.
-   - `TIER_3_SUPERVISED`: Mandatory human-in-the-loop approval gate in the Core Policy Interceptor for all mutating filesystem and shell operations.
-5. **HTTP DoS Protection & Hardened Security Headers**:
-   - All Core Gateway HTTP endpoints enforce a strict 16 MiB request body cap (`http.MaxBytesReader`) and panic recovery middleware.
-   - Both Core Gateway and Next.js Studio enforce `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `X-Frame-Options: SAMEORIGIN`.
+| Version | Supported |
+| :--- | :--- |
+| `2.4.x` (Current — Zero-Trust Security, Hash-Chained Audit & Standalone MCP) | ✅ Yes |
+| `2.3.x` (Lexicon-Everywhere & 42-Tool MCP Safety Annotations) | ✅ Yes |
+| `2.2.x` (Full-Stack DevOps Workbench, Pre-Flight Checkpoints & OTA) | ✅ Yes |
+| `2.1.x` (Model Context Protocol Server & Multi-Distro Support) | ✅ Yes |
+| `2.0.x` (Enterprise Modular Architecture) | ✅ Yes |
+| `< 2.0.0` | ❌ No |
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in Synapse, please report it privately via [GitHub Security Advisories](https://github.com/SolidStateNetwork/Synapse/security/advisories/new) rather than opening a public issue.
+Please **do not** report security vulnerabilities through public GitHub issues, discussions, or pull requests.
+
+Instead, please report them privately via:
+- **GitHub Security Advisories:** Use the ["Report a vulnerability"](https://github.com/SolidStateNetwork/Synapse/security/advisories/new) button in the **Security** tab of this repository.
+
+Please include:
+1. Type of issue (e.g., Autonomy Tier bypass, mTLS handshake issue, secret redaction bypass, SSRF, or command injection).
+2. Full paths of the source file(s) related to the manifestation of the issue (`apps/core-gateway`, `apps/core-web`, `agents/axon`, or `packages/mcp-server`).
+3. Step-by-step instructions to reproduce the issue.
+
+We will acknowledge receipt of your vulnerability report within **48 hours** and strive to release a verified patch within **7 days**.
+
+## Built-In Security Architecture
+
+Synapse (`v2.4.0`) enforces a defense-in-depth security model that **never relies solely on LLM system prompts**:
+
+1. **Zero-Inbound Muscle Architecture:** Muscle nodes (`axon`) initiate outbound **TLS 1.3 mTLS** connections with pinned ECDHE curves (`X25519` / `P-256`) and automatic X.509 certificate rotation (`StreamTypeCertRenew`) to the Core Gateway (`:8443`) using ECDSA P-256 certificates and single-use, TTL-bound Join Tokens.
+2. **Hard Autonomy Tiers (`TIER_1_UNLEASHED`, `TIER_2_WORKSPACE_JAIL`, `TIER_3_SUPERVISED`):** Enforced both in the Core Orchestrator Interceptor and inside the Axon Go binary (`internal/fs/fs.go` with longest-existing-ancestor `filepath.EvalSymlinks` + broken-symlink target validation).
+3. **Self-Lockout & Optional Command Allowlist Guardrail:** `agents/axon/internal/guard/guard.go` blocks commands that would stop `axon.service`, kill the agent's own PID, sever outbound Core/SSH connectivity, or violate a node's deterministic `allowed_commands` allowlist.
+4. **Encrypted Secrets (`PBKDF2-SHA256` + `AES-256-GCM`) & Automatic Redaction:** Secrets are stored encrypted at rest in `Secrets.enc` using `PBKDF2-SHA256` (`100,000` iterations + random 16-byte salt) and automatically scrubbed from all PTY outputs (`[REDACTED_SECRET:KEY]`) before reaching LLM context windows or UI logs.
+5. **3-Tier Scoped MCP API Keys, HMAC Request Signing & Hash-Chained Audit Log:** External MCP clients authenticate via `SHA-256` hashed `syn_mcp_...` tokens with strict `read` / `execute` / `admin` scope separation, per-key sliding-window rate limits, optional `HMAC-SHA256` request signing (`X-Synapse-Signature` / `X-Synapse-Timestamp` 300s replay guard), and a tamper-evident SHA-256 hash chain in `Audit.jsonl`.

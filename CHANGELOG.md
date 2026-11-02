@@ -2,6 +2,24 @@
 
 All notable changes to **Synapse** are documented in this file.
 
+## [v2.4.0] — 2026-11-02 (Zero-Trust MCP Hardening, Tamper-Evident Audit Hash-Chain, PBKDF2-SHA256 Secret Vault, mTLS Auto-Rotation & Standalone MCP Server)
+
+### Added & Improved
+- **3-Tier MCP Scope Enforcement, Per-Key Rate Limits & HMAC-SHA256 Request Signing (`auditChatAndMcp.ts`, `/api/mcp/route.ts`)**:
+  - Enforced strict 3-tier scope checks (`read`, `execute`, `admin`) across all 42 MCP tools (`isAdminOnlyMcpToolCall` requires `admin` scope for `synapse_create_join_token`, secret mutations, node removal, backup restore, and approval overrides).
+  - Added per-key configurable sliding-window rate limits (`rate_limit_per_min`) and optional `HMAC-SHA256` request signing (`X-Synapse-Signature` + `X-Synapse-Timestamp` 300s replay guard).
+- **Tamper-Evident `Audit.jsonl` SHA-256 Hash-Chain (`auditChatAndMcp.ts`, `vault.ts`, `/api/mcp/route.ts`)**:
+  - Chained every `AuditEntry` with `prev_hash` (`GENESIS` on initial vault creation) and `entry_hash` (`SHA-256`), and added `verifyAuditChain(projectId)` exposed via `GET /api/mcp`, `POST /api/mcp` (`action: "verify_audit_chain"`), and `synapse_get_project_state`.
+- **mTLS 1.3 ECDHE Curve Pinning, Auto-Rotation (`StreamTypeCertRenew`), Deep Ancestor Symlink Jail & Deterministic `AllowedCommands` (`pki.go`, `diagnostics.go`, `tunnel.go`, `fs.go`, `diff.go`, `guard.go`)**:
+  - Pinned TLS 1.3 ECDHE curves (`X25519` & `P-256`), added exponential reconnect backoff with cryptographic jitter (`ComputeReconnectBackoff`), and implemented zero-downtime X.509 client certificate renewal (`RenewClientCert` & `RotateTargetCertificate` over `StreamTypeCertRenew`).
+  - Hardened `ResolvePath` (`TIER_2_WORKSPACE_JAIL`) with longest-existing-ancestor `filepath.EvalSymlinks` and broken-symlink target validation, and added deterministic `AllowedCommands` (`ValidateCommandWithAllowlist`) + flag-reordered `systemctl` self-lockout checks.
+- **Standalone Stdio/HTTP MCP Server Package (`packages/mcp-server/`)**:
+  - Added zero-dependency Node.js MCP Server (`@solidstatenetwork/synapse-mcp-server` `v2.4.0`) exposing all 42 annotated tools, 6 Lexicon resources, `signMcpPayload`, exponential retry, and offline fallback.
+- **PBKDF2-SHA256 (`100,000` Iterations) Secret Vault KDF & Atomic Write-Temp-and-Rename (`vault.ts`, `lexiconGovernance.ts`, `cartridges.ts`, `disasterRecoveryTools.ts`)**:
+  - Upgraded `Secrets.enc` encryption to `PBKDF2-SHA256` (`100,000` iterations + random 16-byte salt) with seamless backward-compatible decryption of legacy SHA-256 ciphertexts, and replaced all remaining direct `fs.writeFileSync` calls with `atomicWriteTextSync`.
+
+---
+
 ## [v2.3.0] — 2026-11-01 (Lexicon-Everywhere: 4-Doc Topology Bundles, Vault Search, MCP Resources, Remote Muscle Workspace Sync & Remote FS Clean-Room Guard)
 
 ### Added & Improved

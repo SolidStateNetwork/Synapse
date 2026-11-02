@@ -277,7 +277,7 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     assert.equal(dbgGetRes.status, 200);
     const dbgGetJson = await dbgGetRes.json();
     assert.equal(typeof dbgGetJson.gateway.reachable, "boolean");
-    assert.equal(dbgGetJson.version, "v2.3.0");
+    assert.equal(dbgGetJson.version, "v2.4.0");
 
     const dbgSelfTestRes = await postDebug(
       makePostReq("/api/debug", { action: "run_self_test", project_id: projId })
@@ -285,7 +285,7 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     assert.equal(dbgSelfTestRes.status, 200);
     const dbgSelfTestJson = await dbgSelfTestRes.json();
     assert.equal(dbgSelfTestJson.ok, true);
-    assert.equal(dbgSelfTestJson.version, "v2.3.0");
+    assert.equal(dbgSelfTestJson.version, "v2.4.0");
     assert.ok(dbgSelfTestJson.checks.some((c: { id: string }) => c.id === "resilience_and_mcp"));
     assert.ok(
       dbgSelfTestJson.checks.some(
@@ -299,7 +299,7 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     const sysGetRes = await getSystemUpdate(makeGetReq("/api/system-update"));
     assert.equal(sysGetRes.status, 200);
     const sysGetJson = await sysGetRes.json();
-    assert.equal(sysGetJson.version, "v2.3.0");
+    assert.equal(sysGetJson.version, "v2.4.0");
 
     const sysPostRes = await postSystemUpdate(
       makePostReq("/api/system-update", { action: "check", project_id: projId })
@@ -310,14 +310,14 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     const mcpGetRes = await getMcp(makeGetReq(`/api/mcp?project_id=${projId}`));
     assert.equal(mcpGetRes.status, 200);
     const mcpGetJson = await mcpGetRes.json();
-    assert.equal(mcpGetJson.serverInfo.version, "2.3.0");
+    assert.equal(mcpGetJson.serverInfo.version, "2.4.0");
 
     const mcpKeyRes = await postMcp(
       makePostReq("/api/mcp", {
         action: "create_key",
         project_id: projId,
         name: "Integration Test Key",
-        scopes: ["read", "execute"],
+        scopes: ["read", "execute", "admin"],
       })
     );
     assert.equal(mcpKeyRes.status, 201);
@@ -491,10 +491,10 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
       "utf8"
     );
 
-    assert.ok(gwMain.includes('"version":         "v2.3.0"'), "core-gateway /healthz must report v2.3.0");
-    assert.ok(axonMain.includes('version = "v2.3.0"'), "axon main.go must default to v2.3.0");
-    assert.equal(pkgJson.version, "2.3.0", "core-web package.json must report 2.3.0");
-    assert.ok(securityMd.includes("2.3.x"), "SECURITY.md must list 2.3.x");
+    assert.ok(gwMain.includes('"version":         "v2.4.0"'), "core-gateway /healthz must report v2.4.0");
+    assert.ok(axonMain.includes('version = "v2.4.0"'), "axon main.go must default to v2.4.0");
+    assert.equal(pkgJson.version, "2.4.0", "core-web package.json must report 2.4.0");
+    assert.ok(securityMd.includes("2.4.x"), "SECURITY.md must list 2.4.x");
     assert.ok(privacyMd.includes("Zero-Telemetry"), "PRIVACY.md must document Zero-Telemetry policy");
     assert.ok(
       readmeEn.includes("https://m8ven.ai/badge/mcp/solidstatenetwork-synapse-rv3on4?variant=verified"),
@@ -504,8 +504,8 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
       readmeDe.includes("https://m8ven.ai/badge/mcp/solidstatenetwork-synapse-rv3on4?variant=verified"),
       "README.de.md must include verified M8ven badge slug"
     );
-    assert.ok(changelogMd.includes("## [v2.3.0]"), "CHANGELOG.md must document v2.3.0");
-    assert.ok(versionTs.includes('SYNAPSE_SEMVER = "2.3.0"'), "version.ts must export SYNAPSE_SEMVER = 2.3.0");
+    assert.ok(changelogMd.includes("## [v2.4.0]"), "CHANGELOG.md must document v2.4.0");
+    assert.ok(versionTs.includes('SYNAPSE_SEMVER = "2.4.0"'), "version.ts must export SYNAPSE_SEMVER = 2.4.0");
 
     for (const relPath of [
       "apps/core-web/src/components/layout/ControlCenterChrome.tsx",

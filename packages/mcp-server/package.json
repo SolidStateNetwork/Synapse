@@ -1,0 +1,26 @@
+{
+  "name": "@solidstatenetwork/synapse-mcp-server",
+  "version": "2.4.0",
+  "description": "Standalone Stdio & Streamable HTTP Model Context Protocol (MCP) Server for Synapse v2.4.0 (42 Tools + 4-Doc AI Lexicon Resources)",
+  "type": "module",
+  "main": "index.mjs",
+  "bin": {
+    "synapse-mcp-server": "./index.mjs"
+  },
+  "scripts": {
+    "test": "node --check index.mjs"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "synapse",
+    "devops",
+    "mtls",
+    "ai-orchestrator"
+  ],
+  "author": "SolidStateNetwork",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -323,12 +323,12 @@ export async function dispatchCoreBrainTool(
     };
   }
 
-  if (toolName === "core_manage_secret") {
+  if (toolName === "core_manage_secret" || toolName === "core_manage_secrets") {
     const action = String(args.action || "list");
     const key = String(args.key || args.key_name || "").trim().toUpperCase();
     const value = String(args.value || args.secret_value || "");
     const length = Number(args.length || 32);
-    if (action !== "list" && !key) {
+    if (action !== "list" && action !== "list_keys" && !key) {
       return {
         tool_name: toolName,
         status: "error",

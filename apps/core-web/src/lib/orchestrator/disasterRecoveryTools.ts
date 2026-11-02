@@ -7,6 +7,7 @@ import { safeFetchJson } from "../safeFetch";
 import {
   appendAuditLog,
   atomicWriteJsonSync,
+  atomicWriteTextSync,
   decryptSecretsMap,
   encryptSecretsMap,
   getProjectDir,
@@ -98,7 +99,7 @@ export async function dispatchDisasterRecoveryTool(
       const projDir = getProjectDir(projectId);
       const backupsDir = path.join(projDir, "Backups");
       fs.mkdirSync(backupsDir, { recursive: true });
-      fs.writeFileSync(path.join(backupsDir, `${backupId}.enc`), encryptedPayload, { mode: 0o600 });
+      atomicWriteTextSync(path.join(backupsDir, `${backupId}.enc`), encryptedPayload, 0o600);
 
       const item: OffsiteBackupRecord = {
         id: backupId,

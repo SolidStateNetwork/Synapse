@@ -37,6 +37,7 @@ func NewAgent(cfg *IdentityConfig) *Agent {
 		port = "8443"
 	}
 	guardCfg := guard.NewDefaultConfig(host, port)
+	guardCfg.AllowedCommands = cfg.AllowedCommands
 	return &Agent{
 		Config:           cfg,
 		FsEngine:         fs.NewEngine(cfg.WorkspaceRoot),
@@ -124,6 +125,7 @@ func (a *Agent) RunForever(ctx context.Context) error {
 }
 
 func (a *Agent) runTargetForever(ctx context.Context, target CoreTarget) error {
+	attempt := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -138,7 +140,8 @@ func (a *Agent) runTargetForever(ctx context.Context, target CoreTarget) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(2 * time.Second):
+		case <-time.After(ComputeReconnectBackoff(attempt)):
+			attempt++
 		}
 	}
 }
@@ -191,6 +194,11 @@ func (a *Agent) connectAndServeTarget(ctx context.Context, target CoreTarget, he
 	hbCtx, cancelHb := context.WithCancel(ctx)
 	defer cancelHb()
 	go a.telemetryLoopForTarget(hbCtx, session, target, healthCol)
+	if needs, _, err := NeedsCertRotation(target.CertFile, 30*24*time.Hour); err == nil && needs {
+		if newExp, rErr := RotateTargetCertificate(session, target); rErr == nil {
+			log.Printf("[axon][%s] rotated mTLS client certificate (new expiry=%s)", target.Name, newExp.Format(time.RFC3339))
+		}
+	}
 
 	for {
 		stream, err := session.AcceptStream()

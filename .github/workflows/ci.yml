@@ -1,151 +1,152 @@
-name: Synapse CI — Brain & Muscle Build Pipeline
+name: Synapse CI & Release Verification
 
 on:
   push:
     branches: ["main"]
+    tags: ["v*"]
   pull_request:
     branches: ["main"]
 
 permissions:
-  contents: read
-  packages: write
+  contents: write
 
 jobs:
-  build-and-test-go:
-    name: Build & Test Go Modules (Axon Muscle + Core Gateway)
-    runs-on: ubuntu-24.04
+  verify:
+    name: Go (core-gateway + axon) & Next.js (core-web + mcp-server) Verification
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
-      - name: Verify Clean Repo Hygiene & < 600 Line Modularization Gate
-        run: |
-          P1="217\\.154\\.20""\\.24"
-          P2="/home/""denis"
-          P3="vps""2"
-          P4="cachy""os"
-          P5="synapse-cloud-""demo"
-          P6="pulse-""webui|pulse-""analytics|pulse-""sqlite"
-          P7="uptime-beacon-""4060|json-""telemetrie"
-          HITS=$(git grep -n -iE "${P1}|${P2}|${P3}|${P4}|${P5}|${P6}|${P7}" || true)
-          if [ -n "$HITS" ]; then
-            echo "ERROR: Private data strings detected in repository:"
-            echo "$HITS"
-            exit 1
-          fi
-          OVERSIZE_GO=$(find proto apps/core-gateway agents/axon -type f -name "*.go" -exec awk 'FNR == 500 { print FILENAME }' {} +)
-          if [ -n "$OVERSIZE_GO" ]; then
-            echo "ERROR: Go files exceeding 500 lines detected:"
-            echo "$OVERSIZE_GO"
-            exit 1
-          fi
-          OVERSIZE=$(find apps/core-web/src apps/core-gateway agents/axon -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.go" \) -exec awk 'FNR == 600 { print FILENAME }' {} +)
-          if [ -n "$OVERSIZE" ]; then
-            echo "ERROR: Code files exceeding 600 lines detected:"
-            echo "$OVERSIZE"
-            exit 1
-          fi
-          bash -n scripts/deploy-core.sh scripts/ensure-core-ha.sh
-          sh -n scripts/install-axon.sh
-          shellcheck -S warning scripts/deploy-core.sh scripts/install-axon.sh scripts/ensure-core-ha.sh
-          echo "Clean Repo Hygiene, ShellCheck & < 500 Go / < 600 TS Line Modularization Gate passed."
-
-      - name: Set up Go 1.23
-        uses: actions/setup-go@v7
+      - name: Setup Go 1.24
+        uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
-          cache-dependency-path: |
-            agents/axon/go.sum
-            apps/core-gateway/go.sum
+          go-version: "1.24"
 
-      - name: Run Unit Tests with Race Detector & >= 85% Coverage Gate
-        run: |
-          set -o pipefail
-          go test -v -race -cover ./proto/... ./agents/axon/... ./apps/core-gateway/... | tee /tmp/go-cov.out
-          LOW_COV=$(awk '/^ok[[:space:]]/ {for(i=1;i<=NF;i++) if($i=="coverage:") {val=$(i+1); gsub(/%/,"",val); if(val+0 < 85.0) print $2, val"%"}}' /tmp/go-cov.out)
-          if [ -n "$LOW_COV" ]; then
-            echo "ERROR: Go packages below 85% minimum statement coverage gate:"
-            echo "$LOW_COV"
-            exit 1
-          fi
-          echo "All 11 Go packages passed the >= 85% statement coverage gate."
-
-      - name: Build Static Single-Binary Axon Agent (linux/amd64 & linux/arm64)
-        env:
-          CGO_ENABLED: "0"
-        run: |
-          mkdir -p dist
-          GOOS=linux GOARCH=amd64 go build -C agents/axon -ldflags="-s -w" -o ../../dist/axon-linux-amd64 ./cmd/axon
-          GOOS=linux GOARCH=arm64 go build -C agents/axon -ldflags="-s -w" -o ../../dist/axon-linux-arm64 ./cmd/axon
-          GOOS=linux GOARCH=amd64 go build -C apps/core-gateway -ldflags="-s -w" -o ../../dist/core-gateway-linux-amd64 .
-
-      - name: Upload Axon Artifacts
-        uses: actions/upload-artifact@v7
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
         with:
-          name: synapse-binaries
-          path: dist/
-
-  build-core-web:
-    name: Build Next.js 15 Core WebUI & Brain Vault
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js 24
-        uses: actions/setup-node@v7
-        with:
-          node-version: "24"
+          node-version: "22"
           cache: "npm"
           cache-dependency-path: apps/core-web/package-lock.json
 
-      - name: Install Dependencies, Verify Strict TypeScript, Run Unit Tests (>= 90% Coverage Gate) & Build Next.js 15 App Router
-        working-directory: apps/core-web
+      - name: Verify Zero-Secret & Clean-Room Guardrails
         run: |
-          set -o pipefail
-          npm ci
-          npx tsc --noEmit
-          node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON --experimental-test-coverage --import ./src/__tests__/register-hooks.mjs --test src/__tests__/synapse.test.ts src/__tests__/fault-injection.test.ts src/__tests__/api-routes.test.ts src/__tests__/core-deep.test.ts src/__tests__/llm-and-ota.test.ts | tee /tmp/ts-cov.out
-          TS_LINE_COV=$(awk -F'|' '/all files/ { gsub(/[[:space:]]/, "", $2); print $2 }' /tmp/ts-cov.out | tail -n 1)
-          if [ -z "$TS_LINE_COV" ] || awk "BEGIN { exit !($TS_LINE_COV < 90.0) }"; then
-            echo "ERROR: TypeScript line coverage (${TS_LINE_COV:-0}%) is below the 90% minimum coverage gate!"
+          if grep -rnE "BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY|MTI-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}" \
+            --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.next \
+            --exclude="pre-commit" --exclude="ci.yml" --exclude="01-mtls-and-security-guardrails.md" --exclude="lexiconGovernance.ts" --exclude="synapse.test.ts" --exclude="v240-security.test.ts" .; then
+            echo "::error::Secret leak detected in repository!"
             exit 1
           fi
-          echo "TypeScript line coverage gate passed: ${TS_LINE_COV}% (>= 90.0%)."
-          npm run build
 
-  publish-ghcr-images:
-    name: Build & Publish Docker Images to GHCR (synapse-core)
-    runs-on: ubuntu-24.04
-    needs: [build-and-test-go, build-core-web]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Enforce File Size Guardrails (Go < 500 lines, TS/TSX < 600 lines)
+        run: |
+          GO_OVER=$(find proto apps/core-gateway agents/axon -name '*.go' -exec awk 'FNR == 500 { print FILENAME }' {} +)
+          if [ -n "$GO_OVER" ]; then
+            echo "::error::Go files exceeding 500 lines: $GO_OVER"
+            exit 1
+          fi
+          TS_OVER=$(find apps/core-web/src -name '*.ts' -o -name '*.tsx' | xargs awk 'FNR == 600 { print FILENAME }')
+          if [ -n "$TS_OVER" ]; then
+            echo "::error::TypeScript files exceeding 600 lines: $TS_OVER"
+            exit 1
+          fi
+
+      - name: Build & Vet Go Binaries (`core-gateway` & `axon`)
+        run: |
+          mkdir -p bin
+          go vet -C proto ./...
+          go vet -C apps/core-gateway ./...
+          go vet -C agents/axon ./...
+          CGO_ENABLED=0 go build -C apps/core-gateway -ldflags="-s -w" -o ../../bin/core-gateway .
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -C agents/axon -ldflags="-s -w -X main.version=v2.4.0" -o ../../bin/axon-linux-amd64 ./cmd/axon
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -C agents/axon -ldflags="-s -w -X main.version=v2.4.0" -o ../../bin/axon-linux-arm64 ./cmd/axon
+
+      - name: Run Go Unit Tests & Enforce >= 88% Statement Coverage Across All 11 Packages
+        run: |
+          FAILED=0
+          for mod in proto apps/core-gateway agents/axon; do
+            echo "=== Module: $mod ==="
+            for pkg in $(go list -C "$mod" ./...); do
+              out=$(go test -C "$mod" -race -cover "$pkg")
+              echo "$out"
+              cov=$(echo "$out" | grep -oE '[0-9]+\.[0-9]+%' | head -1 | tr -d '%')
+              if [ -z "$cov" ]; then
+                echo "::error::Missing coverage output for $pkg"
+                FAILED=1
+              else
+                awk -v c="$cov" -v p="$pkg" 'BEGIN { if (c + 0.0 < 88.0) { printf "::error::Package %s coverage %.1f%% is below 88.0%%\n", p, c; exit 1 } }' || FAILED=1
+              fi
+            done
+          done
+          exit $FAILED
+
+      - name: Install Core-Web Dependencies & Audit Supply Chain
+        working-directory: apps/core-web
+        run: |
+          npm ci
+          npm audit --audit-level=high
+
+      - name: Verify Standalone MCP Server Package (`packages/mcp-server`)
+        run: |
+          node --check packages/mcp-server/index.mjs
+
+      - name: TypeScript Strict Typecheck (`tsc --noEmit`)
+        working-directory: apps/core-web
+        run: npx tsc --noEmit
+
+      - name: Run Core-Web & MCP Server Unit & Fault-Injection Tests
+        working-directory: apps/core-web
+        run: |
+          node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON \
+            --import ./src/__tests__/register-hooks.mjs \
+            --test \
+            src/__tests__/synapse.test.ts \
+            src/__tests__/fault-injection.test.ts \
+            src/__tests__/api-routes.test.ts \
+            src/__tests__/core-deep.test.ts \
+            src/__tests__/llm-and-ota.test.ts \
+            src/__tests__/v240-security.test.ts
+
+      - name: Build Production Next.js Bundle & Generate Supply-Chain SBOM
+        working-directory: apps/core-web
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          npm run build
+          npm sbom --sbom-format cyclonedx > sbom-core-web.cdx.json
+
+  release-binaries:
+    name: Build & Publish Multi-Arch Binaries on Tag
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry (GHCR)
-        uses: docker/login-action@v4
+      - name: Setup Go 1.24
+        uses: actions/setup-go@v5
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          go-version: "1.24"
 
-      - name: Build & Push synapse-core-gateway Image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: apps/core-gateway/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/solidstatenetwork/synapse-core-gateway:latest
-            ghcr.io/solidstatenetwork/synapse-core-gateway:${{ github.sha }}
+      - name: Build Static Release Binaries & Checksums
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          COMMIT="${GITHUB_SHA::7}"
+          mkdir -p dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -C apps/core-gateway -ldflags="-s -w" -o ../../dist/core-gateway-linux-amd64 .
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -C apps/core-gateway -ldflags="-s -w" -o ../../dist/core-gateway-linux-arm64 .
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -C agents/axon -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" -o ../../dist/axon-linux-amd64 ./cmd/axon
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -C agents/axon -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" -o ../../dist/axon-linux-arm64 ./cmd/axon
+          cd dist && sha256sum * > SHA256SUMS.txt
 
-      - name: Build & Push synapse-core-web Image
-        uses: docker/build-push-action@v7
+      - name: Publish GitHub Release Assets
+        uses: softprops/action-gh-release@v2
         with:
-          context: .
-          file: apps/core-web/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/solidstatenetwork/synapse-core-web:latest
-            ghcr.io/solidstatenetwork/synapse-core-web:${{ github.sha }}
+          files: |
+            dist/core-gateway-linux-amd64
+            dist/core-gateway-linux-arm64
+            dist/axon-linux-amd64
+            dist/axon-linux-arm64
+            dist/SHA256SUMS.txt

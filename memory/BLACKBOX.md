@@ -35,6 +35,29 @@
 
 ## 📜 Chronologisches Logbuch (Neueste zuerst)
 
+### [BB-013] 2026-11-02 15:40 (CET) – [MCP-SERVER / BRAIN-VAULT / CORE-GATEWAY / AXON-AGENT / v2.4.0 + Phase 8 v2.5.0 Roadmap] Full Implementation & Verification of Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) & Specification of Phase 8 (`v2.5.0`, `M8.1`–`M8.6`)
+- **Akteur:** Antigravity AI & Project Lead
+- **Typ:** `RELEASE` | `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
+- **Betroffene Module:** `MCP-SERVER`, `BRAIN-VAULT`, `CORE-GATEWAY`, `AXON-AGENT`, `PROTO-WIRE`, `ARCH-LEXICON`
+- **Ziel / Hintergrund:** Vollständige Umsetzung und End-to-End-Verifikation aller Meilensteine der Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) sowie Konzeption der nächsten Ausbaustufe **Phase 8 (`v2.5.0`, `M8.1`–`M8.6`)**.
+- **Durchgeführte Schritte:**
+  1. **`M7.1` – 3-Tier MCP Scopes, Per-Key Rate-Limits, HMAC-SHA256 Signing & `Audit.jsonl` Hash-Chain (`auditChatAndMcp.ts`, `/api/mcp/route.ts`):**
+     - `isAdminOnlyMcpToolCall` implementiert und in `executeMcpTool` verdrahtet (`admin`-Scope Pflicht für `synapse_create_join_token`, `core_manage_secrets` Mutationen, `core_manage_node_enrollment` Mutationen, `core_disaster_RecoveryVault` `restore_backup`, `core_manage_approvals` & `core_configure_ai_engine` `update`).
+     - Konfigurierbare Sliding-Window Rate-Limits (`rate_limit_per_min` pro API-Key) sowie optionale `HMAC-SHA256` Request-Signaturprüfung (`verifyMcpRequestSignature` mit `X-Synapse-Signature` und `X-Synapse-Timestamp` 300s Replay-Fenster) ergänzt.
+     - Kryptographische `SHA-256` Hash-Verkettung (`prev_hash` + `entry_hash` ab `GENESIS`) in `appendAuditLog` und `ensureProjectVault` sowie `verifyAuditChain(projectId)` implementiert.
+  2. **`M7.2` – Go `core-gateway` & `axon` mTLS 1.3 Auto-Rotation, Curve-Pinning, Deep Ancestor Symlink Jail & `AllowedCommands` (`proto/tunnel.pb.go`, `pki.go`, `hub.go`, `vault_sync.go`, `diagnostics.go`, `tunnel.go`, `fs.go`, `diff.go`, `guard.go`):**
+     - `StreamTypeCertRenew = 5` + `CertRenewRequest`/`CertRenewResponse` in `proto/tunnel.pb.go` ergänzt; `RenewClientCert` in `pki.go` sowie `NeedsCertRotation` & `RotateTargetCertificate` in `diagnostics.go` implementiert; TLS 1.3 ECDHE-Kurven (`X25519`, `CurveP256`) gepinnt und `ComputeReconnectBackoff` mit `crypto/rand` Jitter integriert.
+     - `agents/axon/internal/fs/diff.go` (`226` Zeilen `< 500`) ausgelagert und `ResolvePath` in `fs.go` (`289` Zeilen `< 500`) um rekursive `EvalSymlinks`-Prüfung des längsten existierenden Eltern-Pfades + `os.Lstat`/`os.Readlink`-Prüfung gebrochener Symlinks gehärtet.
+     - `ValidateCommandWithAllowlist` (`AllowedCommands`) sowie Erkennung Flag-umsortierter `systemctl`- und Netzwerk-Lockout-Befehle in `guard.go` ergänzt.
+  3. **`M7.3` – Standalone MCP Server (`packages/mcp-server/package.json` & `index.mjs`):**
+     - Eigenständigen Node.js Stdio/HTTP MCP-Server (`@solidstatenetwork/synapse-mcp-server` `v2.4.0`, `229` Zeilen) mit allen 42 annotierten Tools, 6 Lexikon-Ressourcen, `signMcpPayload` und Offline-Fallback erstellt.
+  4. **`M7.4` – `PBKDF2-SHA256` Secret-KDF & 100 % Atomare Persistenz (`vault.ts`, `lexiconGovernance.ts`, `cartridges.ts`, `disasterRecoveryTools.ts`):**
+     - `encryptSecretsMap` / `decryptSecretsMap` auf `PBKDF2-SHA256` (`100.000` Iterationen + 16-Byte Salt) mit automatischem Legacy-SHA-256-Fallback aktualisiert und alle verbleibenden `fs.writeFileSync`-Aufrufe durch `atomicWriteTextSync` ersetzt.
+  5. **`M7.5` & `M7.6` – CI Supply-Chain Gates, Test-Suite-Expansion (`47/47` TS-Tests & `11/11 >= 88%` Go-Coverage) & Phase 8 (`v2.5.0`) Roadmap:**
+     - `.github/workflows/ci.yml` um `npm audit --audit-level=high`, `node --check packages/mcp-server/index.mjs`, CycloneDX-SBOM-Generierung und `>= 88.0%` Go-Coverage-Gate erweitert.
+     - `src/__tests__/v240-security.test.ts` (Tests `34`–`47`) sowie Go-Tests (`pki_test.go`, `hub_test.go`, `tunnel_test.go`, `fs_test.go`, `guard_test.go`, `main_test.go`) ergänzt und **Phase 8 (`v2.5.0`, `M8.1`–`M8.6`)** in `memory/MILESTONES.md` spezifiziert.
+- **Verifikation:** `47/47` TypeScript-Tests grün (`0` Fehler), `npx tsc --noEmit` (`0` Fehler), `npm audit --audit-level=high` (`0` Vulnerabilities), alle `.go`-Dateien `< 500` Zeilen und alle `.ts`/`.tsx`-Dateien `< 600` Zeilen, alle 11 Go-Pakete `>= 88.0 %` Coverage.
+
 ### [BB-012] 2026-11-02 14:00 (CET) – [ARCH-LEXICON / MCP-SERVER / BRAIN-VAULT / CORE-GATEWAY / AXON-AGENT / v2.4.0 Roadmap] Forensisches Codebase-Audit & Konzeption der Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) Enterprise Security & Hardening Roadmap
 - **Akteur:** Antigravity AI & Project Lead
 - **Typ:** `ARCHITECTURE` | `SECURITY` | `ARCH-LEXICON`

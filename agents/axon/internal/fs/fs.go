@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -29,6 +28,63 @@ func NewEngine(workspaceRoot string) *Engine {
 	return &Engine{WorkspaceRoot: workspaceRoot}
 }
 
+func isWithinJail(evalJail string, candidate string) bool {
+	cleanJail := filepath.Clean(evalJail)
+	cleanCand := filepath.Clean(candidate)
+	return cleanCand == cleanJail || strings.HasPrefix(cleanCand, cleanJail+string(filepath.Separator))
+}
+
+func verifyAncestorAndBrokenSymlinks(evalJail string, candidate string) error {
+	// Walk from candidate up to jail root, checking broken symlinks via Lstat/Readlink
+	// and evaluating the longest existing ancestor on disk via EvalSymlinks.
+	cur := filepath.Clean(candidate)
+	var suffixParts []string
+	evaluatedAncestor := false
+
+	for {
+		if info, lerr := os.Lstat(cur); lerr == nil {
+			if info.Mode()&os.ModeSymlink != 0 {
+				if linkDest, rerr := os.Readlink(cur); rerr == nil {
+					resolvedDest := linkDest
+					if !filepath.IsAbs(resolvedDest) {
+						resolvedDest = filepath.Join(filepath.Dir(cur), resolvedDest)
+					}
+					resolvedDest = filepath.Clean(resolvedDest)
+					if evalDest, eerr := filepath.EvalSymlinks(resolvedDest); eerr == nil {
+						resolvedDest = evalDest
+					}
+					if !isWithinJail(evalJail, resolvedDest) {
+						return fmt.Errorf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): symlink %q -> %q escapes project jail %q", cur, resolvedDest, evalJail)
+					}
+				}
+			}
+			if !evaluatedAncestor {
+				if evalAnc, err := filepath.EvalSymlinks(cur); err == nil {
+					evaluatedAncestor = true
+					if !isWithinJail(evalJail, evalAnc) {
+						return fmt.Errorf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): symlink ancestor %q escapes project jail %q", evalAnc, evalJail)
+					}
+					recombined := evalAnc
+					for i := len(suffixParts) - 1; i >= 0; i-- {
+						recombined = filepath.Join(recombined, suffixParts[i])
+					}
+					if !isWithinJail(evalJail, recombined) {
+						return fmt.Errorf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): resolved path %q escapes project jail %q", recombined, evalJail)
+					}
+				}
+			}
+		}
+
+		parent := filepath.Dir(cur)
+		if parent == cur || cur == evalJail {
+			break
+		}
+		suffixParts = append(suffixParts, filepath.Base(cur))
+		cur = parent
+	}
+	return nil
+}
+
 // ResolvePath validates and resolves a target path according to the project ID and AutonomyTier.
 // When Tier2WorkspaceJail is active, paths outside /opt/axon/workspaces/<project_id> are rejected.
 func (e *Engine) ResolvePath(projectID string, tier tunnelv1.AutonomyTier, targetPath string) (string, error) {
@@ -47,25 +103,16 @@ func (e *Engine) ResolvePath(projectID string, tier tunnelv1.AutonomyTier, targe
 			candidate = filepath.Clean(filepath.Join(jailDir, targetPath))
 		}
 
-		// Allow either paths already prefixed with jailDir or treat relative-like paths inside jailDir
-		if candidate != jailDir && !strings.HasPrefix(candidate, jailDir+string(filepath.Separator)) {
+		if !isWithinJail(jailDir, candidate) {
 			return "", fmt.Errorf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): path %q escapes project jail %q", targetPath, jailDir)
 		}
 
-		// Check symlinks on both parent directory and candidate itself (if it already exists)
-		if evalJail, errJail := filepath.EvalSymlinks(jailDir); errJail == nil {
-			if candidate != jailDir {
-				if evalParent, err := filepath.EvalSymlinks(filepath.Dir(candidate)); err == nil {
-					if evalParent != evalJail && !strings.HasPrefix(evalParent, evalJail+string(filepath.Separator)) {
-						return "", fmt.Errorf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): symlink parent %q escapes project jail %q", evalParent, evalJail)
-					}
-				}
-			}
-			if evalCand, err := filepath.EvalSymlinks(candidate); err == nil {
-				if evalCand != evalJail && !strings.HasPrefix(evalCand, evalJail+string(filepath.Separator)) {
-					return "", fmt.Errorf("Autonomy Tier Violation (TIER_2_WORKSPACE_JAIL): symlink target %q escapes project jail %q", evalCand, evalJail)
-				}
-			}
+		evalJail := jailDir
+		if resolvedJail, errJail := filepath.EvalSymlinks(jailDir); errJail == nil {
+			evalJail = resolvedJail
+		}
+		if err := verifyAncestorAndBrokenSymlinks(evalJail, candidate); err != nil {
+			return "", err
 		}
 
 		return candidate, nil
@@ -280,220 +327,4 @@ func atomicWriteFile(targetPath string, content []byte, defaultPerm os.FileMode,
 		return fmt.Errorf("rename temp file to %s: %w", targetPath, err)
 	}
 	return nil
-}
-
-var hunkHeaderRegex = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
-
-func applyUnifiedDiffToFile(targetPath string, diffText string, fileMode string) ([]byte, error) {
-	origBytes, err := os.ReadFile(targetPath)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("read target file for diff: %w", err)
-	}
-
-	patched, err := ApplyUnifiedDiff(string(origBytes), diffText)
-	if err != nil {
-		return nil, err
-	}
-	outBytes := []byte(patched)
-	perm := parseOctalFileMode(fileMode, 0o644)
-	if err := atomicWriteFile(targetPath, outBytes, perm, strings.TrimSpace(fileMode) != ""); err != nil {
-		return nil, err
-	}
-	return outBytes, nil
-}
-
-// ApplyUnifiedDiff applies a standard unified diff to original content in memory,
-// with automatic fuzzy hunk locating when LLM line numbers are slightly shifted.
-func ApplyUnifiedDiff(original string, diffText string) (string, error) {
-	origLines := splitLinesPreserve(original)
-	diffLines := strings.Split(strings.ReplaceAll(diffText, "\r\n", "\n"), "\n")
-
-	var result []string
-	origIdx := 0
-	i := 0
-	foundHunk := false
-
-	for i < len(diffLines) {
-		line := diffLines[i]
-		if strings.HasPrefix(line, "--- ") || strings.HasPrefix(line, "+++ ") || strings.HasPrefix(line, "diff ") || strings.HasPrefix(line, "index ") {
-			i++
-			continue
-		}
-
-		matches := hunkHeaderRegex.FindStringSubmatch(line)
-		isBareHunk := strings.HasPrefix(strings.TrimSpace(line), "@@")
-		if matches == nil && !isBareHunk {
-			i++
-			continue
-		}
-
-		foundHunk = true
-		oldStart := origIdx + 1
-		if len(matches) >= 2 {
-			if parsed, err := strconv.Atoi(matches[1]); err == nil && parsed > 0 {
-				oldStart = parsed
-			}
-		}
-		targetIdx := oldStart - 1
-		if targetIdx < origIdx {
-			targetIdx = origIdx
-		}
-		if targetIdx > len(origLines) {
-			targetIdx = len(origLines)
-		}
-
-		// Collect hunk lines first so we can auto-locate the hunk if LLM line numbers are slightly off
-		i++
-		var hunkOps []struct {
-			prefix  byte
-			content string
-		}
-		var expectedOld []string
-		for i < len(diffLines) {
-			hline := diffLines[i]
-			if strings.HasPrefix(hline, "@@") || strings.HasPrefix(hline, "diff ") || strings.HasPrefix(hline, "--- ") || strings.HasPrefix(hline, "+++ ") {
-				break
-			}
-			if hline == `\ No newline at end of file` {
-				i++
-				continue
-			}
-			if hline == "" && i == len(diffLines)-1 {
-				i++
-				break
-			}
-			prefix := byte(' ')
-			content := hline
-			if len(hline) > 0 {
-				if hline[0] == ' ' || hline[0] == '-' || hline[0] == '+' {
-					prefix = hline[0]
-					content = hline[1:]
-				} else {
-					prefix = ' '
-					content = hline
-				}
-			}
-			hunkOps = append(hunkOps, struct {
-				prefix  byte
-				content string
-			}{prefix: prefix, content: content})
-			if prefix == ' ' || prefix == '-' {
-				expectedOld = append(expectedOld, content)
-			}
-			i++
-		}
-
-		// Verify whether expectedOld matches at targetIdx; if not, fuzzy-search from origIdx
-		if len(expectedOld) > 0 && !matchesAt(origLines, targetIdx, expectedOld, false) {
-			if foundIdx := findHunkMatch(origLines, origIdx, targetIdx, expectedOld); foundIdx >= 0 {
-				targetIdx = foundIdx
-			}
-		}
-
-		// Copy unchanged lines up to targetIdx
-		for origIdx < targetIdx && origIdx < len(origLines) {
-			result = append(result, origLines[origIdx])
-			origIdx++
-		}
-
-		for _, op := range hunkOps {
-			switch op.prefix {
-			case ' ':
-				if origIdx >= len(origLines) || !linesMatch(origLines[origIdx], op.content) {
-					actual := "<EOF>"
-					if origIdx < len(origLines) {
-						actual = origLines[origIdx]
-					}
-					return "", fmt.Errorf("unified diff context mismatch at line %d: expected %q, got %q", origIdx+1, op.content, actual)
-				}
-				result = append(result, origLines[origIdx])
-				origIdx++
-			case '-':
-				if origIdx >= len(origLines) || !linesMatch(origLines[origIdx], op.content) {
-					actual := "<EOF>"
-					if origIdx < len(origLines) {
-						actual = origLines[origIdx]
-					}
-					return "", fmt.Errorf("unified diff removal mismatch at line %d: expected %q, got %q", origIdx+1, op.content, actual)
-				}
-				origIdx++
-			case '+':
-				result = append(result, op.content)
-			default:
-				return "", fmt.Errorf("invalid unified diff line prefix %q", string(op.prefix))
-			}
-		}
-	}
-
-	if !foundHunk {
-		return "", fmt.Errorf("no valid unified diff hunks (@@ ... @@) found")
-	}
-
-	for origIdx < len(origLines) {
-		result = append(result, origLines[origIdx])
-		origIdx++
-	}
-
-	joined := strings.Join(result, "\n")
-	if strings.HasSuffix(original, "\n") && !strings.HasSuffix(joined, "\n") && len(result) > 0 {
-		joined += "\n"
-	}
-	return joined, nil
-}
-
-func linesMatch(a, b string) bool {
-	if a == b {
-		return true
-	}
-	return strings.TrimRight(a, " \t\r") == strings.TrimRight(b, " \t\r")
-}
-
-func matchesAt(origLines []string, startIdx int, expected []string, allowTrim bool) bool {
-	if startIdx < 0 || startIdx+len(expected) > len(origLines) {
-		return false
-	}
-	for j, exp := range expected {
-		orig := origLines[startIdx+j]
-		if allowTrim {
-			if !linesMatch(orig, exp) {
-				return false
-			}
-		} else if orig != exp {
-			return false
-		}
-	}
-	return true
-}
-
-func findHunkMatch(origLines []string, minIdx int, hintIdx int, expected []string) int {
-	// Pass 1: exact match closest to hintIdx
-	for delta := 0; delta <= len(origLines); delta++ {
-		for _, cand := range []int{hintIdx - delta, hintIdx + delta} {
-			if cand >= minIdx && cand+len(expected) <= len(origLines) {
-				if matchesAt(origLines, cand, expected, false) {
-					return cand
-				}
-			}
-		}
-	}
-	// Pass 2: trailing-whitespace tolerant match closest to hintIdx
-	for delta := 0; delta <= len(origLines); delta++ {
-		for _, cand := range []int{hintIdx - delta, hintIdx + delta} {
-			if cand >= minIdx && cand+len(expected) <= len(origLines) {
-				if matchesAt(origLines, cand, expected, true) {
-					return cand
-				}
-			}
-		}
-	}
-	return -1
-}
-
-func splitLinesPreserve(s string) []string {
-	if s == "" {
-		return nil
-	}
-	normalized := strings.ReplaceAll(s, "\r\n", "\n")
-	normalized = strings.TrimSuffix(normalized, "\n")
-	return strings.Split(normalized, "\n")
 }

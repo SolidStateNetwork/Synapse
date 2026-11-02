@@ -51,7 +51,8 @@ type IdentityConfig struct {
 	CACertFile    string                `json:"ca_cert_file"`
 	Debug         bool                  `json:"debug,omitempty"`
 	MultiCore     bool                  `json:"multi_core,omitempty"`
-	Cores         []CoreTarget          `json:"cores,omitempty"`
+	Cores           []CoreTarget          `json:"cores,omitempty"`
+	AllowedCommands []string              `json:"allowed_commands,omitempty"`
 }
 
 // ActiveCoreTargets returns the deduplicated list of all enabled Core targets (Primary + Secondary Cores).

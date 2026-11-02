@@ -420,3 +420,72 @@ func TestRunForever_EmptyTargetsAndMultiCoreCancel(t *testing.T) {
 	// Exercise telemetryLoopForTarget with nil session and cancelled context
 	mcAg.telemetryLoopForTarget(ctx, nil, CoreTarget{Name: "c2"}, nil)
 }
+
+func TestComputeReconnectBackoffAndCertRotation(t *testing.T) {
+	for _, att := range []int{-1, 0, 1, 3, 8} {
+		d := ComputeReconnectBackoff(att)
+		if d < 750*time.Millisecond || d > 37500*time.Millisecond {
+			t.Fatalf("unexpected backoff %v for attempt %d", d, att)
+		}
+	}
+
+	tmpDir := t.TempDir()
+	_, _, cliCertPEM, cliKeyPEM := generateTestCerts(t, "rot-node", tunnelv1.Tier2WorkspaceJail)
+	certFile := filepath.Join(tmpDir, "axon.crt")
+	keyFile := filepath.Join(tmpDir, "axon.key")
+	_ = os.WriteFile(certFile, cliCertPEM, 0o644)
+	_ = os.WriteFile(keyFile, cliKeyPEM, 0o600)
+
+	// 1-hour test cert is within default 30-day rotation window
+	needs, _, err := NeedsCertRotation(certFile, 0)
+	if err != nil || !needs {
+		t.Fatalf("expected NeedsCertRotation=true for 1h cert, got needs=%v err=%v", needs, err)
+	}
+	if _, _, err := NeedsCertRotation(filepath.Join(tmpDir, "missing.crt"), time.Hour); err == nil {
+		t.Fatal("expected error on missing cert file")
+	}
+	badFile := filepath.Join(tmpDir, "bad.crt")
+	_ = os.WriteFile(badFile, []byte("not-pem"), 0o644)
+	if _, _, err := NeedsCertRotation(badFile, time.Hour); err == nil {
+		t.Fatal("expected error on invalid PEM")
+	}
+
+	// Test RotateTargetCertificate over yamux session
+	if _, err := RotateTargetCertificate(nil, CoreTarget{}); err == nil {
+		t.Fatal("expected error on nil yamux session")
+	}
+	c1, c2 := net.Pipe()
+	defer c1.Close()
+	defer c2.Close()
+	srvSess, _ := yamux.Server(c1, yamux.DefaultConfig())
+	cliSess, _ := yamux.Client(c2, yamux.DefaultConfig())
+	defer srvSess.Close()
+	defer cliSess.Close()
+
+	go func() {
+		for idx := 0; idx < 2; idx++ {
+			st, err := cliSess.AcceptStream()
+			if err != nil {
+				return
+			}
+			var hdr tunnelv1.StreamHeader
+			_ = tunnelv1.ReadFrame(st, &hdr)
+			var req tunnelv1.CertRenewRequest
+			_ = tunnelv1.ReadFrame(st, &req)
+			if idx == 0 {
+				_ = tunnelv1.WriteFrame(st, tunnelv1.CertRenewResponse{Success: true, CertPEM: cliCertPEM, NotAfterUnix: time.Now().Add(365 * 24 * time.Hour).Unix()})
+			} else {
+				_ = tunnelv1.WriteFrame(st, tunnelv1.CertRenewResponse{Success: false, Error: "denied"})
+			}
+			_ = st.Close()
+		}
+	}()
+
+	target := CoreTarget{NodeID: "rot-node", CertFile: certFile, KeyFile: keyFile}
+	if _, err := RotateTargetCertificate(srvSess, target); err != nil {
+		t.Fatalf("RotateTargetCertificate failed: %v", err)
+	}
+	if _, err := RotateTargetCertificate(srvSess, target); err == nil {
+		t.Fatal("expected error when gateway rejects cert renewal")
+	}
+}
