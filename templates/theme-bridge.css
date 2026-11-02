@@ -1,0 +1,58 @@
+/* SolidStateNetwork Cross-Repository Template & Design Token Bridge (v2.0.0) */
+:root,
+[data-ssn-template="synapse-canvas"] {
+  --ssn-bg-canvas: #14161a;
+  --ssn-bg-sidebar: #181b20;
+  --ssn-bg-surface: #1c1f26;
+  --ssn-bg-elevated: #232730;
+  --ssn-border-subtle: #2e323b;
+  --ssn-border-active: #6366f1;
+  --ssn-text-primary: #f1f5f9;
+  --ssn-text-secondary: #94a3b8;
+  --ssn-text-muted: #64748b;
+  --ssn-accent-primary: #6366f1;
+  --ssn-accent-emerald: #10b981;
+  --ssn-accent-amber: #f59e0b;
+  --ssn-accent-rose: #f43f5e;
+  --ssn-sidebar-w: 228px;
+  --ssn-sidebar-w-collapsed: 68px;
+  --ssn-drawer-w: 380px;
+}
+
+[data-ssn-template="signal-terminal"] {
+  --ssn-bg-canvas: oklch(0.145 0.014 255);
+  --ssn-bg-sidebar: oklch(0.165 0.016 255);
+  --ssn-bg-surface: oklch(0.185 0.018 255);
+  --ssn-bg-elevated: oklch(0.22 0.02 255);
+  --ssn-border-subtle: oklch(0.28 0.025 255);
+  --ssn-border-active: oklch(0.68 0.16 250);
+  --ssn-text-primary: oklch(0.95 0.01 255);
+  --ssn-text-secondary: oklch(0.72 0.02 255);
+  --ssn-text-muted: oklch(0.56 0.02 255);
+  --ssn-accent-primary: oklch(0.68 0.16 250);
+  --ssn-accent-emerald: oklch(0.72 0.19 155);
+  --ssn-accent-amber: oklch(0.78 0.17 75);
+  --ssn-accent-rose: oklch(0.65 0.22 25);
+}
+
+[data-ssn-template="werkblick-handwerk"] {
+  --ssn-bg-canvas: #f6f4ef;
+  --ssn-bg-sidebar: #efeae0;
+  --ssn-bg-surface: #ffffff;
+  --ssn-bg-elevated: #f9f7f3;
+  --ssn-border-subtle: #d8d0c3;
+  --ssn-border-active: #1e5f4b;
+  --ssn-text-primary: #18201c;
+  --ssn-text-secondary: #4a5550;
+  --ssn-text-muted: #6e7a74;
+  --ssn-accent-primary: #1e5f4b;
+  --ssn-accent-emerald: #15803d;
+  --ssn-accent-amber: #c86428;
+  --ssn-accent-rose: #b91c1c;
+}
+
+.nb-canvas-grid {
+  background-color: var(--ssn-bg-canvas);
+  background-image: radial-gradient(rgba(148, 163, 184, 0.24) 1px, transparent 1px);
+  background-size: 22px 22px;
+}

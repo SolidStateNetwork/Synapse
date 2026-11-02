@@ -35,6 +35,16 @@
 
 ## 📜 Chronologisches Logbuch (Neueste zuerst)
 
+### [BB-015] 2026-11-02 22:55 (CET) – [ARCH-LEXICON / WEB-STUDIO-UI / v2.5.0] Integration der flottenweiten `templates/`-, `design/`- und Clean-Room `bridge/`-Architektur
+- **Akteur:** Antigravity AI & Project Lead
+- **Typ:** `ARCHITECTURE` | `UI` | `ARCH-LEXICON`
+- **Betroffene Module:** `ARCH-LEXICON`, `WEB-STUDIO-UI`
+- **Ziel / Hintergrund:** Vereinheitlichung der UI/UX-Design-Tokens (`synapse-canvas`, `signal-terminal`, `werkblick-handwerk`) und Einrichtung einer entkoppelten Clean-Room-Bridge (`bridge/ssn-bridge.py` & `bridge/contract.json`) über alle SolidStateNetwork-Repositories ohne Laufzeit-Kopplung.
+- **Durchgeführte Schritte:**
+  1. `templates/design-tokens.json`, `templates/theme-bridge.css`, `templates/README.md` und `design/README.md` erstellt (Referenz-Spezifikation des `synapse-canvas` Layouts mit `#14161a` `.nb-canvas-grid`, `228px`/`68px` Sidebar und `380px` Inspector Drawer).
+  2. `bridge/contract.json` und `bridge/ssn-bridge.py` zur Clean-Room-Föderation integriert.
+- **Verifikation:** Pre-Commit-Blocker und `bridge/ssn-bridge.py status` mit `EXIT 0` bestanden.
+
 ### [BB-014] 2026-11-02 20:20 (CET) – [CORE-GATEWAY / AXON-AGENT / AI-ORCHESTRATOR / BRAIN-VAULT / MCP-SERVER / v2.5.0] Full Implementation & Verification of Phase 8 (`v2.5.0`, `M8.1`–`M8.6`): Real-Time X.509 CRL Revocation, Signed Topology Bundles & Drift Simulator, Multi-Stage DAG Playbooks, Procfs Anomaly Detector & OpenMetrics Exporter
 - **Akteur:** Antigravity AI & Project Lead
 - **Typ:** `RELEASE` | `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`

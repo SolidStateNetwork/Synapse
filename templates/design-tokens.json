@@ -1,0 +1,94 @@
+{
+  "schema_version": "2.0.0",
+  "ecosystem": "SolidStateNetwork",
+  "clean_room_isolated": true,
+  "templates": {
+    "synapse-canvas": {
+      "id": "synapse-canvas",
+      "name": "Synapse Canvas (Interactive Node-Graph & Control Center)",
+      "used_by": [
+        "Synapse",
+        "Command-HQ"
+      ],
+      "tokens": {
+        "bg_canvas": "#14161a",
+        "bg_sidebar": "#181b20",
+        "bg_surface": "#1c1f26",
+        "bg_elevated": "#232730",
+        "border_subtle": "#2e323b",
+        "border_active": "#6366f1",
+        "text_primary": "#f1f5f9",
+        "text_secondary": "#94a3b8",
+        "text_muted": "#64748b",
+        "accent_primary": "#6366f1",
+        "accent_emerald": "#10b981",
+        "accent_amber": "#f59e0b",
+        "accent_rose": "#f43f5e",
+        "dot_grid_size": "22px",
+        "sidebar_width_expanded": "228px",
+        "sidebar_width_collapsed": "68px",
+        "inspector_drawer_width": "380px"
+      },
+      "layout_components": [
+        "CollapsibleLeftSidebar",
+        "TopBreadcrumbStatusHeader",
+        "DotGridInteractiveTopologyCanvas",
+        "AnimatedSvgBezierEdges",
+        "ExpandableNodeInspectorCards",
+        "BottomLeftZoomPanToolbar",
+        "RightCopilotInspectorDrawer"
+      ]
+    },
+    "signal-terminal": {
+      "id": "signal-terminal",
+      "name": "Signal Terminal (Tactical OKLCH Telemetry)",
+      "used_by": [
+        "Template_Signal",
+        "Command-HQ"
+      ],
+      "tokens": {
+        "bg_canvas": "oklch(0.145 0.014 255)",
+        "bg_surface": "oklch(0.185 0.018 255)",
+        "border_subtle": "oklch(0.28 0.025 255)",
+        "text_primary": "oklch(0.95 0.01 255)",
+        "text_secondary": "oklch(0.72 0.02 255)",
+        "accent_primary": "oklch(0.68 0.16 250)",
+        "accent_emerald": "oklch(0.72 0.19 155)",
+        "accent_amber": "oklch(0.78 0.17 75)",
+        "accent_rose": "oklch(0.65 0.22 25)"
+      },
+      "layout_components": [
+        "CommandHeader",
+        "TelemetryKpiStrip",
+        "MultiThemePaletteModal"
+      ]
+    },
+    "werkblick-handwerk": {
+      "id": "werkblick-handwerk",
+      "name": "Werkblick Handwerk (Warm Daylight Craftsmanship & Progressive ERP)",
+      "used_by": [
+        "Werkblick",
+        "Anvil",
+        "Strata"
+      ],
+      "tokens": {
+        "bg_canvas": "#f6f4ef",
+        "bg_surface": "#ffffff",
+        "bg_elevated": "#efeae0",
+        "border_subtle": "#d8d0c3",
+        "text_primary": "#18201c",
+        "text_secondary": "#4a5550",
+        "accent_primary": "#1e5f4b",
+        "accent_secondary": "#c86428",
+        "accent_emerald": "#15803d",
+        "accent_amber": "#b45309"
+      },
+      "layout_components": [
+        "PublicProductMarketingPortal",
+        "SelfServiceProfileAndSubscriptionOnboarding",
+        "TodayFocusCockpit",
+        "ThreeStageProgressiveErpWorkspace"
+      ]
+    }
+  }
+}

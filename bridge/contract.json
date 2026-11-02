@@ -1,0 +1,16 @@
+{
+  "contract_version": "2.0.0",
+  "ecosystem": "SolidStateNetwork",
+  "repo_id": "Synapse",
+  "github_repo": "SolidStateNetwork/Synapse",
+  "role": "Interactive Control Center Canvas, Muscle-Memory Orchestrator & Sentinel Copilot",
+  "default_template": "synapse-canvas",
+  "clean_room_isolation": true,
+  "provides": [
+    "synapse-canvas-ui",
+    "interactive-node-topology-spec"
+  ],
+  "consumes": [
+    "design-tokens"
+  ]
+}
