@@ -324,6 +324,37 @@ func TestBootstrapCSRWithOptions_And_AddSecondaryCore(t *testing.T) {
 	if _, _, err := NeedsCertRotation(badPEM, 0); err == nil {
 		t.Fatal("expected error on invalid PEM in NeedsCertRotation")
 	}
+	if _, err := ag.buildTLSConfigForTarget(CoreTarget{CertFile: reconciled.CertFile, KeyFile: reconciled.KeyFile, CACertFile: filepath.Join(t.TempDir(), "no-ca.crt")}); err == nil {
+		t.Fatal("expected error on missing CA cert")
+	}
+	if _, err := ag.buildTLSConfigForTarget(CoreTarget{CertFile: reconciled.CertFile, KeyFile: reconciled.KeyFile, CACertFile: badPEM}); err == nil {
+		t.Fatal("expected error on invalid CA PEM")
+	}
+	// Exercise RunDiagnostics degraded branches (missing cert, unreachable HTTP/mTLS, non-dir workspace)
+	errDiagDir := t.TempDir()
+	wsFile := filepath.Join(errDiagDir, "ws-is-file")
+	_ = os.WriteFile(wsFile, []byte("x"), 0o600)
+	_ = writeConfigWithBackup(filepath.Join(errDiagDir, "config.json"), &IdentityConfig{
+		NodeID:        "err-node",
+		CoreHTTP:      "http://127.0.0.1:1",
+		CoreGateway:   "127.0.0.1:1",
+		CertFile:      filepath.Join(errDiagDir, "missing.crt"),
+		KeyFile:       filepath.Join(errDiagDir, "missing.key"),
+		CACertFile:    filepath.Join(errDiagDir, "missing-ca.crt"),
+		WorkspaceRoot: filepath.Join(wsFile, "sub"),
+	})
+	degRep := RunDiagnostics(errDiagDir)
+	if degRep.CoreHTTPReach || degRep.MTLSHandshakeOK || degRep.WorkspaceWrite {
+		t.Fatalf("expected degraded RunDiagnostics report, got %+v", degRep)
+	}
+	cA, cB := net.Pipe()
+	go func() {
+		_ = tunnelv1.WriteFrame(cA, tunnelv1.StreamHeader{StreamType: "UNKNOWN_STREAM"})
+		_ = cA.Close()
+	}()
+	ag.handleStreamForTarget(cB, CoreTarget{Name: "p"})
+	ag.handlePortForwardStream(cB, 0)
+	ag.handlePortForwardStream(cB, 1)
 
 	// 4. Verify rejection path & error paths
 	rejectNext = true
