@@ -4,9 +4,8 @@ import { recordCheckpoint } from "@/lib/checkpoints";
 import { appendAuditLog, atomicWriteJsonSync, ensureProjectVault, getDecryptedSecrets, getProjectDir, safeReadJsonWithBackupSync, withProjectStateTransaction, writeBrainDoc } from "@/lib/vault";
 import { buildDefaultServiceEndpoints } from "@/lib/orchestrator/servicePresets";
 import { resolveActiveProjectId, resolveTargetNodeId } from "@/lib/runtimeResolver";
+import { getCoreGatewayUrl as getGatewayUrl } from "@/lib/gatewayClient";
 import { safeFetchJson } from "@/lib/safeFetch";
-
-const getGatewayUrl = () => process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
 export interface GitOpsStackRecord {
   stack_id: string;

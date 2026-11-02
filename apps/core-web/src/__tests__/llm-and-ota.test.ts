@@ -240,7 +240,6 @@ exit 0
     });
 
     process.env.CORE_GATEWAY_URL = mockBaseUrl;
-    process.env.CORE_GATEWAY_INTERNAL_URL = mockBaseUrl;
     process.env.HOME = tmpRoot;
     process.env.PATH = [fakeBinDir, fakeGoBinDir, origPath || "/usr/bin:/bin"].join(path.delimiter);
   });

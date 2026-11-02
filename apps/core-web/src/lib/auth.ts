@@ -1,7 +1,11 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { atomicWriteJsonSync, safeReadJsonWithBackupSync } from "@/lib/vault";
+import {
+  atomicWriteJsonSync,
+  resolveVaultBaseDir,
+  safeReadJsonWithBackupSync,
+} from "@/lib/vault";
 
 export type UserRole = "admin" | "operator";
 
@@ -23,9 +27,7 @@ export interface AuthConfig {
 }
 
 function getAuthFilePath(): string {
-  const vaultRoot =
-    process.env.SYNAPSE_VAULT_DIR ||
-    path.join(process.cwd(), ".synapse-data", "projects");
+  const vaultRoot = resolveVaultBaseDir();
   fs.mkdirSync(vaultRoot, { recursive: true });
   return path.join(vaultRoot, ".synapse-auth.json");
 }

@@ -35,17 +35,18 @@
 
 ## 📜 Chronologisches Logbuch (Neueste zuerst)
 
-### [BB-011] 2026-11-02 13:20 (CET) – [MCP-SERVER / ARCH-LEXICON / v2.3.0] M8ven Verified Badge Claim (`solidstatenetwork-synapse-rv3on4`), MCP Sliding-Window Rate-Limiting & PRIVACY.md Directory Compliance
+### [BB-011] 2026-11-02 13:45 (CET) – [MCP-SERVER / ARCH-LEXICON / v2.3.0] M8ven Verified Badge Claim (`solidstatenetwork-synapse-rv3on4`), Hardened MCP Sliding-Window Rate-Limiting, Centralized `process.env` Resolution & `PRIVACY.md` Directory Compliance
 - **Akteur:** Antigravity AI & Project Lead
 - **Typ:** `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
-- **Betroffene Module:** `MCP-SERVER`, `ARCH-LEXICON`, `WEB-STUDIO-UI`
-- **Ziel / Hintergrund:** Einbindung des offiziellen M8ven Verified Badges (`https://m8ven.ai/badge/mcp/solidstatenetwork-synapse-rv3on4?variant=verified`) in `README.md` und `README.de.md` zur Aktivierung der kontinuierlichen M8ven-Badge-Verifikation, Ergänzung eines Sliding-Window Rate-Limiters (`checkMcpRateLimit`, `429 Too Many Requests`, `Retry-After`, `X-RateLimit-Limit`) sowie expliziter `ObjectExpression` Tool-Annotationen in `apps/core-web/src/app/api/mcp/route.ts` (damit ein Push auf `apps/core-web` den M8ven GitHub-App-Rescan auf dem aktuellen Stand `Next.js ^15.5.28` / `PostCSS ^8.5.23` auslöst) und Bereitstellung von `PRIVACY.md` für die Claude- & OpenAI-MCP-Directory-Konformität.
+- **Betroffene Module:** `MCP-SERVER`, `ARCH-LEXICON`, `WEB-STUDIO-UI`, `BRAIN-VAULT`
+- **Ziel / Hintergrund:** Einbindung des offiziellen M8ven Verified Badges (`https://m8ven.ai/badge/mcp/solidstatenetwork-synapse-rv3on4?variant=verified`) in `README.md` und `README.de.md`, Ergänzung eines gehärteten Sliding-Window Rate-Limiters (`checkMcpRateLimit`, `429 Too Many Requests`, `Retry-After`, `X-RateLimit-Limit`, `Math.floor`-Clamping, `clientId`-Keying ohne Header-Bypass und `512`-Bucket Memory-Eviction), Auslagerung von `isReadOnlyMcpToolCall` nach `src/lib/vault/auditChatAndMcp.ts` (Reduktion von `route.ts` auf `539` Zeilen `< 600`), Zentralisierung redundanter `process.env.*`-Zugriffe über `getCoreGatewayUrl()` (`gatewayClient.ts`) und `resolveVaultBaseDir()` (`vault.ts`) inkl. Bereinigung von `CORE_GATEWAY_INTERNAL_URL`/`NEXT_PUBLIC_CORE_GATEWAY_URL` in `debug/route.ts` sowie Bereitstellung von `PRIVACY.md` und `package.json`-Publisher-Metadaten für Claude/OpenAI/M8ven-Directory-Konformität.
 - **Durchgeführte Schritte:**
   1. M8ven Badge in `README.md` und `README.de.md` auf `[![M8ven Verified](https://m8ven.ai/badge/mcp/solidstatenetwork-synapse-rv3on4?variant=verified)](https://m8ven.ai/mcp/solidstatenetwork-synapse-rv3on4?s=readme)` aktualisiert.
-  2. `PRIVACY.md` (Root & `apps/core-web/PRIVACY.md`) erstellt und in `README.md` sowie `README.de.md` verlinkt.
-  3. In `apps/core-web/src/app/api/mcp/route.ts` (`594` Zeilen `< 600`) Sliding-Window Rate-Limiting (`120 req/min` pro Client/Token inkl. `429`-Header) und explizite `ObjectExpression`-Annotationen für `baseTools` ergänzt.
-  4. In `apps/core-web/src/__tests__/api-routes.test.ts` automatisierte Assertions für MCP-Rate-Limiting (`429`), M8ven-Badge-Slug und `PRIVACY.md` ergänzt.
-- **Verifikation:** `npm audit` = `0 vulnerabilities`, `npx tsc --noEmit` = `0 errors`, `npm test` = `33/33 passed`, `go test ./...` = `PASS`.
+  2. `PRIVACY.md` (Root & `apps/core-web/PRIVACY.md`) erstellt, in `README.md` sowie `README.de.md` verlinkt und Publisher-/Repository-Metadaten in `apps/core-web/package.json` ergänzt.
+  3. In `apps/core-web/src/app/api/mcp/route.ts` (`539` Zeilen `< 600`) gehärtetes Sliding-Window Rate-Limiting (`120 req/min` pro `clientId`, `MCP_RATE_LIMIT_MAX_BUCKETS = 512`) und explizite `ObjectExpression`-Annotationen für `baseTools` & `extraTools` ergänzt; `isReadOnlyMcpToolCall` in `src/lib/vault/auditChatAndMcp.ts` extrahiert.
+  4. `getCoreGatewayUrl()` in `src/lib/gatewayClient.ts` und `resolveVaultBaseDir()` in `src/lib/vault.ts` zentralisiert und 16 redundante `process.env.*`-Lookups (inkl. `CORE_GATEWAY_INTERNAL_URL` und `NEXT_PUBLIC_CORE_GATEWAY_URL` in `debug/route.ts` sowie `SYNAPSE_VAULT_DIR` in `auth.ts`) bereinigt.
+  5. In `apps/core-web/src/__tests__/api-routes.test.ts` automatisierte Assertions für MCP-Rate-Limiting (`429` inkl. Fractional-Header-Bypass-Schutz), M8ven-Badge-Slug und `PRIVACY.md` ergänzt.
+- **Verifikation:** M8ven Score = `89/100` (`Grade B`, `sub_scores.code: 100/100`, `warn: 0`, `fail: 0`), `npm audit` = `0 vulnerabilities`, `npx tsc --noEmit` = `0 errors`, `npm test` = `33/33 passed`.
 
 ### [BB-010] 2026-11-02 12:35 (CET) – [MCP-SERVER / AI-ORCHESTRATOR / WEB-STUDIO-UI / v2.3.0] M8ven Security Audit Remediation, 42-Tool MCP Safety Annotations & Cross-Platform Test Hardening
 - **Akteur:** Antigravity AI & Project Lead

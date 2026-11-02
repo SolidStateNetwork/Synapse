@@ -4,6 +4,7 @@ import {
   createMcpApiKey,
   ensureProjectVault,
   getRollbackSnapshot,
+  isReadOnlyMcpToolCall,
   listSecretKeys,
   readAuditLogs,
   readBrainDoc,
@@ -28,20 +29,29 @@ export const dynamic = "force-dynamic";
 
 const MCP_RATE_LIMIT_WINDOW_MS = 60_000;
 const MCP_RATE_LIMIT_MAX = 120;
+const MCP_RATE_LIMIT_MAX_BUCKETS = 512;
 const mcpRateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 
 function checkMcpRateLimit(req: NextRequest): { allowed: boolean; limit: number; remaining: number; retryAfterSec: number } {
   const now = Date.now();
-  const customMax = Number(req.headers.get("x-synapse-rate-limit-max") || 0);
-  const limit = customMax > 0 && customMax <= MCP_RATE_LIMIT_MAX ? customMax : MCP_RATE_LIMIT_MAX;
+  const parsedMax = Math.floor(Number(req.headers.get("x-synapse-rate-limit-max") || 0));
+  const limit = parsedMax > 0 && parsedMax <= MCP_RATE_LIMIT_MAX ? parsedMax : MCP_RATE_LIMIT_MAX;
   const clientId =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     extractApiKey(req).slice(0, 16) ||
     "local-mcp-client";
-  const bucketKey = `${clientId}:${limit}`;
-  const entry = mcpRateLimitBuckets.get(bucketKey);
+  if (mcpRateLimitBuckets.size >= MCP_RATE_LIMIT_MAX_BUCKETS) {
+    for (const [k, v] of mcpRateLimitBuckets) {
+      if (now >= v.resetAt) mcpRateLimitBuckets.delete(k);
+    }
+    if (mcpRateLimitBuckets.size >= MCP_RATE_LIMIT_MAX_BUCKETS) {
+      const oldestKey = mcpRateLimitBuckets.keys().next().value;
+      if (oldestKey) mcpRateLimitBuckets.delete(oldestKey);
+    }
+  }
+  const entry = mcpRateLimitBuckets.get(clientId);
   if (!entry || now >= entry.resetAt) {
-    mcpRateLimitBuckets.set(bucketKey, { count: 1, resetAt: now + MCP_RATE_LIMIT_WINDOW_MS });
+    mcpRateLimitBuckets.set(clientId, { count: 1, resetAt: now + MCP_RATE_LIMIT_WINDOW_MS });
     return { allowed: true, limit, remaining: Math.max(0, limit - 1), retryAfterSec: 60 };
   }
   entry.count += 1;
@@ -135,72 +145,7 @@ async function executeMcpTool(
   scopes: Array<"read" | "execute" | "admin">
 ): Promise<{ isError: boolean; result: unknown }> {
   const canExecute = scopes.includes("execute") || scopes.includes("admin");
-
-  const isReadOnlyTool =
-    toolName === "synapse_list_peers" ||
-    toolName === "synapse_get_project_state" ||
-    toolName === "core_vault_search" ||
-    toolName === "core_tail_service_logs" ||
-    toolName === "core_get_node_telemetry_history" ||
-    toolName === "node_deep_search" ||
-    (toolName === "node_fs_operation" &&
-      ["read_file", "list_dir", "stat"].includes(
-        String(args.operation || "")
-      )) ||
-    (toolName === "core_manage_secret" &&
-      (args.action === "list_keys" || args.action === "list")) ||
-    ((toolName === "node_firewall_control" ||
-      toolName === "core_manage_firewall") &&
-      (!args.action || args.action === "inspect")) ||
-    ((toolName === "core_manage_backup" ||
-      toolName === "core_manage_checkpoint") &&
-      (!args.action || args.action === "list")) ||
-    (toolName === "core_manage_alerts" &&
-      (!args.action || args.action === "inspect")) ||
-    (toolName === "core_intrusion_scan" &&
-      (!args.action || args.action === "scan")) ||
-    (toolName === "core_hot_reload_service_code" &&
-      (!args.action || args.action === "inspect")) ||
-    (toolName === "core_sqlite_studio" &&
-      !args.custom_sql &&
-      !args.insert_row) ||
-    (toolName === "core_manage_cron_jobs" &&
-      (!args.action || args.action === "list")) ||
-    (toolName === "core_manage_self_healing" &&
-      (!args.action || args.action === "inspect")) ||
-    (toolName === "core_probe_service_mesh" &&
-      (!args.action ||
-        args.action === "probe_service" ||
-        args.action === "probe_link")) ||
-    (toolName === "core_manage_blueprint" &&
-      (!args.action || args.action === "list")) ||
-    (toolName === "core_manage_domain_tls" &&
-      (!args.action || args.action === "list")) ||
-    (toolName === "core_manage_cartridges" &&
-      (!args.action || args.action === "list")) ||
-    (toolName === "core_manage_cluster_nodes" &&
-      (!args.action || args.action === "list")) ||
-    (toolName === "core_manage_projects" &&
-      (!args.action ||
-        args.action === "list" ||
-        args.action === "audit_trail")) ||
-    (toolName === "core_run_platform_self_test" &&
-      (!args.action || args.action === "self_test")) ||
-    (toolName === "core_manage_playbooks" &&
-      (!args.action || args.action === "list")) ||
-    (toolName === "core_manage_approvals" &&
-      (!args.action || args.action === "list")) ||
-    (toolName === "core_invoke_service_action" &&
-      (!args.method || String(args.method).toUpperCase() === "GET")) ||
-    (toolName === "core_manage_auth_and_ai" &&
-      (!args.action || args.action === "inspect_auth")) ||
-    (toolName === "core_manage_topology_bundle" &&
-      (!args.action || args.action === "export")) ||
-    (toolName === "core_cluster_canary_exec" &&
-      (!args.action || args.action === "verify_fleet_health")) ||
-    (toolName === "core_manage_mcp_keys" &&
-      (!args.action || args.action === "list")) ||
-    toolName === "core_system_ota_status";
+  const isReadOnlyTool = isReadOnlyMcpToolCall(toolName, args);
 
   if (!isReadOnlyTool && !canExecute) {
     return {

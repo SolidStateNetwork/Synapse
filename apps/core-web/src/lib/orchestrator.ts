@@ -34,18 +34,17 @@ import {
   executeNodeDeepSearch,
 } from "@/lib/orchestrator/searchEngine";
 import { dispatchCoreBrainTool } from "@/lib/orchestrator/coreTools";
+import { CORE_GATEWAY_URL } from "./gatewayClient";
 import { safeFetchJson } from "./safeFetch";
 
 export {
+  CORE_GATEWAY_URL,
   SYNAPSE_TOOL_SCHEMAS,
   buildDefaultServiceEndpoints,
   pushNodeHealthTargets,
   buildCacheOptimizedSystemPromptParts,
   buildSystemPrompt,
 };
-
-export const CORE_GATEWAY_URL =
-  process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
 export interface GatewayNodeSummary {
   node_id: string;

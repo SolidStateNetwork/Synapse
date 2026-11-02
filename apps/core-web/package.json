@@ -2,6 +2,15 @@
   "name": "@synapse/core-web",
   "version": "2.3.0",
   "private": true,
+  "description": "Synapse Core Control Center & Model Context Protocol (MCP) Server",
+  "license": "MIT",
+  "author": "SolidStateNetwork",
+  "homepage": "https://github.com/SolidStateNetwork/Synapse",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SolidStateNetwork/Synapse.git",
+    "directory": "apps/core-web"
+  },
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build && node -e \"const fs=require('fs');if(fs.existsSync('.next/standalone')&&fs.existsSync('.next/static')){fs.mkdirSync('.next/standalone/.next',{recursive:true});fs.cpSync('.next/static','.next/standalone/.next/static',{recursive:true});}\"",

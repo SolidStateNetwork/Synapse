@@ -12,6 +12,10 @@ import { safeFetchJson } from "./safeFetch";
 export const CORE_GATEWAY_URL =
   process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
+export function getCoreGatewayUrl(): string {
+  return process.env.CORE_GATEWAY_URL || CORE_GATEWAY_URL;
+}
+
 export interface GatewayLiveNode {
   node_id: string;
   tier: AutonomyTier;
@@ -48,7 +52,7 @@ export function normalizeApiParams(
 export async function gatewayFetchLiveNodes(
   timeoutMs = 4000
 ): Promise<GatewayLiveNode[]> {
-  const res = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/nodes`, {
+  const res = await safeFetchJson(`${getCoreGatewayUrl()}/api/v1/nodes`, {
     cache: "no-store",
     timeoutMs,
   });
@@ -70,7 +74,7 @@ export async function gatewayExecPty(params: {
     params.cmd_id || `pty-${crypto.randomBytes(4).toString("hex")}`;
   const waitMs = params.wait_timeout_ms ?? 10000;
   const projectId = resolveActiveProjectId(params.project_id);
-  const res = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/pty`, {
+  const res = await safeFetchJson(`${getCoreGatewayUrl()}/api/v1/rpc/pty`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -111,7 +115,7 @@ export async function gatewayFsOperation(params: {
   const reqId =
     params.request_id || `fs-${crypto.randomBytes(4).toString("hex")}`;
   const projectId = resolveActiveProjectId(params.project_id);
-  const res = await safeFetchJson(`${CORE_GATEWAY_URL}/api/v1/rpc/fs`, {
+  const res = await safeFetchJson(`${getCoreGatewayUrl()}/api/v1/rpc/fs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -149,7 +153,7 @@ export async function gatewayPushHealthTargets(
 ): Promise<boolean> {
   if (!nodeId) return false;
   const res = await safeFetchJson(
-    `${CORE_GATEWAY_URL}/api/v1/nodes/health-targets`,
+    `${getCoreGatewayUrl()}/api/v1/nodes/health-targets`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -325,3 +325,51 @@ export function verifyMcpApiKey(
   });
   return verifiedKey;
 }
+
+export function isReadOnlyMcpToolCall(
+  toolName: string,
+  args: Record<string, unknown>
+): boolean {
+  const act = args.action;
+  return (
+    toolName === "synapse_list_peers" ||
+    toolName === "synapse_get_project_state" ||
+    toolName === "core_vault_search" ||
+    toolName === "core_tail_service_logs" ||
+    toolName === "core_get_node_telemetry_history" ||
+    toolName === "node_deep_search" ||
+    toolName === "core_system_ota_status" ||
+    (toolName === "node_fs_operation" &&
+      ["read_file", "list_dir", "stat"].includes(String(args.operation || ""))) ||
+    (toolName === "core_manage_secret" && (act === "list_keys" || act === "list")) ||
+    ((toolName === "node_firewall_control" || toolName === "core_manage_firewall") &&
+      (!act || act === "inspect")) ||
+    ((toolName === "core_manage_backup" || toolName === "core_manage_checkpoint") &&
+      (!act || act === "list")) ||
+    (toolName === "core_manage_alerts" && (!act || act === "inspect")) ||
+    (toolName === "core_intrusion_scan" && (!act || act === "scan")) ||
+    (toolName === "core_hot_reload_service_code" && (!act || act === "inspect")) ||
+    (toolName === "core_sqlite_studio" && !args.custom_sql && !args.insert_row) ||
+    (toolName === "core_manage_cron_jobs" && (!act || act === "list")) ||
+    (toolName === "core_manage_self_healing" && (!act || act === "inspect")) ||
+    (toolName === "core_probe_service_mesh" &&
+      (!act || act === "probe_service" || act === "probe_link")) ||
+    (toolName === "core_manage_blueprint" && (!act || act === "list")) ||
+    (toolName === "core_manage_domain_tls" && (!act || act === "list")) ||
+    (toolName === "core_manage_cartridges" && (!act || act === "list")) ||
+    (toolName === "core_manage_cluster_nodes" && (!act || act === "list")) ||
+    (toolName === "core_manage_projects" &&
+      (!act || act === "list" || act === "audit_trail")) ||
+    (toolName === "core_run_platform_self_test" && (!act || act === "self_test")) ||
+    (toolName === "core_manage_playbooks" && (!act || act === "list")) ||
+    (toolName === "core_manage_approvals" && (!act || act === "list")) ||
+    (toolName === "core_invoke_service_action" &&
+      (!args.method || String(args.method).toUpperCase() === "GET")) ||
+    (toolName === "core_manage_auth_and_ai" && (!act || act === "inspect_auth")) ||
+    (toolName === "core_manage_topology_bundle" && (!act || act === "export")) ||
+    (toolName === "core_cluster_canary_exec" &&
+      (!act || act === "verify_fleet_health")) ||
+    (toolName === "core_manage_mcp_keys" && (!act || act === "list"))
+  );
+}
+

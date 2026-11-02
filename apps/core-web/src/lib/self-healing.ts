@@ -10,11 +10,10 @@ import {
   writeBrainDoc,
 } from "@/lib/vault";
 import { resolveActiveProjectId, resolveTargetNodeId } from "@/lib/runtimeResolver";
+import { CORE_GATEWAY_URL as GATEWAY_URL } from "./gatewayClient";
 import { safeFetchJson } from "./safeFetch";
 
 export * from "./self-healing/serviceMeshAndBuilder";
-
-const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
 export interface SelfHealingStep {
   step: string;

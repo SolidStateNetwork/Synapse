@@ -21,15 +21,11 @@ import {
   resolveActiveProjectId,
   safeParseRequestJson,
 } from "@/lib/runtimeResolver";
+import { CORE_GATEWAY_URL } from "@/lib/gatewayClient";
 import { safeFetchJson } from "@/lib/safeFetch";
 import { SYNAPSE_VERSION } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
-
-const CORE_GATEWAY_URL =
-  process.env.CORE_GATEWAY_INTERNAL_URL ||
-  process.env.NEXT_PUBLIC_CORE_GATEWAY_URL ||
-  "http://127.0.0.1:8081";
 
 export async function GET(req: NextRequest) {
   const projectId = resolveActiveProjectId(

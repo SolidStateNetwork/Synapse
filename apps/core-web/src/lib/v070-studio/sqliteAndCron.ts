@@ -13,9 +13,8 @@ import {
   resolveProjectDbPath,
   resolveTargetNodeId,
 } from "../runtimeResolver";
+import { CORE_GATEWAY_URL as GATEWAY_URL, getCoreGatewayUrl } from "../gatewayClient";
 import { safeFetchJson } from "../safeFetch";
-
-const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
 export interface SqliteStudioResult {
   ok: boolean;
@@ -273,7 +272,7 @@ export async function runCronJobNowOnMuscle(params: {
   let output = "Cron runbook executed successfully (exit=0).";
 
   try {
-    const gwUrl = process.env.CORE_GATEWAY_URL || GATEWAY_URL;
+    const gwUrl = getCoreGatewayUrl();
     const ptyRes = await safeFetchJson(`${gwUrl}/api/v1/rpc/pty`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

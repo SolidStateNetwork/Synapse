@@ -6,11 +6,9 @@ import { after, before, describe, it } from "node:test";
 import { NextRequest } from "next/server";
 
 const tmpTestRoot = fs.mkdtempSync(path.join(os.tmpdir(), "synapse-api-routes-test-"));
-process.env.SYNAPSE_DATA_DIR = tmpTestRoot;
 process.env.SYNAPSE_VAULT_DIR = path.join(tmpTestRoot, "projects");
 process.env.SYNAPSE_MASTER_KEY = "api-routes-test-master-key-2026-aes256gcm";
 process.env.CORE_GATEWAY_URL = "http://127.0.0.1:59998"; // Unreachable port -> ECONNREFUSED
-process.env.CORE_GATEWAY_INTERNAL_URL = "http://127.0.0.1:59998";
 
 import { GET as getProjects, POST as postProjects } from "../app/api/projects/route";
 import { GET as getAuth, POST as postAuth } from "../app/api/auth/route";
@@ -408,7 +406,7 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
       makePostReq(
         "/api/mcp",
         { jsonrpc: "2.0", id: 47, project_id: projId, method: "ping" },
-        { authorization: `Bearer ${apiKey}`, "x-forwarded-for": "198.51.100.77", "x-synapse-rate-limit-max": "1" }
+        { authorization: `Bearer ${apiKey}`, "x-forwarded-for": "198.51.100.77", "x-synapse-rate-limit-max": "1.9" }
       )
     );
     assert.equal(rlSecondRes.status, 429);

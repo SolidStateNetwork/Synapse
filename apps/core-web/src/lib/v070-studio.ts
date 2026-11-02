@@ -31,8 +31,7 @@ export {
   type SqliteStudioResult,
   type CronRunbookJob,
 };
-
-const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
+import { CORE_GATEWAY_URL as GATEWAY_URL } from "./gatewayClient";
 
 export interface ServiceCodeSnapshot {
   ok: boolean;

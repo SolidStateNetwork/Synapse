@@ -2,9 +2,8 @@ import path from "path";
 import { recordCheckpoint } from "@/lib/checkpoints";
 import { appendAuditLog, atomicWriteJsonSync, ensureProjectVault, getProjectDir, safeReadJsonWithBackupSync, withProjectStateTransaction, writeBrainDoc } from "@/lib/vault";
 import { resolveActiveProjectId, resolveProjectDbPath, resolveTargetNodeId } from "@/lib/runtimeResolver";
+import { CORE_GATEWAY_URL as GATEWAY_URL, getCoreGatewayUrl } from "../gatewayClient";
 import { safeFetchJson } from "../safeFetch";
-
-const GATEWAY_URL = process.env.CORE_GATEWAY_URL || "http://127.0.0.1:8081";
 
 export interface PersistedServiceLink {
   id: string;
@@ -503,7 +502,7 @@ export async function tailServiceLogs(params: {
     ].join("\n");
   }
 
-  const gwUrl = process.env.CORE_GATEWAY_URL || GATEWAY_URL;
+  const gwUrl = getCoreGatewayUrl();
   const wrappedCmd = `printf "LOG_%s\\n" "START"\n${cmd}\nprintf "\\nLOG_%s\\n" "END"`;
   const ptyRes = await safeFetchJson(`${gwUrl}/api/v1/rpc/pty`, {
     method: "POST",
@@ -555,7 +554,7 @@ export async function fetchNodeTelemetryHistory(
   const projectId = resolveActiveProjectId(normalized.projectId || "");
   const state = ensureProjectVault(projectId);
   const nodeId = resolveTargetNodeId(state, normalized.nodeId) || "local-node";
-  const gwUrl = process.env.CORE_GATEWAY_URL || GATEWAY_URL;
+  const gwUrl = getCoreGatewayUrl();
   const res = await safeFetchJson(`${gwUrl}/api/v1/nodes`, { timeoutMs: 4000 });
   const samples: Array<{ timestamp_unix: number; cpu_percent: number; ram_percent: number; disk_percent: number }> = [];
   if (res.ok) {

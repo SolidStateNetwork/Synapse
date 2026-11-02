@@ -46,7 +46,7 @@ export type {
   ServiceHealthCheckSpec,
 };
 
-function resolveVaultBaseDir(): string {
+export function resolveVaultBaseDir(): string {
   const configured =
     process.env.SYNAPSE_VAULT_DIR || "/var/lib/synapse/projects";
   try {
@@ -495,5 +495,6 @@ export {
   createMcpApiKey,
   revokeMcpApiKey,
   verifyMcpApiKey,
+  isReadOnlyMcpToolCall,
   type PersistedChatMessage,
 } from "./vault/auditChatAndMcp";
