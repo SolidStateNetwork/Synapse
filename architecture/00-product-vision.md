@@ -24,7 +24,7 @@ flowchart LR
     end
 
     subgraph Core["🧠 Synapse Core ('The Brain')"]
-        Studio["Core Web Studio & AI Orchestrator\n(29 AI/MCP Tools, Prompt Cache)"]
+        Studio["Core Web Studio & AI Orchestrator\n(42 AI/MCP Tools, Prompt Cache)"]
         Vault["Encrypted Project Brain Vault\n(State.json, Secrets.enc, Checkpoints)"]
         Gateway["Core Gateway (:8081 HTTP / :8443 mTLS)\n(ECDSA P-256 Root CA & Yamux Hub)"]
     end

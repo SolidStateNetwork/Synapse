@@ -53,7 +53,7 @@
      - `M7.4`: Durchgängige Atomic Vault Writes (`.tmp` + `fs.renameSync`), Write-Mutex & `PBKDF2-SHA256` Key Derivation.
      - `M7.5`: CI/CD `npm audit --audit-level=high` Gate & SBOM Generation in `.github/workflows/ci.yml`.
      - `M7.6`: Ausbau der Test-Suite auf `>= 45` TypeScript-Tests und `>= 88 %` Go Coverage Gate.
-  3. **Dokumentations-Synchronisation:** `architecture/03-ai-orchestrator-and-mcp-server.md` und `memory/PROJECT_STATE.md` auf `42 Tools (38 Core/Node-Tools + 4 MCP-Meta-Tools)` harmonisiert.
+  3. **Dokumentations-Synchronisation:** `architecture/00-product-vision.md`, `architecture/03-ai-orchestrator-and-mcp-server.md` (inkl. expliziter Tabellenzeile für die 4 MCP-Meta-Tools) und `memory/PROJECT_STATE.md` auf `42 Tools (38 Core/Node-Tools + 4 MCP-Meta-Tools)` harmonisiert.
 - **Verifikation:** Clean-Room Guard (`0` private IPs/Domains/Secrets), `npx tsc --noEmit` (`0 errors`), `npm test` (`33/33 passed`).
 
 ### [BB-011] 2026-11-02 13:45 (CET) – [MCP-SERVER / ARCH-LEXICON / v2.3.0] M8ven Verified Badge Claim (`solidstatenetwork-synapse-rv3on4`), Hardened MCP Sliding-Window Rate-Limiting, Centralized `process.env` Resolution & `PRIVACY.md` Directory Compliance
