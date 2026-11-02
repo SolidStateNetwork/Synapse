@@ -349,7 +349,7 @@ func TestBootstrapCSRWithOptions_And_AddSecondaryCore(t *testing.T) {
 	}
 	cA, cB := net.Pipe()
 	go func() {
-		_ = tunnelv1.WriteFrame(cA, tunnelv1.StreamHeader{StreamType: "UNKNOWN_STREAM"})
+		_ = tunnelv1.WriteFrame(cA, tunnelv1.StreamHeader{StreamType: tunnelv1.StreamType(255)})
 		_ = cA.Close()
 	}()
 	ag.handleStreamForTarget(cB, CoreTarget{Name: "p"})
