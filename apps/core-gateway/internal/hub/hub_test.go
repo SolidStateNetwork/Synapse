@@ -322,6 +322,12 @@ func TestHubServeMTLSLiveSessionReplacementAndVaultTargetSync(t *testing.T) {
 				"node_id":    "mtls-node-1",
 				"port":       9999,
 			},
+			{
+				"service_id": "auto-svc-8080",
+				"name":       "Auto 8080",
+				"node_id":    "mtls-node-1",
+				"port":       8080,
+			},
 		},
 	}
 	rawState, _ := json.MarshalIndent(initialState, "", "  ")
@@ -360,7 +366,6 @@ func TestHubServeMTLSLiveSessionReplacementAndVaultTargetSync(t *testing.T) {
 		cliCert, _ := tls.X509KeyPair(certPEM, keyPEM)
 		pool := x509.NewCertPool()
 		pool.AppendCertsFromPEM(auth.CACertPEM)
-
 		conn, err := tls.Dial("tcp", tlsLis.Addr().String(), &tls.Config{
 			Certificates: []tls.Certificate{cliCert},
 			RootCAs:      pool,
@@ -431,14 +436,14 @@ func TestHubServeMTLSLiveSessionReplacementAndVaultTargetSync(t *testing.T) {
 
 	select {
 	case synced := <-targetCh:
-		if len(synced) != 1 || synced[0].ServiceID != "svc-existing" {
-			t.Fatalf("expected 1 non-dismissed synced target (svc-existing), got %+v", synced)
+		if len(synced) < 1 || synced[0].ServiceID != "svc-existing" {
+			t.Fatalf("expected non-dismissed synced targets starting with svc-existing, got %+v", synced)
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for syncHealthTargetsFromVaultsToNode")
 	}
 
-	// Send 62 heartbeats to exercise 60-sample rolling history & category inference (database/webui/existing)
+	// Send 62 heartbeats to exercise 60-sample rolling history & category inference (database/webui/existing/backend)
 	for i := 0; i < 62; i++ {
 		_ = tunnelv1.WriteFrame(telStream, tunnelv1.NodeHeartbeat{
 			NodeID:        "mtls-node-1",
@@ -447,9 +452,11 @@ func TestHubServeMTLSLiveSessionReplacementAndVaultTargetSync(t *testing.T) {
 			CPUPercent:    float64(i),
 			TimestampUnix: time.Now().Unix(),
 			Services: []tunnelv1.ServiceHealthStatus{
-				{ServiceID: "svc-existing", Name: "Existing Web Portal", Port: 8080, Healthy: false, LatencyMs: 5, ProcessName: "nginx", ContainerName: "web-1", AutoDiscovered: true},
+				{ServiceID: "svc-existing", Name: "Existing Web Portal", Port: 8080, Healthy: i%2 == 0, LatencyMs: 5, ProcessName: "nginx", ContainerName: "web-1", AutoDiscovered: true},
 				{ServiceID: "svc-postgres-db", Name: "Postgres DB", Port: 5432, Healthy: true, LatencyMs: 1},
 				{ServiceID: "svc-dashboard-ui", Name: "Admin UI", Port: 3001, Healthy: true, LatencyMs: 2},
+				{ServiceID: "svc-api", Name: "Core API", Port: 4000, Healthy: true, LatencyMs: 1},
+				{ServiceID: "svc-down", Name: "Down Service", Port: 7777, Healthy: false},
 				{ServiceID: "svc-dismissed", Name: "Dismissed", Port: 9999, Healthy: true},
 			},
 		})

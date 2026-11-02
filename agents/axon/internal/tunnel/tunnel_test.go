@@ -469,7 +469,7 @@ func TestComputeReconnectBackoffAndCertRotation(t *testing.T) {
 	if _, err := RotateTargetCertificate(nil, target); err == nil {
 		t.Fatal("expected error on nil yamux session")
 	}
-	ag.telemetryLoopForTarget(context.Background(), srvSess, target, nil)
+	NewAgent(&IdentityConfig{}).telemetryLoopForTarget(context.Background(), srvSess, target, nil)
 
 	// Verify AddSecondaryCore (fresh dir + existing config update) & LoadIdentity .bak self-healing
 	DebugEnabled = true
