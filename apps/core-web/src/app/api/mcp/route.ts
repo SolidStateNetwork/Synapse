@@ -44,6 +44,13 @@ function getMcpToolDefinitions() {
     name: s.function.name,
     description: s.function.description,
     inputSchema: s.function.parameters,
+    annotations: (s.function as { annotations?: Record<string, unknown> }).annotations ?? {
+      title: s.function.name,
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   }));
 
   const extraTools = [
@@ -53,13 +60,9 @@ function getMcpToolDefinitions() {
         "List all connected Axon Muscle peers, their live CPU/RAM/Disk telemetry, Autonomy Tiers, IP addresses, and active PTY sessions.",
       inputSchema: {
         type: "object",
-        properties: {
-          project_id: {
-            type: "string",
-            description: "Optional project ID (defaults to active workspace)",
-          },
-        },
+        properties: { project_id: { type: "string", description: "Optional project ID (defaults to active workspace)" } },
       },
+      annotations: { title: "List Connected Axon Muscle Peers", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     {
       name: "synapse_get_project_state",
@@ -67,13 +70,9 @@ function getMcpToolDefinitions() {
         "Read the complete Synapse Project Brain Vault state (State.json, Architecture.md, Memory.md, active Rule Cartridges, and Secret Key names).",
       inputSchema: {
         type: "object",
-        properties: {
-          project_id: {
-            type: "string",
-            description: "Optional project ID (defaults to active workspace)",
-          },
-        },
+        properties: { project_id: { type: "string", description: "Optional project ID (defaults to active workspace)" } },
       },
+      annotations: { title: "Read Project Brain Vault State", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     {
       name: "synapse_create_join_token",
@@ -82,36 +81,21 @@ function getMcpToolDefinitions() {
       inputSchema: {
         type: "object",
         properties: {
-          tier: {
-            type: "string",
-            enum: [
-              "TIER_1_UNLEASHED",
-              "TIER_2_WORKSPACE_JAIL",
-              "TIER_3_SUPERVISED",
-            ],
-            description: "Autonomy Tier for the Muscle peer",
-          },
-          ttl_minutes: {
-            type: "number",
-            description: "Token validity in minutes (default 30)",
-          },
+          tier: { type: "string", enum: ["TIER_1_UNLEASHED", "TIER_2_WORKSPACE_JAIL", "TIER_3_SUPERVISED"], description: "Autonomy Tier for the Muscle peer" },
+          ttl_minutes: { type: "number", description: "Token validity in minutes (default 30)" },
         },
       },
+      annotations: { title: "Generate Muscle Enrollment Join Token", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     {
       name: "synapse_rollback_snapshot",
-      description:
-        "Restore a remote file on a Muscle peer to a previous pre-write snapshot ID.",
+      description: "Restore a remote file on a Muscle peer to a previous pre-write snapshot ID.",
       inputSchema: {
         type: "object",
         required: ["snapshot_id"],
-        properties: {
-          snapshot_id: {
-            type: "string",
-            description: "Snapshot ID to restore",
-          },
-        },
+        properties: { snapshot_id: { type: "string", description: "Snapshot ID to restore" } },
       },
+      annotations: { title: "Rollback File to Pre-Write Snapshot", readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
   ];
 

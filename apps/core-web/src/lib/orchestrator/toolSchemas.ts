@@ -18,6 +18,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["mode"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
   },
   {
@@ -74,6 +75,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["service_id", "node_id"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
   },
   {
@@ -92,6 +94,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["action", "key"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
   },
   {
@@ -112,6 +115,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["node_id", "session_id", "command"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     },
   },
   {
@@ -134,6 +138,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["node_id", "operation", "path"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
   },
   {
@@ -155,6 +160,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["source_node_id", "target_node_id", "remote_port"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
   },
   {
@@ -175,6 +181,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["node_id", "search_mode"],
       },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
   },
   {
@@ -189,6 +196,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
           scope: { type: "string", enum: ["all", "architecture", "memory", "milestones", "agents", "services", "audit", "cartridges"], default: "all" },
         },
       },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
   },
   {
@@ -210,6 +218,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["action"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
   },
   {
@@ -231,6 +240,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["name", "repo_url", "port"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     },
   },
   {
@@ -246,6 +256,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["stack_id"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
   },
   {
@@ -265,6 +276,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
           lines: { type: "integer", description: "Number of tail lines (10..200, default: 25)." },
         },
       },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
   },
   {
@@ -279,6 +291,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
           node_id: { type: "string", description: "Optional target Muscle Peer ID." },
         },
       },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
   },
   {
@@ -294,6 +307,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
           force_all: { type: "boolean", description: "If true, runs all enabled Cron-Runbooks regardless of schedule interval." },
         },
       },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     },
   },
   {
@@ -312,6 +326,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["action"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
   },
   {
@@ -331,6 +346,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["action"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
   },
   {
@@ -357,6 +373,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["action"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
   },
   {
@@ -374,6 +391,7 @@ export const SYNAPSE_TOOL_SCHEMAS = [
         },
         required: ["action"],
       },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
   },
   ...EXTENDED_SYNAPSE_TOOL_SCHEMAS,

@@ -9,6 +9,7 @@
 
 [![CI Pipeline](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SolidStateNetwork/Synapse?label=Release&color=f68330&labelColor=181a1d)](https://github.com/SolidStateNetwork/Synapse/releases)
+[![M8ven Verified](https://m8ven.ai/badge/solidstatenetwork/synapse.svg)](https://m8ven.ai/mcp/solidstatenetwork/synapse)
 [![MCP Server: 33 Tools](https://img.shields.io/badge/MCP_Server-33_Built--In_Tools-31c48d?labelColor=181a1d)](#)
 [![Stack: Go 1.23 + Next.js 15](https://img.shields.io/badge/Stack-Go_1.23_%2B_Next.js_15-3b82f6?labelColor=181a1d)](#)
 [![License: Source-Available (Non-Commercial)](https://img.shields.io/badge/License-Source--Available_(Non--Commercial)-f68330?labelColor=181a1d)](./LICENSE)

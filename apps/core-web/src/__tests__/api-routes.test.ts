@@ -326,6 +326,24 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     const mcpKeyJson = await mcpKeyRes.json();
     const apiKey = mcpKeyJson.plaintext_token;
 
+    const mcpToolsListRes = await postMcp(
+      makePostReq(
+        "/api/mcp",
+        { jsonrpc: "2.0", id: 41, project_id: projId, method: "tools/list", params: {} },
+        { authorization: `Bearer ${apiKey}` }
+      )
+    );
+    assert.equal(mcpToolsListRes.status, 200);
+    const mcpToolsListJson = await mcpToolsListRes.json();
+    assert.equal(mcpToolsListJson.result.tools.length, 42);
+    for (const tool of mcpToolsListJson.result.tools) {
+      assert.ok(tool.annotations, `Tool ${tool.name} missing annotations`);
+      assert.equal(typeof tool.annotations.readOnlyHint, "boolean", `Tool ${tool.name} readOnlyHint must be boolean`);
+      assert.equal(typeof tool.annotations.destructiveHint, "boolean", `Tool ${tool.name} destructiveHint must be boolean`);
+      assert.equal(typeof tool.annotations.idempotentHint, "boolean", `Tool ${tool.name} idempotentHint must be boolean`);
+      assert.equal(typeof tool.annotations.openWorldHint, "boolean", `Tool ${tool.name} openWorldHint must be boolean`);
+    }
+
     const mcpCallRes = await postMcp(
       makePostReq(
         "/api/mcp",

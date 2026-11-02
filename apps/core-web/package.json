@@ -4,14 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build && mkdir -p .next/standalone/.next && cp -r .next/static .next/standalone/.next/",
+    "build": "next build && node -e \"const fs=require('fs');if(fs.existsSync('.next/standalone')&&fs.existsSync('.next/static')){fs.mkdirSync('.next/standalone/.next',{recursive:true});fs.cpSync('.next/static','.next/standalone/.next/static',{recursive:true});}\"",
     "start": "next start -p 3000",
     "lint": "next lint",
     "test": "node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON --import ./src/__tests__/register-hooks.mjs --test src/__tests__/synapse.test.ts src/__tests__/fault-injection.test.ts src/__tests__/api-routes.test.ts src/__tests__/core-deep.test.ts src/__tests__/llm-and-ota.test.ts"
   },
   "dependencies": {
     "lucide-react": "^0.475.0",
-    "next": "15.1.6",
+    "next": "^15.5.28",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "@xterm/xterm": "^5.5.0",
@@ -22,8 +22,11 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.49",
+    "postcss": "^8.5.23",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2"
+  },
+  "overrides": {
+    "postcss": "^8.5.23"
   }
 }
