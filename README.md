@@ -5,7 +5,7 @@
 <br />
 
 [![English (Active)](https://img.shields.io/badge/🇬🇧_Language-English_(Active)-f68330?style=for-the-badge&labelColor=181a1d)](./README.md)
-[![Auf Deutsch lesen](https://img.shields.io/badge/🇩🇪_Sprache-Auf_Deutsch_lesen_→-31c48d?style=for-the-badge&labelColor=181a1d)](./README.de.md)
+
 
 [![CI Pipeline](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/SolidStateNetwork/Synapse/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SolidStateNetwork/Synapse?label=Release&color=f68330&labelColor=181a1d)](https://github.com/SolidStateNetwork/Synapse/releases)
@@ -158,7 +158,7 @@ npm --prefix apps/core-web run build
   - [`04-resilience-security-and-ota.md`](./architecture/04-resilience-security-and-ota.md) – `AES-256-GCM` Secret Vault, Pre-Flight Time-Machine Checkpoints, Self-Healing & OTA
 - **Project Memory & Roadmap:** [`memory/`](./memory/)
   - [`PROJECT_STATE.md`](./memory/PROJECT_STATE.md) – Live subsystem status matrix (`v2.5.0`)
-  - [`MILESTONES.md`](./memory/MILESTONES.md) – End-to-end engineering roadmap (`Phase 1`–`Phase 6`)
+  - [`MILESTONES.md`](./memory/MILESTONES.md) – End-to-end engineering roadmap (`Phase 1`–`Phase 8`)
   - [`BLACKBOX.md`](./memory/BLACKBOX.md) – Chronological engineering log & Architecture Decision Records (`ADR-001`–`ADR-006`)
 - **Standard Operating Procedures:** [`playbooks/`](./playbooks/)
   - [`01-feature-and-milestone-sop.md`](./playbooks/01-feature-and-milestone-sop.md) – Feature development, modularization & test gate SOP

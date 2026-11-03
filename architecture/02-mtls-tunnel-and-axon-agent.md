@@ -1,55 +1,58 @@
-# 🔐 02 – mTLS 1.3 Tunnel, PKI & Axon Muscle Agent
+# 🔐 02 — mTLS 1.3 Tunnel, PKI & Axon Muscle Agent
 
-Dieses Dokument spezifiziert die Sicherheits- und Kommunikationsarchitektur zwischen dem **Synapse Core Gateway** (`apps/core-gateway`) und den **Axon Muscle Nodes** (`agents/axon`).
+This document specifies the security and communication architecture between the **Synapse Core Gateway** (`apps/core-gateway`) and **Axon Muscle Nodes** (`agents/axon`).
 
 ---
 
 ## 1. Zero-Trust Enrollment & ECDSA P-256 PKI (`internal/pki`)
 
-Synapse verwendet keine statischen API-Passwörter für die Server-Anbindung, sondern eine vollwertige **Mutual TLS 1.3 (mTLS) Public Key Infrastructure**:
+Synapse does not use static shared passwords for server connectivity. Instead, it enforces a dedicated **Mutual TLS 1.3 (mTLS) Public Key Infrastructure**:
 
-1. **Core Root CA Initialisierung:**
-   - Beim ersten Start erzeugt `core-gateway` ein selbstsigniertes **ECDSA P-256 Root-CA-Zertifikat** (`ca.crt` & `ca.key`, `0600`) im Datenverzeichnis.
-2. **One-Time CSR Join-Token (`syn_join_...`):**
-   - Ein Operator oder MCP-Client fordert über `POST /api/v1/tokens` (bzw. `core_manage_cluster_nodes`) ein zeitlich begrenztes Einmal-Token (Standard: 15–30 Minuten TTL) an, das an eine spezifische Autonomie-Stufe (`TIER_1`–`TIER_3`) gebunden ist.
-3. **Lokale Schlüsselgenerierung & CSR-Austausch:**
-   - Der Muscle-Server generiert sein privates Schlüsselpaar (`client.key`) **ausschließlich lokal** auf dem Zielsystem.
-   - Über `POST /api/v1/enroll` sendet `axon` lediglich einen **Certificate Signing Request (CSR)** zusammen mit dem Einmal-Token an das Core Gateway.
-   - Das Gateway entwertet das Token sofort nach einmaliger Nutzung, signiert das Client-Zertifikat (`client.crt`) mit der Root CA und kodiert die erlaubte `Autonomy Tier` in den Zertifikats-Metadaten.
+1. **Core Root CA Initialization:**
+   - On first startup, `core-gateway` generates a self-signed **ECDSA P-256 Root CA certificate** (`ca.crt` & `ca.key`, mode `0600`) inside the data directory.
+2. **One-Time CSR Join Token (`syn_join_...`):**
+   - An operator or MCP client requests a short-lived one-time token (default: 15–30 minutes TTL) via `POST /api/v1/tokens` (or `core_manage_cluster_nodes`), bound to a specific autonomy tier (`TIER_1`–`TIER_3`).
+3. **Local Key Generation & CSR Exchange:**
+   - The Muscle server generates its private key pair (`client.key`) **exclusively locally** on the target host.
+   - Via `POST /api/v1/enroll`, `axon` sends only a **Certificate Signing Request (CSR)** together with the one-time token to the Core Gateway.
+   - The Gateway invalidates the token immediately upon first use, signs the client certificate (`client.crt`) with the Root CA, and encodes the authorized `Autonomy Tier` in the certificate metadata.
+4. **Real-Time Certificate Revocation (`CRL.json`) & Auto-Rotation (`StreamTypeCertRenew`):**
+   - Revoked certificate serial numbers are persisted in `CRL.json` (`RevokeCertSerial`, `IsCertRevoked`) and checked during every TLS 1.3 handshake (`VerifyPeerCertificate`), with instant eviction of active Yamux sessions (`EvictNode`).
+   - Before certificate expiry (`< 30` days remaining), `axon` rotates its X.509 client certificate seamlessly over `StreamTypeCertRenew`.
 
 ---
 
-## 2. Multiplexed Yamux Tunnel über TLS 1.3 (`:8443`)
+## 2. Multiplexed Yamux Tunnel Over TLS 1.3 (`:8443`)
 
-Sobald `axon` im Besitz von `ca.crt`, `client.crt` und `client.key` ist, baut der Agent eine dauerhafte ausgehende TCP-Verbindung zum Tunnel-Port (`:8443`) des Core Gateways auf:
+Once `axon` holds `ca.crt`, `client.crt`, and `client.key`, the agent establishes a persistent outbound TCP connection to the Core Gateway tunnel port (`:8443`):
 
-- **Strikte TLS-1.3-Konfiguration:** `MinVersion: tls.VersionTLS13`, `ClientAuth: tls.RequireAndVerifyClientCert`.
-- **Stream-Multiplexing (`hashicorp/yamux`):** Über diese einzige ausgehende TCP-Verbindung öffnet das Core Gateway bei Bedarf beliebig viele parallele, isolierte virtuelle Streams zum Muscle-Knoten:
-  - **Heartbeat & Telemetrie-Stream:** Überträgt alle 5 Sekunden CPU-, RAM-, Disk-Auslastung, OS-Architektur, Netzwerk-IPs und den Live-Status registrierter Dienste (inkl. 60-Sample Ringbuffer im Gateway-Hub).
-  - **PTY Execution Streams (`/api/v1/rpc/pty`):** Führt Shell-Befehle in persistenten (`default-<project>`) oder ephemeralen One-Shot-PTY-Sessions aus.
-  - **Filesystem RPC Streams (`/api/v1/rpc/fs`):** Atomare Datei-Operationen (`read_file`, `write_file`, `list_dir`, `stat`, `delete`) inkl. automatischer Pre-Write-Snapshots.
-  - **Live-Preview Reverse-Proxy Streams (`/preview/<project>/<node>/<port>`):** Tunnelt HTTP/WebSocket-Anfragen aus dem Browser-Cockpit direkt an `127.0.0.1:<port>` auf dem Muscle-Server, ohne dass der Port auf der öffentlichen Server-Firewall geöffnet werden muss.
+- **Strict TLS 1.3 Configuration:** `MinVersion: tls.VersionTLS13`, `ClientAuth: tls.RequireAndVerifyClientCert`, pinned ECDHE curves (`tls.X25519`, `tls.CurveP256`).
+- **Stream Multiplexing (`hashicorp/yamux`):** Over this single outbound TCP connection, the Core Gateway opens concurrent, isolated virtual streams to the Muscle node on demand:
+  - **Heartbeat & Telemetry Stream:** Reports CPU, RAM, and disk utilization, OS architecture, network IPs, procfs/socket `AnomalyAlerts`, and live status of registered services every 5 seconds (stored in a 60-sample ring buffer in the Gateway hub).
+  - **PTY Execution Streams (`/api/v1/rpc/pty`):** Executes shell commands inside persistent (`default-<project>`) or ephemeral one-shot PTY sessions with optional `ulimit` resource quotas.
+  - **Filesystem RPC Streams (`/api/v1/rpc/fs`):** Atomic file operations (`read_file`, `write_file`, `list_dir`, `stat`, `delete`, `apply_unified_diff`) with automatic pre-write snapshots.
+  - **Live-Preview Reverse-Proxy Streams (`/preview/<project>/<node>/<port>`):** Tunnels HTTP/WebSocket traffic from the browser cockpit directly to `127.0.0.1:<port>` on the Muscle server without opening public firewall ports.
 
 ---
 
 ## 3. Ephemeral PTY Garbage Collection (`pty_discovery.go`)
 
-Damit automatisierte Hintergrund-Probes, Healthchecks und One-Shot-Deployments niemals verwaiste Shell-Prozesse (`bash`/`sh`) auf dem Muscle-Server hinterlassen, klassifiziert `IsEphemeralSessionID` in `agents/axon/internal/pty/pty_discovery.go` temporäre Sessions anhand ihres Präfixes:
+To ensure automated background probes, health checks, and one-shot deployments never leave orphaned shell processes (`bash`/`sh`) on the Muscle server, `IsEphemeralSessionID` in `agents/axon/internal/pty/pty_discovery.go` classifies temporary sessions by prefix:
 
-- **Automatisch bereinigte One-Shot-Präfixe:**
-  - `probe-`, `link-probe-`, `service-logs-` (Live-Healthchecks & Log-Inspector)
-  - `cron-`, `heal-`, `chaos-`, `secops-` (Cron-Runbooks, Self-Healing & Intrusion-Radar)
-  - `chk-`, `bkp-`, `bp-`, `gitops-`, `sqlite-` (Checkpoints, Backups, Blueprints, GitOps & SQLite-Studio)
-  - `hot-reload-`, `fw-`, `svc-cleanup-`, `sys-update-`, `mesh-`, `custom-svc-` (Hot-Reload, Firewall-Sync, Teardown, OTA-Update & Service-Mesh)
-- **Persistente Operator-Sessions:**
-  - Sessions wie `default-<project_id>` oder interaktive WebUI-Terminals bleiben über Einzelbefehle hinweg bestehen, sodass Arbeitsverzeichnisse (`cd`) und Umgebungsvariablen erhalten bleiben.
+- **Automatically Reaped One-Shot Prefixes:**
+  - `probe-`, `link-probe-`, `service-logs-`, `deep-search-` (live health checks, log inspector & forensic search)
+  - `cron-`, `heal-`, `self-heal-`, `chaos-`, `secops-` (cron runbooks, self-healing & intrusion radar)
+  - `chk-`, `bkp-`, `bp-`, `gitops-`, `sqlite-` (checkpoints, backups, blueprints, GitOps & SQLite studio)
+  - `hot-reload-`, `fw-`, `svc-cleanup-`, `sys-update-`, `mesh-`, `custom-svc-` (hot-reload, firewall sync, teardown, OTA update & service mesh)
+- **Persistent Operator Sessions:**
+  - Sessions such as `default-<project_id>` or interactive WebUI terminals persist across individual commands so working directories (`cd`) and environment variables are preserved.
 
 ---
 
 ## 4. Deterministic Self-Lockout Guard (`agents/axon/internal/guard`)
 
-Selbst im Modus `TIER_1_UNLEASHED` prüft `axon` jeden einzelnen Befehl vor der Ausführung deterministisch gegen Selbst-Sabotage (`ERR_SELF_PROTECTION_VIOLATION`):
+Even in `TIER_1_UNLEASHED` mode, `axon` deterministically validates every command before execution to prevent self-sabotage (`ERR_SELF_PROTECTION_VIOLATION`):
 
-1. **Prozess- & Service-Selbstschutz:** Blockiert `kill`/`pkill` gegen die eigene `axon`-PID sowie `systemctl stop/disable/mask axon`.
-2. **Firewall-Anti-Lockout:** Blockiert `ufw`/`iptables`/`nftables`-Befehle, die den ausgehenden mTLS-Tunnel zum Core Gateway oder den lokalen Loopback-Verkehr trennen würden.
-3. **Destruktiver Root-Schutz:** Blockiert destruktive Dateisystem-Befehle auf Systemwurzel-Ebene (`rm -rf /`, `mkfs` auf gemounteten Systempartitionen).
+1. **Process & Service Self-Protection:** Blocks `kill`/`pkill` targeting the `axon` PID as well as `systemctl stop/disable/mask axon` (including flag-reordered invocations) and `sshd`.
+2. **Firewall Anti-Lockout:** Blocks `ufw`/`iptables`/`nftables`/`ip link` commands that would sever the outbound mTLS tunnel to the Core Gateway or disable loopback traffic.
+3. **Destructive Root Protection:** Blocks destructive filesystem commands targeting the root filesystem (`rm -rf /`, `mkfs` on mounted system partitions).

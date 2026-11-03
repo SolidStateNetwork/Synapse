@@ -4,7 +4,8 @@ import os
 import subprocess
 import sys
 
-def main():
+
+def main() -> None:
     try:
         payload = json.loads(sys.stdin.read() or "{}")
     except Exception:
@@ -23,24 +24,29 @@ def main():
             ["git", "-C", repo_root, "status", "--porcelain"],
             stderr=subprocess.DEVNULL,
             text=True,
-            timeout=2
+            timeout=2,
         ).strip()
     except Exception:
         porcelain = ""
 
     if porcelain:
-        print(json.dumps({
-            "decision": "continue",
-            "reason": (
-                "🚨 [SYNAPSE-LEXIKON-GUARDRAIL]: Es liegen uncommittete Änderungen im Synapse-Repository vor:\n"
-                f"{porcelain}\n"
-                "Bitte stelle sicher, dass memory/BLACKBOX.md, memory/PROJECT_STATE.md und memory/MILESTONES.md "
-                "vollständig aktualisiert sind, und führe anschließend `git add`, `git commit` "
-                "und `git push origin main` aus, bevor du deine Antwort abschließt."
+        print(
+            json.dumps(
+                {
+                    "decision": "continue",
+                    "reason": (
+                        "🚨 [SYNAPSE LEXICON GUARDRAIL]: Uncommitted changes detected in the Synapse repository:\n"
+                        f"{porcelain}\n"
+                        "Please ensure memory/BLACKBOX.md, memory/PROJECT_STATE.md, and memory/MILESTONES.md "
+                        "are updated in English, then run `git add`, `git commit`, and `git push origin main` "
+                        "before concluding your turn."
+                    ),
+                }
             )
-        }))
+        )
     else:
         print(json.dumps({"decision": "stop"}))
+
 
 if __name__ == "__main__":
     main()

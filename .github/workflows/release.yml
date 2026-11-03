@@ -123,7 +123,7 @@ jobs:
           \`\`\`
 
           ### 2. Connect any Remote Muscle Node (\`axon\`) with One Command + Token Login
-          Generate a one-time join token in the Studio WebUI (\`Server & Mesh -> Server koppeln\`), then run on the target Linux server:
+          Generate a one-time join token in the Studio WebUI (\`Servers & Mesh -> Connect Server\`), then run on the target Linux server:
           \`\`\`bash
           curl -fsSL http://<CORE_HOST>:8081/install.sh | sudo sh -s -- <ONE_TIME_JOIN_TOKEN> TIER_2_WORKSPACE_JAIL
           \`\`\`

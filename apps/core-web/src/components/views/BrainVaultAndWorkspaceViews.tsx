@@ -207,7 +207,7 @@ export const BrainVaultView = React.memo(function BrainVaultView({
                   ? "border-emerald-500/40 bg-emerald-950/30 text-emerald-300 hover:border-emerald-400"
                   : "border-amber-500/40 bg-amber-950/30 text-amber-300 hover:border-amber-400"
               }`}
-              title="Umschalten zwischen Public Clean-Room (Strata/Synapse Standard) und Private Infrastructure (Gateway/Fleet Standard)"
+              title="Umschalten zwischen Public Clean-Room und Private Infrastructure (Synapse Standard)"
             >
               <span>{visibility === "public" ? "🌐 PUBLIC (Clean-Room)" : "🔒 PRIVATE (Infra)"}</span>
             </button>

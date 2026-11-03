@@ -482,7 +482,7 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
     const securityMd = fs.readFileSync(path.join(repoRoot, "SECURITY.md"), "utf8");
     const privacyMd = fs.readFileSync(path.join(repoRoot, "PRIVACY.md"), "utf8");
     const readmeEn = fs.readFileSync(path.join(repoRoot, "README.md"), "utf8");
-    const readmeDe = fs.readFileSync(path.join(repoRoot, "README.de.md"), "utf8");
+    const agentsMd = fs.readFileSync(path.join(repoRoot, "AGENTS.md"), "utf8");
     const changelogMd = fs.readFileSync(path.join(repoRoot, "CHANGELOG.md"), "utf8");
     const installAxonSh = fs.readFileSync(path.join(repoRoot, "scripts/install-axon.sh"), "utf8");
     const deployCoreSh = fs.readFileSync(path.join(repoRoot, "scripts/deploy-core.sh"), "utf8");
@@ -501,8 +501,8 @@ describe("Synapse Next.js API-Route Integration & v0.5.0 Release Readiness Suite
       "README.md must include verified M8ven badge slug"
     );
     assert.ok(
-      readmeDe.includes("https://m8ven.ai/badge/mcp/solidstatenetwork-synapse-rv3on4?variant=verified"),
-      "README.de.md must include verified M8ven badge slug"
+      agentsMd.includes("Strict Single-Repository Scope"),
+      "AGENTS.md must document Strict Single-Repository Scope"
     );
     assert.ok(changelogMd.includes("## [v2.5.0]"), "CHANGELOG.md must document v2.5.0");
     assert.ok(versionTs.includes('SYNAPSE_SEMVER = "2.5.0"'), "version.ts must export SYNAPSE_SEMVER = 2.5.0");

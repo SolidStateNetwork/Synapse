@@ -1,46 +1,51 @@
-# 📋 Playbook 01 – Feature- & Meilenstein-Entwicklung (SOP)
+# 📋 Playbook 01 — Feature & Milestone Development (SOP)
 
-Dieses Playbook definiert den verbindlichen Standard-Ablauf (Standard Operating Procedure) für jede Erweiterung von **Synapse (`SolidStateNetwork/Synapse`)**.
-
----
-
-## 1. Vorab-Check (Read First)
-1. Lies [`AGENTS.md`](../AGENTS.md), [`memory/PROJECT_STATE.md`](../memory/PROJECT_STATE.md), [`memory/BLACKBOX.md`](../memory/BLACKBOX.md) und [`memory/MILESTONES.md`](../memory/MILESTONES.md).
-2. Prüfe die passende Architektur-Spezifikation unter [`architecture/`](../architecture/) (`00` bis `04`).
+This playbook defines the mandatory Standard Operating Procedure (SOP) for developing features and milestones in **Synapse (`SolidStateNetwork/Synapse`)**.
 
 ---
 
-## 2. Architektur- & Code-Regeln während der Implementierung
+## 1. Pre-Flight Check (Read First & Single-Repo Scope)
+1. Operate strictly inside this repository (`CWD`); never access sibling repositories (`../`).
+2. Read [`AGENTS.md`](../AGENTS.md), [`memory/PROJECT_STATE.md`](../memory/PROJECT_STATE.md), [`memory/BLACKBOX.md`](../memory/BLACKBOX.md), and [`memory/MILESTONES.md`](../memory/MILESTONES.md).
+3. Review the relevant architecture specification under [`architecture/`](../architecture/) (`00` through `04`).
 
-1. **Strikte Dateigrößen-Disziplin:**
-   - Keine Go-Datei (`*.go`) darf `500` Zeilen erreichen (Ziel: `< 490` Zeilen).
-   - Keine TypeScript-/React-Datei (`*.ts`, `*.tsx`) darf `600` Zeilen erreichen (Ziel: `< 585` Zeilen).
-   - Neue Orchestrator-Tools gehören in dedizierte, fokussierte Module unter `apps/core-web/src/lib/orchestrator/<domain>Tools.ts` (`< 220` Zeilen) und werden in `extendedToolSchemas.ts` (`< 300` Zeilen), `coreTools.ts`, `autonomousFallback.ts` und `/api/mcp/route.ts` registriert.
+---
+
+## 2. Architectural & Coding Rules During Implementation
+
+1. **Strict File Size Discipline:**
+   - No Go file (`*.go`) may reach `500` lines (target: `< 490` lines).
+   - No TypeScript/React file (`*.ts`, `*.tsx`) may reach `600` lines (target: `< 585` lines).
+   - New orchestrator tools belong in focused domain modules under `apps/core-web/src/lib/orchestrator/<domain>Tools.ts` (`< 220` lines) and must be registered in `extendedToolSchemas.ts` (`< 300` lines), `coreTools.ts`, `autonomousFallback.ts`, `/api/mcp/route.ts`, and `packages/mcp-server/index.mjs`.
 2. **Pre-Flight Time-Machine Checkpoints:**
-   - Jede neue mutierende Infrastruktur-Aktion muss vorab `recordCheckpoint(projectId, ...)` aus `@/lib/checkpoints` aufrufen und `checkpoint_id` im Ergebnis sowie im UI-Status-Banner zurückgeben.
+   - Every new mutating infrastructure action must call `recordCheckpoint(projectId, ...)` from `@/lib/checkpoints` beforehand and return `checkpoint_id` in both the response payload and UI status banner.
 3. **Ephemeral PTY Sessions:**
-   - Neue One-Shot-PTY-Aufrufe müssen entweder ein bestehendes ephemerales Session-Präfix (`IsEphemeralSessionID` in `agents/axon/internal/pty/pty_discovery.go`) nutzen oder das neue Präfix dort inkl. Unit-Test in `pty_test.go` registrieren.
-4. **0 `any`-Typen & Public Clean-Room:**
-   - Verwende strikte TypeScript-Interfaces. Schreibe niemals echte Server-IPs, lokale Benutzerpfade (`/home/<user>`) oder Geheimnisse in Code oder Tests.
+   - New one-shot PTY invocations must either reuse an existing ephemeral session prefix (`IsEphemeralSessionID` in `agents/axon/internal/pty/pty_discovery.go`) or register the new prefix there with a corresponding unit test in `pty_test.go`.
+4. **Zero `any` Types, 100% English Repo Content & Public Clean-Room:**
+   - Use strict TypeScript interfaces. Keep 100% of repository documentation, code, comments, and commit messages in English. Never write real server IPs, local user paths (`/home/<user>`), or secrets into code or tests.
 
 ---
 
-## 3. Lokale Pflicht-Verifikation vor jedem Commit
+## 3. Mandatory Local Verification Before Every Commit
 
-Führe vor jedem Commit die folgenden Prüfungen aus:
+Run the following verification checks before committing:
 
 ```bash
 export LC_ALL=C PATH="${HOME}/.local/go/bin:${PATH}"
 
-# 1. Dateigrößen-Audit (< 500 Go / < 600 TS)
+# 1. File size audit (< 500 Go / < 600 TS)
 find proto agents/axon apps/core-gateway -name "*.go" -exec wc -l {} + | grep -v " total$" | sort -nr | head -n 5
 find apps/core-web/src -name "*.ts" -o -name "*.tsx" | xargs wc -l | grep -v " total$" | sort -nr | head -n 5
 
-# 2. Go Unit- & Race-Tests (>= 85.0 % Statement-Coverage in allen 11 Paketen)
+# 2. Go unit & race tests (>= 90.0% statement coverage across all 11 packages)
 go test -race -cover ./proto/... ./agents/axon/... ./apps/core-gateway/...
 
-# 3. TypeScript Strict Typecheck & Coverage-Suite (>= 90.0 % Line-Coverage)
+# 3. TypeScript strict typecheck & test suite
 cd apps/core-web
 npx tsc --noEmit
-npm test -- --experimental-test-coverage
+npm test
+
+# 4. Lexicon & Clean-Room completeness check
+cd ../..
+python3 playbooks/scripts/verify-lexicon-completeness.py
 ```

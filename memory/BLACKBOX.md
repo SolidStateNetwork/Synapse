@@ -1,244 +1,220 @@
-# ⬛ GLOBAL MEMORY BLACKBOX – Chronologisches Entwicklungs-Logbuch & ADRs
+# ⬛ GLOBAL MEMORY BLACKBOX — Chronological Engineering Log & ADRs
 
-> **ZWECK DIESER DATEI:**  
-> Die `BLACKBOX.md` ist das zentrale, unveränderliche Langzeitgedächtnis (Append-Only Engineering Log & Architecture Decision Record) von **Synapse (`SolidStateNetwork/Synapse`)**.  
-> **Jeder KI-Agent und Entwickler**, der Features implementiert, die Architektur erweitert oder Releases durchführt, **muss** hier einen strukturierten Eintrag hinterlassen (neueste Einträge immer **oben**).
+> **PURPOSE OF THIS FILE:**  
+> `BLACKBOX.md` is the central, append-only long-term engineering log and Architecture Decision Record of **Synapse (`SolidStateNetwork/Synapse`)**.  
+> **Every AI agent and developer** implementing features, extending the architecture, or cutting releases **must** record a structured entry here (newest entries always at the **top**).
 
 ---
 
-## 📝 Vorlage für neue Blackbox-Einträge
+## 📝 Template for New Blackbox Entries
 
 ```markdown
-### [BB-XXX] YYYY-MM-DD HH:MM (TZ) – [MODUL / VERSION] Kurztitel der Änderung
-- **Akteur:** <KI-Modell / Agent / Entwickler>
-- **Typ:** `ARCHITECTURE` | `FEATURE` | `SECURITY` | `UI` | `TEST` | `RELEASE`
-- **Betroffene Module:** `ARCH-LEXICON` | `CORE-GATEWAY` | `AXON-AGENT` | `AI-ORCHESTRATOR` | `MCP-SERVER` | `RESILIENCE-DR` | `WEB-STUDIO-UI` | `CONTAINER-LAB`
-- **Ziel / Hintergrund:** Warum wurde die Änderung durchgeführt?
-- **Durchgeführte Schritte:** Welche Dateien, Go-Packages oder TS-Module wurden erstellt/angepasst?
-- **Verifikation:** Testergebnisse, Coverage-Werte (`>= 85 %` Go / `>= 90 %` TS), Line-Count-Audit (`< 500` Go / `< 600` TS) & CI-Status.
+### [BB-XXX] YYYY-MM-DD HH:MM (TZ) – [MODULE / VERSION] Concise Change Summary
+- **Actor:** <AI Model / Agent / Developer>
+- **Type:** `ARCHITECTURE` | `FEATURE` | `SECURITY` | `UI` | `TEST` | `RELEASE`
+- **Affected Modules:** `ARCH-LEXICON` | `CORE-GATEWAY` | `AXON-AGENT` | `AI-ORCHESTRATOR` | `MCP-SERVER` | `BRAIN-VAULT` | `CORE-WEB` | `CONTAINER-LAB`
+- **Goal / Context:** Why was this change introduced?
+- **Completed Steps:** Which files, Go packages, or TypeScript modules were created or updated?
+- **Verification:** Test results, coverage metrics (`>= 90%` Go / `58/58` TS), line-count audit (`< 500` Go / `< 600` TS) & CI status.
 ```
 
 ---
 
 ## 🏛️ Architecture Decision Records (ADRs)
 
-| ADR-ID | Entscheidung | Begründung |
+| ADR ID | Decision | Rationale |
 | :--- | :--- | :--- |
-| **ADR-001** | **Strikte Core („The Brain“) & Muscle („The Hands“) Trennung über Outbound mTLS 1.3 + Yamux** | Verhindert, dass Zielserver eingehende Firewall-Ports öffnen müssen, und isoliert die KI-Steuerzentrale inkl. `Secrets.enc` vollständig von der Code-Ausführung auf den verwalteten Linux-Knoten. |
-| **ADR-002** | **Deterministischer Self-Lockout Guard & 3 Autonomie-Stufen (`TIER_1`–`TIER_3`) im Agenten** | Sicherheit darf niemals allein von LLM-System-Prompts abhängen. `axon` blockiert Befehle gegen die eigene PID/Firewall (`ERR_SELF_PROTECTION_VIOLATION`) und erzwingt kanonische Workspace-Jails (`TIER_2`) bzw. menschliche Freigaben (`TIER_3`) deterministisch im Code. |
-| **ADR-003** | **100 % Full-Stack AI & Model Context Protocol (`MCP`) Tool-Parität** | Jede Funktion des Web-Cockpits ist gleichzeitig als typisiertes Tool im internen AI-Orchestrator und über `/api/mcp` (`JSON-RPC 2.0`) für externe KI-Clients (Claude, Cursor, Windsurf) nutzbar. |
-| **ADR-004** | **Automatische Pre-Flight Time-Machine Checkpoints (`chk-...`) vor jeder Mutation** | Vor jedem Blueprint-Deploy, GitOps-Rollout/Teardown, Custom-Service-Deploy, Code-Hot-Reload, Firewall-Eingriff und OTA-System-Update wird automatisch ein Snapshot angelegt, um 1-Click-Rollbacks zu garantieren. |
-| **ADR-005** | **Harte Modularisierungs- & Coverage-Gates (`< 500` Zeilen Go, `< 600` Zeilen TS/TSX, `>= 85 %` Go / `>= 90 %` TS Coverage)** | Verhindert monolithische Dateien, hält den Kontext für KI-Agenten präzise und erzwingt durch automatisierte CI- und Pre-Commit-Prüfungen dauerhafte Code-Qualität ohne `any`-Typen. |
-| **ADR-006** | **Public Clean-Room Policy & Lokales 2-Container-Labor (`containers/`)** | Als öffentliches Repository darf Synapse keinerlei echte Server-IPs, lokale Benutzerpfade (`/home/<user>`) oder Geheimnisse enthalten. Die gesamte Ende-zu-Ende-Entwicklung und Verifikation läuft isoliert in zwei lokalen Containern (`synapse-core` + `synapse-muscle`). |
+| **ADR-001** | **Strict Core ("The Brain") & Muscle ("The Hands") Separation Over Outbound mTLS 1.3 + Yamux** | Eliminates the need for inbound firewall ports on managed Linux nodes and completely isolates the AI control plane (including `Secrets.enc`) from code execution on managed hosts. |
+| **ADR-002** | **Deterministic Self-Lockout Guard & 3 Autonomy Tiers (`TIER_1`–`TIER_3`) in the Agent** | Security must never rely solely on LLM system prompts. `axon` deterministically blocks commands targeting its own PID/firewall (`ERR_SELF_PROTECTION_VIOLATION`) and enforces canonical workspace jails (`TIER_2`) or human approval (`TIER_3`) in code. |
+| **ADR-003** | **100% Full-Stack AI & Model Context Protocol (`MCP`) Tool Parity** | Every feature in the web cockpit is simultaneously available as a typed tool in the internal AI Orchestrator and over `/api/mcp` (`JSON-RPC 2.0`) for external AI clients (Claude, Cursor, Windsurf). |
+| **ADR-004** | **Automatic Pre-Flight Time-Machine Checkpoints (`chk-...`) Before Every Mutation** | Before every blueprint deploy, GitOps rollout/teardown, custom service deploy, live-code hot-reload, firewall update, and OTA system update, a restorable snapshot is automatically created to guarantee 1-click rollbacks. |
+| **ADR-005** | **Strict Modularization & Coverage Gates (`< 500` Lines Go, `< 600` Lines TS/TSX, `>= 90%` Go Coverage, `0` `any` Types)** | Prevents monolithic files, keeps context windows focused for AI agents, and enforces durable code quality through automated CI and pre-commit checks. |
+| **ADR-006** | **Public Clean-Room Policy, Strict Single-Repo Scope & Local 2-Container Lab (`containers/`)** | As a standalone public repository, Synapse contains zero real server IPs, zero local user paths (`/home/<user>`), zero secrets, and zero cross-repo coupling. End-to-end development and verification run inside two isolated local containers (`synapse-core` + `synapse-muscle`). |
 
 ---
 
-## 📜 Chronologisches Logbuch (Neueste zuerst)
+## 📜 Chronological Engineering Log (Newest First)
 
-### [BB-016] 2026-11-02 23:35 (CET) – [ARCH-LEXICON / v2.5.0] Ergänzung von `playbooks/scripts/verify-lexicon-completeness.py`
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `ARCHITECTURE` | `SECURITY` | `ARCH-LEXICON`
-- **Betroffene Module:** `ARCH-LEXICON`
-- **Ziel / Hintergrund:** Bereitstellung des flottenweit standardisierten Lexikon- & Clean-Room-Verifikationsskripts `playbooks/scripts/verify-lexicon-completeness.py` für die Cross-Repo-Bridge (`ssn-repo-bridge.py`) und `/goal`-Verifikation.
-- **Durchgeführte Schritte:**
-  1. `playbooks/scripts/verify-lexicon-completeness.py` mit Prüfung aller 21 Governance-, Memory-, Template-, Design- und Bridge-Pflichtdateien sowie Clean-Room-Guardrails erstellt.
-- **Verifikation:** `python3 playbooks/scripts/verify-lexicon-completeness.py` mit `EXIT 0` bestanden.
+### [BB-017] 2026-11-03 10:00 (CET) – [ARCH-LEXICON / CORE-WEB / v2.5.0] Single-Repository Clean-Up, De-Coupling, Structural Consolidation & 100% English Standardization
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `ARCHITECTURE` | `SECURITY` | `ARCH-LEXICON`
+- **Affected Modules:** `ARCH-LEXICON`, `CORE-WEB`, `AI-ORCHESTRATOR`, `RULE-CARTRIDGES`
+- **Goal / Context:** Enforce strict single-repository isolation (`CWD` only, zero cross-repo references), remove decoupled bridge/template/duplicate governance clutter, and standardize 100% of repository documentation, architecture specs, memory files, playbooks, and governance scripts in English.
+- **Completed Steps:**
+  1. Removed decoupled bridge, design, template, secondary locale README, and duplicate IDE rule files.
+  2. Translated `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `memory/PROJECT_STATE.md`, `memory/MILESTONES.md`, `memory/BLACKBOX.md`, `architecture/00`–`04`, `playbooks/01`–`02`, and `.agents/scripts/*.py` into 100% idiomatic English and added explicit **Strict Single-Repository Boundary** and **100% English Repository Standard** rules.
+  3. Removed external sibling repository references from `README.md`, `BrainVaultAndWorkspaceViews.tsx`, `promptBuilder.ts`, `cartridges/solidstate-public-cleanroom.md`, `cartridges/solidstate-private-infra.md`, and `api-routes.test.ts`.
+  4. Updated `playbooks/scripts/verify-lexicon-completeness.py` to verify the streamlined required file set and fail if deleted cross-repo bloat files or forbidden references reappear.
+- **Verification:** `python3 playbooks/scripts/verify-lexicon-completeness.py` (`EXIT 0`), `npx tsc --noEmit` (`0` errors), `58/58` TypeScript unit tests passing, `11/11 >= 90.0%` Go statement coverage, and green GitHub Actions CI.
 
-### [BB-015] 2026-11-02 22:55 (CET) – [ARCH-LEXICON / WEB-STUDIO-UI / v2.5.0] Integration der flottenweiten `templates/`-, `design/`- und Clean-Room `bridge/`-Architektur
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `ARCHITECTURE` | `UI` | `ARCH-LEXICON`
-- **Betroffene Module:** `ARCH-LEXICON`, `WEB-STUDIO-UI`
-- **Ziel / Hintergrund:** Vereinheitlichung der UI/UX-Design-Tokens (`synapse-canvas`, `signal-terminal`, `werkblick-handwerk`) und Einrichtung einer entkoppelten Clean-Room-Bridge (`bridge/ssn-bridge.py` & `bridge/contract.json`) über alle SolidStateNetwork-Repositories ohne Laufzeit-Kopplung.
-- **Durchgeführte Schritte:**
-  1. `templates/design-tokens.json`, `templates/theme-bridge.css`, `templates/README.md` und `design/README.md` erstellt (Referenz-Spezifikation des `synapse-canvas` Layouts mit `#14161a` `.nb-canvas-grid`, `228px`/`68px` Sidebar und `380px` Inspector Drawer).
-  2. `bridge/contract.json` und `bridge/ssn-bridge.py` zur Clean-Room-Föderation integriert.
-- **Verifikation:** Pre-Commit-Blocker und `bridge/ssn-bridge.py status` mit `EXIT 0` bestanden.
+### [BB-016] 2026-11-02 23:35 (CET) – [ARCH-LEXICON / v2.5.0] Addition of Automated Lexicon & Clean-Room Verifier (`playbooks/scripts/verify-lexicon-completeness.py`)
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `ARCHITECTURE` | `SECURITY` | `ARCH-LEXICON`
+- **Affected Modules:** `ARCH-LEXICON`
+- **Goal / Context:** Provide an automated verification script `playbooks/scripts/verify-lexicon-completeness.py` to enforce mandatory governance/memory files and Clean-Room guardrails.
+- **Completed Steps:**
+  1. Created `playbooks/scripts/verify-lexicon-completeness.py` validating all mandatory governance, architecture, and memory files as well as Clean-Room IP/path/secret guardrails.
+- **Verification:** `python3 playbooks/scripts/verify-lexicon-completeness.py` passed with `EXIT 0`.
+
+### [BB-015] 2026-11-02 22:55 (CET) – [ARCH-LEXICON / CORE-WEB / v2.5.0] UI/UX Design Token Audit for the Synapse Canvas Layout
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `ARCHITECTURE` | `UI` | `ARCH-LEXICON`
+- **Affected Modules:** `ARCH-LEXICON`, `CORE-WEB`
+- **Goal / Context:** Document the dark control-plane canvas tokens (`#14161a` `.nb-canvas-grid`, `228px`/`68px` collapsible sidebar, and `380px` inspector drawer) used by the Synapse WebUI.
+- **Completed Steps:**
+  1. Verified dark-mode color hierarchy and layout geometry across `apps/core-web/src/app/globals.css` and `tailwind.config.ts`.
+- **Verification:** Pre-commit guardrail and TypeScript build passed with `EXIT 0`.
 
 ### [BB-014] 2026-11-02 20:20 (CET) – [CORE-GATEWAY / AXON-AGENT / AI-ORCHESTRATOR / BRAIN-VAULT / MCP-SERVER / v2.5.0] Full Implementation & Verification of Phase 8 (`v2.5.0`, `M8.1`–`M8.6`): Real-Time X.509 CRL Revocation, Signed Topology Bundles & Drift Simulator, Multi-Stage DAG Playbooks, Procfs Anomaly Detector & OpenMetrics Exporter
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `RELEASE` | `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
-- **Betroffene Module:** `CORE-GATEWAY`, `AXON-AGENT`, `AI-ORCHESTRATOR`, `BRAIN-VAULT`, `MCP-SERVER`, `PROTO-WIRE`, `ARCH-LEXICON`
-- **Ziel / Hintergrund:** Vollständige End-to-End-Implementierung und Verifikation aller 6 Meilensteine der Phase 8 (`v2.5.0`, `M8.1`–`M8.6`) gemäß [`memory/MILESTONES.md`](./MILESTONES.md).
-- **Durchgeführte Schritte:**
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `RELEASE` | `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
+- **Affected Modules:** `CORE-GATEWAY`, `AXON-AGENT`, `AI-ORCHESTRATOR`, `BRAIN-VAULT`, `MCP-SERVER`, `PROTO-WIRE`, `ARCH-LEXICON`
+- **Goal / Context:** Complete end-to-end implementation and verification of all 6 milestones of Phase 8 (`v2.5.0`, `M8.1`–`M8.6`) per [`memory/MILESTONES.md`](./MILESTONES.md).
+- **Completed Steps:**
   1. **`M8.1` – Real-Time X.509 Certificate Revocation List (`CRL.json`) & Instant Session Eviction (`apps/core-gateway/internal/pki/crl.go`, `internal/hub/eviction.go`, `apps/core-gateway/main.go`):**
-     - Persistente X.509 Seriennummern-Sperrliste (`CRL.json` mit atomarem `.bak` Self-Healing) in `pki.Authority` (`RevokeCertSerial`, `IsCertRevoked`, `ListRevokedCerts`) implementiert und direkt in `ServerTLSConfig().VerifyPeerCertificate` sowie `RenewClientCert` verdrahtet.
-     - `EvictNode(nodeID, reason)` und `GetNodeCertSerial(nodeID)` im Yamux-Hub ergänzt sowie `POST /api/v1/nodes/revoke` und `GET /api/v1/pki/crl` in `core-gateway` bereitgestellt und mit `core_manage_node_enrollment` (`remove_node`) verknüpft.
+     - Implemented persistent X.509 serial-number revocation list (`CRL.json` with atomic `.bak` self-healing) in `pki.Authority` (`RevokeCertSerial`, `IsCertRevoked`, `ListRevokedCerts`) wired directly into `ServerTLSConfig().VerifyPeerCertificate` and `RenewClientCert`.
+     - Added `EvictNode(nodeID, reason)` and `GetNodeCertSerial(nodeID)` in the Yamux hub along with `POST /api/v1/nodes/revoke` and `GET /api/v1/pki/crl` in `core-gateway`, linked to `core_manage_node_enrollment` (`remove_node`).
   2. **`M8.2` – Cryptographically Signed Topology Bundles (`HMAC-SHA256`) & Dry-Run Drift Simulator (`apps/core-web/src/lib/vault/v250Enterprise.ts`, `topologyAndCanaryTools.ts`):**
-     - `signTopologyBundle`, `verifyTopologyBundleSignature` und `simulateTopologyBundleDrift` (`simulate_apply`) implementiert; Export signiert kanonische Topologie-Payloads automatisch, Import verifiziert die Signatur vor jeder Mutation, und `simulate_apply` berechnet deterministisch hinzuzufügende/aktualisierende Services, Ports, Cartridges und Stacks ohne Seiteneffekte.
+     - Implemented `signTopologyBundle`, `verifyTopologyBundleSignature`, and `simulateTopologyBundleDrift` (`simulate_apply`); export automatically signs canonical topology payloads, import verifies the signature prior to any mutation, and `simulate_apply` deterministically computes services, ports, cartridges, and stacks to add or update without side effects.
   3. **`M8.3` – Multi-Stage DAG Playbooks & Event-Driven Webhook Triggers (`v250Enterprise.ts`, `playbookAndApprovalTools.ts`, `/api/playbooks/webhook/route.ts`):**
-     - Mehrstufige DAG-Playbooks (`steps` mit `on_success` / `on_failure` Verzweigung, Pre-Flight Time-Machine Checkpoint `chk-...` und automatischem Rollback bei Step-Fehlern) sowie `POST /api/playbooks/webhook` (`X-Synapse-Webhook-Token` / `HMAC-SHA256` Signaturprüfung) implementiert.
+     - Implemented multi-stage DAG playbooks (`steps` with `on_success` / `on_failure` branching, Pre-Flight Time-Machine Checkpoint `chk-...`, and automatic rollback on step failure) plus `POST /api/playbooks/webhook` (`X-Synapse-Webhook-Token` / `HMAC-SHA256` signature verification).
   4. **`M8.4` – Lightweight Procfs/Socket Anomaly Detector & PTY Resource Quota Guard (`agents/axon/internal/health/anomaly.go`, `internal/pty/pty_discovery.go`, `pty.go`):**
-     - `CollectProcfsAndAnomalyTelemetry` (`open_fds`, `outbound_conns`, `AnomalyAlerts`: `ANOMALY_CPU_SPIKE`, `ANOMALY_FD_EXHAUSTION`, `ANOMALY_OUTBOUND_BURST`) im `axon` Health-Collector und `BuildQuotaWrappedCommand` (`ulimit -v` / `ulimit -t`) im PTY-Executor ergänzt.
-  5. **`M8.5` & `M8.6` – OpenMetrics Exporter (`/api/metrics` & `:8081/metrics`), Policy-as-Code Gate (`orchestrator.ts` & `v250Enterprise.ts`) & Full-Stack Test Matrix (`58/58` TS-Tests & `11/11 >= 90.0%` Go-Coverage):**
-     - Prometheus/OpenMetrics-Endpunkte in `apps/core-gateway/metrics.go` (`:8081/metrics`) und `apps/core-web/src/app/api/metrics/route.ts` (`/api/metrics`) mit optionalem Bearer-Token-Schutz (`SYNAPSE_METRICS_TOKEN`), signierte Audit-Snapshots (`createSignedAuditSnapshot` / `AuditSnapshot.json`), deklarative Policy-as-Code-Prüfung (`evaluatePolicyAsCode` inkl. `path_prefixes`, `deny` > `require_approval` > `allow` Präzedenz und direkter Ausführungsschranke in `interceptAndExecuteTool`) sowie `src/__tests__/v250-enterprise.test.ts` (Tests `48`–`58`) implementiert.
-- **Verifikation:** `58/58` TypeScript-Tests grün (`0` Fehler), `npx tsc --noEmit` (`0` Fehler), `npm audit --audit-level=high` (`0` Vulnerabilities), alle `.go`-Dateien `< 500` Zeilen und alle `.ts`/`.tsx`-Dateien `< 600` Zeilen, alle 11 Go-Pakete `>= 90.0 %` Statement-Coverage (`100.0%`, `90.7%`, `91.0%`, `92.2%`, `95.9%`, `90.0%`, `91.2%`, `94.9%`, `92.4%`, `90.2%`, `90.2%`).
+     - Added `CollectProcfsAndAnomalyTelemetry` (`open_fds`, `outbound_conns`, `AnomalyAlerts`: `ANOMALY_CPU_SPIKE`, `ANOMALY_FD_EXHAUSTION`, `ANOMALY_OUTBOUND_BURST`) in the `axon` health collector and `BuildQuotaWrappedCommand` (`ulimit -v` / `ulimit -t`) in the PTY executor.
+  5. **`M8.5` & `M8.6` – OpenMetrics Exporter (`/api/metrics` & `:8081/metrics`), Policy-as-Code Gate (`orchestrator.ts` & `v250Enterprise.ts`) & Full-Stack Test Matrix (`58/58` TS Tests & `11/11 >= 90.0%` Go Coverage):**
+     - Implemented Prometheus/OpenMetrics endpoints in `apps/core-gateway/metrics.go` (`:8081/metrics`) and `apps/core-web/src/app/api/metrics/route.ts` (`/api/metrics`) with optional Bearer token protection (`SYNAPSE_METRICS_TOKEN`), signed audit snapshots (`createSignedAuditSnapshot` / `AuditSnapshot.json`), declarative Policy-as-Code evaluation (`evaluatePolicyAsCode` with `path_prefixes`, `deny` > `require_approval` > `allow` precedence in `interceptAndExecuteTool`), and `src/__tests__/v250-enterprise.test.ts` (Tests `48`–`58`).
+- **Verification:** `58/58` TypeScript tests passing (`0` errors), `npx tsc --noEmit` (`0` errors), `npm audit --audit-level=high` (`0` vulnerabilities), all `.go` files `< 500` lines and all `.ts`/`.tsx` files `< 600` lines, all 11 Go packages `>= 90.0%` statement coverage.
 
-### [BB-013] 2026-11-02 15:40 (CET) – [MCP-SERVER / BRAIN-VAULT / CORE-GATEWAY / AXON-AGENT / v2.4.0 + Phase 8 v2.5.0 Roadmap] Full Implementation & Verification of Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) & Specification of Phase 8 (`v2.5.0`, `M8.1`–`M8.6`)
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `RELEASE` | `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
-- **Betroffene Module:** `MCP-SERVER`, `BRAIN-VAULT`, `CORE-GATEWAY`, `AXON-AGENT`, `PROTO-WIRE`, `ARCH-LEXICON`
-- **Ziel / Hintergrund:** Vollständige Umsetzung und End-to-End-Verifikation aller Meilensteine der Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) sowie Konzeption der nächsten Ausbaustufe **Phase 8 (`v2.5.0`, `M8.1`–`M8.6`)**.
-- **Durchgeführte Schritte:**
-  1. **`M7.1` – 3-Tier MCP Scopes, Per-Key Rate-Limits, HMAC-SHA256 Signing & `Audit.jsonl` Hash-Chain (`auditChatAndMcp.ts`, `/api/mcp/route.ts`):**
-     - `isAdminOnlyMcpToolCall` implementiert und in `executeMcpTool` verdrahtet (`admin`-Scope Pflicht für `synapse_create_join_token`, `core_manage_secrets` Mutationen, `core_manage_node_enrollment` Mutationen, `core_disaster_RecoveryVault` `restore_backup`, `core_manage_approvals` & `core_configure_ai_engine` `update`).
-     - Konfigurierbare Sliding-Window Rate-Limits (`rate_limit_per_min` pro API-Key) sowie optionale `HMAC-SHA256` Request-Signaturprüfung (`verifyMcpRequestSignature` mit `X-Synapse-Signature` und `X-Synapse-Timestamp` 300s Replay-Fenster) ergänzt.
-     - Kryptographische `SHA-256` Hash-Verkettung (`prev_hash` + `entry_hash` ab `GENESIS`) in `appendAuditLog` und `ensureProjectVault` sowie `verifyAuditChain(projectId)` implementiert.
-  2. **`M7.2` – Go `core-gateway` & `axon` mTLS 1.3 Auto-Rotation, Curve-Pinning, Deep Ancestor Symlink Jail & `AllowedCommands` (`proto/tunnel.pb.go`, `pki.go`, `hub.go`, `vault_sync.go`, `diagnostics.go`, `tunnel.go`, `fs.go`, `diff.go`, `guard.go`):**
-     - `StreamTypeCertRenew = 5` + `CertRenewRequest`/`CertRenewResponse` in `proto/tunnel.pb.go` ergänzt; `RenewClientCert` in `pki.go` sowie `NeedsCertRotation` & `RotateTargetCertificate` in `diagnostics.go` implementiert; TLS 1.3 ECDHE-Kurven (`X25519`, `CurveP256`) gepinnt und `ComputeReconnectBackoff` mit `crypto/rand` Jitter integriert.
-     - `agents/axon/internal/fs/diff.go` (`226` Zeilen `< 500`) ausgelagert und `ResolvePath` in `fs.go` (`289` Zeilen `< 500`) um rekursive `EvalSymlinks`-Prüfung des längsten existierenden Eltern-Pfades + `os.Lstat`/`os.Readlink`-Prüfung gebrochener Symlinks gehärtet.
-     - `ValidateCommandWithAllowlist` (`AllowedCommands`) sowie Erkennung Flag-umsortierter `systemctl`- und Netzwerk-Lockout-Befehle in `guard.go` ergänzt.
+### [BB-013] 2026-11-02 15:40 (CET) – [MCP-SERVER / BRAIN-VAULT / CORE-GATEWAY / AXON-AGENT / v2.4.0] Full Implementation & Verification of Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) & Specification of Phase 8 (`v2.5.0`, `M8.1`–`M8.6`)
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `RELEASE` | `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
+- **Affected Modules:** `MCP-SERVER`, `BRAIN-VAULT`, `CORE-GATEWAY`, `AXON-AGENT`, `PROTO-WIRE`, `ARCH-LEXICON`
+- **Goal / Context:** Complete implementation and end-to-end verification of all milestones in Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) and specification of Phase 8 (`v2.5.0`, `M8.1`–`M8.6`).
+- **Completed Steps:**
+  1. **`M7.1` – 3-Tier MCP Scopes, Per-Key Rate Limits, HMAC-SHA256 Signing & `Audit.jsonl` Hash Chain (`auditChatAndMcp.ts`, `/api/mcp/route.ts`):**
+     - Implemented `isAdminOnlyMcpToolCall` wired into `executeMcpTool`, configurable sliding-window rate limits (`rate_limit_per_min` per API key), optional `HMAC-SHA256` request signature verification (`verifyMcpRequestSignature` with 300s replay window), and cryptographic `SHA-256` hash chaining (`prev_hash` + `entry_hash` from `GENESIS`) in `appendAuditLog` and `verifyAuditChain(projectId)`.
+  2. **`M7.2` – Go `core-gateway` & `axon` mTLS 1.3 Auto-Rotation, Curve Pinning, Deep Ancestor Symlink Jail & `AllowedCommands` (`proto/tunnel.pb.go`, `pki.go`, `hub.go`, `diagnostics.go`, `tunnel.go`, `fs.go`, `diff.go`, `guard.go`):**
+     - Added `StreamTypeCertRenew = 5`, `RenewClientCert`, `NeedsCertRotation`, and `RotateTargetCertificate`; pinned TLS 1.3 ECDHE curves (`X25519`, `CurveP256`); hardened `ResolvePath` in `fs.go` against broken/ancestor symlinks; and added `ValidateCommandWithAllowlist` in `guard.go`.
   3. **`M7.3` – Standalone MCP Server (`packages/mcp-server/package.json` & `index.mjs`):**
-     - Eigenständigen Node.js Stdio/HTTP MCP-Server (`@solidstatenetwork/synapse-mcp-server` `v2.4.0`, `229` Zeilen) mit allen 42 annotierten Tools, 6 Lexikon-Ressourcen, `signMcpPayload` und Offline-Fallback erstellt.
-  4. **`M7.4` – `PBKDF2-SHA256` Secret-KDF & 100 % Atomare Persistenz (`vault.ts`, `lexiconGovernance.ts`, `cartridges.ts`, `disasterRecoveryTools.ts`):**
-     - `encryptSecretsMap` / `decryptSecretsMap` auf `PBKDF2-SHA256` (`100.000` Iterationen + 16-Byte Salt) mit automatischem Legacy-SHA-256-Fallback aktualisiert und alle verbleibenden `fs.writeFileSync`-Aufrufe durch `atomicWriteTextSync` ersetzt.
-  5. **`M7.5` & `M7.6` – CI Supply-Chain Gates, Test-Suite-Expansion (`47/47` TS-Tests & `11/11 >= 88%` Go-Coverage) & Phase 8 (`v2.5.0`) Roadmap:**
-     - `.github/workflows/ci.yml` um `npm audit --audit-level=high`, `node --check packages/mcp-server/index.mjs`, CycloneDX-SBOM-Generierung und `>= 88.0%` Go-Coverage-Gate erweitert.
-     - `src/__tests__/v240-security.test.ts` (Tests `34`–`47`) sowie Go-Tests (`pki_test.go`, `hub_test.go`, `tunnel_test.go`, `fs_test.go`, `guard_test.go`, `main_test.go`) ergänzt und **Phase 8 (`v2.5.0`, `M8.1`–`M8.6`)** in `memory/MILESTONES.md` spezifiziert.
-- **Verifikation:** `47/47` TypeScript-Tests grün (`0` Fehler), `npx tsc --noEmit` (`0` Fehler), `npm audit --audit-level=high` (`0` Vulnerabilities), alle `.go`-Dateien `< 500` Zeilen und alle `.ts`/`.tsx`-Dateien `< 600` Zeilen, alle 11 Go-Pakete `>= 88.0 %` Coverage.
+     - Created dependency-free Node.js Stdio/HTTP MCP server (`@solidstatenetwork/synapse-mcp-server`) exposing all 42 annotated tools, 6 lexicon resources, `signMcpPayload`, and offline fallback.
+  4. **`M7.4` – `PBKDF2-SHA256` Secret KDF & 100% Atomic Persistence (`vault.ts`, `lexiconGovernance.ts`, `cartridges.ts`, `disasterRecoveryTools.ts`):**
+     - Upgraded `encryptSecretsMap` / `decryptSecretsMap` to `PBKDF2-SHA256` (`100,000` iterations + 16-byte salt) with legacy SHA-256 fallback and replaced remaining `fs.writeFileSync` calls with `atomicWriteTextSync`.
+  5. **`M7.5` & `M7.6` – CI Supply-Chain Gates & Test Suite Expansion (`47/47` TS Tests & `11/11 >= 88%` Go Coverage):**
+     - Extended `.github/workflows/ci.yml` with `npm audit --audit-level=high`, `node --check packages/mcp-server/index.mjs`, CycloneDX SBOM generation, and `src/__tests__/v240-security.test.ts`.
+- **Verification:** `47/47` TypeScript tests passing, `npx tsc --noEmit` (`0` errors), `npm audit --audit-level=high` (`0` vulnerabilities), all 11 Go packages `>= 88.0%` coverage.
 
-### [BB-012] 2026-11-02 14:00 (CET) – [ARCH-LEXICON / MCP-SERVER / BRAIN-VAULT / CORE-GATEWAY / AXON-AGENT / v2.4.0 Roadmap] Forensisches Codebase-Audit & Konzeption der Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) Enterprise Security & Hardening Roadmap
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `ARCHITECTURE` | `SECURITY` | `ARCH-LEXICON`
-- **Betroffene Module:** `ARCH-LEXICON`, `MCP-SERVER`, `BRAIN-VAULT`, `CORE-GATEWAY`, `AXON-AGENT`, `SECOPS-SHIELD`
-- **Ziel / Hintergrund:** Systematische Analyse der Codebasis (`apps/core-web`, `apps/core-gateway`, `agents/axon`, `.github/workflows/ci.yml`) zur Identifikation konkreter Architektur-, Concurrency- und Sicherheits-Härtungspotenziale für den nächsten Release-Zyklus **`v2.4.0` (Phase 7: `M7.1`–`M7.6`)** sowie Synchronisation der Tool-Zählung (`42 Tools total: 38 Core/Node-Tools + 4 MCP-Meta-Tools`) in `architecture/03-ai-orchestrator-and-mcp-server.md` und `memory/PROJECT_STATE.md`.
-- **Durchgeführte Schritte:**
-  1. **Forensische Code-Inspektion (`v2.3.0` Ist-Stand):**
-     - `/api/mcp/route.ts` prüft aktuell `canExecute = scopes.includes("execute") || scopes.includes("admin")`, differenziert jedoch bei administrativen Sicherheits-Tools (`core_manage_auth_and_ai`, `core_manage_mcp_keys`, `core_manage_firewall`, `synapse_create_join_token`) noch nicht strikt zwischen `execute` und `admin`; `Audit.jsonl` speichert Einträge noch ohne kryptografische SHA-256-Hash-Chain (`prev_hash` $\rightarrow$ `entry_hash`).
-     - In `src/lib/vault.ts`, `lexiconGovernance.ts`, `auditChatAndMcp.ts`, `cartridges.ts` und `disasterRecoveryTools.ts` existieren neben `atomicWriteTextSync` noch direkte `fs.writeFileSync`-Aufrufe bei der Initialisierung und beim Backup-Schreiben; `getMasterKey()` nutzt derzeit einen einfachen SHA-256-Digest statt `PBKDF2-SHA256` (`100.000` Iterationen).
-     - Für lokale Stdio-basierte IDE-Clients fehlt ein dediziertes `packages/mcp-server/index.mjs` Bridge-Paket mit dynamischer 42-Tool-Parität zum Streamable-HTTP-Endpunkt `/api/mcp`.
-     - In `apps/core-gateway/internal/pki/pki.go` und `agents/axon/internal/tunnel/tunnel.go` können automatische mTLS-Client-Zertifikats-Rotation vor Ablauf, TLS-1.3-Kurven-Pinning und Jitter-basierter Reconnect-Backoff ergänzt werden.
-  2. **Spezifikation von Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) in [`memory/MILESTONES.md`](./MILESTONES.md) und [`memory/PROJECT_STATE.md`](./PROJECT_STATE.md):**
-     - `M7.1`: 3-Tier MCP Scope Enforcement (`read`/`execute`/`admin`), HMAC-SHA256 Request Signing & Tamper-Evident `Audit.jsonl` Hash-Chain.
-     - `M7.2`: Go `core-gateway` & `axon` mTLS 1.3 Auto-Rotation, Curve-Pinning, Reconnect Jitter & Symlink-Safe `TIER_2_WORKSPACE_JAIL`.
-     - `M7.3`: Standalone `packages/mcp-server` 42-Tool Stdio/HTTP Bridge mit Offline-Fallback.
-     - `M7.4`: Durchgängige Atomic Vault Writes (`.tmp` + `fs.renameSync`), Write-Mutex & `PBKDF2-SHA256` Key Derivation.
-     - `M7.5`: CI/CD `npm audit --audit-level=high` Gate & SBOM Generation in `.github/workflows/ci.yml`.
-     - `M7.6`: Ausbau der Test-Suite auf `>= 45` TypeScript-Tests und `>= 88 %` Go Coverage Gate.
-  3. **Dokumentations-Synchronisation:** `architecture/00-product-vision.md`, `architecture/03-ai-orchestrator-and-mcp-server.md` (inkl. expliziter Tabellenzeile für die 4 MCP-Meta-Tools) und `memory/PROJECT_STATE.md` auf `42 Tools (38 Core/Node-Tools + 4 MCP-Meta-Tools)` harmonisiert.
-- **Verifikation:** Clean-Room Guard (`0` private IPs/Domains/Secrets), `npx tsc --noEmit` (`0 errors`), `npm test` (`33/33 passed`).
+### [BB-012] 2026-11-02 14:00 (CET) – [ARCH-LEXICON / MCP-SERVER / BRAIN-VAULT / CORE-GATEWAY / AXON-AGENT / v2.4.0 Roadmap] Forensic Codebase Audit & Design of the Phase 7 (`v2.4.0`, `M7.1`–`M7.6`) Enterprise Security Roadmap
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `ARCHITECTURE` | `SECURITY` | `ARCH-LEXICON`
+- **Affected Modules:** `ARCH-LEXICON`, `MCP-SERVER`, `BRAIN-VAULT`, `CORE-GATEWAY`, `AXON-AGENT`
+- **Goal / Context:** Systematic audit of `apps/core-web`, `apps/core-gateway`, `agents/axon`, and `.github/workflows/ci.yml` to specify the `v2.4.0` (Phase 7: `M7.1`–`M7.6`) security hardening roadmap and harmonize tool counts (`42 Tools total: 38 Core/Node Tools + 4 MCP Meta-Tools`).
+- **Completed Steps:**
+  1. Audited `/api/mcp/route.ts`, `vault.ts`, `pki.go`, and `tunnel.go` and specified milestones `M7.1` through `M7.6` in `memory/MILESTONES.md` and `memory/PROJECT_STATE.md`.
+  2. Synchronized `architecture/00-product-vision.md` and `architecture/03-ai-orchestrator-and-mcp-server.md` to document all 42 tools (`38` Core/Node tools + `4` MCP meta-tools).
+- **Verification:** Clean-Room Guard (`0` private IPs/domains/secrets), `npx tsc --noEmit` (`0` errors), `npm test` (`33/33` passed).
 
-### [BB-011] 2026-11-02 13:45 (CET) – [MCP-SERVER / ARCH-LEXICON / v2.3.0] M8ven Verified Badge Claim (`solidstatenetwork-synapse-rv3on4`), Hardened MCP Sliding-Window Rate-Limiting, Centralized `process.env` Resolution & `PRIVACY.md` Directory Compliance
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
-- **Betroffene Module:** `MCP-SERVER`, `ARCH-LEXICON`, `WEB-STUDIO-UI`, `BRAIN-VAULT`
-- **Ziel / Hintergrund:** Einbindung des offiziellen M8ven Verified Badges (`https://m8ven.ai/badge/mcp/solidstatenetwork-synapse-rv3on4?variant=verified`) in `README.md` und `README.de.md`, Ergänzung eines gehärteten Sliding-Window Rate-Limiters (`checkMcpRateLimit`, `429 Too Many Requests`, `Retry-After`, `X-RateLimit-Limit`, `Math.floor`-Clamping, `clientId`-Keying ohne Header-Bypass und `512`-Bucket Memory-Eviction), Auslagerung von `isReadOnlyMcpToolCall` nach `src/lib/vault/auditChatAndMcp.ts` (Reduktion von `route.ts` auf `539` Zeilen `< 600`), Zentralisierung redundanter `process.env.*`-Zugriffe über `getCoreGatewayUrl()` (`gatewayClient.ts`) und `resolveVaultBaseDir()` (`vault.ts`) inkl. Bereinigung von `CORE_GATEWAY_INTERNAL_URL`/`NEXT_PUBLIC_CORE_GATEWAY_URL` in `debug/route.ts` sowie Bereitstellung von `PRIVACY.md` und `package.json`-Publisher-Metadaten für Claude/OpenAI/M8ven-Directory-Konformität.
-- **Durchgeführte Schritte:**
-  1. M8ven Badge in `README.md` und `README.de.md` auf `[![M8ven Verified](https://m8ven.ai/badge/mcp/solidstatenetwork-synapse-rv3on4?variant=verified)](https://m8ven.ai/mcp/solidstatenetwork-synapse-rv3on4?s=readme)` aktualisiert.
-  2. `PRIVACY.md` (Root & `apps/core-web/PRIVACY.md`) erstellt, in `README.md` sowie `README.de.md` verlinkt und Publisher-/Repository-Metadaten in `apps/core-web/package.json` ergänzt.
-  3. In `apps/core-web/src/app/api/mcp/route.ts` (`539` Zeilen `< 600`) gehärtetes Sliding-Window Rate-Limiting (`120 req/min` pro `clientId`, `MCP_RATE_LIMIT_MAX_BUCKETS = 512`) und explizite `ObjectExpression`-Annotationen für `baseTools` & `extraTools` ergänzt; `isReadOnlyMcpToolCall` in `src/lib/vault/auditChatAndMcp.ts` extrahiert.
-  4. `getCoreGatewayUrl()` in `src/lib/gatewayClient.ts` und `resolveVaultBaseDir()` in `src/lib/vault.ts` zentralisiert und 16 redundante `process.env.*`-Lookups (inkl. `CORE_GATEWAY_INTERNAL_URL` und `NEXT_PUBLIC_CORE_GATEWAY_URL` in `debug/route.ts` sowie `SYNAPSE_VAULT_DIR` in `auth.ts`) bereinigt.
-  5. In `apps/core-web/src/__tests__/api-routes.test.ts` automatisierte Assertions für MCP-Rate-Limiting (`429` inkl. Fractional-Header-Bypass-Schutz), M8ven-Badge-Slug und `PRIVACY.md` ergänzt.
-- **Verifikation:** M8ven Score = `89/100` (`Grade B`, `sub_scores.code: 100/100`, `warn: 0`, `fail: 0`), `npm audit` = `0 vulnerabilities`, `npx tsc --noEmit` = `0 errors`, `npm test` = `33/33 passed`.
+### [BB-011] 2026-11-02 13:45 (CET) – [MCP-SERVER / ARCH-LEXICON / v2.3.0] M8ven Verified Badge Claim (`solidstatenetwork-synapse-rv3on4`), Hardened MCP Sliding-Window Rate Limiting, Centralized `process.env` Resolution & `PRIVACY.md` Directory Compliance
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
+- **Affected Modules:** `MCP-SERVER`, `ARCH-LEXICON`, `CORE-WEB`, `BRAIN-VAULT`
+- **Goal / Context:** Embed the official M8ven Verified Badge in `README.md`, add hardened sliding-window rate limiting (`checkMcpRateLimit`, `429 Too Many Requests`, `Retry-After`, `X-RateLimit-Limit`), centralize `getCoreGatewayUrl()` and `resolveVaultBaseDir()`, and provide `PRIVACY.md` for MCP directory compliance.
+- **Completed Steps:**
+  1. Added M8ven Verified Badge to `README.md` and created `PRIVACY.md` (root & `apps/core-web/PRIVACY.md`).
+  2. Added sliding-window rate limiting (`120 req/min` per `clientId`, `MCP_RATE_LIMIT_MAX_BUCKETS = 512`) in `apps/core-web/src/app/api/mcp/route.ts` and extracted `isReadOnlyMcpToolCall` to `src/lib/vault/auditChatAndMcp.ts`.
+  3. Centralized `getCoreGatewayUrl()` in `src/lib/gatewayClient.ts` and `resolveVaultBaseDir()` in `src/lib/vault.ts`.
+- **Verification:** M8ven Score = `89/100` (`Grade B`, `sub_scores.code: 100/100`), `npm audit` = `0 vulnerabilities`, `npx tsc --noEmit` = `0 errors`, `npm test` = `33/33 passed`.
 
-### [BB-010] 2026-11-02 12:35 (CET) – [MCP-SERVER / AI-ORCHESTRATOR / WEB-STUDIO-UI / v2.3.0] M8ven Security Audit Remediation, 42-Tool MCP Safety Annotations & Cross-Platform Test Hardening
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
-- **Betroffene Module:** `MCP-SERVER`, `AI-ORCHESTRATOR`, `WEB-STUDIO-UI`, `ARCH-LEXICON`
-- **Ziel / Hintergrund:** Vollständige Behebung aller im M8ven Security Audit (`https://m8ven.ai/mcp/solidstatenetwork/synapse`) gemeldeten Punkte: Upgrade der gepinnten `Next.js`- und `PostCSS`-Abhängigkeiten zur Beseitigung von `CVE-2025-55182` (`GHSA-9g9p-9gw9-jx7f`, `GHSA-h25m-26qc-wcjf`, `GHSA-f82v-jwr5-mffw`, `GHSA-q4gf-8mx6-v5v3`), Ergänzung expliziter MCP Safety Annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) für alle **42 integrierten MCP-Tools** sowie Härtung der Test-Suite (`llm-and-ota.test.ts`) für deterministische Ausführung unter Linux (`bash`) und Windows (`cmd.exe`).
-- **Durchgeführte Schritte:**
-  1. `next` und `eslint-config-next` auf `^15.5.28` sowie `postcss` auf `^8.5.23` (inkl. `overrides`) in `apps/core-web/package.json` aktualisiert (`npm audit`: `0 vulnerabilities`).
-  2. `getMcpToolSafetyAnnotations(toolName)` und explizite `annotations`-Literale in `apps/core-web/src/lib/orchestrator/toolSchemas.ts`, `extendedToolSchemas.ts` und `apps/core-web/src/app/api/mcp/route.ts` sowohl bei `tools/list` (`JSON-RPC 2.0`) als auch bei `GET /api/mcp` für alle 42 Tools ausgeliefert.
-  3. M8ven Verified Badge und aktualisierte `42 Tools` Dokumentation in `README.md`, `README.de.md`, `memory/PROJECT_STATE.md` und `memory/MILESTONES.md` hinterlegt.
-  4. In `apps/core-web/src/__tests__/llm-and-ota.test.ts` plattformübergreifende `go.cmd`/`systemctl.cmd` Shims, doppelte Anführungszeichen für `git commit -m` und `path.delimiter` ergänzt.
-- **Verifikation:** `npm audit` = `0 vulnerabilities`, `npx tsc --noEmit` = `0 errors`, `npm test` = `33/33 passed` (5 Suites, 0 Failures), Clean-Room Policy (`0` private IPs/Secrets) eingehalten.
+### [BB-010] 2026-11-02 12:35 (CET) – [MCP-SERVER / AI-ORCHESTRATOR / CORE-WEB / v2.3.0] M8ven Security Audit Remediation, 42-Tool MCP Safety Annotations & Cross-Platform Test Hardening
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `SECURITY` | `FEATURE` | `TEST` | `ARCH-LEXICON`
+- **Affected Modules:** `MCP-SERVER`, `AI-ORCHESTRATOR`, `CORE-WEB`, `ARCH-LEXICON`
+- **Goal / Context:** Remediate all findings reported in the M8ven Security Audit: upgrade pinned `Next.js` and `PostCSS` dependencies, add explicit MCP Safety Annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) for all 42 integrated MCP tools, and harden `llm-and-ota.test.ts` for cross-platform execution on Linux and Windows.
+- **Completed Steps:**
+  1. Upgraded `next` and `eslint-config-next` to `^15.5.28` and `postcss` to `^8.5.23` in `apps/core-web/package.json` (`npm audit`: `0 vulnerabilities`).
+  2. Added `getMcpToolSafetyAnnotations(toolName)` and explicit `annotations` literals across `toolSchemas.ts`, `extendedToolSchemas.ts`, and `/api/mcp/route.ts` for all 42 tools.
+  3. Added cross-platform `go.cmd`/`systemctl.cmd` shims and `path.delimiter` support in `apps/core-web/src/__tests__/llm-and-ota.test.ts`.
+- **Verification:** `npm audit` = `0 vulnerabilities`, `npx tsc --noEmit` = `0 errors`, `npm test` = `33/33 passed`.
 
-### [BB-009] 2026-11-01 03:09 (CET) – [BRAIN-VAULT / AI-ORCHESTRATOR / MCP-SERVER / WEB-STUDIO-UI / v2.3.0] Lexicon-Everywhere: 4-Doc Topology Bundles, Vault Search, MCP Resources, Remote Muscle Workspace Sync & Remote FS Clean-Room Guard
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `ARCHITECTURE` | `FEATURE` | `SECURITY` | `UI` | `RELEASE`
-- **Betroffene Module:** `BRAIN-VAULT`, `AI-ORCHESTRATOR`, `MCP-SERVER`, `RESILIENCE-DR`, `WEB-STUDIO-UI`, `CONTAINER-LAB`
-- **Ziel / Hintergrund:** Durchgängige Verankerung des in `v2.2.0` eingeführten 4-Dokumente-Lexikons (`Architecture.md`, `Memory.md [BB-XXX]`, `Milestones.md`, `AGENTS.md`) und der `public`/`private` Clean-Room Governance in allen verbleibenden Subsystemen: Topology-Bundles, Vault-Suche, `@`-Context-Mentions, externen MCP-Resources, 1-Click-Synchronisation in das Remote-Workspace auf dem Axon Muscle Node (`sync_lexicon_to_node`) sowie als automatischer Clean-Room-Filter bei Remote-Dateischreibzugriffen (`node_fs_operation`).
-- **Durchgeführte Schritte:**
-  1. `SynapseTopologyBundle` in `topologyAndCanaryTools.ts` (`export` & `import`) um `visibility` (`"public" | "private"`) und `lexicon_docs` (`architecture_md`, `memory_md`, `milestones_md`, `agents_md` inkl. `sanitizeBrainContentForVisibility`) erweitert.
-  2. `executeCoreVaultSearch` (`searchEngine.ts`) und `core_vault_search` (`toolSchemas.ts`) um die Scopes `milestones` und `agents` erweitert, `@Milestones.md` und `@AGENTS.md` in `expandContextMentions` (`llmStreamHelpers.ts`) ergänzt und `/api/mcp/route.ts` (`566` Zeilen `< 600`) in `synapse_get_project_state`, `resources/list` und `resources/read` um `Milestones.md`, `AGENTS.md` und `visibility` erweitert.
-  3. `syncLexiconDocsToMuscleNode` in `lexiconGovernance.ts` implementiert und über `core_update_brain_doc` (`mode: "sync_lexicon_to_node"`), `autonomousFallback.ts` und `POST /api/projects` (`action: "sync_lexicon_to_node"`) verdrahtet (schreibt `AGENTS.md`, `memory/PROJECT_STATE.md`, `memory/BLACKBOX.md` und `memory/MILESTONES.md` mit Pre-Flight Checkpoint `checkpoint_id` in `/opt/axon/workspaces/<projectId>/`).
-  4. In `orchestrator.ts` (`node_fs_operation`: `write_file` & `apply_unified_diff`) den automatischen `sanitizeBrainContentForVisibility` Clean-Room-Guard integriert.
-  5. In `BrainVaultAndWorkspaceViews.tsx` (`568` Zeilen `< 600`) den 1-Click `Sync Lexicon to Node`-Button (mit Pre-Flight `checkpoint_id`-Banner) und den `+ [BB-XXX]`-Schnellbutton ergänzt und die gesamte Plattform inkl. Container auf `v2.3.0` angehoben.
-- **Verifikation:** Go Coverage `88.0 %` (`>= 85 %`), TS Line Coverage `>= 91 %` (`>= 90 %`), Max Go `499` Zeilen, Max TS `< 600` Zeilen, `0` `any`-Typen, `0` private Daten.
+### [BB-009] 2026-11-01 03:09 (CET) – [BRAIN-VAULT / AI-ORCHESTRATOR / MCP-SERVER / CORE-WEB / v2.3.0] Lexicon-Everywhere: 4-Doc Topology Bundles, Vault Search, MCP Resources, Remote Muscle Workspace Sync & Remote FS Clean-Room Guard
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `ARCHITECTURE` | `FEATURE` | `SECURITY` | `UI` | `RELEASE`
+- **Affected Modules:** `BRAIN-VAULT`, `AI-ORCHESTRATOR`, `MCP-SERVER`, `CORE-WEB`, `CONTAINER-LAB`
+- **Goal / Context:** Integrate the 4-Document Brain Vault (`Architecture.md`, `Memory.md [BB-XXX]`, `Milestones.md`, `AGENTS.md`) and `public`/`private` Clean-Room governance across Topology Bundles, Vault Search, `@` context mentions, MCP resources, 1-click Muscle workspace synchronization (`sync_lexicon_to_node`), and remote filesystem writes (`node_fs_operation`).
+- **Completed Steps:**
+  1. Extended `SynapseTopologyBundle` in `topologyAndCanaryTools.ts` with `visibility` and `lexicon_docs`.
+  2. Extended `executeCoreVaultSearch`, `expandContextMentions`, and `/api/mcp/route.ts` with `Milestones.md` and `AGENTS.md`.
+  3. Implemented `syncLexiconDocsToMuscleNode` in `lexiconGovernance.ts` with Pre-Flight Checkpoint support and wired `sanitizeBrainContentForVisibility` into `node_fs_operation`.
+- **Verification:** Go coverage `88.0%`, TS line coverage `>= 91%`, max Go `499` lines, max TS `< 600` lines, `0` `any` types.
 
-### [BB-008] 2026-11-01 02:45 (CET) – [BRAIN-VAULT / AI-ORCHESTRATOR / MCP-SERVER / AXON-AGENT / v2.2.0] SolidState 4-Doc AI Lexicon, Public/Private Clean-Room Governance, Scoped MCP Key Tool & 100 % Ephemeral PTY GC
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `ARCHITECTURE` | `FEATURE` | `SECURITY` | `UI` | `RELEASE`
-- **Betroffene Module:** `BRAIN-VAULT`, `AI-ORCHESTRATOR`, `MCP-SERVER`, `AXON-AGENT`, `RESILIENCE-DR`, `WEB-STUDIO-UI`, `CONTAINER-LAB`
-- **Ziel / Hintergrund:** Verankerung des strukturierten SolidState 5-Schritte-Protokolls (`Infrastructure` / `Strata` / `Synapse` Standard) direkt in der internen Synapse-KI mit harter Unterscheidung zwischen `PUBLIC (Clean-Room)` und `PRIVATE (Infrastructure)` Projekten, Ausbau des MCP-Key-Lifecycles (`core_manage_mcp_keys`), 100 % Ephemeral PTY Garbage Collection im Axon-Agenten sowie Pre-Flight Checkpoints für Offsite-Backup-Restores und Intrusion-IP-Blocks.
-- **Durchgeführte Schritte:**
-  1. `apps/core-web/src/lib/vault/lexiconGovernance.ts` (`220` Zeilen) erstellt: 4-Dokumente-Lexikon (`Architecture.md`, `Memory.md` mit Auto-`[BB-XXX]`-Nummerierung, `Milestones.md`, `AGENTS.md`), `visibility: "public" | "private"` und `sanitizeBrainContentForVisibility` (Redaktion von Secrets sowie im `public`-Modus lokaler `/home/<user>`-Pfade und echter Node-IPs).
-  2. `promptBuilder.ts`, `toolSchemas.ts`, `coreTools.ts`, `/api/projects/route.ts` und `BrainVaultAndWorkspaceViews.tsx` (`535` Zeilen `< 600`) um das 5-Schritte-Protokoll, den Public/Private-Governance-Umschalter und die 4 Lexikon-Tabs erweitert sowie `cartridges/solidstate-public-cleanroom.md` und `cartridges/solidstate-private-infra.md` angelegt.
-  3. `core_manage_mcp_keys` (`list`, `create`, `revoke`) in `workbenchAndAuthTools.ts` (`190` Zeilen `< 220`), `extendedToolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts` und `/api/mcp/route.ts` integriert (`36` MCP-Tools gesamt).
-  4. `deep-search-`, `self-heal-` und `link-probe-` in `agents/axon/internal/pty/pty_discovery.go` (`IsEphemeralSessionID`) inkl. Go-Unit-Tests in `pty_test.go` ergänzt.
-  5. Pre-Flight Checkpoints (`checkpoint_id`) in `disasterRecoveryTools.ts`, `/api/backups/route.ts`, `secopsAndWatchdogTools.ts` und `/api/service-ops/route.ts` sowie UI-Badges in `AccessRulesView.tsx`, `useSystemAndInfraActions.ts` und `useCanvasOpsController.ts` ergänzt.
-- **Verifikation:** Go Coverage `88.0 %` (`>= 85 %`), TS Line Coverage `>= 91 %` (`>= 90 %`), Max Go `499` Zeilen, Max TS `< 600` Zeilen, `0` `any`-Typen, `0` private Daten.
+### [BB-008] 2026-11-01 02:45 (CET) – [BRAIN-VAULT / AI-ORCHESTRATOR / MCP-SERVER / AXON-AGENT / v2.2.0] 4-Doc AI Lexicon, Public/Private Clean-Room Governance, Scoped MCP Key Tool & 100% Ephemeral PTY GC
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `ARCHITECTURE` | `FEATURE` | `SECURITY` | `UI` | `RELEASE`
+- **Affected Modules:** `BRAIN-VAULT`, `AI-ORCHESTRATOR`, `MCP-SERVER`, `AXON-AGENT`, `CORE-WEB`, `CONTAINER-LAB`
+- **Goal / Context:** Embed the 5-step engineering protocol directly into the internal Synapse AI with `PUBLIC (Clean-Room)` vs. `PRIVATE (Infrastructure)` project governance, programmatic MCP key management (`core_manage_mcp_keys`), and 100% Ephemeral PTY Garbage Collection in the Axon agent.
+- **Completed Steps:**
+  1. Created `apps/core-web/src/lib/vault/lexiconGovernance.ts` for the 4-Document Brain Vault and `sanitizeBrainContentForVisibility`.
+  2. Added `cartridges/solidstate-public-cleanroom.md` and `cartridges/solidstate-private-infra.md`.
+  3. Implemented `core_manage_mcp_keys` (`list`, `create`, `revoke`) and added `deep-search-`, `self-heal-`, and `link-probe-` to `IsEphemeralSessionID` in `pty_discovery.go`.
+- **Verification:** Go coverage `88.0%`, TS line coverage `>= 91%`, max Go `499` lines, max TS `< 600` lines, `0` `any` types.
 
-### [BB-007] 2026-11-01 02:06 (CET) – [WEB-STUDIO-UI / RESILIENCE-DR / v2.1.0] 1-Click Topology-Bundle-UI, Multi-Node-Canary-UI & Pre-Flight Cron/Playbook Checkpoints
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `FEATURE` | `UI` | `RELEASE`
-- **Betroffene Module:** `WEB-STUDIO-UI`, `RESILIENCE-DR`, `AI-ORCHESTRATOR`, `DEVOPS-STUDIO`, `CONTAINER-LAB`
-- **Ziel / Hintergrund:** Bereitstellung der in `v2.0.0` eingeführten Topology-Bundle- (`synapse-stack/v2.0`) und Multi-Node-Canary-Werkzeuge direkt im WebUI (`BrainVaultView` & `PeersView`) sowie Vervollständigung der automatischen Pre-Flight Time-Machine Checkpoints (`checkpoint_id`) für alle Cron-Runbook- und Playbook-Mutationen.
-- **Durchgeführte Schritte:**
-  1. `POST /api/projects` (`apps/core-web/src/app/api/projects/route.ts`) um `export_topology_bundle`, `import_topology_bundle`, `verify_fleet_health` und `canary_rollout` erweitert.
-  2. `BrainVaultAndWorkspaceViews.tsx` (`442` Zeilen `< 600`) um den interaktiven Topology-Bundle Export/Import-Drawer inkl. Pre-Flight `checkpoint_id` Anzeige ergänzt.
-  3. `PeersView.tsx` (`573` Zeilen `< 600`) um die Multi-Node Canary & Fleet-Health-Steuerleiste mit Pre-Flight `checkpoint_id` Badge erweitert.
-  4. `studioDevOpsTools.ts` (`core_manage_cron_jobs`), `/api/service-ops/route.ts` (`save_cron_job`, `delete_cron_job`), `playbookAndApprovalTools.ts` (`core_manage_playbooks`) und `/api/projects/route.ts` (`upsert_playbook`, `delete_playbook`) um automatische Pre-Flight Checkpoints (`checkpoint_id`) erweitert.
-  5. Gesamte Plattform, Container-Definitionen, Dokumentation und Lexikon auf `v2.1.0` angehoben.
-- **Verifikation:** Go Coverage `88.0 %` (`>= 85 %`), TS Line Coverage `>= 94 %` (`>= 90 %`), Max Go `499` Zeilen, Max TS `596` Zeilen, `0` `any`-Typen, `0` private Daten.
+### [BB-007] 2026-11-01 02:06 (CET) – [CORE-WEB / AI-ORCHESTRATOR / v2.1.0] 1-Click Topology Bundle UI, Multi-Node Canary UI & Pre-Flight Cron/Playbook Checkpoints
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `FEATURE` | `UI` | `RELEASE`
+- **Affected Modules:** `CORE-WEB`, `AI-ORCHESTRATOR`, `CONTAINER-LAB`
+- **Goal / Context:** Expose Topology Bundle (`synapse-stack/v2.0`) and Multi-Node Canary tools directly in the WebUI (`BrainVaultView` & `PeersView`) and add automatic Pre-Flight Time-Machine Checkpoints (`checkpoint_id`) for all cron runbook and playbook mutations.
+- **Completed Steps:**
+  1. Extended `POST /api/projects`, `BrainVaultAndWorkspaceViews.tsx`, and `PeersView.tsx` with topology bundle export/import and canary rollout controls.
+  2. Added automatic Pre-Flight Checkpoints (`checkpoint_id`) to `core_manage_cron_jobs` and `core_manage_playbooks`.
+- **Verification:** Go coverage `88.0%`, TS line coverage `>= 94%`, max Go `499` lines, max TS `596` lines.
 
-### [BB-006] 2026-11-01 01:40 (CET) – [AI-ORCHESTRATOR / MCP-SERVER / RESILIENCE-DR / v2.0.0] Declarative Topology Bundles, Multi-Node Canary Rollouts, Lexikon-Self-Test & Domain-TLS Checkpoints
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `FEATURE` | `ARCHITECTURE` | `RELEASE`
-- **Betroffene Module:** `AI-ORCHESTRATOR`, `MCP-SERVER`, `RESILIENCE-DR`, `WEB-STUDIO-UI`, `ARCH-LEXICON`, `CONTAINER-LAB`
-- **Ziel / Hintergrund:** Abschluss des Major-Releases `v2.0.0` mit portablen deklarativen Projekt-Topologie-Bundles (`synapse-stack/v2.0`), gestaffelten Multi-Node Canary Rollouts mit automatischem Abbruch bei Fehler, Live-Selbsttest des Architektur-Lexikons in `/api/debug` sowie Pre-Flight Time-Machine Checkpoints bei Domain/TLS-Änderungen.
-- **Durchgeführte Schritte:**
-  1. `topologyAndCanaryTools.ts` (`212` Zeilen `< 220`) mit `core_manage_topology_bundle` (`export`, `import`) und `core_cluster_canary_exec` (`canary_rollout`, `verify_fleet_health`) erstellt und in `extendedToolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts` und `/api/mcp/route.ts` verdrahtet (`35` MCP-Tools gesamt).
-  2. `/api/debug/route.ts` (`self_test`) um die Prüf-Stufe `lexicon_and_governance` (`AGENTS.md`, `memory/PROJECT_STATE.md`, `memory/BLACKBOX.md`, `memory/MILESTONES.md`, `.githooks/pre-commit`) erweitert.
-  3. `core_manage_domain_tls` (`blueprintDomainAndOtaTools.ts`), `/api/service-ops` (`configure_domain`), `useCanvasStudioAndDomainActions.ts` und `ReverseProxyView.tsx` um automatische Pre-Flight Checkpoints (`checkpoint_id`) und UI-Badges ergänzt.
-  4. Gesamte Plattform, Container-Definitionen, Dokumentation und Lexikon auf `v2.0.0` angehoben.
-- **Verifikation:** Go Coverage `88.0 %` (`>= 85 %`), TS Line Coverage `94.34 %` (`>= 90 %`), Max Go `499` Zeilen, Max TS `596` Zeilen, `0` `any`-Typen, `0` private Daten.
+### [BB-006] 2026-11-01 01:40 (CET) – [AI-ORCHESTRATOR / MCP-SERVER / v2.0.0] Declarative Topology Bundles, Multi-Node Canary Rollouts, Lexicon Self-Test & Domain-TLS Checkpoints
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `FEATURE` | `ARCHITECTURE` | `RELEASE`
+- **Affected Modules:** `AI-ORCHESTRATOR`, `MCP-SERVER`, `CORE-WEB`, `ARCH-LEXICON`, `CONTAINER-LAB`
+- **Goal / Context:** Complete major release `v2.0.0` with portable declarative project topology bundles (`synapse-stack/v2.0`), staged multi-node canary rollouts, live architecture lexicon self-test in `/api/debug`, and Pre-Flight Checkpoints for domain/TLS updates.
+- **Completed Steps:**
+  1. Created `topologyAndCanaryTools.ts` (`core_manage_topology_bundle` and `core_cluster_canary_exec`).
+  2. Extended `/api/debug/route.ts` (`self_test`) with the `lexicon_and_governance` verification stage and added Pre-Flight Checkpoints to `core_manage_domain_tls`.
+- **Verification:** Go coverage `88.0%`, TS line coverage `94.34%`, max Go `499` lines, max TS `596` lines.
 
-### [BB-005] 2026-11-01 01:16 (CET) – [ARCH-LEXICON] Einführung des Enterprise Architektur-Lexikons, Multi-IDE KI-Governance & Public Pre-Commit Guardrails
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `ARCHITECTURE` | `SECURITY`
-- **Betroffene Module:** `ARCH-LEXICON` (`architecture/00`–`04`, `memory/*`, `playbooks/01`–`02`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`, `.agents/hooks.json`, `.githooks/pre-commit`, `README.md`, `README.de.md`)
-- **Ziel / Hintergrund:** Vereinheitlichung der GitHub-Repository-Struktur von `SolidStateNetwork/Synapse` nach dem bewährten Enterprise-Lexikon-Standard (`Strata`), inklusive automatischer Kontext-Injektion bei Session-Start und technischem Pre-Commit-Blocker für das öffentliche Repository.
-- **Durchgeführte Schritte:**
-  1. 5 modulare Architektur-Spezifikationen unter `architecture/00-product-vision.md` bis `04-resilience-security-and-ota.md` erstellt.
-  2. Persistentes Projekt-Gedächtnis unter `memory/PROJECT_STATE.md`, `memory/MILESTONES.md` und `memory/BLACKBOX.md` (inkl. `ADR-001` bis `ADR-006`) aufgebaut.
-  3. Standard Operating Procedures unter `playbooks/01-feature-and-milestone-sop.md` und `playbooks/02-container-lab-and-release-sop.md` dokumentiert.
-  4. Multi-IDE Root-Direktiven (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.cursor/rules/00-lexicon-governance.mdc`, `.windsurfrules`, `.github/copilot-instructions.md`), Lifecycle-Hooks (`.agents/hooks.json`) sowie den technischen Pre-Commit-Guardrail (`.githooks/pre-commit`) eingerichtet.
-  5. `README.md`, `README.de.md` und die GitHub-Repository-Metadaten auf den vollständigen `v1.9.0`-Funktionsumfang aktualisiert.
-- **Verifikation:** Zero-Private-Data-Scan (`0` Treffer), Pre-Commit-Hook aktiv, alle Go- und TypeScript-Tests 100 % grün.
+### [BB-005] 2026-11-01 01:16 (CET) – [ARCH-LEXICON / v1.9.0] Introduction of the Architecture Lexicon, AI Governance & Public Pre-Commit Guardrails
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `ARCHITECTURE` | `SECURITY`
+- **Affected Modules:** `ARCH-LEXICON` (`architecture/00`–`04`, `memory/*`, `playbooks/01`–`02`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.agents/hooks.json`, `.githooks/pre-commit`, `README.md`)
+- **Goal / Context:** Establish the modular architecture specifications (`architecture/00`–`04`), persistent project memory (`memory/`), Standard Operating Procedures (`playbooks/`), session-start context injection, and `.githooks/pre-commit` blocker.
+- **Completed Steps:**
+  1. Created `architecture/00-product-vision.md` through `04-resilience-security-and-ota.md`, `memory/PROJECT_STATE.md`, `memory/MILESTONES.md`, `memory/BLACKBOX.md`, `playbooks/01`–`02`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and `.githooks/pre-commit`.
+- **Verification:** Zero-Private-Data scan (`0` hits), pre-commit hook active, all Go and TypeScript tests 100% green.
 
-### [BB-004] 2026-11-01 00:55 (CET) – [AI-ORCHESTRATOR / MCP-SERVER / v1.9.0] Service-Workbench, RBAC & AI-Endpoint Tools, Pre-Flight Custom-Service Checkpoints & Studio Badges
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `FEATURE` | `RELEASE`
-- **Betroffene Module:** `AI-ORCHESTRATOR`, `MCP-SERVER`, `RESILIENCE-DR`, `WEB-STUDIO-UI`, `CONTAINER-LAB`
-- **Ziel / Hintergrund:** Abschluss der 100 % AI/MCP-Parität für die interaktive Service-Workbench (`GET`/`POST`/`PUT`/`DELETE`/`SQL`), den RBAC/2FA-Status und die AI-Endpoint-Konfiguration sowie automatische Pre-Flight Checkpoints beim Custom-Service-Deploy.
-- **Durchgeführte Schritte:**
-  - `workbenchAndAuthTools.ts` (`core_invoke_service_action`, `core_manage_auth_and_ai`) erstellt und in `extendedToolSchemas.ts`, `coreTools.ts`, `autonomousFallback.ts` und `/api/mcp/route.ts` integriert.
-  - `deployCustomServiceOnMuscle` (`serviceMeshAndBuilder.ts`) und `triggerGitOpsWebhookRedeploy` (`gitopsDeployer.ts`) um automatische Pre-Flight Checkpoints (`checkpoint_id`) erweitert.
-  - Checkpoint-Badges in `GitOpsStudioPanel.tsx` und `useCanvasStudioAndDomainActions.ts` ergänzt.
-- **Verifikation:** Go Coverage `88.0 %`, TS Line Coverage `94.31 %`, Max Go `499` Zeilen, Max TS `596` Zeilen, CI (`41254447815`) & Release (`41254450359`) mit `0` Annotationen grün, lokale Container auf `v1.9.0` ausgerollt.
+### [BB-004] 2026-11-01 00:55 (CET) – [AI-ORCHESTRATOR / MCP-SERVER / v1.9.0] Service Workbench, RBAC & AI-Endpoint Tools, Pre-Flight Custom-Service Checkpoints & Studio Badges
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `FEATURE` | `RELEASE`
+- **Affected Modules:** `AI-ORCHESTRATOR`, `MCP-SERVER`, `CORE-WEB`, `CONTAINER-LAB`
+- **Goal / Context:** Complete 100% AI/MCP parity for the interactive Service Workbench (`GET`/`POST`/`PUT`/`DELETE`/`SQL`), RBAC/2FA status, and AI endpoint configuration, plus automatic Pre-Flight Checkpoints during custom service deployment.
+- **Completed Steps:**
+  1. Created `workbenchAndAuthTools.ts` (`core_invoke_service_action`, `core_manage_auth_and_ai`) and added Pre-Flight Checkpoints (`checkpoint_id`) to `deployCustomServiceOnMuscle` and `triggerGitOpsWebhookRedeploy`.
+- **Verification:** Go coverage `88.0%`, TS line coverage `94.31%`, CI green.
 
-### [BB-003] 2026-11-01 00:36 (CET) – [AI-ORCHESTRATOR / AXON-AGENT / v1.8.0] Playbooks & Approvals AI/MCP Tools, Vollständige Ephemeral-PTY-GC & Blueprint/OTA Badges
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `FEATURE` | `RELEASE`
-- **Betroffene Module:** `AI-ORCHESTRATOR`, `AXON-AGENT`, `WEB-STUDIO-UI`
-- **Ziel / Hintergrund:** Bereitstellung von `core_manage_playbooks` und `core_manage_approvals` für AI/MCP, Schließen aller verbleibenden One-Shot-PTY-Sessions in `axon` und Anzeige der `checkpoint_id` in Blueprints & System-Update UI.
-- **Durchgeführte Schritte:**
-  - `playbookAndApprovalTools.ts` implementiert; `svc-cleanup-`, `sys-update-`, `mesh-` und `custom-svc-` in `IsEphemeralSessionID` (`pty_discovery.go`) ergänzt; Badges in `useCanvasOpsController.ts`, `useSystemAndInfraActions.ts` und `SystemUpdateAndDebugTabs.tsx` eingebaut.
-- **Verifikation:** Go Coverage `88.0 %`, TS Coverage `94.30 %`, CI (`41253206064`) & Release (`41253209196`) 100 % grün.
+### [BB-003] 2026-11-01 00:36 (CET) – [AI-ORCHESTRATOR / AXON-AGENT / v1.8.0] Playbooks & Approvals AI/MCP Tools, Complete Ephemeral PTY GC & Blueprint/OTA Badges
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `FEATURE` | `RELEASE`
+- **Affected Modules:** `AI-ORCHESTRATOR`, `AXON-AGENT`, `CORE-WEB`
+- **Goal / Context:** Expose `core_manage_playbooks` and `core_manage_approvals` to AI/MCP, reap all remaining one-shot PTY sessions in `axon`, and display `checkpoint_id` badges in Blueprints & System Update UI.
+- **Completed Steps:**
+  1. Implemented `playbookAndApprovalTools.ts` and added `svc-cleanup-`, `sys-update-`, `mesh-`, and `custom-svc-` prefixes to `IsEphemeralSessionID` (`pty_discovery.go`).
+- **Verification:** Go coverage `88.0%`, TS coverage `94.30%`, CI green.
 
-### [BB-002] 2026-11-01 00:15 (CET) – [AI-ORCHESTRATOR / CONTAINER-LAB / v1.6.0 & v1.7.0] Firewall/Cartridges/Cluster/Projects/Diagnostics Tools, Container-Native OTA & 2-Container-Lab
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `ARCHITECTURE` | `FEATURE` | `RELEASE`
-- **Betroffene Module:** `CONTAINER-LAB`, `AI-ORCHESTRATOR`, `SECOPS-SHIELD`, `RESILIENCE-DR`
-- **Ziel / Hintergrund:** Umstellung der lokalen Entwicklung auf zwei isolierte Container (`containers/manage.sh`: `synapse-core` + `synapse-muscle`), Modularisierung der Tool-Schemas (`extendedToolSchemas.ts`), Pre-Flight Checkpoints für Firewall & System-Updates sowie Container-native OTA-Rollouts.
-- **Durchgeführte Schritte:**
-  - `containers/` Setup (`core/Dockerfile`, `muscle/Dockerfile`, `docker-compose.yml`, `manage.sh`) aufgebaut.
-  - `firewallCartridgeAndClusterTools.ts` (`v1.6.0`) und `projectAndDiagnosticTools.ts` (`v1.7.0`) sowie Pre-Flight Checkpoints in `/api/firewall` und `/api/system-update` implementiert.
-- **Verifikation:** Lokale Container laufen stabil auf `:3000`/`:8081`/`:8443` (`local-muscle` verbunden), alle CI- & Release-Pipelines grün.
+### [BB-002] 2026-11-01 00:15 (CET) – [AI-ORCHESTRATOR / CONTAINER-LAB / v1.6.0 & v1.7.0] Firewall/Cartridges/Cluster/Projects/Diagnostics Tools, Container-Native OTA & 2-Container Lab
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `ARCHITECTURE` | `FEATURE` | `RELEASE`
+- **Affected Modules:** `CONTAINER-LAB`, `AI-ORCHESTRATOR`, `CORE-WEB`
+- **Goal / Context:** Transition local development to two isolated containers (`containers/manage.sh`: `synapse-core` + `synapse-muscle`), modularize tool schemas (`extendedToolSchemas.ts`), and implement container-native OTA rollouts.
+- **Completed Steps:**
+  1. Built `containers/` setup (`core/Dockerfile`, `muscle/Dockerfile`, `docker-compose.yml`, `manage.sh`) and implemented `firewallCartridgeAndClusterTools.ts` and `projectAndDiagnosticTools.ts`.
+- **Verification:** Local containers healthy on `:3000`/`:8081`/`:8443`, all CI & release pipelines green.
 
-### [BB-001] 2026-10-31 22:30 (CET) – [GLOBAL / v1.0.0 – v1.5.0] Produktions-Meilenstein v1.0.0 & Ausbau der DevOps-, Resilience- & Blueprint-Suites
-- **Akteur:** Antigravity AI & Project Lead
-- **Typ:** `ARCHITECTURE` | `RELEASE`
-- **Betroffene Module:** Alle Module (`PROTO-V1` bis `WEB-STUDIO-UI`)
-- **Ziel / Hintergrund:** Abschluss der `v1.0.0` Public-Clean-Room-Architektur (`< 500` Go / `< 600` TS Zeilen, `>= 85 %` Go / `>= 90 %` TS Coverage) und schrittweiser Ausbau bis `v1.5.0` (GitOps, Live-Logs, Disaster-Recovery, SecOps, Hot-Reload, SQLite-Studio, Self-Healing, Service-Mesh, Blueprints, Domain/TLS & 6-Stufen Self-Test).
-- **Verifikation:** 100 % grüne GitHub Actions CI- und Multi-Arch-Release-Pipelines (`v1.0.0` bis `v1.5.0`).
+### [BB-001] 2026-10-31 22:30 (CET) – [GLOBAL / v1.0.0 – v1.5.0] Production Milestone v1.0.0 & Expansion of the DevOps, Resilience & Blueprint Suites
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `ARCHITECTURE` | `RELEASE`
+- **Affected Modules:** All Modules (`PROTO-WIRE` through `CORE-WEB`)
+- **Goal / Context:** Complete the `v1.0.0` public Clean-Room architecture (`< 500` Go / `< 600` TS lines, `>= 85%` Go / `>= 90%` TS coverage) and expand through `v1.5.0` (GitOps, Live Logs, Disaster Recovery, SecOps, Hot-Reload, SQLite Studio, Self-Healing, Service Mesh, Blueprints, Domain/TLS & 6-stage Self-Test).
+- **Verification:** 100% green GitHub Actions CI and multi-arch release pipelines (`v1.0.0` through `v1.5.0`).

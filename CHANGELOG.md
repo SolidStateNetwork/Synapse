@@ -209,8 +209,8 @@ All notable changes to **Synapse** are documented in this file.
   - `IsEphemeralSessionID` in `agents/axon/internal/pty/pty_discovery.go` now automatically reaps `ota-*` sessions upon completion.
 - **`v1.0.0` Cluster-Readiness Self-Test (`/api/debug`)**:
   - `GET /api/debug` and `POST /api/debug` (`action: "self_test"`) now report `version: SYNAPSE_VERSION` (`v1.0.0`) and validate Rule Cartridges, Stack Blueprints, GitOps Stacks (`GitStacks.json`), and Cron Runbooks (`CronJobs.json`) store integrity.
-- **Bilingual `v1.0.0` Documentation Seal (`README.md`, `README.de.md`, `SECURITY.md`, `CHANGELOG.md`)**:
-  - Synchronized English (`README.md`) and German (`README.de.md`) documentation covering the full `v1.0.0` feature suite (GitOps Stack Deployer & Teardown, Interactive Live-Service-Log Inspector, Autonomous Cron-Due Scheduler, 60-Sample Telemetry Sparklines, Ephemeral-PTY GC, and Full MCP/AI Tool Parity).
+- **Comprehensive `v1.0.0` Documentation Seal (`README.md`, `SECURITY.md`, `CHANGELOG.md`)**:
+  - Comprehensive English (`README.md`) documentation covering the full `v1.0.0` feature suite (GitOps Stack Deployer & Teardown, Interactive Live-Service-Log Inspector, Autonomous Cron-Due Scheduler, 60-Sample Telemetry Sparklines, Ephemeral-PTY GC, and Full MCP/AI Tool Parity).
 
 ---
 
@@ -316,8 +316,8 @@ All notable changes to **Synapse** are documented in this file.
 - **Extensible Bilingual Localization System (`apps/core-web/src/lib/i18n.tsx`)**:
   - Full 1:1 German (`DE`) and English (`EN`) coverage across all 8 views (`Übersicht`, `Services`, `Server & Mesh`, `Brain Vault`, `Dateien`, `Regeln`, `Audit-Log`, `Einstellungen`), all modals, and the AI Copilot drawer.
   - Dedicated **Language & Localization** settings tab (`Sprache & Region`) plus a height-matched (`32px`) header language switcher (`DE` | `EN`).
-- **Bilingual Documentation & Interactive SVG Diagrams (`README.md`, `README.de.md`, `docs/assets/`)**:
-  - Complete English primary `README.md` and full German `README.de.md` connected via one-click language switch badges.
+- **Comprehensive Documentation & Interactive SVG Diagrams (`README.md`, `docs/assets/`)**:
+  - Complete English primary `README.md` with custom SVG architecture diagrams.
   - Updated `hero-banner.svg`, `architecture-flow.svg`, `control-center-preview.svg`, and `ai-skills-pipeline.svg`.
 - **Code Cleanup & UI Optimization**:
   - Removed unused legacy prototype component `RemoteWorkspaceExplorer.tsx` (`371` lines).

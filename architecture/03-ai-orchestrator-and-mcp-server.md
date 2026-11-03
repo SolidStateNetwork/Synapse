@@ -1,46 +1,47 @@
-# 🤖 03 – AI Orchestrator & Model Context Protocol (`MCP`) Server
+# 🤖 03 — AI Orchestrator & Model Context Protocol (`MCP`) Server
 
-Dieses Dokument beschreibt die Architektur des **Synapse AI Orchestrators**, das Prompt-Caching-System, die deterministische Fallback-Engine sowie den integrierten **MCP-Server (`/api/mcp`)**.
+This document describes the architecture of the **Synapse AI Orchestrator**, the prompt-caching engine, the deterministic offline fallback engine, and the built-in + standalone **MCP Server (`/api/mcp` & `packages/mcp-server/`)**.
 
 ---
 
-## 1. 100 % Full-Stack Tool-Parität (42 Tools total: 38 Core/Node-Tools + 4 MCP-Meta-Tools)
+## 1. 100% Full-Stack Tool Parity (42 Tools Total: 38 Core/Node Tools + 4 MCP Meta-Tools)
 
-Synapse stellt sicher, dass sowohl der interne **AI Copilot** als auch externe KI-Agenten (Claude Desktop, Cursor, Windsurf, Cline) über exakt dieselben strukturierten Werkzeuge verfügen wie ein menschlicher Administrator im WebUI.
+Synapse guarantees that both the internal **AI Copilot** and external AI clients (Claude Desktop, Cursor, Windsurf, Cline) have access to the exact same structured tools as a human operator in the WebUI.
 
-### Übersicht der Tool-Module (`apps/core-web/src/lib/orchestrator/`)
+### Tool Module Matrix (`apps/core-web/src/lib/orchestrator/`)
 
-| Modul | Bereitgestellte Tools | Funktion |
+| Module | Provided Tools | Purpose |
 | :--- | :--- | :--- |
-| **`toolSchemas.ts` & `nodeTools.ts`** | `node_pty_exec`, `node_fs_operation`, `node_deep_search`, `node_firewall_control`, `core_vault_search` | Basis-Interaktion mit Muscle-Nodes (PTY-Shell, Dateisystem mit Pre-Write-Snapshot, 6-Modus Forensik-Suche, Host-Firewall & Vault-Suche). |
-| **`coreTools.ts`** | `core_update_brain_doc`, `core_register_service`, `core_manage_secret`, `core_link_peers`, `core_deploy_git_stack`, `core_delete_git_stack`, `core_tail_service_logs`, `core_get_node_telemetry_history`, `core_run_due_cron_jobs` | Pflege von `Architecture.md` & `Memory.md`, Service-Registrierung, `Secrets.enc`, Peer-Mesh-Relays, GitOps-Stacks, Live-Logs & Telemetrie. |
-| **`disasterRecoveryTools.ts`** | `core_manage_backup`, `core_manage_checkpoint` | Erstellen, Auflisten, Wiederherstellen und Löschen von `AES-256-GCM` Offsite-Backups und Time-Machine Checkpoints. |
-| **`secopsAndWatchdogTools.ts`** | `core_manage_alerts`, `core_intrusion_scan` | 24/7 Watchdog-Schwellenwerte, Webhook-Testalarme, SSH-Intrusion-Radar und 1-Click Angreifer-IP-Sperre. |
-| **`studioDevOpsTools.ts`** | `core_hot_reload_service_code`, `core_sqlite_studio`, `core_manage_cron_jobs` | Syntax-geprüfter Live-Code Hot-Reload, SQLite-Tabellen-/SQL-Studio und Cron-Runbook-Verwaltung. |
-| **`resilienceAndMeshTools.ts`** | `core_manage_self_healing`, `core_probe_service_mesh` | Self-Healing-Policy, MTTR-Chaos-Simulation, Service-Mesh-Latenz-Probes & Custom-Microservice-Builder. |
-| **`blueprintDomainAndOtaTools.ts`** | `core_manage_blueprint`, `core_manage_domain_tls`, `core_system_ota_status` | 1-Click Stack-Blueprints, Custom-Domain/TLS-Bindings & OTA-System-Update-Status. |
-| **`firewallCartridgeAndClusterTools.ts`** | `core_manage_firewall`, `core_manage_cartridges`, `core_manage_cluster_nodes` | Synapse Shield Firewall-Profile & Port-Schilde, AI Rule Cartridges & Cluster-Node-Enrollment. |
-| **`projectAndDiagnosticTools.ts`** | `core_manage_projects`, `core_run_platform_self_test` | Projekt-Workspaces, `planning_only`-Guardrail, `Audit.jsonl`-Abfrage & 6-stufiger Plattform-Selbsttest. |
-| **`playbookAndApprovalTools.ts`** | `core_manage_playbooks`, `core_manage_approvals` | Geplante KI-Playbooks, eigene Rule-Cartridges & Freigabe/Ablehnung von `TIER_3_SUPERVISED`-Aktionen. |
-| **`workbenchAndAuthTools.ts`** | `core_invoke_service_action`, `core_manage_auth_and_ai` | Service-Workbench (`GET`/`POST`/`PUT`/`DELETE`/`SQL`), RBAC/2FA-Status, Session-Revocation & AI-Provider-Konfiguration. |
-| **`topologyAndCanaryTools.ts` & `extendedToolSchemas.ts`** | `core_manage_topology_bundle`, `core_cluster_canary_exec`, `core_manage_mcp_keys` | Deklarativer Export/Import kompletter Projekt-Topologien (`synapse-stack/v2.0`) & Multi-Node Canary Rollouts mit Pre-Flight Checkpoint. |
-| **`/api/mcp/route.ts` (MCP Meta-Tools)** | `synapse_list_peers`, `synapse_get_project_state`, `synapse_create_join_token`, `synapse_rollback_snapshot` | Direktabfrage verbundener Muscle-Peers, kompletter 4-Doc Project-Brain-Vault-Status, One-Time mTLS CSR Join-Tokens & Pre-Write Datei-Rollbacks. |
+| **`toolSchemas.ts` & `nodeTools.ts`** | `node_pty_exec`, `node_fs_operation`, `node_deep_search`, `node_firewall_control`, `core_vault_search` | Base interaction with Muscle nodes (PTY shell, filesystem with pre-write snapshots, 6-mode forensic search, host firewall, and vault search). |
+| **`coreTools.ts`** | `core_update_brain_doc`, `core_register_service`, `core_manage_secret`, `core_link_peers`, `core_deploy_git_stack`, `core_delete_git_stack`, `core_tail_service_logs`, `core_get_node_telemetry_history`, `core_run_due_cron_jobs` | Management of `Architecture.md`, `Memory.md`, `Milestones.md` & `AGENTS.md`, service registration, `Secrets.enc`, peer mesh relays, GitOps stacks, live logs, and telemetry. |
+| **`disasterRecoveryTools.ts`** | `core_manage_backup`, `core_manage_checkpoint` | Creating, listing, restoring, and deleting `AES-256-GCM` offsite backups and Time-Machine checkpoints. |
+| **`secopsAndWatchdogTools.ts`** | `core_manage_alerts`, `core_intrusion_scan` | 24/7 watchdog thresholds, webhook test alerts, SSH intrusion radar, and 1-click attacker IP blocking. |
+| **`studioDevOpsTools.ts`** | `core_hot_reload_service_code`, `core_sqlite_studio`, `core_manage_cron_jobs` | Syntax-checked live-code hot-reload, SQLite table/SQL studio, and cron runbook management. |
+| **`resilienceAndMeshTools.ts`** | `core_manage_self_healing`, `core_probe_service_mesh` | Self-healing policy, MTTR chaos simulation, service-mesh latency probes, and custom microservice builder. |
+| **`blueprintDomainAndOtaTools.ts`** | `core_manage_blueprint`, `core_manage_domain_tls`, `core_system_ota_status` | 1-click stack blueprints, custom domain/TLS bindings, and OTA system update status. |
+| **`firewallCartridgeAndClusterTools.ts`** | `core_manage_firewall`, `core_manage_cartridges`, `core_manage_cluster_nodes` | Synapse Shield firewall profiles and port shields, AI Rule Cartridges, and cluster node enrollment. |
+| **`projectAndDiagnosticTools.ts`** | `core_manage_projects`, `core_run_platform_self_test` | Project workspaces, `planning_only` guardrail, `Audit.jsonl` queries, and 6-stage platform self-test. |
+| **`playbookAndApprovalTools.ts`** | `core_manage_playbooks`, `core_manage_approvals` | Multi-stage DAG AI playbooks, custom Rule Cartridges, and approval/rejection of `TIER_3_SUPERVISED` actions. |
+| **`workbenchAndAuthTools.ts`** | `core_invoke_service_action`, `core_manage_auth_and_ai` | Service Workbench (`GET`/`POST`/`PUT`/`DELETE`/`SQL`), RBAC/2FA status, session revocation, and AI provider configuration. |
+| **`topologyAndCanaryTools.ts` & `extendedToolSchemas.ts`** | `core_manage_topology_bundle`, `core_cluster_canary_exec`, `core_manage_mcp_keys` | Cryptographically signed project topology bundles (`export`, `import`, `simulate_apply`), multi-node canary rollouts, and scoped MCP key lifecycle management. |
+| **`/api/mcp/route.ts` (MCP Meta-Tools)** | `synapse_list_peers`, `synapse_get_project_state`, `synapse_create_join_token`, `synapse_rollback_snapshot` | Direct queries for connected Muscle peers, complete 4-doc Project Brain Vault state, one-time mTLS CSR join tokens, and pre-write file rollbacks. |
 
 ---
 
-## 2. Prompt-Cache-Optimierter System-Prompt (`promptBuilder.ts`)
+## 2. Prompt-Cache-Optimized System Prompt (`promptBuilder.ts`)
 
-Um Latenz und Token-Kosten bei Multi-Step-Agentenläufen drastisch zu senken, teilt `buildCacheOptimizedSystemPromptParts` jeden Prompt in zwei Teile:
-1. **`staticPrefix` (Cacheable):** Enthält die System-Direktive, die aktiven **AI Rule Cartridges** (`cartridges/*.md`) und das vollständige `Architecture.md`. Dieser Block ändert sich zwischen Chat-Schritten kaum und wird über `cache_control: { type: "ephemeral" }` (Anthropic) bzw. automatisches Prefix-Caching (OpenAI) gecacht.
-2. **`dynamicSuffix` (Live State):** Enthält die aktuelle Knoten-Telemetrie, registrierte Dienste, Secret-Key-Namen (niemals Klartext-Werte!) und die letzten Einträge aus `Memory.md`.
+To minimize latency and token cost across multi-step agent runs, `buildCacheOptimizedSystemPromptParts` splits every prompt into two segments:
+1. **`staticPrefix` (Cacheable):** Contains the core architectural laws, active **AI Rule Cartridges** (`cartridges/*.md`), and the 4-document Brain Vault (`AGENTS.md`, `Architecture.md`, `Memory.md`, `Milestones.md`). This prefix remains stable across turns and is cached via `cache_control: { type: "ephemeral" }` (Anthropic) or automatic prefix caching (OpenAI).
+2. **`dynamicSuffix` (Live State):** Contains live node telemetry, registered services, available secret key names (never plaintext values!), and autonomy tier rules.
 
 ---
 
-## 3. Model Context Protocol (`MCP`) Server (`/api/mcp`)
+## 3. Model Context Protocol (`MCP`) Server (`/api/mcp` & `packages/mcp-server/`)
 
-Unter `/api/mcp` implementiert Synapse einen standardkonformen **MCP Streamable HTTP (`JSON-RPC 2.0`) + REST Tool Server** (`protocolVersion: "2024-11-05"`):
+At `/api/mcp` (and via the standalone `packages/mcp-server/index.mjs` Stdio/HTTP bridge), Synapse implements a standards-compliant **MCP Streamable HTTP (`JSON-RPC 2.0`) + REST Tool Server** (`protocolVersion: "2024-11-05"`):
 
-- **Unterstützte JSON-RPC-Methoden:** `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`, `resources/list`, `resources/read` (`Architecture.md`, `Memory.md`, `Milestones.md`, `AGENTS.md`, `State.json`, `Audit.jsonl`), `prompts/list`.
-- **Gehashte API-Keys & Scopes (`syn_mcp_...`):**
-  - Jeder MCP-API-Schlüssel wird nur bei der Erstellung einmalig im Klartext angezeigt und in `State.json` ausschließlich als **SHA-256-Hash** gespeichert.
-  - **Scope-Enforcement (`isReadOnlyTool`):** Schlüssel mit reinem `read`-Scope dürfen alle Inspektions-, Diagnose-, Selbsttest- und `GET`-Abfragen ausführen, werden aber bei mutierenden Tools deterministisch blockiert.
+- **Supported JSON-RPC Methods:** `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`, `resources/list`, `resources/read` (`Architecture.md`, `Memory.md`, `Milestones.md`, `AGENTS.md`, `State.json`, `Audit.jsonl`), and `prompts/list`.
+- **Hashed API Keys, 3-Tier Scopes & HMAC Signing (`syn_mcp_...`):**
+  - Every MCP API key is displayed in plaintext only once upon creation and persisted in `State.json` exclusively as a **SHA-256 hash**.
+  - **3-Tier Scope Enforcement (`read` / `execute` / `admin`):** `read`-only keys may execute inspection, diagnostic, self-test, and `GET` calls; mutating tools require `execute` or `admin`; security-critical administrative tools (`isAdminOnlyMcpToolCall`) strictly require `admin`.
+  - **Per-Key Rate Limiting & HMAC-SHA256 Request Signing:** Enforces configurable sliding-window rate limits (`rate_limit_per_min`, default `120 req/min`) and optional `X-Synapse-Signature` + `X-Synapse-Timestamp` (`300s` replay window) verification.

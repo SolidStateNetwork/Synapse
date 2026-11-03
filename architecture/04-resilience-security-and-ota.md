@@ -1,45 +1,46 @@
-# 🛡️ 04 – Resilience, Zero-Knowledge Security & Container-Native OTA
+# 🛡️ 04 — Resilience, Zero-Knowledge Security & Container-Native OTA
 
-Dieses Dokument definiert die Sicherheits-, Backup-, Selbstheilungs- und Update-Mechanismen von **Synapse**.
-
----
-
-## 1. Zero-Leak Secret Vault (`Secrets.enc`)
-
-Projekt-Geheimnisse (Datenbank-Passwörter, API-Tokens, Webhook-Secrets) werden niemals in `State.json` oder im Klartext gespeichert:
-- **Verschlüsselung:** `AES-256-GCM` mit zufälligem 12-Byte-IV, 16-Byte-Auth-Tag und einem über `PBKDF2-SHA256` (`100.000` Iterationen) abgeleiteten Master-Schlüssel (`SYNAPSE_MASTER_KEY`).
-- **Sichere Injektion & Output-Scrubbing:**
-  - Das LLM sieht im System-Prompt ausschließlich die **Schlüssel-Namen** (`secret_keys_available: ["DB_PASSWORD", ...]`).
-  - Bei Ausführung von `node_pty_exec`, `core_deploy_git_stack` oder Blueprint-Deployments werden die entschlüsselten Werte direkt in die geschützte Laufzeitumgebung injiziert.
-  - Bevor `stdout`/`stderr` oder `Audit.jsonl`-Einträge gespeichert oder an das LLM zurückgegeben werden, ersetzt der **Secret Scrubber** jeden vorkommenden Klartext-Wert durch `[REDACTED_SECRET:<KEY>]`.
+This document defines the security, backup, self-healing, and over-the-air (OTA) update mechanisms of **Synapse**.
 
 ---
 
-## 2. Automatische Pre-Flight Time-Machine Checkpoints (`checkpoints.ts`)
+## 1. Zero-Leak Secret Vault (`Secrets.enc`) & Hash-Chained Audit Log (`Audit.jsonl`)
 
-Vor jeder zustandsverändernden Infrastruktur-Aktion legt Synapse automatisch einen **Pre-Flight Time-Machine Checkpoint** (`Checkpoints.json`) an und gibt dessen `checkpoint_id` (`chk-...`) im API-Response und als sichtbares UI-Badge zurück:
+Project secrets (database passwords, API tokens, webhook secrets) are never stored in `State.json` or in plaintext:
+- **Encryption:** `AES-256-GCM` with a random 12-byte IV, 16-byte authentication tag, and a master key (`SYNAPSE_MASTER_KEY`) derived via `PBKDF2-SHA256` (`100,000` iterations + random 16-byte salt per write, with seamless fallback for legacy SHA-256 ciphertexts).
+- **Safe Injection & Output Scrubbing:**
+  - The LLM only sees **secret key names** in its system prompt (`secret_keys_available: ["DB_PASSWORD", ...]`).
+  - When executing `node_pty_exec`, `core_deploy_git_stack`, or blueprint deployments, decrypted values are injected directly into the protected runtime environment.
+  - Before `stdout`/`stderr` or `Audit.jsonl` entries are persisted or returned to the LLM, the **Secret Scrubber** replaces every occurrence of any plaintext secret value with `[REDACTED_SECRET:<KEY>]`.
+- **Tamper-Evident Audit Hash Chain:** Every entry appended to `Audit.jsonl` is cryptographically linked via `SHA-256` (`prev_hash` + `entry_hash` starting from `GENESIS`) and verifiable via `verifyAuditChain(projectId)`.
 
-| Auslöser / Subsystem | Erzeugter Checkpoint | Rollback-Mechanismus |
+---
+
+## 2. Automatic Pre-Flight Time-Machine Checkpoints (`checkpoints.ts`)
+
+Before every state-changing infrastructure action, Synapse automatically records a **Pre-Flight Time-Machine Checkpoint** (`Checkpoints.json`) and returns its `checkpoint_id` (`chk-...`) in the API response and UI status badge:
+
+| Trigger / Subsystem | Recorded Checkpoint | Rollback Mechanism |
 | :--- | :--- | :--- |
-| **1-Click Stack Blueprints (`/api/blueprints`)** | Vor `deploy` & `undeploy` | Stellt Dienst-Snapshot und Blueprint-Verzeichnis wieder her. |
-| **GitOps Stack Studio (`gitopsDeployer.ts`)** | Vor `deploy`, `webhook_redeploy` & `delete` | Führt `git reset --hard HEAD~1` im Stack-Repository aus und stellt `State.json` wieder her. |
-| **Custom Service Builder (`serviceMeshAndBuilder.ts`)** | Vor `deployCustomServiceOnMuscle` | Sichert die bestehende Service-Topologie und das Ziel-Skriptverzeichnis. |
-| **Live-Code Hot-Reload (`v070-studio.ts`)** | Vor `hotReloadServiceCodeOnMuscle` | Validiert Python-Syntax (`py_compile`) vorab und rollt bei HTTP-500 automatisch auf den Pre-Write-Snapshot zurück. |
-| **Synapse Shield Firewall (`/api/firewall`)** | Vor `toggle_port_shield`, `apply_profile`, `add_ip_rule`, `remove_ip_rule` | Speichert die vorherige `Firewall.json` als Base64-Snapshot für 1-Click-Wiederherstellung. |
-| **OTA System-Update (`/api/system-update`)** | Vor `update_core`, `update_muscle`, `update_all` | Sichert den exakten Git-Commit-Hash für deterministisches `git checkout <commit>` Rollback. |
+| **1-Click Stack Blueprints (`/api/blueprints`)** | Before `deploy` & `undeploy` | Restores service snapshot and blueprint directory. |
+| **GitOps Stack Studio (`gitopsDeployer.ts`)** | Before `deploy`, `webhook_redeploy` & `delete` | Executes `git reset --hard HEAD~1` in the stack repository and restores `State.json`. |
+| **Custom Service Builder (`serviceMeshAndBuilder.ts`)** | Before `deployCustomServiceOnMuscle` | Backs up the existing service topology and target script directory. |
+| **Live-Code Hot-Reload (`v070-studio.ts`)** | Before `hotReloadServiceCodeOnMuscle` | Validates Python syntax (`py_compile`) ahead of time and automatically rolls back to the pre-write snapshot on HTTP 500. |
+| **Synapse Shield Firewall (`/api/firewall`)** | Before `toggle_port_shield`, `apply_profile`, `add_ip_rule`, `remove_ip_rule` | Saves the prior `Firewall.json` as a Base64 snapshot for 1-click restoration. |
+| **OTA System Update (`/api/system-update`)** | Before `update_core`, `update_muscle`, `update_all` | Records the exact Git commit hash for deterministic `git checkout <commit>` rollback. |
 
 ---
 
-## 3. Autonomous Self-Healing & Chaos-Resilience (`self-healing/`)
+## 3. Autonomous Self-Healing & Chaos Resilience (`self-healing/`)
 
-Synapse überwacht alle registrierten Dienste kontinuierlich und heilt Ausfälle autonom:
-- **Reaktive Selbstheilung (`executeServiceSelfHeal`):** Überschreitet ein Dienst die konfigurierte Fehler-Schwelle (`failure_threshold`) oder Latenz (`max_latency_ms`), startet Synapse den zugehörigen Container, Systemd-Dienst oder Workspace-Prozess automatisch neu, verifiziert `HTTP 200 OK` und protokolliert die **MTTR (Mean Time To Recovery)** in Millisekunden.
-- **Chaos-Engineering-Simulation (`simulate_crash`):** Operatoren und KI-Agenten können per 1-Click einen kontrollierten Prozess-Ausfall simulieren und die automatische Wiederherstellungszeit live messen.
+Synapse continuously monitors all registered services and heals outages autonomously:
+- **Reactive Self-Healing (`executeServiceSelfHeal`):** If a service exceeds its configured failure threshold (`failure_threshold`) or latency ceiling (`max_latency_ms`), Synapse automatically restarts the underlying container, systemd unit, or workspace process, verifies `HTTP 200 OK`, and records the **MTTR (Mean Time To Recovery)** in milliseconds.
+- **Chaos Engineering Simulation (`simulate_crash`):** Operators and AI agents can trigger a controlled 1-click process crash simulation and measure live recovery time.
 
 ---
 
 ## 4. Container-Native & Bare-Metal OTA Updates (`/api/system-update`)
 
-Das integrierte Over-The-Air Update-System unterstützt sowohl klassische Bare-Metal-Installationen (`systemd` / `OpenRC`) als auch unser lokales **2-Container-Lab (`containers/`)**:
-- **Versions- & Commit-Abgleich:** Vergleicht `SYNAPSE_VERSION`, den lokalen Git-Commit-Hash (`HEAD`), den Remote-Branch (`origin/main`) sowie die `SHA-256`-Prüfsummen von `core-gateway` und `axon`.
-- **Dual-Mode Rollout:** Erkennt automatisch, ob `core-gateway`, `core-web` und `axon` als Systemd-Units oder in Rootless-/Docker-Containern laufen, kompiliert neue Binaries/Bundles und führt einen unterbrechungsfreien Neustart durch.
+The integrated Over-The-Air update engine supports both bare-metal installations (`systemd` / `OpenRC`) and the local **2-Container Lab (`containers/`)**:
+- **Version & Tree-Hash Verification:** Compares `SYNAPSE_VERSION`, the local Git commit (`HEAD`), the remote branch (`origin/main`), the `agents/axon` Git tree hash (`HEAD:agents/axon`), and the `SHA-256` digests of `core-gateway` and `axon`.
+- **Dual-Mode Rollout:** Automatically detects whether `core-gateway`, `core-web`, and `axon` run as systemd units or inside rootless/Docker containers, compiles updated binaries/bundles, and performs a zero-downtime restart.
