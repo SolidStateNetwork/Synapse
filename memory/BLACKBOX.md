@@ -35,6 +35,17 @@
 
 ## 📜 Chronological Engineering Log (Newest First)
 
+### [BB-019] 2026-11-03 16:55 (CET) – [MCP-SERVER / CORE-WEB / v2.5.0] Public npm Registry Publication of `@solidstatenetwork/synapse@2.5.0` & `@solidstatenetwork/synapse-mcp-server@2.5.0`
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `RELEASE` | `MCP-SERVER` | `ARCH-LEXICON`
+- **Affected Modules:** `MCP-SERVER`, `CORE-WEB`, `ARCH-LEXICON`
+- **Goal / Context:** Publish `@solidstatenetwork/synapse@2.5.0` (`apps/core-web`) and `@solidstatenetwork/synapse-mcp-server@2.5.0` (`packages/mcp-server`) to the official npm registry (`https://www.npmjs.com/package/@solidstatenetwork/synapse`) to enable `npx @solidstatenetwork/synapse` installation and M8ven npm adoption/publisher cross-verification.
+- **Completed Steps:**
+  1. Normalized `bin`, `files`, and `repository` fields in `apps/core-web/package.json` and `packages/mcp-server/package.json`.
+  2. Published `@solidstatenetwork/synapse@2.5.0` and `@solidstatenetwork/synapse-mcp-server@2.5.0` to `https://registry.npmjs.org/` with public access.
+  3. Added the official npm version badge to `README.md` and recorded `[BB-019]` in `memory/BLACKBOX.md`.
+- **Verification:** `npm view "@solidstatenetwork/synapse" version` -> `2.5.0`, `python playbooks/scripts/verify-lexicon-completeness.py` (`PASSED`).
+
 ### [BB-018] 2026-11-03 12:18 (CET) – [MCP-SERVER / CORE-WEB / v2.5.0] M8ven MCP Trust Index Verification Upgrade: 42-Tool Isolated `server.registerTool` Handlers & Sandbox Stdio Entrypoint
 - **Actor:** Antigravity AI & Project Lead
 - **Type:** `ARCHITECTURE` | `FEATURE` | `SECURITY` | `TEST`

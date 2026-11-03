@@ -103,6 +103,6 @@
 - [x] **M8.6 (`v2.5.0`):** **Full-Stack E2E Test Matrix Expansion (`59/59` TypeScript Tests & `>= 90%` Go Coverage Across All 11 Packages)**
   - [x] Expansion of the automated test suite to **59 TypeScript tests** (`59/59` green) and **`>= 90.0%` Go statement coverage** across all 11 Go packages including CRL revocation, signed bundle, DAG playbook fault-injection, and 42-tool MCP handler isolation tests.
 
-- [x] **M8.7 (`v2.5.0`):** **M8ven MCP Trust Index Verification Upgrade (`apps/core-web/mcp-stdio.mjs`, `apps/core-web/src/lib/mcp/registeredTools.ts`)**
-  - [x] Added self-contained zero-dependency Stdio MCP entrypoint (`apps/core-web/mcp-stdio.mjs`) with `"bin"` declarations and `@solidstatenetwork/synapse` package identity in `apps/core-web/package.json` for sandbox execution and publisher consistency.
+- [x] **M8.7 (`v2.5.0`):** **M8ven MCP Trust Index Verification Upgrade & Public npm Registry Publication (`apps/core-web/mcp-stdio.mjs`, `apps/core-web/src/lib/mcp/registeredTools.ts`)**
+  - [x] Added self-contained zero-dependency Stdio MCP entrypoint (`apps/core-web/mcp-stdio.mjs`) with `"bin"` declarations and published `@solidstatenetwork/synapse@2.5.0` (and `@solidstatenetwork/synapse-mcp-server@2.5.0`) to the public npm registry (`https://www.npmjs.com/package/@solidstatenetwork/synapse`) for sandbox execution and publisher consistency.
   - [x] Registered all **42 MCP tools** via `server.registerTool(...)` with explicit JSON schemas, 4 boolean safety annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), and isolated `try/catch` handlers (`registeredTools.ts` & `registeredExtendedTools.ts`).
