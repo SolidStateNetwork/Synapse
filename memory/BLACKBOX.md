@@ -35,6 +35,17 @@
 
 ## 📜 Chronological Engineering Log (Newest First)
 
+### [BB-020] 2026-11-03 22:38 (CET) – [ARCH-LEXICON / v2.5.0] AI Enforcement Directives (`AGENTS.md`, `GEMINI.md`, `CLAUDE.md`, `.github/copilot-instructions.md`) & Mandatory Same-Turn Post-Change Protocol
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `ARCHITECTURE` | `SECURITY` | `ARCH-LEXICON`
+- **Affected Modules:** `ARCH-LEXICON`
+- **Goal / Context:** Standardize and harden the 4 AI enforcement files (`AGENTS.md`, `GEMINI.md`, `CLAUDE.md`, `.github/copilot-instructions.md`) with strict Single-Repository Isolation (`CWD` only), Language Standard (Chat: German, Repository: 100% English), and the Mandatory Post-Change Protocol ("No batching. No postponing. No skipping steps." — same-turn commit & push after every change).
+- **Completed Steps:**
+  1. Updated `AGENTS.md` with the explicit Mandatory Post-Change Protocol and same-turn commit/push checklist.
+  2. Updated `GEMINI.md` and `CLAUDE.md`, and created `.github/copilot-instructions.md` with direct references to `AGENTS.md` and the explicit 4-step Post-Change Checklist.
+  3. Updated `playbooks/scripts/verify-lexicon-completeness.py` to require `.github/copilot-instructions.md` alongside `AGENTS.md`, `GEMINI.md`, and `CLAUDE.md`.
+- **Verification:** `python3 playbooks/scripts/verify-lexicon-completeness.py` (`PASSED`).
+
 ### [BB-019] 2026-11-03 16:55 (CET) – [MCP-SERVER / CORE-WEB / v2.5.0] Public npm Registry Publication of `@solidstatenetwork/synapse@2.5.0` & `@solidstatenetwork/synapse-mcp-server@2.5.0`
 - **Actor:** Antigravity AI & Project Lead
 - **Type:** `RELEASE` | `MCP-SERVER` | `ARCH-LEXICON`

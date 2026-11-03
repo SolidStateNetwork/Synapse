@@ -22,7 +22,7 @@
 
 | Subsystem ID | Component | Monorepo Path | Primary Function | Port / Protocol | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`ARCH-LEXICON`** | **Architecture & AI Lexicon** | `architecture/`, `memory/`, `playbooks/`, `AGENTS.md` | Full specifications (`00`–`04`), ADRs, Blackbox, Single-Repo governance & Pre-Commit guardrails | Git / Markdown | 🟢 `PRODUCTION (v2.5.0)` |
+| **`ARCH-LEXICON`** | **Architecture & AI Lexicon** | `architecture/`, `memory/`, `playbooks/`, `AGENTS.md`, `GEMINI.md`, `CLAUDE.md`, `.github/copilot-instructions.md` | Full specifications (`00`–`04`), ADRs, Blackbox, Single-Repo governance, Same-Turn Commit/Push enforcement & Pre-Commit guardrails | Git / Markdown | 🟢 `PRODUCTION (v2.5.0)` |
 | **`PROTO-WIRE`** | **Wire Framing & Protobuf** | `proto/tunnel.proto`, `proto/tunnel.pb.go` | Length-prefixed JSON wire framing (`MaxFrameSize = 32 MB`) for 5 Yamux stream types (`1..5` incl. `StreamTypeCertRenew` & `AnomalyAlert`) | Yamux Binary Frame | 🟢 `PRODUCTION (100.0% Cov)` |
 | **`CORE-GATEWAY`** | **mTLS 1.3 Hub, CRL & PKI Authority** | `apps/core-gateway/` | ECDSA P-256 Root CA, `CRL.json` revocation (`RevokeCertSerial`, `EvictNode`), auto-cert rotation, Yamux hub, `:8081/metrics` & reverse proxy | `8443/tcp` (mTLS 1.3)<br>`8081/tcp` (HTTP API) | 🟢 `PRODUCTION (v2.5.0)` |
 | **`AXON-AGENT`** | **Static Linux Muscle Agent** | `agents/axon/` | Outbound mTLS 1.3 client (`X25519`/`P-256` pinned + auto-rotation), procfs/socket `AnomalyAlerts`, PTY resource quota guard (`ulimit`), Ephemeral PTY GC & ancestor-symlink jail | Outbound `-> 8443/tcp` | 🟢 `PRODUCTION (v2.5.0)` |

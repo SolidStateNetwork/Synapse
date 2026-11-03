@@ -25,6 +25,7 @@ REQUIRED_FILES = [
     "AGENTS.md",
     "CLAUDE.md",
     "GEMINI.md",
+    ".github/copilot-instructions.md",
     ".agents/hooks.json",
     ".agents/scripts/session-start-lexicon.py",
     ".agents/scripts/stop-verify-git.py",
@@ -50,7 +51,6 @@ FORBIDDEN_PATHS = [
     ".cursorrules",
     ".windsurfrules",
     ".cursor",
-    ".github/copilot-instructions.md",
 ]
 
 FORBIDDEN_PATTERNS = [
