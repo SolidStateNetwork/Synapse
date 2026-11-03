@@ -5,7 +5,13 @@
   "type": "module",
   "main": "index.mjs",
   "bin": {
-    "synapse-mcp-server": "./index.mjs"
+    "synapse-mcp-server": "index.mjs"
+  },
+  "homepage": "https://github.com/SolidStateNetwork/Synapse",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SolidStateNetwork/Synapse.git",
+    "directory": "packages/mcp-server"
   },
   "scripts": {
     "test": "node --check index.mjs"

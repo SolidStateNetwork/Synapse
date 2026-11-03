@@ -7,15 +7,19 @@
   "homepage": "https://github.com/SolidStateNetwork/Synapse",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SolidStateNetwork/Synapse.git",
+    "url": "git+https://github.com/SolidStateNetwork/Synapse.git",
     "directory": "apps/core-web"
   },
   "main": "./mcp-stdio.mjs",
   "bin": {
-    "synapse": "./mcp-stdio.mjs",
-    "synapse-mcp": "./mcp-stdio.mjs",
-    "synapse-mcp-server": "./mcp-stdio.mjs"
+    "synapse": "mcp-stdio.mjs",
+    "synapse-mcp": "mcp-stdio.mjs",
+    "synapse-mcp-server": "mcp-stdio.mjs"
   },
+  "files": [
+    "mcp-stdio.mjs",
+    "PRIVACY.md"
+  ],
   "keywords": [
     "mcp",
     "model-context-protocol",
