@@ -64,8 +64,9 @@ def ensure_github_token_from_vault() -> str:
 
     for vault in candidates:
         try:
-            vault_tok = vault / "GATEWAY" / "07-workstation-recovery" / "github-token"
-            if vault_tok.exists():
+            matches = list(vault.glob("*/07-workstation-recovery/github-token"))
+            if matches:
+                vault_tok = matches[0]
                 tok = vault_tok.read_text(encoding="utf-8", errors="replace").strip()
                 if tok:
                     token_file.parent.mkdir(parents=True, exist_ok=True)
