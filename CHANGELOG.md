@@ -311,11 +311,11 @@ All notable changes to **Synapse** are documented in this file.
   - Deduplicated port socket indicators and coalesced pointer dragging via `requestAnimationFrame`.
 - **Redesigned Unified Service Workbench (`apps/core-web/src/app/page.tsx`)**:
   - Fluid **Service Selector Cards** with live health status dots, category icons (`WebUI`, `API`, `DB`), node badges, and endpoint counters.
-  - Single-row **Unified Workbench Header Bar** with a framed Segmented Mode Switcher (`API- & DB-Tester` | `Web-Vorschau`), external proxy link, and remove action.
+  - Single-row **Unified Workbench Header Bar** with a framed Segmented Mode Switcher (`API & DB Tester` | `Web Preview`), external proxy link, and remove action.
   - Deduplicated quick-select endpoint pills, unified Request Composer Bar, and structured Response Console with status badge and latency metrics.
 - **Extensible Bilingual Localization System (`apps/core-web/src/lib/i18n.tsx`)**:
-  - Full 1:1 German (`DE`) and English (`EN`) coverage across all 8 views (`Übersicht`, `Services`, `Server & Mesh`, `Brain Vault`, `Dateien`, `Regeln`, `Audit-Log`, `Einstellungen`), all modals, and the AI Copilot drawer.
-  - Dedicated **Language & Localization** settings tab (`Sprache & Region`) plus a height-matched (`32px`) header language switcher (`DE` | `EN`).
+  - Full 1:1 German (`DE`) and English (`EN`) coverage across all 8 views (`Overview`, `Services`, `Servers & Mesh`, `Brain Vault`, `Files`, `Rules`, `Audit Log`, `Settings`), all modals, and the AI Copilot drawer.
+  - Dedicated **Language & Localization** settings tab (`Language & Region`) plus a height-matched (`32px`) header language switcher (`DE` | `EN`).
 - **Comprehensive Documentation & Interactive SVG Diagrams (`README.md`, `docs/assets/`)**:
   - Complete English primary `README.md` with custom SVG architecture diagrams.
   - Updated `hero-banner.svg`, `architecture-flow.svg`, `control-center-preview.svg`, and `ai-skills-pipeline.svg`.
