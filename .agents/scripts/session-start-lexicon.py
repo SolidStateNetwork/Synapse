@@ -13,7 +13,7 @@ def read_snippet(filepath: str, max_lines: int = 35) -> str:
         with open(filepath, "r", encoding="utf-8") as f:
             return f.read().strip()
     except Exception:
-        return "(File unreadable)"
+        return "(file unreadable)"
 
 
 def main() -> None:
@@ -27,6 +27,7 @@ def main() -> None:
     try:
         git_status = subprocess.check_output(
             ["git", "-C", repo_root, "status", "-sb"],
+            stdin=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             text=True,
             timeout=2,
@@ -35,27 +36,20 @@ def main() -> None:
         git_status = "unknown"
 
     msg = (
-        "🚨 [MANDATORY SYNAPSE ARCHITECTURE & MEMORY DIRECTIVE - AUTO-INJECTED ON SESSION START]\n"
-        "You are operating in the standalone public repository SolidStateNetwork/Synapse.\n"
+        "[MANDATORY ARCHITECTURE & SINGLE-REPO DIRECTIVE - AUTO-INJECTED ON SESSION START]\n"
+        "You are operating in the standalone repository SolidStateNetwork/Synapse.\n"
         "MANDATORY RULES FOR EVERY ACTION:\n"
-        "1. Strict Single-Repo Boundary: Operate 100% inside CWD; never access ../ sibling directories.\n"
-        "2. Read First: Inspect AGENTS.md, memory/PROJECT_STATE.md, memory/BLACKBOX.md, memory/MILESTONES.md & architecture/00..04 before modifying code.\n"
-        "3. Public Clean-Room & 100% English Standard: Keep 100% of repository files in English (chat with the user in German). Never commit API tokens, private keys, Secrets.enc, .env, real server IPs, or local workstation paths (/home/<user>/...).\n"
-        "4. Quality Gates & Write-Back: Keep Go files < 500 lines (>= 90% coverage), TS/TSX files < 600 lines (0 any types), update memory/{PROJECT_STATE,MILESTONES,BLACKBOX}.md ([BB-XXX]), and run git commit & git push origin main.\n\n"
+        "0. UNIVERSAL INIT COMMAND: If the user says 'init' or 'rufe init auf', IMMEDIATELY run `python playbooks/scripts/init-repo.py`, check the latest GitHub Actions CI status via the `github` MCP server, and present a concise German readiness briefing.\n"
+        "1. STRICT SINGLE-REPO SCOPE: Operate 100% inside this repository (CWD). Never read, modify, or run commands in ../ sibling directories.\n"
+        "2. 100% ENGLISH REPO / GERMAN CHAT: Write all repo files, docs, code, and commits in 100% English; communicate with the user in German.\n"
+        "3. READ FIRST: Review AGENTS.md, memory/PROJECT_STATE.md, memory/BLACKBOX.md, memory/MILESTONES.md & architecture/*.md.\n"
+        "4. VERIFY & WRITE-BACK: Run `python playbooks/scripts/verify-lexicon-completeness.py`, update memory/{PROJECT_STATE,MILESTONES,BLACKBOX}.md ([BB-XXX]), and push to origin main.\n\n"
         f"--- CURRENT GIT STATUS ---\n{git_status}\n\n"
         f"--- EXCERPT: memory/PROJECT_STATE.md ---\n{state_excerpt}\n\n"
         f"--- LATEST ENTRY: memory/BLACKBOX.md ---\n{blackbox_excerpt}"
     )
 
-    output = {
-        "injectSteps": [
-            {
-                "systemMessage": {
-                    "systemMessage": msg
-                }
-            }
-        ]
-    }
+    output = {"injectSteps": [{"systemMessage": {"systemMessage": msg}}]}
     print(json.dumps(output))
 
 

@@ -22,6 +22,7 @@ def main() -> None:
     try:
         porcelain = subprocess.check_output(
             ["git", "-C", repo_root, "status", "--porcelain"],
+            stdin=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             text=True,
             timeout=2,
@@ -35,11 +36,11 @@ def main() -> None:
                 {
                     "decision": "continue",
                     "reason": (
-                        "🚨 [SYNAPSE LEXICON GUARDRAIL]: Uncommitted changes detected in the Synapse repository:\n"
+                        "[SYNAPSE-LEXICON-GUARDRAIL]: Uncommitted changes detected in the working tree:\n"
                         f"{porcelain}\n"
                         "Please ensure memory/BLACKBOX.md, memory/PROJECT_STATE.md, and memory/MILESTONES.md "
-                        "are updated in English, then run `git add`, `git commit`, and `git push origin main` "
-                        "before concluding your turn."
+                        "are updated in English, run `python playbooks/scripts/verify-lexicon-completeness.py`, "
+                        "and commit/push to `origin main` before concluding your response."
                     ),
                 }
             )

@@ -4,7 +4,7 @@
     "SessionStart": [
       {
         "type": "command",
-        "command": "python3 ./scripts/session-start-lexicon.py",
+        "command": "python ./scripts/session-start-lexicon.py",
         "timeout": 5
       }
     ]
@@ -14,7 +14,7 @@
     "Stop": [
       {
         "type": "command",
-        "command": "python3 ./scripts/stop-verify-git.py",
+        "command": "python ./scripts/stop-verify-git.py",
         "timeout": 5
       }
     ]
