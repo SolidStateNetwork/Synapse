@@ -1,7 +1,6 @@
 {
-  "name": "@synapse/core-web",
+  "name": "@solidstatenetwork/synapse",
   "version": "2.5.0",
-  "private": true,
   "description": "Synapse Core Control Center & Model Context Protocol (MCP) Server",
   "license": "MIT",
   "author": "SolidStateNetwork",
@@ -10,6 +9,23 @@
     "type": "git",
     "url": "https://github.com/SolidStateNetwork/Synapse.git",
     "directory": "apps/core-web"
+  },
+  "main": "./mcp-stdio.mjs",
+  "bin": {
+    "synapse": "./mcp-stdio.mjs",
+    "synapse-mcp": "./mcp-stdio.mjs",
+    "synapse-mcp-server": "./mcp-stdio.mjs"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "synapse",
+    "devops",
+    "mtls",
+    "ai-orchestrator"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
   },
   "scripts": {
     "dev": "next dev -p 3000",

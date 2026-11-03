@@ -19,8 +19,8 @@ import {
   CORE_GATEWAY_URL,
   fetchGatewayNodes,
   interceptAndExecuteTool,
-  SYNAPSE_TOOL_SCHEMAS,
 } from "@/lib/orchestrator";
+import { getRegisteredMcpToolDefinitions } from "@/lib/mcp/registeredTools";
 import {
   resolveActiveProjectId,
   safeParseRequestJson,
@@ -81,69 +81,7 @@ function extractApiKey(req: NextRequest): string {
 }
 
 function getMcpToolDefinitions() {
-  const baseTools = SYNAPSE_TOOL_SCHEMAS.map((s) => {
-    const hints = (s.function as { annotations?: Record<string, unknown> }).annotations;
-    return {
-      name: s.function.name,
-      description: s.function.description,
-      inputSchema: s.function.parameters,
-      annotations: {
-        title: typeof hints?.title === "string" ? hints.title : s.function.name,
-        readOnlyHint: Boolean(hints?.readOnlyHint),
-        destructiveHint: Boolean(hints?.destructiveHint),
-        idempotentHint: typeof hints?.idempotentHint === "boolean" ? hints.idempotentHint : true,
-        openWorldHint: Boolean(hints?.openWorldHint),
-      },
-    };
-  });
-
-  const extraTools = [
-    {
-      name: "synapse_list_peers",
-      description:
-        "List all connected Axon Muscle peers, their live CPU/RAM/Disk telemetry, Autonomy Tiers, IP addresses, and active PTY sessions.",
-      inputSchema: {
-        type: "object",
-        properties: { project_id: { type: "string", description: "Optional project ID (defaults to active workspace)" } },
-      },
-      annotations: { title: "List Connected Axon Muscle Peers", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    },
-    {
-      name: "synapse_get_project_state",
-      description:
-        "Read the complete Synapse Project Brain Vault state (State.json, Architecture.md, Memory.md, active Rule Cartridges, and Secret Key names).",
-      inputSchema: {
-        type: "object",
-        properties: { project_id: { type: "string", description: "Optional project ID (defaults to active workspace)" } },
-      },
-      annotations: { title: "Read Project Brain Vault State", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    },
-    {
-      name: "synapse_create_join_token",
-      description:
-        "Generate a one-time mTLS CSR join token and ready-to-run 'install.sh' + 'axon switch' CLI commands to enroll or rebind a Linux Muscle server.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          tier: { type: "string", enum: ["TIER_1_UNLEASHED", "TIER_2_WORKSPACE_JAIL", "TIER_3_SUPERVISED"], description: "Autonomy Tier for the Muscle peer" },
-          ttl_minutes: { type: "number", description: "Token validity in minutes (default 30)" },
-        },
-      },
-      annotations: { title: "Generate Muscle Enrollment Join Token", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-    },
-    {
-      name: "synapse_rollback_snapshot",
-      description: "Restore a remote file on a Muscle peer to a previous pre-write snapshot ID.",
-      inputSchema: {
-        type: "object",
-        required: ["snapshot_id"],
-        properties: { snapshot_id: { type: "string", description: "Snapshot ID to restore" } },
-      },
-      annotations: { title: "Rollback File to Pre-Write Snapshot", readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
-    },
-  ];
-
-  return [...baseTools, ...extraTools];
+  return getRegisteredMcpToolDefinitions();
 }
 
 async function executeMcpTool(

@@ -6,6 +6,7 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { GET as getMetrics } from "../app/api/metrics/route";
 import { GET as getWebhookInfo, POST as postWebhook } from "../app/api/playbooks/webhook/route";
+import { getRegisteredMcpToolDefinitions } from "../lib/mcp/registeredTools";
 import { interceptAndExecuteTool } from "../lib/orchestrator";
 import { appendAuditLog, ensureProjectVault } from "../lib/vault";
 import {
@@ -72,7 +73,7 @@ describe("Synapse v2.5.0 — Phase 8 Enterprise CRL, Signed Topology Bundles, DA
     assert.ok(String(verTampered.reason || "").includes("mismatch"));
   });
 
-  it("49. M8.2: simulateTopologyBundleApply computes non-destructive drift plan and rejects tampered bundles", async () => {
+  it("49. M8.2: simulateTopologyBundleApply computes non-destructive drift plan and rejects tampered bundles", () => {
     const bundle: SignedTopologyBundlePayload = signTopologyBundle(projId, {
       project_id: projId,
       active_cartridges: ["docker-first", "zero-trust-networking", "new-enterprise-cartridge"],
@@ -384,5 +385,70 @@ describe("Synapse v2.5.0 — Phase 8 Enterprise CRL, Signed Topology Bundles, DA
       const lines = fs.readFileSync(tsFile, "utf8").split("\n").length;
       assert.ok(lines <= 600, `TS file ${path.relative(repoRoot, tsFile)} has ${lines} lines (limit <= 600)`);
     }
+  });
+
+  it("59. M8.7: All 42 registered MCP tools and apps/core-web/mcp-stdio.mjs expose complete annotations and isolated handlers", async () => {
+    const expectedTools = [
+      "core_update_brain_doc",
+      "core_register_service",
+      "core_manage_secret",
+      "node_pty_exec",
+      "node_fs_operation",
+      "core_link_peers",
+      "node_deep_search",
+      "core_vault_search",
+      "node_firewall_control",
+      "core_deploy_git_stack",
+      "core_delete_git_stack",
+      "core_tail_service_logs",
+      "core_get_node_telemetry_history",
+      "core_run_due_cron_jobs",
+      "core_manage_backup",
+      "core_manage_checkpoint",
+      "core_manage_alerts",
+      "core_intrusion_scan",
+      "core_hot_reload_service_code",
+      "core_sqlite_studio",
+      "core_manage_cron_jobs",
+      "core_manage_self_healing",
+      "core_probe_service_mesh",
+      "core_manage_blueprint",
+      "core_manage_domain_tls",
+      "core_system_ota_status",
+      "core_manage_firewall",
+      "core_manage_cartridges",
+      "core_manage_cluster_nodes",
+      "core_manage_projects",
+      "core_run_platform_self_test",
+      "core_manage_playbooks",
+      "core_manage_approvals",
+      "core_invoke_service_action",
+      "core_manage_auth_and_ai",
+      "core_manage_topology_bundle",
+      "core_cluster_canary_exec",
+      "core_manage_mcp_keys",
+      "synapse_list_peers",
+      "synapse_get_project_state",
+      "synapse_create_join_token",
+      "synapse_rollback_snapshot",
+    ];
+
+    const registered = getRegisteredMcpToolDefinitions();
+    assert.equal(registered.length, 42);
+    const registeredNames = new Set(registered.map((t) => t.name));
+    for (const toolName of expectedTools) {
+      assert.ok(registeredNames.has(toolName), `Missing registered MCP tool: ${toolName}`);
+    }
+    for (const tool of registered) {
+      assert.equal(typeof tool.annotations.readOnlyHint, "boolean");
+      assert.equal(typeof tool.annotations.destructiveHint, "boolean");
+      assert.equal(typeof tool.annotations.idempotentHint, "boolean");
+      assert.equal(typeof tool.annotations.openWorldHint, "boolean");
+    }
+
+    const stdioPath = path.resolve(process.cwd(), "mcp-stdio.mjs");
+    const stdioMod = await import(`file://${stdioPath.replace(/\\/g, "/")}`);
+    const listRes = await stdioMod.handleMcpRpcRequest({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+    assert.equal(listRes.result.tools.length, 42);
   });
 });

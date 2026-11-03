@@ -35,6 +35,18 @@
 
 ## 📜 Chronological Engineering Log (Newest First)
 
+### [BB-018] 2026-11-03 12:18 (CET) – [MCP-SERVER / CORE-WEB / v2.5.0] M8ven MCP Trust Index Verification Upgrade: 42-Tool Isolated `server.registerTool` Handlers & Sandbox Stdio Entrypoint
+- **Actor:** Antigravity AI & Project Lead
+- **Type:** `ARCHITECTURE` | `FEATURE` | `SECURITY` | `TEST`
+- **Affected Modules:** `MCP-SERVER`, `CORE-WEB`, `ARCH-LEXICON`
+- **Goal / Context:** Maximize M8ven MCP Trust Index verification for subpath `apps/core-web` (`repo:solidstatenetwork/synapse#apps/core-web`) by exposing a runnable zero-dependency Stdio MCP binary (`mcp-stdio.mjs`), `@solidstatenetwork/synapse` package identity, and isolated `server.registerTool(...)` handlers for all 42 tools.
+- **Completed Steps:**
+  1. Updated `apps/core-web/package.json` with `"name": "@solidstatenetwork/synapse"`, removed `"private": true`, and added `"main": "./mcp-stdio.mjs"` plus `"bin"` entrypoints (`synapse`, `synapse-mcp`, `synapse-mcp-server`).
+  2. Created `apps/core-web/mcp-stdio.mjs` (and synchronized `packages/mcp-server/index.mjs`) as a self-contained zero-dependency Stdio/HTTP MCP server exposing all 42 annotated tools, 6 Lexicon resources, and stack prompts.
+  3. Created `apps/core-web/src/lib/mcp/registeredTools.ts` (`438` lines) and `apps/core-web/src/lib/mcp/registeredExtendedTools.ts` (`472` lines) registering all 42 Synapse MCP tools via `server.registerTool(...)` with inline JSON schemas, all 4 boolean safety annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), and isolated `try/catch` handlers, wired into `apps/core-web/src/app/api/mcp/route.ts`.
+  4. Added unit test `59. M8.7` in `apps/core-web/src/__tests__/v250-enterprise.test.ts` referencing and verifying all 42 registered MCP tools and `mcp-stdio.mjs`.
+- **Verification:** `node --check apps/core-web/mcp-stdio.mjs` (`EXIT 0`), `npx tsc --noEmit` (`0` errors), `59/59` TypeScript unit tests passing, and `python playbooks/scripts/verify-lexicon-completeness.py` (`PASSED`).
+
 ### [BB-017] 2026-11-03 10:00 (CET) – [ARCH-LEXICON / CORE-WEB / v2.5.0] Single-Repository Clean-Up, De-Coupling, Structural Consolidation & 100% English Standardization
 - **Actor:** Antigravity AI & Project Lead
 - **Type:** `ARCHITECTURE` | `SECURITY` | `ARCH-LEXICON`

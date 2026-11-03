@@ -1,7 +1,7 @@
 # 🎯 MILESTONES — Synapse Engineering Roadmap
 
 > **Purpose:** Tracks the completion of all development phases of **Synapse (`SolidStateNetwork/Synapse`)**.  
-> **Current Status:** **Phases 1 through 8 (`v2.5.0`) are 100% completed and verified in production (`58/58` TypeScript tests & `11/11 >= 90.0%` Go statement coverage).**
+> **Current Status:** **Phases 1 through 8 (`v2.5.0`) are 100% completed and verified in production (`59/59` TypeScript tests & `11/11 >= 90.0%` Go statement coverage).**
 
 ---
 
@@ -100,5 +100,9 @@
 - [x] **M8.5 (`v2.5.0`):** **OpenTelemetry / Prometheus Metrics Exporter (`/api/metrics` & `:8081/metrics`)**
   - [x] Prometheus/OpenMetrics-compatible endpoint for node telemetry (CPU, RAM, Disk, Yamux streams, MTTR, MCP tool latencies, and audit-chain integrity) with Bearer token protection.
 
-- [x] **M8.6 (`v2.5.0`):** **Full-Stack E2E Test Matrix Expansion (`58/58` TypeScript Tests & `>= 90%` Go Coverage Across All 11 Packages)**
-  - [x] Expansion of the automated test suite to **58 TypeScript tests** (`58/58` green) and **`>= 90.0%` Go statement coverage** across all 11 Go packages including CRL revocation, signed bundle, and DAG playbook fault-injection tests.
+- [x] **M8.6 (`v2.5.0`):** **Full-Stack E2E Test Matrix Expansion (`59/59` TypeScript Tests & `>= 90%` Go Coverage Across All 11 Packages)**
+  - [x] Expansion of the automated test suite to **59 TypeScript tests** (`59/59` green) and **`>= 90.0%` Go statement coverage** across all 11 Go packages including CRL revocation, signed bundle, DAG playbook fault-injection, and 42-tool MCP handler isolation tests.
+
+- [x] **M8.7 (`v2.5.0`):** **M8ven MCP Trust Index Verification Upgrade (`apps/core-web/mcp-stdio.mjs`, `apps/core-web/src/lib/mcp/registeredTools.ts`)**
+  - [x] Added self-contained zero-dependency Stdio MCP entrypoint (`apps/core-web/mcp-stdio.mjs`) with `"bin"` declarations and `@solidstatenetwork/synapse` package identity in `apps/core-web/package.json` for sandbox execution and publisher consistency.
+  - [x] Registered all **42 MCP tools** via `server.registerTool(...)` with explicit JSON schemas, 4 boolean safety annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), and isolated `try/catch` handlers (`registeredTools.ts` & `registeredExtendedTools.ts`).

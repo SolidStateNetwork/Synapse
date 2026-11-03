@@ -59,6 +59,10 @@ export function getStandaloneMcpToolDefinitions() {
       ...(required.length > 0 ? { required } : {}),
       properties,
     },
+    readOnlyHint: Boolean(readOnlyHint),
+    destructiveHint: Boolean(destructiveHint),
+    idempotentHint: Boolean(idempotentHint),
+    openWorldHint: Boolean(openWorldHint),
     annotations: {
       title,
       readOnlyHint: Boolean(readOnlyHint),
@@ -176,6 +180,19 @@ export async function handleMcpRpcRequest(rpcReq, opts = {}) {
     };
   }
 
+  if (method === "prompts/list") {
+    return {
+      jsonrpc: "2.0",
+      id: rpcId,
+      result: {
+        prompts: [
+          { name: "deploy-microservice", description: "Deploy and register a monitored microservice on an Axon Muscle peer." },
+          { name: "audit-security", description: "Run a zero-trust firewall, SSH intrusion, and audit-chain inspection." },
+        ],
+      },
+    };
+  }
+
   try {
     return await forwardToSynapseHttp(rpcReq, opts);
   } catch (err) {
@@ -202,9 +219,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const rl = readline.createInterface({ input: process.stdin, terminal: false });
   rl.on("line", async (line) => {
     const trimmed = line.trim();
-    if (!trimmed) return;
+    if (!trimmed || trimmed.toLowerCase().startsWith("content-length:")) return;
     try {
       const parsed = JSON.parse(trimmed);
+      if (parsed.method && parsed.id === undefined && String(parsed.method).startsWith("notifications/")) {
+        return;
+      }
       const response = await handleMcpRpcRequest(parsed);
       process.stdout.write(JSON.stringify(response) + "\n");
     } catch {
