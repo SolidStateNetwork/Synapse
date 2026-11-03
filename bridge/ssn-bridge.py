@@ -14,6 +14,11 @@ import shutil
 import sys
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE_PARENT = ROOT.parent
 
@@ -31,7 +36,8 @@ KNOWN_REPOS = [
 def sha256_file(path: Path) -> str:
     if not path.exists():
         return "missing"
-    return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+    raw = path.read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(raw).hexdigest()[:16]
 
 
 def discover_repos() -> list[dict]:
